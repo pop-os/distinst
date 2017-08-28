@@ -1,6 +1,6 @@
 use std::io::{Error, ErrorKind, Result};
 
-use super::Device;
+use super::sys::Device;
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Partition(Device);

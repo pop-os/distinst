@@ -6,10 +6,10 @@ use std::process;
 fn installer() -> Result<()> {
     let installer = distinst::Installer::new();
     for disk in installer.disks()? {
-        println!("{}: {} MB", disk.name(), disk.size()? / 1024 / 1024);
+        println!("{}: {} MB", disk.name(), disk.size()? / 1000000);
 
         for part in disk.parts()? {
-            println!("    {}: {} MB", part.name(), part.size()? / 1024 / 1024);
+            println!("    {}: {} MB", part.name(), part.size()? / 1000000);
         }
     }
 
