@@ -1,7 +1,7 @@
-pub use self::block::BlockDev;
 pub use self::disk::Disk;
 pub use self::part::Partition;
+pub use self::sys::Device;
 
-mod block;
 mod disk;
 mod part;
+mod sys;

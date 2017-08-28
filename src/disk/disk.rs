@@ -1,16 +1,16 @@
 use std::io::{Error, ErrorKind, Result};
 
-use super::{BlockDev, Partition};
+use super::{Device, Partition};
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct Disk(BlockDev);
+pub struct Disk(Device);
 
 impl Disk {
     /// Get all disks on the system
     pub fn all() -> Result<Vec<Self>> {
         let mut disks = vec![];
 
-        for dev in BlockDev::all()? {
+        for dev in Device::all()? {
             if dev.is_disk() {
                 disks.push(Disk(dev));
             }
@@ -20,7 +20,7 @@ impl Disk {
     }
 
     /// Create disk from device name
-    pub fn from_dev(dev: BlockDev) -> Result<Self> {
+    pub fn from_dev(dev: Device) -> Result<Self> {
         if dev.is_disk() {
             Ok(Disk(dev))
         } else {
@@ -30,7 +30,7 @@ impl Disk {
 
     /// Create disk from name
     pub fn from_name(name: &str) -> Result<Self> {
-        Disk::from_dev(BlockDev::new(name)?)
+        Disk::from_dev(Device::new(name)?)
     }
 
     /// Get disk name

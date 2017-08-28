@@ -1,16 +1,16 @@
 use std::io::{Error, ErrorKind, Result};
 
-use super::BlockDev;
+use super::Device;
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct Partition(BlockDev);
+pub struct Partition(Device);
 
 impl Partition {
     /// Get all partitions on the system
     pub fn all() -> Result<Vec<Self>> {
         let mut parts = vec![];
 
-        for dev in BlockDev::all()? {
+        for dev in Device::all()? {
             if dev.is_part() {
                 parts.push(Partition(dev));
             }
@@ -20,7 +20,7 @@ impl Partition {
     }
 
     /// Create partition from device
-    pub fn from_dev(dev: BlockDev) -> Result<Self> {
+    pub fn from_dev(dev: Device) -> Result<Self> {
         if dev.is_part() {
             Ok(Partition(dev))
         } else {
@@ -30,7 +30,7 @@ impl Partition {
 
     /// Create partition from name
     pub fn from_name(name: &str) -> Result<Self> {
-        Partition::from_dev(BlockDev::new(name)?)
+        Partition::from_dev(Device::new(name)?)
     }
 
     /// Get partition name

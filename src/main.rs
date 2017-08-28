@@ -4,7 +4,7 @@ use std::io::Result;
 use std::process;
 
 fn installer() -> Result<()> {
-    let mut installer = distinst::Installer::new();
+    let installer = distinst::Installer::new();
     for disk in installer.disks()? {
         println!("{}: {} MB", disk.name(), disk.size()? / 1024 / 1024);
 

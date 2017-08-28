@@ -2,9 +2,9 @@ use std::fs;
 use std::io::{Error, ErrorKind, Read, Result};
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct BlockDev(String);
+pub struct Device(String);
 
-impl BlockDev {
+impl Device {
     /// Get all block devices on the system
     pub fn all() -> Result<Vec<Self>> {
         let mut devs = vec![];
@@ -14,7 +14,7 @@ impl BlockDev {
             let name = entry.file_name().into_string().map_err(|os_str| {
                 Error::new(ErrorKind::InvalidData, format!("Invalid device name: {:?}", os_str))
             })?;
-            devs.push(BlockDev(name));
+            devs.push(Device(name));
         }
 
         devs.sort();
@@ -25,7 +25,7 @@ impl BlockDev {
     /// Create a block device by name
     pub fn new(name: &str) -> Result<Self> {
         fs::read_dir(&format!("/sys/class/block/{}/", name))?;
-        Ok(BlockDev(name.to_string()))
+        Ok(Device(name.to_string()))
     }
 
     /// Get the name of the block device
@@ -82,7 +82,7 @@ impl BlockDev {
     }
 
     /// Get the children of the device
-    pub fn children(&self) -> Result<Vec<BlockDev>> {
+    pub fn children(&self) -> Result<Vec<Device>> {
         let mut devs = vec![];
 
         if self.is_disk() {
@@ -90,7 +90,7 @@ impl BlockDev {
                 let entry = entry_res?;
                 if let Ok(name) = entry.file_name().into_string() {
                     if name.starts_with(&self.0) {
-                        if let Ok(dev) = BlockDev::new(&name) {
+                        if let Ok(dev) = Device::new(&name) {
                             if dev.is_part() {
                                 devs.push(dev);
                             }
