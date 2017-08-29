@@ -3,7 +3,7 @@ extern crate distinst;
 use std::io::Result;
 use std::process;
 
-fn installer() -> Result<()> {
+fn list() -> Result<()> {
     let installer = distinst::Installer::new();
     for disk in installer.disks()? {
         println!("{}: {} MB", disk.name(), disk.size()? / 1000000);
@@ -17,8 +17,8 @@ fn installer() -> Result<()> {
 }
 
 fn main() {
-    if let Err(err) = installer() {
-        eprintln!("installer: failed to install: {}", err);
+    if let Err(err) = list() {
+        eprintln!("list: failed: {}", err);
         process::exit(1);
     }
 }
