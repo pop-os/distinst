@@ -35,6 +35,9 @@ sudo mount --bind /dev "${DIR}/dev"
 sudo mount --bind /proc "${DIR}/proc"
 sudo mount --bind /sys "${DIR}/sys"
 
+sudo chroot "${DIR}/" apt-get purge -y casper ubiquity
+sudo chroot "${DIR}/" apt-get autoremove -y --purge
+
 ROOTDEV="$(sudo chroot "${DIR}/" df --output=source / | sed 1d)"
 ROOTUUID="$(sudo chroot "${DIR}/" blkid -o value -s UUID "${ROOTDEV}")"
 echo "# / was on ${ROOTDEV} during installation" | sudo chroot "${DIR}/" tee /etc/fstab
@@ -45,13 +48,13 @@ EFIUUID="$(sudo chroot "${DIR}/" blkid -o value -s UUID "${EFIDEV}")"
 echo "# /boot/efi was on ${EFIDEV} during installation" | sudo chroot "${DIR}/" tee -a /etc/fstab
 echo "UUID=${EFIUUID} /boot/efi vfat umask=0077 0 1" | sudo chroot "${DIR}/" tee -a /etc/fstab
 
-sudo chroot "${DIR}/" apt install -y xterm grub-efi-amd64-signed
-sudo chroot "${DIR}/" apt purge -y casper ubiquity
-sudo chroot "${DIR}/" apt autoremove -y --purge
+sudo chroot "${DIR}/" locale-gen --purge
+
+sudo chroot "${DIR}/" apt-get install -y xterm grub-efi-amd64-signed
 
 sudo chroot "${DIR}/" grub-mkconfig -o /boot/grub/grub.cfg
 
-sudo grub-install --recheck --target=x86_64-efi --boot-directory="${DIR}/boot/" --efi-directory="${DIR}/boot/efi/" "${LO}"
+sudo grub-install --target=x86_64-efi --boot-directory="${DIR}/boot/" --efi-directory="${DIR}/boot/efi/" "${LO}"
 
 sudo umount "${DIR}/dev"
 sudo umount "${DIR}/proc"

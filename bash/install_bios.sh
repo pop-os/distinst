@@ -31,14 +31,17 @@ sudo mount --bind /dev "${DIR}/dev"
 sudo mount --bind /proc "${DIR}/proc"
 sudo mount --bind /sys "${DIR}/sys"
 
+sudo chroot "${DIR}/" apt-get purge -y casper ubiquity
+sudo chroot "${DIR}/" apt-get autoremove -y --purge
+
 ROOTDEV="$(sudo chroot "${DIR}/" df --output=source / | sed 1d)"
 ROOTUUID="$(sudo chroot "${DIR}/" blkid -o value -s UUID "${ROOTDEV}")"
 echo "# / was on ${ROOTDEV} during installation" | sudo chroot "${DIR}/" tee /etc/fstab
 echo "UUID=${ROOTUUID} / ext4 errors=remount-ro 0 1" | sudo chroot "${DIR}/" tee -a /etc/fstab
 
-sudo chroot "${DIR}/" apt install -y xterm grub-pc
-sudo chroot "${DIR}/" apt purge -y casper ubiquity
-sudo chroot "${DIR}/" apt autoremove -y --purge
+sudo chroot "${DIR}/" locale-gen --purge
+
+sudo chroot "${DIR}/" apt-get install -y xterm grub-pc
 
 sudo chroot "${DIR}/" grub-mkconfig -o /boot/grub/grub.cfg
 
