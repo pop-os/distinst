@@ -36,12 +36,12 @@ sudo mount --bind /proc "${DIR}/proc"
 sudo mount --bind /sys "${DIR}/sys"
 
 ROOTDEV="$(sudo chroot "${DIR}/" df --output=source / | sed 1d)"
-ROOTUUID="$(lsblk -n -o UUID "${ROOTDEV}")"
+ROOTUUID="$(sudo chroot "${DIR}/" lsblk -n -o UUID "${ROOTDEV}")"
 echo "# / was on ${ROOTDEV} during installation" | sudo chroot "${DIR}/" tee /etc/fstab
 echo "UUID=${ROOTUUID} / ext4 errors=remount-ro 0 1" | sudo chroot "${DIR}/" tee -a /etc/fstab
 
 EFIDEV="$(sudo chroot "${DIR}/" df --output=source /boot/efi/ | sed 1d)"
-EFIUUID="$(lsblk -n -o UUID "${EFIDEV}")"
+EFIUUID="$(sudo chroot "${DIR}/" lsblk -n -o UUID "${EFIDEV}")"
 echo "# /boot/efi was on ${EFIDEV} during installation" | sudo chroot "${DIR}/" tee -a /etc/fstab
 echo "UUID=${EFIUUID} /boot/efi vfat umask=0077 0 1" | sudo chroot "${DIR}/" tee -a /etc/fstab
 
