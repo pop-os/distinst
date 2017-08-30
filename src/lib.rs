@@ -17,6 +17,22 @@ pub enum Bootloader {
     Efi,
 }
 
+/// Installation step
+#[derive(Copy, Clone, Debug)]
+pub enum Step {
+    Partition,
+    Format,
+    Extract,
+    Bootloader,
+}
+
+/// Installer configuration
+#[derive(Debug)]
+pub struct Config {
+    squashfs: String,
+    drive: String,
+}
+
 /// Installer error
 #[derive(Debug)]
 pub struct Error {
@@ -29,15 +45,6 @@ pub struct Error {
 pub struct Status {
     pub step: Step,
     pub percent: i32,
-}
-
-/// Installation step
-#[derive(Copy, Clone, Debug)]
-pub enum Step {
-    Partition,
-    Format,
-    Extract,
-    Bootloader,
 }
 
 /// An installer object
@@ -116,8 +123,8 @@ impl Installer {
     }
 
     /// Install the system with the specified bootloader
-    pub fn install(&mut self, drive: &str, bootloader: Bootloader) {
-        println!("Installing {} with {:?}", drive, bootloader);
+    pub fn install(&mut self, config: &Config) {
+        println!("Installing {:?}", config);
 
         for &step in [Step::Partition, Step::Format, Step::Extract, Step::Bootloader].iter() {
             for i in 0..11 {

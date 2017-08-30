@@ -3,35 +3,7 @@ extern crate libc;
 use std::ffi::CStr;
 use std::io;
 
-use super::{Bootloader, Error, Installer, Status, Step};
-
-/// Bootloader type
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub enum DISTINST_BOOTLOADER {
-    BIOS,
-    EFI,
-}
-
-impl From<DISTINST_BOOTLOADER> for Bootloader {
-    fn from(step: DISTINST_BOOTLOADER) -> Self {
-        use DISTINST_BOOTLOADER::*;
-        match step{
-            BIOS => Bootloader::Bios,
-            EFI => Bootloader::Efi,
-        }
-    }
-}
-
-impl From<Bootloader> for DISTINST_BOOTLOADER {
-    fn from(step: Bootloader) -> Self {
-        use DISTINST_BOOTLOADER::*;
-        match step{
-            Bootloader::Bios => BIOS,
-            Bootloader::Efi => EFI,
-        }
-    }
-}
+use super::{Config, Error, Installer, Status, Step};
 
 /// Bootloader steps
 #[repr(C)]
@@ -67,9 +39,32 @@ impl From<Step> for DISTINST_STEP {
     }
 }
 
-/// An installer object
+/// Installer configuration
 #[repr(C)]
-pub struct DistinstInstaller(Installer);
+#[derive(Debug)]
+pub struct DistinstConfig {
+    squashfs: *const libc::c_char,
+    drive: *const libc::c_char,
+}
+
+impl DistinstConfig {
+    unsafe fn into_config(&self) -> Result<Config, io::Error> {
+        let squashfs_cstr = CStr::from_ptr(self.squashfs);
+        let squashfs = squashfs_cstr.to_str().map_err(|err| {
+            io::Error::new(io::ErrorKind::InvalidData, format!("Invalid UTF-8: {}", err))
+        })?;
+
+        let drive_cstr = CStr::from_ptr(self.drive);
+        let drive = drive_cstr.to_str().map_err(|err| {
+            io::Error::new(io::ErrorKind::InvalidData, format!("Invalid UTF-8: {}", err))
+        })?;
+
+        Ok(Config {
+            squashfs: squashfs.to_string(),
+            drive: drive.to_string(),
+        })
+    }
+}
 
 /// Installer error message
 #[repr(C)]
@@ -92,6 +87,10 @@ pub struct DistinstStatus {
 
 /// Installer status callback
 pub type DistinstStatusCallback = extern "C" fn(status: *const DistinstStatus, user_data: * mut libc::c_void);
+
+/// An installer object
+#[repr(C)]
+pub struct DistinstInstaller(Installer);
 
 /// Create an installer object
 #[no_mangle]
@@ -118,7 +117,7 @@ pub unsafe extern fn distinst_installer_on_error(installer: *mut DistinstInstall
         callback(
             & DistinstError {
                 step: error.step.into(),
-                err: error.err.raw_os_error().unwrap_or(0),
+                err: error.err.raw_os_error().unwrap_or(libc::EINVAL),
             } as *const DistinstError,
             user_data
         )
@@ -152,20 +151,14 @@ pub unsafe extern fn distinst_installer_on_status(installer: *mut DistinstInstal
 
 /// Install using this installer
 #[no_mangle]
-pub unsafe extern fn distinst_installer_install(installer: *mut DistinstInstaller, drive: *const libc::c_char, bootloader: DISTINST_BOOTLOADER) {
-    let cstr = CStr::from_ptr(drive);
-    match cstr.to_str() {
-        Ok(string) => {
-            (*installer).0.install(
-                string,
-                match bootloader {
-                    DISTINST_BOOTLOADER::BIOS => Bootloader::Bios,
-                    DISTINST_BOOTLOADER::EFI => Bootloader::Efi,
-                }
-            );
+pub unsafe extern fn distinst_installer_install(installer: *mut DistinstInstaller, config: *const DistinstConfig) -> libc::c_int {
+    match (*config).into_config() {
+        Ok(config) => {
+            (*installer).0.install(&config);
+            0
         },
         Err(err) => {
-            println!("install error: {}", err);
+            err.raw_os_error().unwrap_or(libc::EINVAL)
         }
     }
 }

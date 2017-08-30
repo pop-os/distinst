@@ -31,7 +31,11 @@ int main(int argc, char ** argv) {
     distinst_installer_on_error(installer, on_error, (void*)0x12C0FFEE);
     distinst_installer_on_status(installer, on_status, (void *)0xDEADBEEF);
 
-    distinst_installer_install(installer, "/dev/sda", DISTINST_BOOTLOADER_BIOS);
+    DistinstConfig config = {
+        .squashfs = "../../bash/filesystem.squashfs",
+        .drive = "/dev/sda",
+    };
+    distinst_installer_install(installer, &config);
 
     distinst_installer_destroy(installer);
 
