@@ -35,17 +35,17 @@ sudo mount --bind /dev "${DIR}/dev"
 sudo mount --bind /proc "${DIR}/proc"
 sudo mount --bind /sys "${DIR}/sys"
 
-sudo chroot "${DIR}/" apt install -y grub-efi-amd64-signed
+sudo chroot "${DIR}/" apt install -y xterm grub-efi-amd64-signed
 sudo chroot "${DIR}/" apt purge -y casper ubiquity
 sudo chroot "${DIR}/" apt autoremove -y --purge
 
 ROOTDEV="$(sudo chroot "${DIR}/" df --output=source / | sed 1d)"
-ROOTUUID="$(sudo chroot "${DIR}/" blkid -o value -s UUID "${ROOTDEV}")"
+ROOTUUID="$(lsblk -n -o UUID "${ROOTDEV}")"
 echo "# / was on ${ROOTDEV} during installation" | sudo chroot "${DIR}/" tee /etc/fstab
 echo "UUID=${ROOTUUID} / ext4 errors=remount-ro 0 1" | sudo chroot "${DIR}/" tee -a /etc/fstab
 
-EFIDEV="$(sudo chroot "${DIR}/" df --output=source /boot/efi | sed 1d)"
-EFIUUID="$(sudo chroot "${DIR}/" blkid -o value -s UUID "${EFIDEV}")"
+EFIDEV="$(sudo chroot "${DIR}/" df --output=source /boot/efi/ | sed 1d)"
+EFIUUID="$(lsblk -n -o UUID "${EFIDEV}")"
 echo "# /boot/efi was on ${EFIDEV} during installation" | sudo chroot "${DIR}/" tee -a /etc/fstab
 echo "UUID=${ROOTUUID} /boot/efi vfat umask=0077 0 1" | sudo chroot "${DIR}/" tee -a /etc/fstab
 
