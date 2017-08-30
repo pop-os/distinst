@@ -3,5 +3,13 @@ name = "distinst"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 
+[lib]
+name = "distinst"
+crate-type = ["lib", "dylib"]
+
+[build-dependencies]
+moz-cheddar = "0.4.0"
+
 [dependencies]
-"libparted-sys" = { "git" = "https://github.com/system76/libparted-sys.git" }
+"libc" = "0.2"
+"libparted" = { "git" = "https://github.com/system76/libparted.git" }
