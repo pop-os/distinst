@@ -1,6 +1,6 @@
 //! A crate for installing Ubuntu distributions from a live squashfs
 
-use std::io;
+use std::{io, path};
 
 use disk::Disk;
 
@@ -15,6 +15,16 @@ mod disk;
 pub enum Bootloader {
     Bios,
     Efi,
+}
+
+impl Bootloader {
+    pub fn detect() -> Bootloader {
+        if path::Path::new("/sys/firmware/efi").is_dir() {
+            Bootloader::Efi
+        } else {
+            Bootloader::Bios
+        }
+    }
 }
 
 /// Installation step
@@ -125,6 +135,10 @@ impl Installer {
     /// Install the system with the specified bootloader
     pub fn install(&mut self, config: &Config) {
         println!("Installing {:?}", config);
+
+        let bootloader = Bootloader::detect();
+
+        println!("Bootloader: {:?}", bootloader);
 
         for &step in [Step::Partition, Step::Format, Step::Extract, Step::Bootloader].iter() {
             for i in 0..11 {
