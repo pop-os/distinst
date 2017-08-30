@@ -1,6 +1,6 @@
 //! A crate for installing Ubuntu distributions from a live squashfs
 
-use std::io::Result;
+use std::io;
 
 use disk::Disk;
 
@@ -10,9 +10,40 @@ pub use c::*;
 mod c;
 mod disk;
 
+/// Bootloader type
+#[derive(Copy, Clone, Debug)]
+pub enum Bootloader {
+    Bios,
+    Efi,
+}
+
+/// Installer error
+#[derive(Debug)]
+pub struct Error {
+    pub step: Step,
+    pub err: io::Error,
+}
+
+/// Installer status
+#[derive(Copy, Clone, Debug)]
+pub struct Status {
+    pub step: Step,
+    pub percent: i32,
+}
+
+/// Installation step
+#[derive(Copy, Clone, Debug)]
+pub enum Step {
+    Partition,
+    Format,
+    Extract,
+    Bootloader,
+}
+
 /// An installer object
 pub struct Installer {
-    status_cb: Option<Box<FnMut(u32)>>
+    error_cb: Option<Box<FnMut(&Error)>>,
+    status_cb: Option<Box<FnMut(&Status)>>,
 }
 
 impl Installer {
@@ -24,20 +55,52 @@ impl Installer {
     /// ```
     pub fn new() -> Installer {
         Installer {
+            error_cb: None,
             status_cb: None,
         }
+    }
+
+    /// Send an error message
+    ///
+    /// ```
+    /// use std::io;
+    /// use distinst::{Installer, Error, Step};
+    /// let mut installer = Installer::new();
+    /// installer.emit_error(&Error {
+    ///     step: Step::Extract,
+    ///     err: io::Error::new(io::ErrorKind::NotFound, "File not found")
+    /// });
+    /// ```
+    pub fn emit_error(&mut self, error: &Error) {
+        if let Some(ref mut cb) = self.error_cb {
+            cb(error);
+        }
+    }
+
+    /// Set the error callback
+    ///
+    /// ```
+    /// use distinst::Installer;
+    /// let mut installer = Installer::new();
+    /// installer.on_error(|error| println!("{:?}", error));
+    /// ```
+    pub fn on_error<F: FnMut(&Error) + 'static>(&mut self, callback: F) {
+        self.error_cb = Some(Box::new(callback));
     }
 
     /// Send a status message
     ///
     /// ```
-    /// use distinst::Installer;
+    /// use distinst::{Installer, Status, Step};
     /// let mut installer = Installer::new();
-    /// installer.emit_status(0);
+    /// installer.emit_status(&Status {
+    ///     step: Step::Extract,
+    ///     percent: 50,
+    /// });
     /// ```
-    pub fn emit_status(&mut self, status: u32) {
-        if let Some(ref mut status_cb) = self.status_cb {
-            status_cb(status);
+    pub fn emit_status(&mut self, status: &Status) {
+        if let Some(ref mut cb) = self.status_cb {
+            cb(status);
         }
     }
 
@@ -46,10 +109,25 @@ impl Installer {
     /// ```
     /// use distinst::Installer;
     /// let mut installer = Installer::new();
-    /// installer.on_status(|status| println!("{}", status));
+    /// installer.on_status(|status| println!("{:?}", status));
     /// ```
-    pub fn on_status<F: FnMut(u32) + 'static>(&mut self, callback: F) {
+    pub fn on_status<F: FnMut(&Status) + 'static>(&mut self, callback: F) {
         self.status_cb = Some(Box::new(callback));
+    }
+
+    /// Install the system with the specified bootloader
+    pub fn install(&mut self, drive: &str, bootloader: Bootloader) {
+        println!("Installing {} with {:?}", drive, bootloader);
+
+        for &step in [Step::Partition, Step::Format, Step::Extract, Step::Bootloader].iter() {
+            for i in 0..11 {
+                self.emit_status(&Status {
+                    step: step,
+                    percent: i * 10,
+                });
+                ::std::thread::sleep(::std::time::Duration::new(1, 0));
+            }
+        }
     }
 
     /// Get a list of disks, skipping loopback devices
@@ -59,7 +137,7 @@ impl Installer {
     /// let installer = Installer::new();
     /// let disks = installer.disks().unwrap();
     /// ```
-    pub fn disks(&self) -> Result<Vec<Disk>> {
+    pub fn disks(&self) -> io::Result<Vec<Disk>> {
         let mut disks = Disk::all()?;
         disks.retain(|disk| {
             ! disk.name().starts_with("loop")
