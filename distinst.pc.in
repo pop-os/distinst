@@ -1,3 +1,6 @@
+libdir=${{exec_prefix}}/lib
+includedir=${{prefix}}/include
+
 Name: {name}
 Description: {description}
 Version: {version}
