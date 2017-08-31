@@ -11,7 +11,13 @@ In order to build `distinst` on Ubuntu, you will need to follow these instructio
 curl https://sh.rustup.rs -sSf | sh
 
 # Build in release mode
-cargo build --release
+make
+
+# Install
+sudo make install
+
+# Uninstall
+sudo make uninstall
 ```
 
 The following files will be generated:

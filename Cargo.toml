@@ -14,4 +14,4 @@ moz-cheddar = "0.4.0"
 
 [dependencies]
 "libc" = "0.2"
-"libparted" = { "git" = "https://github.com/system76/libparted.git" }
+#TODO "libparted" = { "git" = "https://github.com/system76/libparted.git" }
