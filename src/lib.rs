@@ -3,12 +3,16 @@
 use std::{io, path};
 
 use disk::Disk;
+pub use chroot::Chroot;
+pub use mount::{Mount, MountKind};
 
 #[doc(hidden)]
 pub use c::*;
 
 mod c;
+mod chroot;
 mod disk;
+mod mount;
 
 /// Bootloader type
 #[derive(Copy, Clone, Debug)]
