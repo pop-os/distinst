@@ -7,6 +7,11 @@ Distribution Installer Backend
 In order to build `distinst` on Ubuntu, you will need to follow these instructions:
 
 ```
-sudo apt-get install cargo libparted-dev
+# Install Rust
+curl https://sh.rustup.rs -sSf | sh
+
+# Build in release mode
 cargo build --release
 ```
+
+The resulting library is at `target/release/libdistinst.so`, and the header is at `target/include/distinst.h`
