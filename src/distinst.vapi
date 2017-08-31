@@ -1,0 +1,44 @@
+
+[CCode (cprefix = "Distinst", lower_case_cprefix = "distinst_", cheader_filename = "distinst.h")]
+namespace Distinst {
+    [CCode (cname = "DISTINST_STEP", has_type_id = false)]
+    public enum Step {
+        PARTITION,
+        FORMAT,
+        EXTRACT,
+        BOOTLOADER
+    }
+
+    [CCode (has_type_id = false, destroy_function = "")]
+    public struct Config {
+        string squashfs;
+        string drive;
+    }
+
+    [CCode (has_type_id = false)]
+    public struct Error {
+        Distinst.Step step;
+        int err;
+    }
+
+    public delegate void ErrorCallback (Distinst.Error status);
+
+    [CCode (has_type_id = false)]
+    public struct Status {
+        Distinst.Step step;
+        int percent;
+    }
+
+    public delegate void StatusCallback (Distinst.Status status);
+
+    [Compact]
+    [CCode (free_function = "distinst_installer_destroy", has_type_id = false)]
+    public class Installer {
+        public Installer ();
+        public void emit_error (Distinst.Error error);
+        public void on_error (Distinst.ErrorCallback callback);
+        public void emit_status (Distinst.Status error);
+        public void on_status (Distinst.StatusCallback callback);
+        public int install (Distinst.Config config);
+    }
+}
