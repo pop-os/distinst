@@ -14,4 +14,7 @@ curl https://sh.rustup.rs -sSf | sh
 cargo build --release
 ```
 
-The resulting library is at `target/release/libdistinst.so`, and the header is at `target/include/distinst.h`
+The following files will be generated:
+Library: `target/release/libdistinst.so`
+Header: `target/include/distinst.h`
+pkg-config: `target/pkg-config/distinst.pc`
