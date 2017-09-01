@@ -1,6 +1,6 @@
 //! A crate for installing Ubuntu distributions from a live squashfs
 
-use std::{io, path};
+use std::{io, path, thread, time};
 
 use disk::Disk;
 pub use chroot::Chroot;
@@ -13,9 +13,10 @@ mod c;
 mod chroot;
 mod disk;
 mod mount;
+mod squashfs;
 
 /// Bootloader type
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Bootloader {
     Bios,
     Efi,
@@ -32,7 +33,7 @@ impl Bootloader {
 }
 
 /// Installation step
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Step {
     Partition,
     Format,
@@ -43,8 +44,8 @@ pub enum Step {
 /// Installer configuration
 #[derive(Debug)]
 pub struct Config {
-    squashfs: String,
-    drive: String,
+    pub squashfs: String,
+    pub drive: String,
 }
 
 /// Installer error
@@ -136,22 +137,107 @@ impl Installer {
         self.status_cb = Some(Box::new(callback));
     }
 
+    fn partition<F: FnMut(i32)>(config: &Config, bootloader: &Bootloader, mut callback: F) -> io::Result<()> {
+        for i in 0..101 {
+            callback(i);
+            thread::sleep(time::Duration::from_millis(50));
+        }
+
+        Ok(())
+    }
+
+    fn format<F: FnMut(i32)>(config: &Config, bootloader: &Bootloader, mut callback: F) -> io::Result<()> {
+        for i in 0..101 {
+            callback(i);
+            thread::sleep(time::Duration::from_millis(50));
+        }
+
+        Ok(())
+    }
+
+    fn extract<F: FnMut(i32)>(config: &Config, bootloader: &Bootloader, mut callback: F) -> io::Result<()> {
+        squashfs::extract(&config.squashfs, "/tmp/squashfs", callback)
+    }
+
+    fn bootloader<F: FnMut(i32)>(config: &Config, bootloader: &Bootloader, mut callback: F) -> io::Result<()> {
+        for i in 0..101 {
+            callback(i);
+            thread::sleep(time::Duration::from_millis(50));
+        }
+
+        Ok(())
+    }
+
     /// Install the system with the specified bootloader
     pub fn install(&mut self, config: &Config) {
-        println!("Installing {:?}", config);
-
         let bootloader = Bootloader::detect();
 
-        println!("Bootloader: {:?}", bootloader);
+        println!("Installing {:?} using {:?}", config, bootloader);
 
-        for &step in [Step::Partition, Step::Format, Step::Extract, Step::Bootloader].iter() {
-            for i in 0..11 {
-                self.emit_status(&Status {
-                    step: step,
-                    percent: i * 10,
-                });
-                ::std::thread::sleep(::std::time::Duration::new(1, 0));
-            }
+        let mut status = Status {
+            step: Step::Partition,
+            percent: 0,
+        };
+        self.emit_status(&status);
+
+        if let Err(err) = Installer::partition(config, &bootloader, |percent| {
+            status.percent = percent;
+            self.emit_status(&status);
+        }) {
+            println!("Partition error: {}", err);
+            self.emit_error(&Error {
+                step: status.step,
+                err: err,
+            });
+            return;
+        }
+
+        status.step = Step::Format;
+        status.percent = 0;
+        self.emit_status(&status);
+
+        if let Err(err) = Installer::format(config, &bootloader, |percent| {
+            status.percent = percent;
+            self.emit_status(&status);
+        }) {
+            println!("Format error: {}", err);
+            self.emit_error(&Error {
+                step: status.step,
+                err: err,
+            });
+            return;
+        }
+
+        status.step = Step::Extract;
+        status.percent = 0;
+        self.emit_status(&status);
+
+        if let Err(err) = Installer::extract(config, &bootloader, |percent| {
+            status.percent = percent;
+            self.emit_status(&status);
+        }) {
+            println!("Extract error: {}", err);
+            self.emit_error(&Error {
+                step: status.step,
+                err: err,
+            });
+            return;
+        }
+
+        status.step = Step::Bootloader;
+        status.percent = 0;
+        self.emit_status(&status);
+
+        if let Err(err) = Installer::bootloader(config, &bootloader, |percent| {
+            status.percent = percent;
+            self.emit_status(&status);
+        }) {
+            println!("Bootloader error: {}", err);
+            self.emit_error(&Error {
+                step: status.step,
+                err: err,
+            });
+            return;
         }
     }
 
