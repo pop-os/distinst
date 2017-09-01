@@ -117,7 +117,7 @@ pub unsafe extern fn distinst_installer_on_error(installer: *mut DistinstInstall
         callback(
             & DistinstError {
                 step: error.step.into(),
-                err: error.err.raw_os_error().unwrap_or(libc::EINVAL),
+                err: error.err.raw_os_error().unwrap_or(libc::EIO),
             } as *const DistinstError,
             user_data
         )
@@ -154,11 +154,15 @@ pub unsafe extern fn distinst_installer_on_status(installer: *mut DistinstInstal
 pub unsafe extern fn distinst_installer_install(installer: *mut DistinstInstaller, config: *const DistinstConfig) -> libc::c_int {
     match (*config).into_config() {
         Ok(config) => {
-            (*installer).0.install(&config);
-            0
+            match (*installer).0.install(&config) {
+                Ok(()) => 0,
+                Err(err) => {
+                    err.raw_os_error().unwrap_or(libc::EIO)
+                }
+            }
         },
         Err(err) => {
-            err.raw_os_error().unwrap_or(libc::EINVAL)
+            err.raw_os_error().unwrap_or(libc::EIO)
         }
     }
 }

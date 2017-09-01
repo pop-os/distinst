@@ -22,8 +22,8 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, direc
     let mut input = unsafe { File::from_raw_fd(fds[0]) };
     let output = unsafe { Stdio::from_raw_fd(fds[1]) };
 
-    let mut child = Command::new("sudo")
-        .arg("script").arg("--return").arg("--flush").arg("--quiet").arg("--command")
+    let mut child = Command::new("script")
+        .arg("--return").arg("--flush").arg("--quiet").arg("--command")
         .arg(format!(
             "unsquashfs -f -d '{}' '{}'",
             directory.to_str().ok_or(
@@ -60,7 +60,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, direc
         Ok(())
     } else {
         Err(Error::new(
-            ErrorKind::PermissionDenied,
+            ErrorKind::Other,
             format!("unsquashfs failed with status: {}", status)
         ))
     }

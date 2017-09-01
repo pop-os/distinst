@@ -2,30 +2,47 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub enum MountKind {
-    Bind,
-}
-
+#[derive(Debug)]
 pub struct Mount {
     source: PathBuf,
     dest: PathBuf,
-    kind: MountKind,
     mounted: bool,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum MountOption {
+    Bind,
+    Synchronize,
+}
+
 impl Mount {
-    pub fn new<P: AsRef<Path>, Q: AsRef<Path>>(source: P, dest: Q, kind: MountKind) -> Result<Mount> {
+    pub fn new<P: AsRef<Path>, Q: AsRef<Path>>(source: P, dest: Q, options: &[MountOption]) -> Result<Mount> {
         let source = source.as_ref().canonicalize()?;
         let dest = dest.as_ref().canonicalize()?;
 
-        println!("Mounting {}", dest.display());
+        //println!("Mounting {} to {} with {:?}", source.display(), dest.display(), options);
 
         let mut command = Command::new("mount");
-        match kind {
-            MountKind::Bind => {
-                command.arg("--bind");
+
+        let mut option_strings = Vec::new();
+        for &option in options.iter() {
+            match option {
+                MountOption::Bind => {
+                    command.arg("--bind");
+                },
+                MountOption::Synchronize => {
+                    option_strings.push("sync");
+                }
             }
         }
+
+        option_strings.sort();
+        option_strings.dedup();
+        if ! option_strings.is_empty() {
+            command.arg("-o");
+            command.arg(option_strings.join(","));
+        }
+
         command.arg(&source);
         command.arg(&dest);
 
@@ -34,12 +51,11 @@ impl Mount {
             Ok(Mount {
                 source: source,
                 dest: dest,
-                kind: kind,
                 mounted: true,
             })
         } else {
             Err(Error::new(
-                ErrorKind::PermissionDenied,
+                ErrorKind::Other,
                 format!("mount failed with status: {}", status)
             ))
         }
@@ -47,7 +63,7 @@ impl Mount {
 
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
         if self.mounted {
-            println!("Unmounting {}", self.dest.display());
+            //println!("Unmounting {}", self.dest.display());
 
             let mut command = Command::new("umount");
             if lazy {
@@ -61,8 +77,8 @@ impl Mount {
                 Ok(())
             } else {
                 Err(Error::new(
-                    ErrorKind::PermissionDenied,
-                    format!("unmount failed with status: {}", status)
+                    ErrorKind::Other,
+                    format!("umount failed with status: {}", status)
                 ))
             }
         } else {
@@ -73,7 +89,6 @@ impl Mount {
 
 impl Drop for Mount {
     fn drop(&mut self) {
-        println!("Mount drop");
         let _ = self.unmount(true);
     }
 }

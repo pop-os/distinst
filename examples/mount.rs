@@ -9,7 +9,7 @@ use std::process;
 fn mount() -> Result<()> {
     fs::create_dir_all("test_proc").unwrap();
 
-    let mount = Mount::new("/proc", "test_proc", MountKind::Bind).unwrap();
+    let mount = Mount::new("/proc", "test_proc", &[MountOption::Bind]).unwrap();
 
     let mut file = fs::File::open("test_proc/cmdline").unwrap();
 

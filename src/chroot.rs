@@ -3,7 +3,7 @@ use std::io::Result;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
-use mount::{Mount, MountKind};
+use mount::{Mount, MountOption};
 
 pub struct Chroot {
     path: PathBuf,
@@ -15,9 +15,9 @@ pub struct Chroot {
 impl Chroot {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Chroot> {
         let path = path.as_ref().canonicalize()?;
-        let dev_mount = Mount::new("/dev", path.join("dev"), MountKind::Bind)?;
-        let proc_mount = Mount::new("/proc", path.join("proc"), MountKind::Bind)?;
-        let sys_mount = Mount::new("/sys", path.join("sys"), MountKind::Bind)?;
+        let dev_mount = Mount::new("/dev", path.join("dev"), &[MountOption::Bind])?;
+        let proc_mount = Mount::new("/proc", path.join("proc"), &[MountOption::Bind])?;
+        let sys_mount = Mount::new("/sys", path.join("sys"), &[MountOption::Bind])?;
         Ok(Chroot {
             path: path,
             dev_mount: dev_mount,
