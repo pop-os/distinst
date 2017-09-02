@@ -20,11 +20,4 @@ locale-gen --purge "${LANG}"
 apt-get purge -y casper ubiquity
 apt-get autoremove -y --purge
 
-if [ -d /boot/efi/ ]
-then
-    apt-get install -y grub-efi-amd64-signed
-else
-    apt-get install -y grub-pc
-fi
-
-grub-mkconfig -o /boot/grub/grub.cfg
+apt-get install -y "$@"

@@ -5,7 +5,6 @@ extern crate tempdir;
 use std::{fs, io};
 use std::io::Write;
 use std::path::Path;
-use std::process::Command;
 use tempdir::TempDir;
 
 use disk::Disk;
@@ -306,7 +305,17 @@ impl Installer {
                                 format!("Path::strip_prefix failed: {}", err)
                             )
                         })?;
-                        let status = chroot.command("/bin/bash", [configure_chroot].iter())?;
+
+                        let grub_pkg = match bootloader {
+                            Bootloader::Bios => "grub-pc",
+                            Bootloader::Efi => "grub-efi-amd64-signed",
+                        };
+
+                        let status = chroot.command("/bin/bash", [
+                            configure_chroot.to_str().unwrap(),
+                            grub_pkg
+                        ].iter())?;
+
                         if ! status.success() {
                             return Err(io::Error::new(
                                 io::ErrorKind::Other,
@@ -329,6 +338,8 @@ impl Installer {
         }
 
         mount_dir.close()?;
+
+        callback(100);
 
         Ok(())
     }
@@ -375,29 +386,35 @@ impl Installer {
             };
 
             {
-                let mut command = Command::new("grub-install");
+                let mut chroot = Chroot::new(mount_dir.path())?;
 
-                command.arg(format!("--boot-directory={}", boot_path.display()));
+                {
+                    let mut args = vec![];
 
-                match bootloader {
-                    Bootloader::Bios => {
-                        command.arg("--target=i386-pc");
-                    },
-                    Bootloader::Efi => {
-                        command.arg(format!("--efi-directory={}", efi_path.display()));
-                        command.arg("--target=x86_64-efi");
+                    args.push(format!("--recheck"));
+                    args.push(format!("--verbose"));
+
+                    match bootloader {
+                        Bootloader::Bios => {
+                            args.push(format!("--target=i386-pc"));
+                        },
+                        Bootloader::Efi => {
+                            args.push(format!("--target=x86_64-efi"));
+                        }
+                    }
+
+                    args.push(disk.path().into_os_string().into_string().unwrap());
+
+                    let status = chroot.command("grub-install", args.iter())?;
+                    if ! status.success() {
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("grub-install failed with status: {}", status)
+                        ));
                     }
                 }
 
-                command.arg(disk.path());
-
-                let status = command.status()?;
-                if ! status.success() {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("configure.sh failed with status: {}", status)
-                    ));
-                }
+                chroot.unmount(true)?;
             }
 
             if let Some(mut efi_mount) = efi_mount_opt.take() {
