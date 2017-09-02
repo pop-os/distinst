@@ -2,9 +2,6 @@
 
 set -ex
 
-apt-get purge -y casper ubiquity
-apt-get autoremove -y --purge
-
 ROOTDEV="$(df --output=source / | sed 1d)"
 ROOTUUID="$(blkid -o value -s UUID "${ROOTDEV}")"
 echo "# / was on ${ROOTDEV} during installation" | tee /etc/fstab
@@ -18,7 +15,10 @@ then
     echo "UUID=${EFIUUID} /boot/efi vfat umask=0077 0 1" | tee -a /etc/fstab
 fi
 
-locale-gen --purge
+locale-gen --purge "${LANG}"
+
+apt-get purge -y casper ubiquity
+apt-get autoremove -y --purge
 
 if [ -d /boot/efi/ ]
 then

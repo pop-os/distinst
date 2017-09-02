@@ -5,6 +5,7 @@ extern crate tempdir;
 use std::{fs, io};
 use std::io::Write;
 use std::path::Path;
+use std::process::Command;
 use tempdir::TempDir;
 
 use disk::Disk;
@@ -148,8 +149,6 @@ impl Installer {
     fn partition<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
         let disk_dev = disk.path();
 
-        callback(0);
-
         // TODO: Use libparted
         match bootloader {
             Bootloader::Bios => {
@@ -169,15 +168,12 @@ impl Installer {
         }
 
         partprobe(&disk_dev)?;
-
         callback(100);
 
         Ok(())
     }
 
     fn format<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
-        callback(0);
-
         // TODO: Use libparted
         let parts = disk.parts()?;
         match bootloader {
@@ -217,7 +213,7 @@ impl Installer {
         Ok(())
     }
 
-    fn extract<P: AsRef<Path>, F: FnMut(i32)>(squashfs: P, disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
+    fn extract<P: AsRef<Path>, F: FnMut(i32)>(squashfs: P, disk: &mut Disk, bootloader: Bootloader, callback: F) -> io::Result<()> {
         let parts = disk.parts()?;
         let part = match bootloader {
             Bootloader::Bios => {
@@ -338,7 +334,80 @@ impl Installer {
     }
 
     fn bootloader<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
-        callback(0);
+        let parts = disk.parts()?;
+        let (part, efi_opt) = match bootloader {
+            Bootloader::Bios => {
+                let part = parts.get(0).ok_or(
+                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
+                )?;
+
+                (part, None)
+            },
+            Bootloader::Efi => {
+                let efi = parts.get(0).ok_or(
+                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
+                )?;
+
+                let part = parts.get(1).ok_or(
+                    io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
+                )?;
+
+                (part, Some(efi))
+            }
+        };
+
+        let mount_dir = TempDir::new("distinst")?;
+
+        {
+            let boot_path = mount_dir.path().join("boot");
+            let efi_path = boot_path.join("efi");
+
+            let part_dev = part.path();
+            let mut mount = Mount::new(&part_dev, mount_dir.path(), &[])?;
+
+            let mut efi_mount_opt = match efi_opt {
+                Some(efi) => {
+                    fs::create_dir_all(&efi_path)?;
+                    let efi_dev = efi.path();
+                    Some(Mount::new(&efi_dev, &efi_path, &[])?)
+                },
+                None => None
+            };
+
+            {
+                let mut command = Command::new("grub-install");
+
+                command.arg(format!("--boot-directory={}", boot_path.display()));
+
+                match bootloader {
+                    Bootloader::Bios => {
+                        command.arg("--target=i386-pc");
+                    },
+                    Bootloader::Efi => {
+                        command.arg(format!("--efi-directory={}", efi_path.display()));
+                        command.arg("--target=x86_64-efi");
+                    }
+                }
+
+                command.arg(disk.path());
+
+                let status = command.status()?;
+                if ! status.success() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("configure.sh failed with status: {}", status)
+                    ));
+                }
+            }
+
+            if let Some(mut efi_mount) = efi_mount_opt.take() {
+                efi_mount.unmount(false)?;
+            }
+
+            mount.unmount(false)?;
+        }
+
+        mount_dir.close()?;
 
         callback(100);
 
