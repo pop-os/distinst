@@ -3,6 +3,7 @@
 extern crate tempdir;
 
 use std::{fs, io};
+use std::io::Write;
 use std::path::Path;
 use tempdir::TempDir;
 
@@ -291,22 +292,22 @@ impl Installer {
                 let configure_dir = TempDir::new_in(mount_dir.path().join("tmp"), "distinst")?;
 
                 {
-                    let configure = configure_dir.path().join();
+                    let configure = configure_dir.path().join("configure.sh");
 
                     {
                         let mut file = fs::File::create(configure)?;
-                        file.write_all(&include_bytes!("configure.sh"))?;
-                        file.sync()?;
+                        file.write_all(include_bytes!("configure.sh"))?;
+                        file.sync_all()?;
                     }
 
                     let mut chroot = Chroot::new(mount_dir.path())?;
 
                     {
-                        let status = chroot.command("/bin/bash", "/tmp/configure.sh")?;
+                        let status = chroot.command("/bin/bash", ["/tmp/configure.sh"].iter())?;
                         if ! status.success() {
-                            Err(io::Error::new(
+                            return Err(io::Error::new(
                                 io::ErrorKind::Other,
-                                format!("mkfs for {:?} failed with status: {}", kind, status)
+                                format!("configure.sh failed with status: {}", status)
                             ));
                         }
                     }
