@@ -21,3 +21,5 @@ apt-get purge -y casper ubiquity
 apt-get autoremove -y --purge
 
 apt-get install -y "$@"
+
+grub-mkconfig -o /boot/grub/grub.cfg
