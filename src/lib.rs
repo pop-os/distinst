@@ -45,6 +45,7 @@ pub enum Step {
     Partition,
     Format,
     Extract,
+    Configure,
     Bootloader,
 }
 
@@ -145,7 +146,7 @@ impl Installer {
     }
 
     fn partition<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
-        let disk_dev = format!("/dev/{}", disk.name());
+        let disk_dev = disk.path();
 
         callback(0);
 
@@ -185,7 +186,7 @@ impl Installer {
                     io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                 )?;
 
-                let part_dev = format!("/dev/{}", part.name());
+                let part_dev = part.path();
                 mkfs(&part_dev, MkfsKind::Ext4)?;
             },
             Bootloader::Efi => {
@@ -194,7 +195,7 @@ impl Installer {
                         io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                     )?;
 
-                    let part_dev = format!("/dev/{}", part.name());
+                    let part_dev = part.path();
                     mkfs(&part_dev, MkfsKind::Fat32)?;
                 }
 
@@ -205,7 +206,7 @@ impl Installer {
                         io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
                     )?;
 
-                    let part_dev = format!("/dev/{}", part.name());
+                    let part_dev = part.path();
                     mkfs(&part_dev, MkfsKind::Ext4)?;
                 }
             }
@@ -234,7 +235,7 @@ impl Installer {
         let mount_dir = TempDir::new("distinst")?;
 
         {
-            let part_dev = format!("/dev/{}", part.name());
+            let part_dev = part.path();
             let mut mount = Mount::new(&part_dev, mount_dir.path(), &[])?;
 
             {
@@ -275,14 +276,14 @@ impl Installer {
         let mount_dir = TempDir::new("distinst")?;
 
         {
-            let part_dev = format!("/dev/{}", part.name());
+            let part_dev = part.path();
             let mut mount = Mount::new(&part_dev, mount_dir.path(), &[])?;
 
             let mut efi_mount_opt = match efi_opt {
                 Some(efi) => {
                     let efi_path = mount_dir.path().join("boot").join("efi");
                     fs::create_dir_all(&efi_path)?;
-                    let efi_dev = format!("/dev/{}", efi.name());
+                    let efi_dev = efi.path();
                     Some(Mount::new(&efi_dev, &efi_path, &[])?)
                 },
                 None => None
@@ -295,7 +296,7 @@ impl Installer {
                     let configure = configure_dir.path().join("configure.sh");
 
                     {
-                        let mut file = fs::File::create(configure)?;
+                        let mut file = fs::File::create(&configure)?;
                         file.write_all(include_bytes!("configure.sh"))?;
                         file.sync_all()?;
                     }
@@ -303,7 +304,13 @@ impl Installer {
                     let mut chroot = Chroot::new(mount_dir.path())?;
 
                     {
-                        let status = chroot.command("/bin/bash", ["/tmp/configure.sh"].iter())?;
+                        let configure_chroot = configure.strip_prefix(mount_dir.path()).map_err(|err| {
+                            io::Error::new(
+                                io::ErrorKind::Other,
+                                format!("Path::strip_prefix failed: {}", err)
+                            )
+                        })?;
+                        let status = chroot.command("/bin/bash", [configure_chroot].iter())?;
                         if ! status.success() {
                             return Err(io::Error::new(
                                 io::ErrorKind::Other,
@@ -388,6 +395,23 @@ impl Installer {
         self.emit_status(&status);
 
         if let Err(err) = Installer::extract(&squashfs, &mut disk, bootloader, |percent| {
+            status.percent = percent;
+            self.emit_status(&status);
+        }) {
+            let error = Error {
+                step: status.step,
+                err: err,
+            };
+            println!("{:?}", error);
+            self.emit_error(&error);
+            return Err(error.err);
+        }
+
+        status.step = Step::Configure;
+        status.percent = 0;
+        self.emit_status(&status);
+
+        if let Err(err) = Installer::configure(&mut disk, bootloader, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {

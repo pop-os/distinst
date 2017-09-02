@@ -6,6 +6,8 @@ public static string step_name (Distinst.Step step) {
         return "Format";
     case Distinst.Step.EXTRACT:
         return "Extract";
+    case Distinst.Step.CONFIGURE:
+        return "Configure";
     case Distinst.Step.BOOTLOADER:
         return "Bootloader";
     default:

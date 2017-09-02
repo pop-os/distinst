@@ -6,6 +6,7 @@ namespace Distinst {
         PARTITION,
         FORMAT,
         EXTRACT,
+        CONFIGURE,
         BOOTLOADER
     }
 

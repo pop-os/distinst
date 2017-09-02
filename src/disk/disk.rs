@@ -1,4 +1,5 @@
 use std::io::{Error, ErrorKind, Result};
+use std::path::PathBuf;
 
 use super::Partition;
 use super::sys::Device;
@@ -37,6 +38,11 @@ impl Disk {
     /// Get disk name
     pub fn name(&self) -> &str {
         self.0.name()
+    }
+
+    /// Get disk path
+    pub fn path(&self) -> PathBuf {
+        self.0.path()
     }
 
     /// Get disk size, in bytes

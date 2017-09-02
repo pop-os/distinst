@@ -47,8 +47,6 @@ impl Chroot {
 
 impl Drop for Chroot {
     fn drop(&mut self) {
-        println!("Chroot drop");
-
         // Ensure unmounting
         let _ = self.dev_mount.unmount(true);
         let _ = self.proc_mount.unmount(true);

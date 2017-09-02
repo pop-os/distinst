@@ -13,6 +13,7 @@ crate-type = ["lib", "dylib"]
 moz-cheddar = "0.4.0"
 
 [dependencies]
+"clap" = "2.26"
 "libc" = "0.2"
 "pbr" = "1.0"
 "tempdir" = "0.3"

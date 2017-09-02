@@ -11,6 +11,8 @@ const char * step_name(DISTINST_STEP step) {
         return "Format";
     case DISTINST_STEP_EXTRACT:
         return "Extract";
+    case DISTINST_STEP_CONFIGURE:
+        return "Configure";
     case DISTINST_STEP_BOOTLOADER:
         return "Bootloader";
     default:

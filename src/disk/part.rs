@@ -1,4 +1,5 @@
 use std::io::{Error, ErrorKind, Result};
+use std::path::PathBuf;
 
 use super::sys::Device;
 
@@ -36,6 +37,11 @@ impl Partition {
     /// Get partition name
     pub fn name(&self) -> &str {
         self.0.name()
+    }
+
+    /// Get partition path
+    pub fn path(&self) -> PathBuf {
+        self.0.path()
     }
 
     /// Get partition size, in bytes

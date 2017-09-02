@@ -12,6 +12,7 @@ pub enum DISTINST_STEP {
     PARTITION,
     FORMAT,
     EXTRACT,
+    CONFIGURE,
     BOOTLOADER,
 }
 
@@ -22,6 +23,7 @@ impl From<DISTINST_STEP> for Step {
             PARTITION => Step::Partition,
             FORMAT => Step::Format,
             EXTRACT => Step::Extract,
+            CONFIGURE => Step::Configure,
             BOOTLOADER => Step::Bootloader,
         }
     }
@@ -34,6 +36,7 @@ impl From<Step> for DISTINST_STEP {
             Step::Partition => PARTITION,
             Step::Format => FORMAT,
             Step::Extract => EXTRACT,
+            Step::Configure => CONFIGURE,
             Step::Bootloader => BOOTLOADER,
         }
     }

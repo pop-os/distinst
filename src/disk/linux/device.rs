@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{Error, ErrorKind, Read, Result};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Device(String);
@@ -31,6 +32,11 @@ impl Device {
     /// Get the name of the block device
     pub fn name(&self) -> &str {
         &self.0
+    }
+
+    /// Get the path of the block device
+    pub fn path(&self) -> PathBuf {
+        Path::new("/dev").join(&self.0)
     }
 
     /// Check if this device is a disk

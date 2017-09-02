@@ -21,9 +21,7 @@ fn main() {
     fs::File::create(target_path.join("pkgconfig").join("distinst.pc.stub")).unwrap()
         .write_all(&pkg_config.as_bytes()).unwrap();
 
-    /*
     Cheddar::new().expect("could not read manifest")
         .module("c").expect("malformed module path")
         .run_build(target_path.join("include").join("distinst.h"));
-    */
 }
