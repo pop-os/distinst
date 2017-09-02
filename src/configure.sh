@@ -10,9 +10,12 @@ echo "UUID=${ROOTUUID} / ext4 errors=remount-ro 0 1" | tee -a /etc/fstab
 if [ -d /boot/efi/ ]
 then
     EFIDEV="$(df --output=source /boot/efi/ | sed 1d)"
-    EFIUUID="$(blkid -o value -s UUID "${EFIDEV}")"
-    echo "# /boot/efi was on ${EFIDEV} during installation" | tee -a /etc/fstab
-    echo "UUID=${EFIUUID} /boot/efi vfat umask=0077 0 1" | tee -a /etc/fstab
+    if [ "${EFIDEV}" != "${ROOTDEV}" ]
+    then
+        EFIUUID="$(blkid -o value -s UUID "${EFIDEV}")"
+        echo "# /boot/efi was on ${EFIDEV} during installation" | tee -a /etc/fstab
+        echo "UUID=${EFIUUID} /boot/efi vfat umask=0077 0 1" | tee -a /etc/fstab
+    fi
 fi
 
 locale-gen --purge "${LANG}"
