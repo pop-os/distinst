@@ -1,0 +1,73 @@
+distinst (0.1.0-4) artful; urgency=medium
+
+  * Add more logging and init step
+
+ -- Jeremy Soller <jeremy@system76.com>  Wed, 20 Sep 2017 14:04:31 -0600
+
+distinst (0.1.0-3) artful; urgency=medium
+
+  * Add logging initialization function for C and Vala
+
+ -- Jeremy Soller <jeremy@system76.com>  Fri, 08 Sep 2017 14:07:32 -0600
+
+distinst (0.1.0-2) artful; urgency=medium
+
+  * Add logging
+  * Improve reliability
+  * Purge distinst and io.elementary.installer
+
+ -- Jeremy Soller <jackpot51@gmail.com>  Thu, 07 Sep 2017 21:26:41 -0600
+
+distinst (0.1.0-1) artful; urgency=medium
+
+  * Add fixes for DNS
+  * Produce unique machine ID
+  * Set LC_ALL
+  * Purge more packages
+
+ -- Jeremy Soller <jeremy@system76.com>  Thu, 07 Sep 2017 14:33:35 -0600
+
+distinst (0.1.0-0) artful; urgency=medium
+
+  * Use cargo version followed by debian version
+  * Add vendor files
+
+ -- Jeremy Soller <jeremy@system76.com>  Tue, 05 Sep 2017 11:50:28 -0600
+
+distinst (0.0.6) artful; urgency=medium
+
+  * Release for artful
+  * Fix system locale issue
+  * Use partx instead of partprobe
+
+ -- Jeremy Soller <jeremy@system76.com>  Tue, 05 Sep 2017 11:12:32 -0600
+
+distinst (0.0.5) xenial; urgency=medium
+
+  * Add vapi
+
+ -- Jeremy Soller <jackpot51@gmail.com>  Mon, 04 Sep 2017 16:02:07 -0600
+
+distinst (0.0.4) xenial; urgency=medium
+
+  * Switch to using `cargo-vendor`
+
+ -- Jeremy Soller <jackpot51@gmail.com>  Mon, 04 Sep 2017 14:22:55 -0600
+
+distinst (0.0.3) xenial; urgency=medium
+
+  * Use `--frozen` with `cargo build`
+
+ -- Jeremy Soller <jackpot51@gmail.com>  Mon, 04 Sep 2017 08:36:03 -0600
+
+distinst (0.0.2) xenial; urgency=medium
+
+  * Store dependencies locally with `make fetch`
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 04 Sep 2017 08:20:28 -0600
+
+distinst (0.0.1) xenial; urgency=medium
+
+  * Initial release.
+
+ -- Jeremy Soller <jeremy@system76.com>  Sat, 02 Sep 2017 17:31:58 -0600
