@@ -2,9 +2,12 @@
 
 set -ex
 
+echo "# /etc/fstab: static file system information." | tee /etc/fstab
+echo "# <file system> <mount point> <type> <options> <dump> <pass>" | tee -a /etc/fstab
+
 ROOTDEV="$(df --output=source / | sed 1d)"
 ROOTUUID="$(blkid -o value -s UUID "${ROOTDEV}")"
-echo "# / was on ${ROOTDEV} during installation" | tee /etc/fstab
+echo "# / was on ${ROOTDEV} during installation" | tee -a /etc/fstab
 echo "UUID=${ROOTUUID} / ext4 errors=remount-ro 0 1" | tee -a /etc/fstab
 
 if [ -d /boot/efi/ ]
@@ -25,4 +28,4 @@ apt-get autoremove -y --purge
 
 apt-get install -y "$@"
 
-grub-mkconfig -o /boot/grub/grub.cfg
+update-grub
