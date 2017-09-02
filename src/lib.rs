@@ -392,7 +392,6 @@ impl Installer {
                     let mut args = vec![];
 
                     args.push(format!("--recheck"));
-                    args.push(format!("--verbose"));
 
                     match bootloader {
                         Bootloader::Bios => {
