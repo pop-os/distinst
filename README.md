@@ -26,3 +26,13 @@ The following files will be generated:
 - pkg-config: `target/pkg-config/distinst.pc`
 
 These files will be placed in /usr/local when installed, and `pkg-config --cflags distinst` or `pkg-config --libs distinst` can then be used to find them.
+
+In order to produce a source package, you must run the following commands:
+
+```
+# Install cargo-vendor
+cargo install cargo-vendor
+
+# Download vendored sources
+make vendor
+```
