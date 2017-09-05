@@ -26,9 +26,10 @@ pub fn parted<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item=S>>(disk: P,
     }
 }
 
-pub fn partprobe<P: AsRef<Path>>(disk: P) -> Result<()> {
-    let mut command = Command::new("partprobe");
+pub fn partx<P: AsRef<Path>>(disk: P) -> Result<()> {
+    let mut command = Command::new("partx");
 
+    command.arg("-u");
     command.arg(disk.as_ref());
 
     let status = command.status()?;
@@ -37,7 +38,7 @@ pub fn partprobe<P: AsRef<Path>>(disk: P) -> Result<()> {
     } else {
         Err(Error::new(
             ErrorKind::Other,
-            format!("partprobe failed with status: {}", status)
+            format!("partx failed with status: {}", status)
         ))
     }
 }

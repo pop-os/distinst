@@ -22,6 +22,7 @@ then
 fi
 
 locale-gen --purge "${LANG}"
+update-locale --reset "LANG=${LANG}"
 
 apt-get purge -y casper ubiquity
 apt-get autoremove -y --purge

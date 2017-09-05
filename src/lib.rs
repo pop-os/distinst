@@ -8,7 +8,7 @@ use std::path::Path;
 use tempdir::TempDir;
 
 use disk::Disk;
-use partition::{parted, partprobe, MkfsKind, mkfs};
+use partition::{parted, partx, MkfsKind, mkfs};
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
 
@@ -166,7 +166,7 @@ impl Installer {
             }
         }
 
-        partprobe(&disk_dev)?;
+        partx(&disk_dev)?;
         callback(100);
 
         Ok(())
