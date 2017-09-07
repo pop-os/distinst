@@ -157,24 +157,21 @@ impl Installer {
         // TODO: Use libparted
         match bootloader {
             Bootloader::Bios => {
-                info!("{}: Creating mbr label", disk_dev.display());
                 parted(&disk_dev, &["mklabel", "msdos"])?;
                 callback(33);
 
-                info!("{}: Partitioning ext4 root partition", disk_dev.display());
                 parted(&disk_dev, &["mkpart", "primary", "ext4", "0%", "100%"])?;
+                parted(&disk_dev, &["set", "1", "boot", "on"])?;
                 callback(66);
             },
             Bootloader::Efi => {
-                info!("{}: Creating gpt label", disk_dev.display());
                 parted(&disk_dev, &["mklabel", "gpt"])?;
                 callback(25);
 
-                info!("{}: Partitioning fat32 efi partition", disk_dev.display());
                 parted(&disk_dev, &["mkpart", "primary", "fat32", "0%", "512M"])?;
+                parted(&disk_dev, &["set", "1", "esp", "on"])?;
                 callback(50);
 
-                info!("{}: Partitioning ext4 root partition", disk_dev.display());
                 parted(&disk_dev, &["mkpart", "primary", "ext4", "512M", "100%"])?;
                 callback(75);
             }
@@ -353,7 +350,7 @@ impl Installer {
                         }
                     }
 
-                    chroot.unmount(true)?;
+                    chroot.unmount(false)?;
                 }
 
                 configure_dir.close()?;
@@ -445,7 +442,7 @@ impl Installer {
                     }
                 }
 
-                chroot.unmount(true)?;
+                chroot.unmount(false)?;
             }
 
             if let Some(mut efi_mount) = efi_mount_opt.take() {
