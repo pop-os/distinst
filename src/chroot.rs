@@ -36,9 +36,7 @@ impl Chroot {
         let mut command = Command::new("chroot");
         command.arg(&self.path);
         command.arg(cmd.as_ref());
-        for arg in args.into_iter() {
-            command.arg(arg);
-        }
+        command.args(args);
 
         debug!("{:?}", command);
 

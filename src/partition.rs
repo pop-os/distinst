@@ -10,10 +10,7 @@ pub fn parted<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item=S>>(disk: P,
     command.arg("--align");
     command.arg("optimal");
     command.arg(disk.as_ref());
-
-    for arg in args {
-        command.arg(arg);
-    }
+    command.args(args);
 
     debug!("{:?}", command);
 
