@@ -8,7 +8,8 @@ use std::path::Path;
 use tempdir::TempDir;
 
 use disk::Disk;
-use partition::{parted, partx, MkfsKind, mkfs};
+use format::{MkfsKind, mkfs};
+use partition::{parted, partprobe};
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
 
@@ -18,6 +19,7 @@ pub use c::*;
 mod c;
 mod chroot;
 mod disk;
+mod format;
 mod mount;
 mod partition;
 mod squashfs;
@@ -166,7 +168,7 @@ impl Installer {
             }
         }
 
-        partx(&disk_dev)?;
+        partprobe(&disk_dev)?;
         callback(100);
 
         Ok(())
@@ -186,23 +188,23 @@ impl Installer {
             },
             Bootloader::Efi => {
                 {
-                    let part = parts.get(0).ok_or(
-                        io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                    )?;
-
-                    let part_dev = part.path();
-                    mkfs(&part_dev, MkfsKind::Fat32)?;
-                }
-
-                callback(50);
-
-                {
                     let part = parts.get(1).ok_or(
                         io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
                     )?;
 
                     let part_dev = part.path();
                     mkfs(&part_dev, MkfsKind::Ext4)?;
+                }
+
+                callback(50);
+
+                {
+                    let part = parts.get(0).ok_or(
+                        io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
+                    )?;
+
+                    let part_dev = part.path();
+                    mkfs(&part_dev, MkfsKind::Fat32)?;
                 }
             }
         }
