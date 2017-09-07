@@ -2,6 +2,17 @@
 
 set -ex
 
+export DEBIAN_FRONTEND=noninteractive
+export HOME=/root
+export LC_ALL="${LANG}"
+
+# Generate a machine ID
+dbus-uuidgen > /var/lib/dbus/machine-id
+
+# Correctly specify resolv.conf
+ln -sf ../run/resolvconf/resolv.conf /etc/resolv.conf
+
+# Create fstab
 echo "# /etc/fstab: static file system information." | tee /etc/fstab
 echo "# <file system> <mount point> <type> <options> <dump> <pass>" | tee -a /etc/fstab
 
@@ -21,12 +32,14 @@ then
     fi
 fi
 
+# Update locales
 locale-gen --purge "${LANG}"
 update-locale --reset "LANG=${LANG}"
 
-apt-get purge -y casper ubiquity
+# Remove installer packages
+apt-get purge -y casper distinst io.elementary.installer ubiquity
 apt-get autoremove -y --purge
 
+# Install grub packages
 apt-get install -y "$@"
-
 update-grub

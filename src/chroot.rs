@@ -10,6 +10,7 @@ pub struct Chroot {
     dev_mount: Mount,
     pts_mount: Mount,
     proc_mount: Mount,
+    run_mount: Mount,
     sys_mount: Mount,
 }
 
@@ -19,12 +20,14 @@ impl Chroot {
         let dev_mount = Mount::new("/dev", path.join("dev"), &[MountOption::Bind])?;
         let pts_mount = Mount::new("/dev/pts", path.join("dev").join("pts"), &[MountOption::Bind])?;
         let proc_mount = Mount::new("/proc", path.join("proc"), &[MountOption::Bind])?;
+        let run_mount = Mount::new("/run", path.join("run"), &[MountOption::Bind])?;
         let sys_mount = Mount::new("/sys", path.join("sys"), &[MountOption::Bind])?;
         Ok(Chroot {
             path: path,
             dev_mount: dev_mount,
             pts_mount: pts_mount,
             proc_mount: proc_mount,
+            run_mount: run_mount,
             sys_mount: sys_mount,
         })
     }
@@ -42,6 +45,7 @@ impl Chroot {
     /// Return true if the filesystem was unmounted, false if it was already unmounted
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
         self.sys_mount.unmount(lazy)?;
+        self.run_mount.unmount(lazy)?;
         self.proc_mount.unmount(lazy)?;
         self.pts_mount.unmount(lazy)?;
         self.dev_mount.unmount(lazy)?;
@@ -53,6 +57,7 @@ impl Drop for Chroot {
     fn drop(&mut self) {
         // Ensure unmounting
         let _ = self.sys_mount.unmount(true);
+        let _ = self.run_mount.unmount(true);
         let _ = self.proc_mount.unmount(true);
         let _ = self.pts_mount.unmount(true);
         let _ = self.dev_mount.unmount(true);
