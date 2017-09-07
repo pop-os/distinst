@@ -20,8 +20,6 @@ impl Mount {
         let source = source.as_ref().canonicalize()?;
         let dest = dest.as_ref().canonicalize()?;
 
-        //println!("Mounting {} to {} with {:?}", source.display(), dest.display(), options);
-
         let mut command = Command::new("mount");
 
         let mut option_strings = Vec::new();
@@ -46,6 +44,8 @@ impl Mount {
         command.arg(&source);
         command.arg(&dest);
 
+        debug!("{:?}", command);
+
         let status = command.status()?;
         if status.success() {
             Ok(Mount {
@@ -63,13 +63,13 @@ impl Mount {
 
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
         if self.mounted {
-            //println!("Unmounting {}", self.dest.display());
-
             let mut command = Command::new("umount");
             if lazy {
                 command.arg("--lazy");
             }
             command.arg(&self.dest);
+
+            debug!("{:?}", command);
 
             let status = command.status()?;
             if status.success() {

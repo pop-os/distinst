@@ -1,15 +1,18 @@
 //! A crate for installing Ubuntu distributions from a live squashfs
 
+#[macro_use]
+extern crate log;
 extern crate tempdir;
+
+use tempdir::TempDir;
 
 use std::{fs, io};
 use std::io::Write;
 use std::path::Path;
-use tempdir::TempDir;
 
 use disk::Disk;
 use format::{MkfsKind, mkfs};
-use partition::{parted, partprobe};
+use partition::{parted, partprobe, sync};
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
 
@@ -149,32 +152,47 @@ impl Installer {
 
     fn partition<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
         let disk_dev = disk.path();
+        info!("{}: Partitioning for {:?}", disk_dev.display(), bootloader);
 
         // TODO: Use libparted
         match bootloader {
             Bootloader::Bios => {
+                info!("{}: Creating mbr label", disk_dev.display());
                 parted(&disk_dev, &["mklabel", "msdos"])?;
                 callback(33);
-                parted(&disk_dev, &["mkpart", "primary", "0%", "100%"])?;
+
+                info!("{}: Partitioning ext4 root partition", disk_dev.display());
+                parted(&disk_dev, &["mkpart", "primary", "ext4", "0%", "100%"])?;
                 callback(66);
             },
             Bootloader::Efi => {
+                info!("{}: Creating gpt label", disk_dev.display());
                 parted(&disk_dev, &["mklabel", "gpt"])?;
                 callback(25);
+
+                info!("{}: Partitioning fat32 efi partition", disk_dev.display());
                 parted(&disk_dev, &["mkpart", "primary", "fat32", "0%", "512M"])?;
                 callback(50);
+
+                info!("{}: Partitioning ext4 root partition", disk_dev.display());
                 parted(&disk_dev, &["mkpart", "primary", "ext4", "512M", "100%"])?;
                 callback(75);
             }
         }
 
+        info!("{}: Rereading partition table", disk_dev.display());
+        sync()?;
         partprobe(&disk_dev)?;
+        sync()?;
         callback(100);
 
         Ok(())
     }
 
     fn format<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
+        let disk_dev = disk.path();
+        info!("{}: Formatting for {:?}", disk_dev.display(), bootloader);
+
         // TODO: Use libparted
         let parts = disk.parts()?;
         match bootloader {
@@ -184,6 +202,7 @@ impl Installer {
                 )?;
 
                 let part_dev = part.path();
+                info!("{}: Formatting ext4 root partition", part_dev.display());
                 mkfs(&part_dev, MkfsKind::Ext4)?;
             },
             Bootloader::Efi => {
@@ -193,6 +212,7 @@ impl Installer {
                     )?;
 
                     let part_dev = part.path();
+                    info!("{}: Formatting ext4 root partition", part_dev.display());
                     mkfs(&part_dev, MkfsKind::Ext4)?;
                 }
 
@@ -204,6 +224,7 @@ impl Installer {
                     )?;
 
                     let part_dev = part.path();
+                    info!("{}: Formatting fat32 efi partition", part_dev.display());
                     mkfs(&part_dev, MkfsKind::Fat32)?;
                 }
             }
@@ -215,6 +236,9 @@ impl Installer {
     }
 
     fn extract<P: AsRef<Path>, F: FnMut(i32)>(squashfs: P, disk: &mut Disk, bootloader: Bootloader, callback: F) -> io::Result<()> {
+        let disk_dev = disk.path();
+        info!("{}: Extracting {}", disk_dev.display(), squashfs.as_ref().display());
+
         let parts = disk.parts()?;
         let part = match bootloader {
             Bootloader::Bios => {
@@ -248,6 +272,9 @@ impl Installer {
     }
 
     fn configure<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
+        let disk_dev = disk.path();
+        info!("{}: Configuring for {:?}", disk_dev.display(), bootloader);
+
         let parts = disk.parts()?;
         let (part, efi_opt) = match bootloader {
             Bootloader::Bios => {
@@ -347,6 +374,9 @@ impl Installer {
     }
 
     fn bootloader<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
+        let disk_dev = disk.path();
+        info!("{}: Installing bootloader for {:?}", disk_dev.display(), bootloader);
+
         let parts = disk.parts()?;
         let (part, efi_opt) = match bootloader {
             Bootloader::Bios => {
@@ -404,7 +434,7 @@ impl Installer {
                         }
                     }
 
-                    args.push(disk.path().into_os_string().into_string().unwrap());
+                    args.push(disk_dev.into_os_string().into_string().unwrap());
 
                     let status = chroot.command("grub-install", args.iter())?;
                     if ! status.success() {

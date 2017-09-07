@@ -23,7 +23,10 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, direc
     let output = unsafe { Stdio::from_raw_fd(fds[1]) };
 
     let mut child = Command::new("script")
-        .arg("--return").arg("--flush").arg("--quiet").arg("--command")
+        .arg("--return")
+        .arg("--flush")
+        .arg("--quiet")
+        .arg("--command")
         .arg(format!(
             "unsquashfs -f -d '{}' '{}'",
             directory.to_str().ok_or(
@@ -37,6 +40,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, direc
         .stdout(output)
         .spawn()?;
 
+    let mut last_progress = 0;
     loop {
         let mut data = [0; 4096];
         let count = input.read(&mut data)?;
@@ -48,7 +52,10 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, direc
                 let len = line.len();
                 if line.starts_with('[') && line.ends_with('%') && len >= 4 {
                     if let Ok(progress) = line[len - 4..len - 1].trim().parse::<i32>() {
-                        callback(progress);
+                        if last_progress != progress {
+                            callback(progress);
+                            last_progress = progress;
+                        }
                     }
                 }
             }

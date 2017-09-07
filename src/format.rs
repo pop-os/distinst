@@ -34,6 +34,8 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: MkfsKind) -> Result<()> {
         }
     };
 
+    debug!("{:?}", command);
+
     let status = command.status()?;
     if status.success() {
         Ok(())

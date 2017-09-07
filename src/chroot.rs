@@ -39,6 +39,9 @@ impl Chroot {
         for arg in args.into_iter() {
             command.arg(arg);
         }
+
+        debug!("{:?}", command);
+
         command.status()
     }
 

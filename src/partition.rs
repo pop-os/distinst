@@ -15,6 +15,8 @@ pub fn parted<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item=S>>(disk: P,
         command.arg(arg);
     }
 
+    debug!("{:?}", command);
+
     let status = command.status()?;
     if status.success() {
         Ok(())
@@ -31,6 +33,8 @@ pub fn partprobe<P: AsRef<Path>>(disk: P) -> Result<()> {
 
     command.arg(disk.as_ref());
 
+    debug!("{:?}", command);
+
     let status = command.status()?;
     if status.success() {
         Ok(())
@@ -38,6 +42,22 @@ pub fn partprobe<P: AsRef<Path>>(disk: P) -> Result<()> {
         Err(Error::new(
             ErrorKind::Other,
             format!("partprobe failed with status: {}", status)
+        ))
+    }
+}
+
+pub fn sync() -> Result<()> {
+    let mut command = Command::new("sync");
+
+    debug!("{:?}", command);
+
+    let status = command.status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(Error::new(
+            ErrorKind::Other,
+            format!("sync failed with status: {}", status)
         ))
     }
 }

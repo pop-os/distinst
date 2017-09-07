@@ -1,6 +1,8 @@
 extern crate clap;
 extern crate distinst;
+extern crate log;
 extern crate pbr;
+extern crate syslog;
 
 use clap::{App, Arg};
 use distinst::{Config, Installer, Step};
@@ -11,6 +13,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 fn main() {
+    if let Err(err) = syslog::init(
+        syslog::Facility::LOG_SYSLOG,
+        log::LogLevelFilter::Debug,
+        Some("distinst")
+    ) {
+        println!("Syslog init failed: {}", err);
+    }
+
     let matches = App::new("distinst")
         .arg(
             Arg::with_name("squashfs")
