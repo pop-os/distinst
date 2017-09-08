@@ -32,6 +32,8 @@ namespace Distinst {
 
     public delegate void StatusCallback (Distinst.Status status);
 
+    int log (string name);
+
     [Compact]
     [CCode (free_function = "distinst_installer_destroy", has_type_id = false)]
     public class Installer {
