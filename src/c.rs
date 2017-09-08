@@ -3,7 +3,7 @@ extern crate libc;
 use std::ffi::CStr;
 use std::io;
 
-use super::{Config, Error, Installer, Status, Step};
+use super::{log, Config, Error, Installer, Status, Step};
 
 /// Bootloader steps
 #[repr(C)]
@@ -94,6 +94,21 @@ pub type DistinstStatusCallback = extern "C" fn(status: *const DistinstStatus, u
 /// An installer object
 #[repr(C)]
 pub struct DistinstInstaller(Installer);
+
+/// Initialize logging
+#[no_mangle]
+pub unsafe extern fn distinst_log(name: *const libc::c_char) -> libc::c_int {
+    let name_cstr = CStr::from_ptr(name);
+    let name_str = match name_cstr.to_str() {
+        Ok(name_str) => name_str,
+        Err(_err) => return libc::EINVAL
+    };
+
+    match log(name_str) {
+        Ok(()) => 0,
+        Err(_err) => libc::EINVAL
+    }
+}
 
 /// Create an installer object
 #[no_mangle]

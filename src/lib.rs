@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate log;
+extern crate syslog;
 extern crate tempdir;
 
 use tempdir::TempDir;
@@ -26,6 +27,15 @@ mod format;
 mod mount;
 mod partition;
 mod squashfs;
+
+/// Initialize logging
+pub fn log(name: &str) -> Result<(), syslog::SyslogError> {
+    syslog::init(
+        syslog::Facility::LOG_SYSLOG,
+        log::LogLevelFilter::Debug,
+        Some(name)
+    )
+}
 
 /// Bootloader type
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -466,7 +476,7 @@ impl Installer {
 
         let bootloader = Bootloader::detect();
 
-        println!("Installing {:?} using {:?}", config, bootloader);
+        info!("Installing {:?} using {:?}", config, bootloader);
 
         let mut status = Status {
             step: Step::Partition,
@@ -482,7 +492,7 @@ impl Installer {
                 step: status.step,
                 err: err,
             };
-            println!("{:?}", error);
+            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
@@ -499,7 +509,7 @@ impl Installer {
                 step: status.step,
                 err: err,
             };
-            println!("{:?}", error);
+            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
@@ -516,7 +526,7 @@ impl Installer {
                 step: status.step,
                 err: err,
             };
-            println!("{:?}", error);
+            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
@@ -533,7 +543,7 @@ impl Installer {
                 step: status.step,
                 err: err,
             };
-            println!("{:?}", error);
+            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
@@ -550,7 +560,7 @@ impl Installer {
                 step: status.step,
                 err: err,
             };
-            println!("{:?}", error);
+            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
