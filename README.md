@@ -1,6 +1,6 @@
 # distinst
 
-Distribution Installer Backend
+Distribution Installer Backend. For a compatible GTK frontend, see https://github.com/elementary/installer
 
 ## Build Instructions
 
