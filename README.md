@@ -1,5 +1,7 @@
 # distinst
 
+**Warning!** *This code is not ready for general use. It currently erases entire disks, and is not compatible with all Ubuntu-based distributions. Release is targeted for April, 2018.*
+
 Distribution Installer Backend. For a compatible GTK frontend, see https://github.com/elementary/installer
 
 ## Build Instructions
