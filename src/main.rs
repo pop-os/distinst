@@ -60,6 +60,7 @@ fn main() {
                     pb.show_speed = false;
                     pb.show_counter = false;
                     pb.message(match status.step {
+                        Step::Init => "Initializing",
                         Step::Partition => "Partitioning disk ",
                         Step::Format => "Formatting partitions ",
                         Step::Extract => "Extracting filesystem ",

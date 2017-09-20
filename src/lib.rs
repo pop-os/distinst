@@ -30,11 +30,17 @@ mod squashfs;
 
 /// Initialize logging
 pub fn log(name: &str) -> Result<(), syslog::SyslogError> {
-    syslog::init(
+    match syslog::init(
         syslog::Facility::LOG_SYSLOG,
         log::LogLevelFilter::Debug,
         Some(name)
-    )
+    ) {
+        Ok(()) => {
+            info!("Logging enabled");
+            Ok(())
+        },
+        Err(err) => Err(err)
+    }
 }
 
 /// Bootloader type
@@ -57,6 +63,7 @@ impl Bootloader {
 /// Installation step
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Step {
+    Init,
     Partition,
     Format,
     Extract,
@@ -471,28 +478,63 @@ impl Installer {
 
     /// Install the system with the specified bootloader
     pub fn install(&mut self, config: &Config) -> io::Result<()> {
-        let squashfs = Path::new(&config.squashfs).canonicalize()?;
-        let mut disk = Disk::from_name(&config.drive)?;
+        info!("Installing {:?}", config);
+
+        let mut status = Status {
+            step: Step::Init,
+            percent: 0,
+        };
+        self.emit_status(&status);
+
+        let squashfs = match Path::new(&config.squashfs).canonicalize() {
+            Ok(squashfs) => squashfs,
+            Err(err) => {
+                error!("config.squashfs: {}", err);
+                let error = Error {
+                    step: status.step,
+                    err: err,
+                };
+                self.emit_error(&error);
+                return Err(error.err);
+            }
+        };
+
+        status.percent = 50;
+        self.emit_status(&status);
+
+        let mut disk = match Disk::from_name(&config.drive) {
+            Ok(disk) => disk,
+            Err(err) => {
+                error!("config.drive: {}", err);
+                let error = Error {
+                    step: status.step,
+                    err: err,
+                };
+                self.emit_error(&error);
+                return Err(error.err);
+            }
+        };
+
+        status.percent = 100;
+        self.emit_status(&status);
 
         let bootloader = Bootloader::detect();
 
-        info!("Installing {:?} using {:?}", config, bootloader);
+        info!("Detected {:?}", bootloader);
 
-        let mut status = Status {
-            step: Step::Partition,
-            percent: 0,
-        };
+        status.step = Step::Partition;
+        status.percent = 0;
         self.emit_status(&status);
 
         if let Err(err) = Installer::partition(&mut disk, bootloader, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
+            error!("partition: {}", err);
             let error = Error {
                 step: status.step,
                 err: err,
             };
-            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
@@ -505,11 +547,11 @@ impl Installer {
             status.percent = percent;
             self.emit_status(&status);
         }) {
+            error!("format: {}", err);
             let error = Error {
                 step: status.step,
                 err: err,
             };
-            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
@@ -522,11 +564,11 @@ impl Installer {
             status.percent = percent;
             self.emit_status(&status);
         }) {
+            error!("extract: {}", err);
             let error = Error {
                 step: status.step,
                 err: err,
             };
-            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
@@ -539,11 +581,11 @@ impl Installer {
             status.percent = percent;
             self.emit_status(&status);
         }) {
+            error!("configure: {}", err);
             let error = Error {
                 step: status.step,
                 err: err,
             };
-            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }
@@ -556,11 +598,11 @@ impl Installer {
             status.percent = percent;
             self.emit_status(&status);
         }) {
+            error!("bootloader: {}", err);
             let error = Error {
                 step: status.step,
                 err: err,
             };
-            error!("{:?}", error);
             self.emit_error(&error);
             return Err(error.err);
         }

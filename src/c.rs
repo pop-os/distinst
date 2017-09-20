@@ -9,6 +9,7 @@ use super::{log, Config, Error, Installer, Status, Step};
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub enum DISTINST_STEP {
+    INIT,
     PARTITION,
     FORMAT,
     EXTRACT,
@@ -20,6 +21,7 @@ impl From<DISTINST_STEP> for Step {
     fn from(step: DISTINST_STEP) -> Self {
         use DISTINST_STEP::*;
         match step{
+            INIT => Step::Init,
             PARTITION => Step::Partition,
             FORMAT => Step::Format,
             EXTRACT => Step::Extract,
@@ -33,6 +35,7 @@ impl From<Step> for DISTINST_STEP {
     fn from(step: Step) -> Self {
         use DISTINST_STEP::*;
         match step{
+            Step::Init => INIT,
             Step::Partition => PARTITION,
             Step::Format => FORMAT,
             Step::Extract => EXTRACT,
@@ -54,12 +57,12 @@ impl DistinstConfig {
     unsafe fn into_config(&self) -> Result<Config, io::Error> {
         let squashfs_cstr = CStr::from_ptr(self.squashfs);
         let squashfs = squashfs_cstr.to_str().map_err(|err| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("Invalid UTF-8: {}", err))
+            io::Error::new(io::ErrorKind::InvalidData, format!("config.squashfs: Invalid UTF-8: {}", err))
         })?;
 
         let drive_cstr = CStr::from_ptr(self.drive);
         let drive = drive_cstr.to_str().map_err(|err| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("Invalid UTF-8: {}", err))
+            io::Error::new(io::ErrorKind::InvalidData, format!("config.drive: Invalid UTF-8: {}", err))
         })?;
 
         Ok(Config {
@@ -175,12 +178,19 @@ pub unsafe extern fn distinst_installer_install(installer: *mut DistinstInstalle
             match (*installer).0.install(&config) {
                 Ok(()) => 0,
                 Err(err) => {
+                    info!("Install error: {}", err);
                     err.raw_os_error().unwrap_or(libc::EIO)
                 }
             }
         },
         Err(err) => {
-            err.raw_os_error().unwrap_or(libc::EIO)
+            info!("Config error: {}", err);
+            let errno = err.raw_os_error().unwrap_or(libc::EIO);
+            (*installer).0.emit_error(&Error {
+                step: Step::Init,
+                err: err,
+            });
+            errno
         }
     }
 }
