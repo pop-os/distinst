@@ -1,0 +1,41 @@
+Source: distinst
+Section: admin
+Priority: optional
+Maintainer: Jeremy Soller <jeremy@system76.com>
+Build-Depends:
+  debhelper (>=9),
+  cargo
+Standards-Version: 4.1.1
+Homepage: https://github.com/pop-os/distinst
+
+Package: distinst
+Architecture: amd64
+Depends:
+  libdistinst (= ${binary:Version}),
+  ${misc:Depends},
+  ${shlib:Depends}
+Description: Distribution Installer CLI
+
+Package: libdistinst
+Architecture: amd64
+Depends:
+  apt,
+  coreutils,
+  dosfstools,
+  e2fsprogs,
+  grub2-common,
+  locales,
+  mount,
+  parted,
+  squashfs-tools,
+  util-linux,
+  ${misc:Depends},
+  ${shlib:Depends}
+Description: Distribution Installer Library
+
+Package: libdistinst-dev
+Architecture: amd64
+Depends:
+  libdistinst (= ${binary:Version}),
+  ${misc:Depends}
+Description: Distribution Installer Development Files
