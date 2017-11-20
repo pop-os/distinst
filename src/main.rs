@@ -17,7 +17,7 @@ fn main() {
                 .required(true)
         )
         .arg(
-            Arg::with_name("drive")
+            Arg::with_name("disk")
                 .required(true)
         )
         .get_matches();
@@ -27,7 +27,7 @@ fn main() {
     }
 
     let squashfs = matches.value_of("squashfs").unwrap();
-    let drive = matches.value_of("drive").unwrap();
+    let disk = matches.value_of("disk").unwrap();
 
     let pb_opt: Rc<RefCell<Option<ProgressBar<io::Stdout>>>> = Rc::new(RefCell::new(None));
 
@@ -78,7 +78,7 @@ fn main() {
 
         installer.install(&Config {
             squashfs: squashfs.to_string(),
-            drive: drive.to_string(),
+            disk: disk.to_string(),
         })
     };
 

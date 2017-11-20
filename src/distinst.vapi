@@ -14,7 +14,7 @@ namespace Distinst {
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
         string squashfs;
-        string drive;
+        string disk;
     }
 
     [CCode (has_type_id = false)]

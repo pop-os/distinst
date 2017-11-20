@@ -37,7 +37,7 @@ locale-gen --purge "${LANG}"
 update-locale --reset "LANG=${LANG}"
 
 # Remove installer packages
-apt-get purge -y casper distinst io.elementary.installer ubiquity
+apt-get purge -y casper distinst ubiquity
 apt-get autoremove -y --purge
 
 # Install grub packages

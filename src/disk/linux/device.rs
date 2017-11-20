@@ -1,6 +1,9 @@
 use std::fs;
 use std::io::{Error, ErrorKind, Read, Result};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+
+use super::Mount;
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Device(String);
@@ -73,7 +76,7 @@ impl Device {
         Ok((major, minor))
     }
 
-    /// Get the size of the disk in bytes
+    /// Get the size of the device in bytes
     pub fn size(&self) -> Result<u64> {
         let mut file = fs::File::open(&format!("/sys/class/block/{}/size", self.0))?;
 
@@ -85,6 +88,18 @@ impl Device {
         })?;
 
         Ok(sectors * 512)
+    }
+
+    /// Get the current mount point of the device
+    pub fn mounts(&self) -> Result<Vec<Mount>> {
+        let mut mounts = Mount::all()?;
+
+        let path = self.path();
+        mounts.retain(|mount| {
+            mount.source.as_bytes().starts_with(path.as_os_str().as_bytes())
+        });
+
+        Ok(mounts)
     }
 
     /// Get the children of the device

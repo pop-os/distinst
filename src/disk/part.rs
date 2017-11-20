@@ -1,7 +1,7 @@
 use std::io::{Error, ErrorKind, Result};
 use std::path::PathBuf;
 
-use super::sys::Device;
+use super::sys::{Device, Mount};
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Partition(Device);
@@ -47,5 +47,10 @@ impl Partition {
     /// Get partition size, in bytes
     pub fn size(&self) -> Result<u64> {
         self.0.size()
+    }
+
+    /// Get the current mount point of the device
+    pub fn mounts(&self) -> Result<Vec<Mount>> {
+        self.0.mounts()
     }
 }

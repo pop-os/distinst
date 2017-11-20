@@ -9,7 +9,8 @@ use tempdir::TempDir;
 
 use std::{fs, io};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use disk::Disk;
 use format::{MkfsKind, mkfs};
@@ -75,7 +76,7 @@ pub enum Step {
 #[derive(Debug)]
 pub struct Config {
     pub squashfs: String,
-    pub drive: String,
+    pub disk: String,
 }
 
 /// Installer error
@@ -165,6 +166,47 @@ impl Installer {
     /// ```
     pub fn on_status<F: FnMut(&Status) + 'static>(&mut self, callback: F) {
         self.status_cb = Some(Box::new(callback));
+    }
+
+    fn initialize<F: FnMut(i32)>(config: &Config, mut callback: F) -> io::Result<(PathBuf, Disk)> {
+        info!("Initializing");
+
+        let squashfs = match Path::new(&config.squashfs).canonicalize() {
+            Ok(squashfs) => squashfs,
+            Err(err) => {
+                error!("config.squashfs: {}", err);
+                return Err(err);
+            }
+        };
+
+        callback(50);
+
+        let disk = match Disk::from_name(&config.disk) {
+            Ok(disk) => disk,
+            Err(err) => {
+                error!("config.disk: {}", err);
+                return Err(err);
+            }
+        };
+
+        for mount in disk.mounts()? {
+            info!(
+                "Unmounting '{}': {:?} is mounted at {:?}",
+                disk.name(), mount.source, mount.dest
+            );
+
+            let status = Command::new("umount").arg(&mount.source).status()?;
+            if ! status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("umount failed with status: {}", status)
+                ));
+            }
+        }
+
+        callback(100);
+
+        Ok((squashfs, disk))
     }
 
     fn partition<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
@@ -486,10 +528,13 @@ impl Installer {
         };
         self.emit_status(&status);
 
-        let squashfs = match Path::new(&config.squashfs).canonicalize() {
-            Ok(squashfs) => squashfs,
+        let (squashfs, mut disk) = match Installer::initialize(&config, |percent| {
+            status.percent = percent;
+            self.emit_status(&status);
+        }) {
+            Ok(value) => value,
             Err(err) => {
-                error!("config.squashfs: {}", err);
+                error!("initialize: {}", err);
                 let error = Error {
                     step: status.step,
                     err: err,
@@ -498,25 +543,6 @@ impl Installer {
                 return Err(error.err);
             }
         };
-
-        status.percent = 50;
-        self.emit_status(&status);
-
-        let mut disk = match Disk::from_name(&config.drive) {
-            Ok(disk) => disk,
-            Err(err) => {
-                error!("config.drive: {}", err);
-                let error = Error {
-                    step: status.step,
-                    err: err,
-                };
-                self.emit_error(&error);
-                return Err(error.err);
-            }
-        };
-
-        status.percent = 100;
-        self.emit_status(&status);
 
         let bootloader = Bootloader::detect();
 
