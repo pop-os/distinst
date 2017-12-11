@@ -35,7 +35,7 @@ int main(int argc, char ** argv) {
 
     DistinstConfig config = {
         .squashfs = "../../bash/filesystem.squashfs",
-        .drive = "/dev/sda",
+        .disk = "/dev/sda",
     };
     distinst_installer_install(installer, &config);
 

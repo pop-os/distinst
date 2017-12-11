@@ -29,7 +29,7 @@ public static int main (string[] args) {
 
     var config = Distinst.Config ();
     config.squashfs = "../../bash/filesystem.squashfs";
-    config.drive = "/dev/sda";
+    config.disk = "/dev/sda";
 
     installer.install (config);
 
