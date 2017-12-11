@@ -179,7 +179,7 @@ impl Installer {
             }
         };
 
-        callback(50);
+        callback(25);
 
         let disk = match Disk::from_name(&config.disk) {
             Ok(disk) => disk,
@@ -188,6 +188,8 @@ impl Installer {
                 return Err(err);
             }
         };
+
+        callback(50);
 
         for mount in disk.mounts()? {
             info!(
@@ -200,6 +202,23 @@ impl Installer {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
                     format!("umount failed with status: {}", status)
+                ));
+            }
+        }
+
+        callback(75);
+
+        for swap in disk.swaps()? {
+            info!(
+                "Unswapping '{}': {:?} is swapped",
+                disk.name(), swap.source,
+            );
+
+            let status = Command::new("swapoff").arg(&swap.source).status()?;
+            if ! status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("swapoff failed with status: {}", status)
                 ));
             }
         }

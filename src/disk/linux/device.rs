@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind, Read, Result};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
-use super::Mount;
+use super::{Mount, Swap};
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Device(String);
@@ -100,6 +100,18 @@ impl Device {
         });
 
         Ok(mounts)
+    }
+
+    /// Get the current swap point of the device
+    pub fn swaps(&self) -> Result<Vec<Swap>> {
+        let mut swaps = Swap::all()?;
+
+        let path = self.path();
+        swaps.retain(|swap| {
+            swap.source.as_bytes().starts_with(path.as_os_str().as_bytes())
+        });
+
+        Ok(swaps)
     }
 
     /// Get the children of the device

@@ -2,7 +2,7 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::PathBuf;
 
 use super::Partition;
-use super::sys::{Device, Mount};
+use super::sys::{Device, Mount, Swap};
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Disk(Device);
@@ -53,6 +53,11 @@ impl Disk {
     /// Get the current mount point of the device
     pub fn mounts(&self) -> Result<Vec<Mount>> {
         self.0.mounts()
+    }
+
+    /// Get the current swap point of the device
+    pub fn swaps(&self) -> Result<Vec<Swap>> {
+        self.0.swaps()
     }
 
     /// Get disk partitions
