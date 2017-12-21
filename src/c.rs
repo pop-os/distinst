@@ -1,9 +1,23 @@
 extern crate libc;
 
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::io;
 
 use super::{log, Config, Error, Installer, Status, Step};
+
+/// Log level
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub enum DISTINST_LOG_LEVEL {
+    TRACE,
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+}
+
+/// Installer log callback
+pub type DistinstLogCallback = extern "C" fn(level: DISTINST_LOG_LEVEL, message: *const libc::c_char, user_data: * mut libc::c_void);
 
 /// Bootloader steps
 #[repr(C)]
@@ -100,14 +114,22 @@ pub struct DistinstInstaller(Installer);
 
 /// Initialize logging
 #[no_mangle]
-pub unsafe extern fn distinst_log(name: *const libc::c_char) -> libc::c_int {
-    let name_cstr = CStr::from_ptr(name);
-    let name_str = match name_cstr.to_str() {
-        Ok(name_str) => name_str,
-        Err(_err) => return libc::EINVAL
-    };
+pub unsafe extern fn distinst_log(callback: DistinstLogCallback, user_data: * mut libc::c_void) -> libc::c_int {
+    use DISTINST_LOG_LEVEL::*;
+    use log::LogLevel;
 
-    match log(name_str) {
+    let user_data_sync = user_data as usize;
+    match log(move |level, message| {
+        let c_level = match level {
+            LogLevel::Trace => TRACE,
+            LogLevel::Debug => DEBUG,
+            LogLevel::Info => INFO,
+            LogLevel::Warn => WARN,
+            LogLevel::Error => ERROR,
+        };
+        let c_message = CString::new(message).unwrap();
+        callback(c_level, c_message.as_ptr(), user_data_sync as * mut libc::c_void);
+    }) {
         Ok(()) => 0,
         Err(_err) => libc::EINVAL
     }

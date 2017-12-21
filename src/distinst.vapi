@@ -1,6 +1,17 @@
 
 [CCode (cprefix = "Distinst", lower_case_cprefix = "distinst_", cheader_filename = "distinst.h")]
 namespace Distinst {
+    [CCode (cname = "DISTINST_LOG_LEVEL", has_type_id = false)]
+    public enum LogLevel {
+        TRACE,
+        DEBUG,
+        INFO,
+        WARN,
+        ERROR
+    }
+
+    public delegate void LogCallback (Distinst.LogLevel level, string message);
+
     [CCode (cname = "DISTINST_STEP", has_type_id = false)]
     public enum Step {
         INIT,
@@ -33,7 +44,7 @@ namespace Distinst {
 
     public delegate void StatusCallback (Distinst.Status status);
 
-    int log (string name);
+    int log (Distinst.LogCallback callback);
 
     [Compact]
     [CCode (free_function = "distinst_installer_destroy", has_type_id = false)]

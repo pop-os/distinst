@@ -1,3 +1,20 @@
+public static string level_name (Distinst.LogLevel level) {
+    switch(level) {
+    case Distinst.LogLevel.TRACE:
+        return "Trace";
+    case Distinst.LogLevel.DEBUG:
+        return "Debug";
+    case Distinst.LogLevel.INFO:
+        return "Info";
+    case Distinst.LogLevel.WARN:
+        return "Warn";
+    case Distinst.LogLevel.ERROR:
+        return "Error";
+    default:
+        return "Unknown";
+    }
+}
+
 public static string step_name (Distinst.Step step) {
     switch(step) {
     case Distinst.Step.PARTITION:
@@ -16,8 +33,13 @@ public static string step_name (Distinst.Step step) {
 }
 
 public static int main (string[] args) {
-    var installer = new Distinst.Installer ();
     var user_data = 0x12C0FFEE;
+
+    Distinst.log((level, message) => {
+        warning ("Log: %s %s %X", level_name (level), message, user_data);
+    });
+
+    var installer = new Distinst.Installer ();
 
     installer.on_error((error) => {
         warning ("Error: %s %s %X", step_name (error.step), strerror (error.err), user_data);

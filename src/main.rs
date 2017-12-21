@@ -22,7 +22,9 @@ fn main() {
         )
         .get_matches();
 
-    if let Err(err) = distinst::log("distinst") {
+    if let Err(err) = distinst::log(|_level, message| {
+        println!("{}", message);
+    }) {
         println!("Failed to initialize logging: {}", err);
     }
 

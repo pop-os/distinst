@@ -1,3 +1,9 @@
+distinst (0.2.0) bionic; urgency=medium
+
+  * Update logging functions
+
+ -- Jeremy Soller <jackpot51@gmail.com>  Thu, 21 Dec 2017 11:59:27 -0700
+
 distinst (0.1.0-4) artful; urgency=medium
 
   * Add more logging and init step

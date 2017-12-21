@@ -2,7 +2,6 @@
 
 #[macro_use]
 extern crate log;
-extern crate syslog;
 extern crate tempdir;
 
 use tempdir::TempDir;
@@ -25,17 +24,17 @@ mod c;
 mod chroot;
 mod disk;
 mod format;
+mod logger;
 mod mount;
 mod partition;
 mod squashfs;
 
 /// Initialize logging
-pub fn log(name: &str) -> Result<(), syslog::SyslogError> {
-    match syslog::init(
-        syslog::Facility::LOG_SYSLOG,
-        log::LogLevelFilter::Debug,
-        Some(name)
-    ) {
+pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(callback: F) -> Result<(), log::SetLoggerError> {
+    match log::set_logger(|max_log_level| {
+        max_log_level.set(log::LogLevelFilter::Debug);
+        Box::new(logger::Logger::new(callback))
+    }) {
         Ok(()) => {
             info!("Logging enabled");
             Ok(())
