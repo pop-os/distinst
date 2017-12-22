@@ -22,20 +22,24 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, direc
     let mut input = unsafe { File::from_raw_fd(fds[0]) };
     let output = unsafe { Stdio::from_raw_fd(fds[1]) };
 
+    let command = format!(
+        "unsquashfs -f -d '{}' '{}'",
+        directory.to_str().ok_or(
+            Error::new(ErrorKind::InvalidData, "Invalid directory path")
+        )?.replace("'", "'\"'\"'"),
+        squashfs.to_str().ok_or(
+            Error::new(ErrorKind::InvalidData, "Invalid squashfs path")
+        )?.replace("'", "'\"'\"'")
+    );
+
+    debug!("{}", command);
+
     let mut child = Command::new("script")
         .arg("--return")
         .arg("--flush")
         .arg("--quiet")
         .arg("--command")
-        .arg(format!(
-            "unsquashfs -f -d '{}' '{}'",
-            directory.to_str().ok_or(
-                Error::new(ErrorKind::InvalidData, "Invalid directory path")
-            )?.replace("'", "'\"'\"'"),
-            squashfs.to_str().ok_or(
-                Error::new(ErrorKind::InvalidData, "Invalid squashfs path")
-            )?.replace("'", "'\"'\"'")
-        ))
+        .arg(command)
         .arg("/dev/null")
         .stdout(output)
         .spawn()?;

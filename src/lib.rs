@@ -13,7 +13,7 @@ use std::process::Command;
 
 use disk::Disk;
 use format::{MkfsKind, mkfs};
-use partition::{parted, partprobe, sync};
+use partition::{blockdev, parted};
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
 
@@ -255,9 +255,7 @@ impl Installer {
         }
 
         info!("{}: Rereading partition table", disk_dev.display());
-        sync()?;
-        partprobe(&disk_dev)?;
-        sync()?;
+        blockdev(&disk_dev, &["--rereadpt"])?;
         callback(100);
 
         Ok(())
@@ -281,18 +279,6 @@ impl Installer {
             },
             Bootloader::Efi => {
                 {
-                    let part = parts.get(1).ok_or(
-                        io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
-                    )?;
-
-                    let part_dev = part.path();
-                    info!("{}: Formatting ext4 root partition", part_dev.display());
-                    mkfs(&part_dev, MkfsKind::Ext4)?;
-                }
-
-                callback(50);
-
-                {
                     let part = parts.get(0).ok_or(
                         io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                     )?;
@@ -300,6 +286,18 @@ impl Installer {
                     let part_dev = part.path();
                     info!("{}: Formatting fat32 efi partition", part_dev.display());
                     mkfs(&part_dev, MkfsKind::Fat32)?;
+                }
+
+                callback(50);
+
+                {
+                    let part = parts.get(1).ok_or(
+                        io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
+                    )?;
+
+                    let part_dev = part.path();
+                    info!("{}: Formatting ext4 root partition", part_dev.display());
+                    mkfs(&part_dev, MkfsKind::Ext4)?;
                 }
             }
         }

@@ -3,6 +3,25 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 use std::process::Command;
 
+pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item=S>>(disk: P, args: I) -> Result<()> {
+    let mut command = Command::new("blockdev");
+
+    command.args(args);
+    command.arg(disk.as_ref());
+
+    debug!("{:?}", command);
+
+    let status = command.status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(Error::new(
+            ErrorKind::Other,
+            format!("blockdev failed with status: {}", status)
+        ))
+    }
+}
+
 pub fn parted<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item=S>>(disk: P, args: I) -> Result<()> {
     let mut command = Command::new("parted");
 
@@ -22,40 +41,6 @@ pub fn parted<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item=S>>(disk: P,
         Err(Error::new(
             ErrorKind::Other,
             format!("parted failed with status: {}", status)
-        ))
-    }
-}
-
-pub fn partprobe<P: AsRef<Path>>(disk: P) -> Result<()> {
-    let mut command = Command::new("partprobe");
-
-    command.arg(disk.as_ref());
-
-    debug!("{:?}", command);
-
-    let status = command.status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(Error::new(
-            ErrorKind::Other,
-            format!("partprobe failed with status: {}", status)
-        ))
-    }
-}
-
-pub fn sync() -> Result<()> {
-    let mut command = Command::new("sync");
-
-    debug!("{:?}", command);
-
-    let status = command.status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(Error::new(
-            ErrorKind::Other,
-            format!("sync failed with status: {}", status)
         ))
     }
 }
