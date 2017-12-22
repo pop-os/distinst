@@ -1,0 +1,5 @@
+include_guard = "distinst_h"
+language = "C"
+
+[enum]
+prefix_with_name = true

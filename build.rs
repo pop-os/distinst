@@ -1,6 +1,4 @@
-extern crate cheddar;
-
-use cheddar::Cheddar;
+extern crate cbindgen;
 
 use std::env;
 use std::fs;
@@ -21,7 +19,8 @@ fn main() {
     fs::File::create(target_path.join("pkgconfig").join("distinst.pc.stub")).unwrap()
         .write_all(&pkg_config.as_bytes()).unwrap();
 
-    Cheddar::new().expect("could not read manifest")
-        .module("c").expect("malformed module path")
-        .run_build(target_path.join("include").join("distinst.h"));
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+
+    cbindgen::generate(crate_dir).expect("unable to generate bindings")
+        .write_to_file(target_path.join("include").join("distinst.h"));
 }

@@ -110,11 +110,11 @@ pub type DistinstStatusCallback = extern "C" fn(status: *const DistinstStatus, u
 
 /// An installer object
 #[repr(C)]
-pub struct DistinstInstaller(Installer);
+pub struct DistinstInstaller;
 
 /// Initialize logging
 #[no_mangle]
-pub unsafe extern fn distinst_log(callback: DistinstLogCallback, user_data: * mut libc::c_void) -> libc::c_int {
+pub unsafe extern "C" fn distinst_log(callback: DistinstLogCallback, user_data: * mut libc::c_void) -> libc::c_int {
     use DISTINST_LOG_LEVEL::*;
     use log::LogLevel;
 
@@ -137,14 +137,14 @@ pub unsafe extern fn distinst_log(callback: DistinstLogCallback, user_data: * mu
 
 /// Create an installer object
 #[no_mangle]
-pub extern fn distinst_installer_new() -> *mut DistinstInstaller {
-    Box::into_raw(Box::new(DistinstInstaller(Installer::new())))
+pub unsafe extern "C" fn distinst_installer_new() -> *mut DistinstInstaller {
+    Box::into_raw(Box::new(Installer::new())) as *mut DistinstInstaller
 }
 
 /// Send an installer status message
 #[no_mangle]
-pub unsafe extern fn distinst_installer_emit_error(installer: *mut DistinstInstaller, error: *const DistinstError) {
-    (*installer).0.emit_error(
+pub unsafe extern "C" fn distinst_installer_emit_error(installer: *mut DistinstInstaller, error: *const DistinstError) {
+    (*(installer as *mut Installer)).emit_error(
         &Error {
             step: (*error).step.into(),
             err: io::Error::from_raw_os_error((*error).err)
@@ -154,9 +154,9 @@ pub unsafe extern fn distinst_installer_emit_error(installer: *mut DistinstInsta
 
 /// Set the installer status callback
 #[no_mangle]
-pub unsafe extern fn distinst_installer_on_error(installer: *mut DistinstInstaller, callback: DistinstErrorCallback, user_data: * mut libc::c_void)
+pub unsafe extern "C" fn distinst_installer_on_error(installer: *mut DistinstInstaller, callback: DistinstErrorCallback, user_data: * mut libc::c_void)
 {
-    (*installer).0.on_error(move |error| {
+    (*(installer as *mut Installer)).on_error(move |error| {
         callback(
             & DistinstError {
                 step: error.step.into(),
@@ -169,8 +169,8 @@ pub unsafe extern fn distinst_installer_on_error(installer: *mut DistinstInstall
 
 /// Send an installer status message
 #[no_mangle]
-pub unsafe extern fn distinst_installer_emit_status(installer: *mut DistinstInstaller, status: *const DistinstStatus) {
-    (*installer).0.emit_status(
+pub unsafe extern "C" fn distinst_installer_emit_status(installer: *mut DistinstInstaller, status: *const DistinstStatus) {
+    (*(installer as *mut Installer)).emit_status(
         &Status {
             step: (*status).step.into(),
             percent: (*status).percent
@@ -180,8 +180,8 @@ pub unsafe extern fn distinst_installer_emit_status(installer: *mut DistinstInst
 
 /// Set the installer status callback
 #[no_mangle]
-pub unsafe extern fn distinst_installer_on_status(installer: *mut DistinstInstaller, callback: DistinstStatusCallback, user_data: * mut libc::c_void) {
-    (*installer).0.on_status(move |status| {
+pub unsafe extern "C" fn distinst_installer_on_status(installer: *mut DistinstInstaller, callback: DistinstStatusCallback, user_data: * mut libc::c_void) {
+    (*(installer as *mut Installer)).on_status(move |status| {
         callback(
             &DistinstStatus {
                 step: status.step.into(),
@@ -194,10 +194,10 @@ pub unsafe extern fn distinst_installer_on_status(installer: *mut DistinstInstal
 
 /// Install using this installer
 #[no_mangle]
-pub unsafe extern fn distinst_installer_install(installer: *mut DistinstInstaller, config: *const DistinstConfig) -> libc::c_int {
+pub unsafe extern "C" fn distinst_installer_install(installer: *mut DistinstInstaller, config: *const DistinstConfig) -> libc::c_int {
     match (*config).into_config() {
         Ok(config) => {
-            match (*installer).0.install(&config) {
+            match (*(installer as *mut Installer)).install(&config) {
                 Ok(()) => 0,
                 Err(err) => {
                     info!("Install error: {}", err);
@@ -208,7 +208,7 @@ pub unsafe extern fn distinst_installer_install(installer: *mut DistinstInstalle
         Err(err) => {
             info!("Config error: {}", err);
             let errno = err.raw_os_error().unwrap_or(libc::EIO);
-            (*installer).0.emit_error(&Error {
+            (*(installer as *mut Installer)).emit_error(&Error {
                 step: Step::Init,
                 err: err,
             });
@@ -219,6 +219,6 @@ pub unsafe extern fn distinst_installer_install(installer: *mut DistinstInstalle
 
 /// Destroy an installer object
 #[no_mangle]
-pub unsafe extern fn distinst_installer_destroy(installer: *mut DistinstInstaller) {
-    drop(Box::from_raw(installer))
+pub unsafe extern "C" fn distinst_installer_destroy(installer: *mut DistinstInstaller) {
+    drop(Box::from_raw(installer as *mut Installer))
 }

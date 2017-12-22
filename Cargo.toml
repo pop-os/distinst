@@ -10,7 +10,7 @@ name = "distinst"
 crate-type = ["lib", "dylib"]
 
 [build-dependencies]
-moz-cheddar = "0.4"
+cbindgen = "0.3"
 
 [dependencies]
 "clap" = "2.29"
