@@ -7,7 +7,7 @@ extern crate tempdir;
 use tempdir::TempDir;
 
 use std::{fs, io};
-use std::io::Write;
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -76,6 +76,8 @@ pub enum Step {
 pub struct Config {
     pub squashfs: String,
     pub disk: String,
+    pub lang: String,
+    pub remove: String,
 }
 
 /// Installer error
@@ -167,7 +169,7 @@ impl Installer {
         self.status_cb = Some(Box::new(callback));
     }
 
-    fn initialize<F: FnMut(i32)>(config: &Config, mut callback: F) -> io::Result<(PathBuf, Disk)> {
+    fn initialize<F: FnMut(i32)>(config: &Config, mut callback: F) -> io::Result<(PathBuf, Disk, Vec<String>)> {
         info!("Initializing");
 
         let squashfs = match Path::new(&config.squashfs).canonicalize() {
@@ -178,7 +180,7 @@ impl Installer {
             }
         };
 
-        callback(25);
+        callback(20);
 
         let disk = match Disk::from_name(&config.disk) {
             Ok(disk) => disk,
@@ -188,7 +190,7 @@ impl Installer {
             }
         };
 
-        callback(50);
+        callback(40);
 
         for mount in disk.mounts()? {
             info!(
@@ -198,6 +200,7 @@ impl Installer {
 
             let status = Command::new("umount").arg(&mount.source).status()?;
             if ! status.success() {
+                error!("config.disk: failed to umount with status {}", status);
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
                     format!("umount failed with status: {}", status)
@@ -205,7 +208,7 @@ impl Installer {
             }
         }
 
-        callback(75);
+        callback(60);
 
         for swap in disk.swaps()? {
             info!(
@@ -215,6 +218,7 @@ impl Installer {
 
             let status = Command::new("swapoff").arg(&swap.source).status()?;
             if ! status.success() {
+                error!("config.disk: failed to swapoff with status {}", status);
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
                     format!("swapoff failed with status: {}", status)
@@ -222,9 +226,30 @@ impl Installer {
             }
         }
 
-        callback(100);
+        callback(80);
 
-        Ok((squashfs, disk))
+        let mut remove_pkgs = Vec::new();
+        {
+            let file = match fs::File::open(&config.remove) {
+                Ok(file) => file,
+                Err(err) => {
+                    error!("config.remove: {}", err);
+                    return Err(err);
+                }
+            };
+
+            for line_res in io::BufReader::new(file).lines() {
+                match line_res {
+                    Ok(line) => remove_pkgs.push(line),
+                    Err(err) => {
+                        error!("config.remove: {}", err);
+                        return Err(err);
+                    }
+                }
+            }
+        }
+
+        Ok((squashfs, disk, remove_pkgs))
     }
 
     fn partition<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
@@ -343,7 +368,7 @@ impl Installer {
         Ok(())
     }
 
-    fn configure<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
+    fn configure<S: AsRef<str>, I: IntoIterator<Item=S>, F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, lang: &str, remove_pkgs: I, mut callback: F) -> io::Result<()> {
         let disk_dev = disk.path();
         info!("{}: Configuring for {:?}", disk_dev.display(), bootloader);
 
@@ -412,10 +437,25 @@ impl Installer {
                             Bootloader::Efi => "grub-efi-amd64-signed",
                         };
 
-                        let status = chroot.command("/bin/bash", [
-                            configure_chroot.to_str().unwrap(),
-                            grub_pkg
-                        ].iter())?;
+                        let mut args = vec![
+                            // Clear existing environment
+                            "-i".to_string(),
+                            // Set language to config setting
+                            format!("LANG={}", lang),
+                            // Run configure script with bash
+                            "bash".to_string(),
+                            // Path to configure script in chroot
+                            configure_chroot.to_str().unwrap().to_string(),
+                            // Install appropriate grub package
+                            grub_pkg.to_string(),
+                        ];
+
+                        for pkg in remove_pkgs {
+                            // Remove installer packages
+                            args.push(format!("-{}", pkg.as_ref()));
+                        }
+
+                        let status = chroot.command("/usr/bin/env", args.iter())?;
 
                         if ! status.success() {
                             return Err(io::Error::new(
@@ -544,7 +584,7 @@ impl Installer {
         };
         self.emit_status(&status);
 
-        let (squashfs, mut disk) = match Installer::initialize(&config, |percent| {
+        let (squashfs, mut disk, remove_pkgs) = match Installer::initialize(&config, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
@@ -619,7 +659,7 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::configure(&mut disk, bootloader, |percent| {
+        if let Err(err) = Installer::configure(&mut disk, bootloader, &config.lang, &remove_pkgs, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {

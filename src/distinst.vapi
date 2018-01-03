@@ -26,6 +26,8 @@ namespace Distinst {
     public struct Config {
         string squashfs;
         string disk;
+        string lang;
+        string remove;
     }
 
     [CCode (has_type_id = false)]
