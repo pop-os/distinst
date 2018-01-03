@@ -20,6 +20,10 @@ fn main() {
             Arg::with_name("disk")
                 .required(true)
         )
+        .arg(
+            Arg::with_name("lang")
+                .required(true)
+        )
         .get_matches();
 
     if let Err(err) = distinst::log(|_level, message| {
@@ -30,6 +34,7 @@ fn main() {
 
     let squashfs = matches.value_of("squashfs").unwrap();
     let disk = matches.value_of("disk").unwrap();
+    let lang = matches.value_of("lang").unwrap();
 
     let pb_opt: Rc<RefCell<Option<ProgressBar<io::Stdout>>>> = Rc::new(RefCell::new(None));
 
@@ -81,6 +86,7 @@ fn main() {
         installer.install(&Config {
             squashfs: squashfs.to_string(),
             disk: disk.to_string(),
+            lang: lang.to_string(),
         })
     };
 

@@ -76,6 +76,7 @@ pub enum Step {
 pub struct Config {
     pub squashfs: String,
     pub disk: String,
+    pub lang: String,
 }
 
 /// Installer error
@@ -343,7 +344,14 @@ impl Installer {
         Ok(())
     }
 
-    fn configure<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
+    fn configure<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, lang: &str, mut callback: F) -> io::Result<()> {
+        //TODO: Get from config
+        let purge_pkgs = [
+            "casper",
+            "distinst",
+            "io.elementary.installer",
+        ];
+        
         let disk_dev = disk.path();
         info!("{}: Configuring for {:?}", disk_dev.display(), bootloader);
 
@@ -411,11 +419,26 @@ impl Installer {
                             Bootloader::Bios => "grub-pc",
                             Bootloader::Efi => "grub-efi-amd64-signed",
                         };
+                        
+                        let mut args = vec![
+                            // Clear existing environment
+                            "-i".to_string(),
+                            // Set language to config setting
+                            format!("LANG={}", lang),
+                            // Run configure script with bash
+                            "bash".to_string(),
+                            // Path to configure script in chroot
+                            configure_chroot.to_str().unwrap().to_string(),
+                            // Install appropriate grub package
+                            grub_pkg.to_string(),
+                        ];
+                        
+                        for pkg in purge_pkgs.iter() {
+                            // Remove installer packages
+                            args.push(format!("-{}", pkg));
+                        }
 
-                        let status = chroot.command("/bin/bash", [
-                            configure_chroot.to_str().unwrap(),
-                            grub_pkg
-                        ].iter())?;
+                        let status = chroot.command("/usr/bin/env", args.iter())?;
 
                         if ! status.success() {
                             return Err(io::Error::new(
@@ -619,7 +642,7 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::configure(&mut disk, bootloader, |percent| {
+        if let Err(err) = Installer::configure(&mut disk, bootloader, &config.lang, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {

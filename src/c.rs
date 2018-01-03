@@ -65,6 +65,7 @@ impl From<Step> for DISTINST_STEP {
 pub struct DistinstConfig {
     squashfs: *const libc::c_char,
     disk: *const libc::c_char,
+    lang: *const libc::c_char,
 }
 
 impl DistinstConfig {
@@ -79,9 +80,15 @@ impl DistinstConfig {
             io::Error::new(io::ErrorKind::InvalidData, format!("config.disk: Invalid UTF-8: {}", err))
         })?;
 
+        let lang_cstr = CStr::from_ptr(self.lang);
+        let lang = lang_cstr.to_str().map_err(|err| {
+            io::Error::new(io::ErrorKind::InvalidData, format!("config.lang: Invalid UTF-8: {}", err))
+        })?;
+
         Ok(Config {
             squashfs: squashfs.to_string(),
             disk: disk.to_string(),
+            lang: lang.to_string(),
         })
     }
 }
