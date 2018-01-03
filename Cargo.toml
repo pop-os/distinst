@@ -1,7 +1,7 @@
 [package]
 name = "distinst"
 description = "Distribution Installer Backend"
-version = "0.3.0-alpha"
+version = "0.3.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 build = "build.rs"
 
