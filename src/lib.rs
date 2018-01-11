@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate log;
 extern crate tempdir;
+extern crate libparted;
 
 use tempdir::TempDir;
 
@@ -11,7 +12,7 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use disk::Disk;
+use disk::{Disk, Disks};
 use format::{MkfsKind, mkfs};
 use partition::{blockdev, parted};
 pub use chroot::Chroot;
@@ -184,45 +185,42 @@ impl Installer {
 
         let disk = match Disk::from_name(&config.disk) {
             Ok(disk) => disk,
-            Err(err) => {
-                error!("config.disk: {}", err);
-                return Err(err);
+            Err(why) => {
+                error!("config.disk: {}", why);
+                return Err(io::Error::new(io::ErrorKind::Other, why.to_string()));
             }
         };
 
         callback(40);
 
-        for mount in disk.mounts()? {
-            info!(
-                "Unmounting '{}': {:?} is mounted at {:?}",
-                disk.name(), mount.source, mount.dest
-            );
+        for partition in &disk.partitions {
+            if partition.is_swap() {
+                info!("Unswapping '{}': {} is swapped",
+                    disk.path().display(), partition.path().display(),
+                );
 
-            let status = Command::new("umount").arg(&mount.source).status()?;
-            if ! status.success() {
-                error!("config.disk: failed to umount with status {}", status);
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("umount failed with status: {}", status)
-                ));
-            }
-        }
+                let status = Command::new("swapoff").arg(&partition.path()).status()?;
+                if ! status.success() {
+                    error!("config.disk: failed to swapoff with status {}", status);
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("swapoff failed with status: {}", status)
+                    ));
+                }
+            } else if let Some(ref mount) = partition.mount_point {
+                info!(
+                    "Unmounting '{}': {} is mounted at {}",
+                    disk.path().display(), partition.path().display(), mount.display()
+                );
 
-        callback(60);
-
-        for swap in disk.swaps()? {
-            info!(
-                "Unswapping '{}': {:?} is swapped",
-                disk.name(), swap.source,
-            );
-
-            let status = Command::new("swapoff").arg(&swap.source).status()?;
-            if ! status.success() {
-                error!("config.disk: failed to swapoff with status {}", status);
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("swapoff failed with status: {}", status)
-                ));
+                let status = Command::new("umount").arg(&partition.path()).status()?;
+                if ! status.success() {
+                    error!("config.disk: failed to umount with status {}", status);
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("umount failed with status: {}", status)
+                    ));
+                }
             }
         }
 
@@ -290,11 +288,9 @@ impl Installer {
         let disk_dev = disk.path();
         info!("{}: Formatting for {:?}", disk_dev.display(), bootloader);
 
-        // TODO: Use libparted
-        let parts = disk.parts()?;
         match bootloader {
             Bootloader::Bios => {
-                let part = parts.get(0).ok_or(
+                let part = disk.partitions.iter().next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                 )?;
 
@@ -304,7 +300,7 @@ impl Installer {
             },
             Bootloader::Efi => {
                 {
-                    let part = parts.get(0).ok_or(
+                    let part = disk.partitions.iter().next().ok_or(
                         io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                     )?;
 
@@ -316,7 +312,7 @@ impl Installer {
                 callback(50);
 
                 {
-                    let part = parts.get(1).ok_or(
+                    let part = disk.partitions.iter().skip(1).next().ok_or(
                         io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
                     )?;
 
@@ -336,15 +332,14 @@ impl Installer {
         let disk_dev = disk.path();
         info!("{}: Extracting {}", disk_dev.display(), squashfs.as_ref().display());
 
-        let parts = disk.parts()?;
         let part = match bootloader {
             Bootloader::Bios => {
-                parts.get(0).ok_or(
+                disk.partitions.iter().next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                 )?
             },
             Bootloader::Efi => {
-                parts.get(1).ok_or(
+                disk.partitions.iter().skip(1).next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
                 )?
             }
@@ -372,21 +367,20 @@ impl Installer {
         let disk_dev = disk.path();
         info!("{}: Configuring for {:?}", disk_dev.display(), bootloader);
 
-        let parts = disk.parts()?;
         let (part, efi_opt) = match bootloader {
             Bootloader::Bios => {
-                let part = parts.get(0).ok_or(
+                let part = disk.partitions.iter().next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                 )?;
 
                 (part, None)
             },
             Bootloader::Efi => {
-                let efi = parts.get(0).ok_or(
+                let efi = disk.partitions.iter().next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                 )?;
 
-                let part = parts.get(1).ok_or(
+                let part = disk.partitions.iter().skip(1).next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
                 )?;
 
@@ -489,21 +483,20 @@ impl Installer {
         let disk_dev = disk.path();
         info!("{}: Installing bootloader for {:?}", disk_dev.display(), bootloader);
 
-        let parts = disk.parts()?;
         let (part, efi_opt) = match bootloader {
             Bootloader::Bios => {
-                let part = parts.get(0).ok_or(
+                let part = disk.partitions.iter().next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                 )?;
 
                 (part, None)
             },
             Bootloader::Efi => {
-                let efi = parts.get(0).ok_or(
+                let efi = disk.partitions.iter().next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
                 )?;
 
-                let part = parts.get(1).ok_or(
+                let part = disk.partitions.iter().skip(1).next().ok_or(
                     io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
                 )?;
 
@@ -546,7 +539,7 @@ impl Installer {
                         }
                     }
 
-                    args.push(disk_dev.into_os_string().into_string().unwrap());
+                    args.push(disk_dev.to_str().unwrap().to_owned());
 
                     let status = chroot.command("grub-install", args.iter())?;
                     if ! status.success() {
@@ -699,11 +692,8 @@ impl Installer {
     /// let installer = Installer::new();
     /// let disks = installer.disks().unwrap();
     /// ```
-    pub fn disks(&self) -> io::Result<Vec<Disk>> {
-        let mut disks = Disk::all()?;
-        disks.retain(|disk| {
-            ! disk.name().starts_with("loop")
-        });
-        Ok(disks)
+    pub fn disks(&self) -> io::Result<Disks> {
+        Disks::probe_devices()
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
 }

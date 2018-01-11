@@ -13,9 +13,9 @@ crate-type = ["lib", "dylib"]
 cbindgen = "0.3"
 
 [dependencies]
-"clap" = "=2.26.0"
-"libc" = "0.2"
-"log" = "0.3"
-"pbr" = "1.0"
-"tempdir" = "0.3"
-#TODO "libparted" = { "git" = "https://github.com/system76/libparted.git" }
+clap = "=2.26.0"
+libc = "0.2"
+libparted = { git = "https://github.com/system76/libparted.git" }
+log = "0.3"
+pbr = "1.0"
+tempdir = "0.3"
