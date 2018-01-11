@@ -1,9 +1,11 @@
 mod mounts;
+mod operations;
 mod serial;
 
 use libparted::{Device, Disk as PedDisk, Partition};
 use self::mounts::Mounts;
 use self::serial::get_serial_no;
+use self::operations::*;
 use std::io;
 use std::str;
 use std::path::{Path, PathBuf};
@@ -13,10 +15,14 @@ use std::fmt::{self, Display, Formatter};
 pub enum DiskError {
     DeviceGet,
     DeviceProbe,
-    DiskNew,
     DiskGet,
+    DiskNew,
+    EndSectorOverlaps,
+    LayoutChanged,
     MountsObtain { why: io::Error },
+    PartitionOverlaps,
     SerialGet { why: io::Error },
+    StartSectorOverlaps,
 }
 
 impl Display for DiskError {
@@ -25,10 +31,14 @@ impl Display for DiskError {
         match *self {
             DeviceGet => writeln!(f, "unable to get device"),
             DeviceProbe => writeln!(f, "unable to probe for devices"),
-            DiskNew => writeln!(f, "unable to open disk"),
             DiskGet => writeln!(f, "unable to find disk"),
+            DiskNew => writeln!(f, "unable to open disk"),
+            EndSectorOverlaps => writeln!(f, "end sector overlaps"),
+            LayoutChanged => writeln!(f, "partition layout on disk has changed"),
             MountsObtain { ref why } => writeln!(f, "unable to get mounts: {}", why),
+            PartitionOverlaps => writeln!(f, "partition overlaps"),
             SerialGet { ref why } => writeln!(f, "unable to get serial number of device: {}", why),
+            StartSectorOverlaps => writeln!(f, "start sector overlaps"),
         }
     }
 }
@@ -184,12 +194,100 @@ impl Disk {
         })
     }
 
+    pub fn add_partition(&mut self, start: i64, end: i64, fs: FileSystemType) -> Result<(), DiskError> {
+        let after = self.sector_overlaps(start).ok_or(DiskError::StartSectorOverlaps)?;
+        let before = self.sector_overlaps(end).ok_or(DiskError::EndSectorOverlaps)?;
+        if after != before - 1 {
+            return Err(DiskError::PartitionOverlaps);
+        }
+
+        unimplemented!();
+
+        Ok(())
+    }
+
+    fn sector_overlaps(&self, sector: i64) -> Option<usize> {
+        unimplemented!();
+    }
+
+    /// Returns an error if the other disk does not contain the same source partitions.
+    fn validate_layout(&self, other: &Disk) -> Result<(), DiskError> {
+        let mut new_parts = other.partitions.iter();
+        'outer: for source in &self.partitions {
+            'inner: while let Some(new) = new_parts.next() {
+                if source.is_same_partition_as(new) {
+                    continue 'outer;
+                }
+            }
+            return Err(DiskError::LayoutChanged);
+        }
+
+        Ok(())
+    }
+
+    fn diff(&self, new: &Disk) -> Result<DiskOps, DiskError> {
+        self.validate_layout(new)?;
+
+        let mut remove_partitions = Vec::new();
+        let mut change_partitions = Vec::new();
+        let mut create_partitions = Vec::new();
+
+        let mut new_parts = new.partitions.iter();
+        let mut new_part = None;
+
+        'outer: for source in &self.partitions {
+            'inner: loop {
+                let mut next_part = new_part.take().or(new_parts.next());
+                if let Some(new) = next_part {
+                    if new.is_source {
+                        if source.number != new.number {
+                            unreachable!("layout validation");
+                        }
+
+                        if new.remove {
+                            remove_partitions.push(new.number);
+                            continue 'outer;
+                        }
+
+                        if source.requires_changes(new) {
+                            change_partitions.push(PartitionChange {
+                                num: source.number,
+                                start: new.start_sector,
+                                end: new.end_sector,
+                                format: new.filesystem
+                            });
+                        }
+
+                        continue 'outer;
+                    } else {
+                        create_partitions.push(PartitionCreate {
+                            start_sector: new.start_sector,
+                            end_sector: new.end_sector,
+                            file_system: new.filesystem.unwrap(),
+                        });
+
+                        continue 'inner;
+                    }
+                }
+            }
+        }
+
+        Ok(DiskOps { remove_partitions, change_partitions, create_partitions })
+    }
+
+    pub fn commit(&self) -> Result<(), DiskError> {
+        let source = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
+        unimplemented!();
+    }
+
     pub fn path(&self) -> &Path {
         &self.device_path
     }
 }
 
 pub struct PartitionInfo {
+    is_source: bool,
+    remove: bool,
     pub part_type: PartitionType,
     pub filesystem: Option<FileSystemType>,
     pub number: i32,
@@ -208,6 +306,8 @@ impl PartitionInfo {
         let mounts = Mounts::new()?;
 
         Ok(Some(PartitionInfo {
+            is_source: true,
+            remove: false,
             part_type: match partition.type_get_name() {
                 "primary" => PartitionType::Primary,
                 "logical" => PartitionType::Logical,
@@ -237,6 +337,18 @@ impl PartitionInfo {
 
     pub fn path(&self) -> &Path {
         &self.device_path
+    }
+
+    fn requires_changes(&self, other: &PartitionInfo) -> bool {
+        self.sectors_differ_from(other) || self.filesystem != other.filesystem
+    }
+
+    fn sectors_differ_from(&self, other: &PartitionInfo) -> bool {
+        self.start_sector != other.start_sector || self.end_sector != other.end_sector
+    }
+
+    fn is_same_partition_as(&self, other: &PartitionInfo) -> bool {
+        self.is_source && other.is_source && self.number == other.number
     }
 }
 
