@@ -106,7 +106,7 @@ pub struct Disk {
 
 impl Disk {
     fn new(device: &mut Device) -> Result<Disk, DiskError> {
-        let model_name = String::from_utf8_lossy(device.model()).into();
+        let model_name = device.model().into();
         let device_path = device.path().to_owned();
         let serial = get_serial_no(&device_path).map_err(|why| DiskError::SerialGet { why })?;
         let size = device.length();
@@ -120,8 +120,8 @@ impl Disk {
 
         // Checks whether there is a partition table, and if so, which kind.
         let table_type = disk.get_disk_type_name().and_then(|tn| match tn {
-            b"gpt" => Some(PartitionTable::Gpt),
-            b"msdos" => Some(PartitionTable::Msdos),
+            "gpt" => Some(PartitionTable::Gpt),
+            "msdos" => Some(PartitionTable::Msdos),
             _ => None,
         });
 
