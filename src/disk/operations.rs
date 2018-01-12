@@ -1,3 +1,4 @@
+use libparted::{Device as PedDevice, Disk as PedDisk};
 use super::*;
 use std::path::Path;
 
@@ -12,7 +13,17 @@ pub(crate) struct DiskOps<'a> {
 
 impl<'a> DiskOps<'a> {
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
-        for part_id in self.remove_partitions.into_iter() {}
+        // Open the disk so that we can perform destructive changes on it.
+        let mut device = PedDevice::new(self.device_path)
+            .map_err(|_| DiskError::DeviceGet)?;
+        let mut disk = PedDisk::new(&mut device)
+            .map_err(|_| DiskError::DiskNew)?;
+
+        // Delete all of the specified partitions.
+        for partition in self.remove_partitions.into_iter() {
+            disk.remove_partition(partition as u32)
+                .map_err(|err| DiskError::PartitionRemove { partition })?
+        }
 
         Ok(ChangePartitions {
             device_path: self.device_path,

@@ -207,7 +207,7 @@ dependencies = [
 [[package]]
 name = "libparted"
 version = "0.1.0"
-source = "git+https://github.com/system76/libparted.git#98b363b3a18104535163b5abce422a9793c1d204"
+source = "git+https://github.com/system76/libparted.git#f1562fb86e371dbd624b0d081481594c7a619652"
 dependencies = [
  "libparted-sys 0.1.0 (git+https://github.com/system76/libparted-sys.git)",
 ]
