@@ -1,3 +1,5 @@
+// TODO: Handle MSDOS primary partition restrictions.
+
 mod mounts;
 mod operations;
 mod partitions;
@@ -21,10 +23,12 @@ pub enum DiskError {
     DiskNew,
     LayoutChanged,
     MountsObtain { why: io::Error },
+    PartitionNotFound { partition: i32 },
     PartitionOverlaps,
     SectorOverlaps { id: i32 },
     SerialGet { why: io::Error },
     PartitionOOB,
+    ResizeTooSmall,
 }
 
 impl Display for DiskError {
@@ -41,6 +45,10 @@ impl Display for DiskError {
             SerialGet { ref why } => writeln!(f, "unable to get serial number of device: {}", why),
             SectorOverlaps { id } => writeln!(f, "sector overlaps partition {}", id),
             PartitionOOB => writeln!(f, "partition exceeds size of disk"),
+            ResizeTooSmall => writeln!(f, "partition resize value too small"),
+            PartitionNotFound { partition } => {
+                writeln!(f, "partition {} not found on disk", partition)
+            }
         }
     }
 }
@@ -200,8 +208,102 @@ impl Disk {
         Ok(())
     }
 
+    pub fn remove_partition(&mut self, partition: i32) -> Result<(), DiskError> {
+        let id = self.partitions
+            .iter_mut()
+            .enumerate()
+            .find(|&(_, ref p)| p.number == partition)
+            .ok_or(DiskError::PartitionNotFound { partition })
+            .map(|(id, p)| {
+                if p.is_source {
+                    p.remove = true;
+                    0
+                } else {
+                    id
+                }
+            })?;
+
+        if id != 0 {
+            self.partitions.remove(id);
+        }
+
+        Ok(())
+    }
+
+    pub fn get_partition_mut(&mut self, partition: i32) -> Option<&mut PartitionInfo> {
+        self.partitions
+            .iter_mut()
+            .find(|part| part.number == partition)
+    }
+
+    pub fn resize_partition(&mut self, partition: i32, length: u64) -> Result<(), DiskError> {
+        let sector_size = self.sector_size;
+        if length <= ((10 * 1024 * 1024) / sector_size) {
+            return Err(DiskError::ResizeTooSmall);
+        }
+
+        let (backup, num, start, end);
+        {
+            let partition = self.get_partition_mut(partition)
+                .ok_or(DiskError::PartitionNotFound { partition })?;
+
+            backup = partition.end_sector;
+            num = partition.number;
+            start = partition.start_sector;
+            end = start + length;
+            partition.end_sector = end;
+        }
+
+        if let Some(id) = self.overlaps_region(start, end) {
+            if id != num {
+                let partition = self.get_partition_mut(partition).unwrap();
+                partition.end_sector = backup;
+                return Err(DiskError::SectorOverlaps { id });
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn move_partition(&mut self, partition: i32, start: u64) -> Result<(), DiskError> {
+        let end = {
+            let partition = self.get_partition_mut(partition)
+                .ok_or(DiskError::PartitionNotFound { partition })?;
+
+            if start == partition.start_sector {
+                return Ok(());
+            }
+
+            if start > partition.start_sector {
+                partition.end_sector + (start - partition.start_sector)
+            } else {
+                partition.end_sector - (partition.start_sector - start)
+            }
+        };
+
+        if let Some(id) = self.overlaps_region(start, end) {
+            return Err(DiskError::SectorOverlaps { id });
+        }
+
+        let partition = self.get_partition_mut(partition).unwrap();
+
+        partition.start_sector = start;
+        partition.end_sector = end;
+        Ok(())
+    }
+
+    fn format_partition(&mut self, partition: i32, fs: FileSystemType) -> Result<(), DiskError> {
+        self.get_partition_mut(partition)
+            .ok_or(DiskError::PartitionNotFound { partition })
+            .map(|partition| {
+                partition.format = true;
+                partition.filesystem = Some(fs);
+                ()
+            })
+    }
+
     /// Returns a partition ID if the given sector is within that partition.
-    fn get_partition_at(&self, sector: i64) -> Option<i32> {
+    fn get_partition_at(&self, sector: u64) -> Option<i32> {
         self.partitions.iter()
             // Only consider partitions which are not set to be removed.
             .filter(|part| !part.remove)
@@ -211,7 +313,7 @@ impl Disk {
             .map(|part| part.number)
     }
 
-    fn overlaps_region(&self, start: i64, end: i64) -> Option<i32> {
+    fn overlaps_region(&self, start: u64, end: u64) -> Option<i32> {
         self.partitions.iter()
             // Only consider partitions which are not set to be removed.
             .filter(|part| !part.remove)
@@ -270,22 +372,28 @@ impl Disk {
                                 num: source.number,
                                 start: new.start_sector,
                                 end: new.end_sector,
-                                format: new.filesystem,
+                                format: if new.format {
+                                    new.filesystem
+                                } else {
+                                    None
+                                },
                             });
                         }
 
                         continue 'outer;
                     } else {
-                        create_partitions.push(PartitionCreate {
-                            start_sector: new.start_sector,
-                            end_sector: new.end_sector,
-                            file_system: new.filesystem.unwrap(),
-                        });
-
-                        continue 'inner;
+                        unreachable!("layout validation");
                     }
                 }
             }
+        }
+
+        for partition in new_parts {
+            create_partitions.push(PartitionCreate {
+                start_sector: partition.start_sector,
+                end_sector: partition.end_sector,
+                file_system: partition.filesystem.unwrap(),
+            });
         }
 
         Ok(DiskOps {
@@ -340,6 +448,7 @@ mod tests {
                         busy: true,
                         is_source: true,
                         remove: false,
+                        format: false,
                         device_path: Path::new("/dev/sdz1").to_path_buf(),
                         mount_point: Some(Path::new("/boot").to_path_buf()),
                         start_sector: 2048,
@@ -354,6 +463,7 @@ mod tests {
                         busy: true,
                         is_source: true,
                         remove: false,
+                        format: false,
                         device_path: Path::new("/dev/sdz2").to_path_buf(),
                         mount_point: Some(Path::new("/").to_path_buf()),
                         start_sector: 1026048,
@@ -368,6 +478,7 @@ mod tests {
                         busy: false,
                         is_source: true,
                         remove: false,
+                        format: false,
                         device_path: Path::new("/dev/sdz3").to_path_buf(),
                         mount_point: None,
                         start_sector: 420456448,
@@ -382,6 +493,7 @@ mod tests {
                         busy: false,
                         is_source: true,
                         remove: false,
+                        format: false,
                         device_path: Path::new("/dev/sdz4").to_path_buf(),
                         mount_point: None,
                         start_sector: 1936738304,
@@ -412,11 +524,56 @@ mod tests {
         ])
     }
 
-    // #[test]
-    // fn layout_diff() {
-    //     let source = get_default().0.into_iter().next().unwrap();
-    //     // source.add_partition()
-    // }
+    const GIB20: u64 = 41943040;
+
+    // 500 MiB Fat16 partition.
+    fn boot_part(start: u64) -> PartitionBuilder {
+        PartitionBuilder::new(start, 1024_000 + start, FileSystemType::Fat16)
+    }
+
+    // 20 GiB Ext4 partition.
+    fn root_part(start: u64) -> PartitionBuilder {
+        PartitionBuilder::new(start, GIB20 + start, FileSystemType::Ext4)
+    }
+
+    #[test]
+    fn layout_diff() {
+        let source = get_default().0.into_iter().next().unwrap();
+        let mut new = source.clone();
+        new.remove_partition(1).unwrap();
+        new.remove_partition(2).unwrap();
+        new.format_partition(3, FileSystemType::Xfs).unwrap();
+        new.resize_partition(3, GIB20).unwrap();
+        new.remove_partition(4).unwrap();
+        new.add_partition(boot_part(2048)).unwrap();
+        new.add_partition(root_part(1026_048)).unwrap();
+        assert_eq!(
+            source.diff(&new).unwrap(),
+            DiskOps {
+                remove_partitions: vec![1, 2, 4],
+                change_partitions: vec![
+                    PartitionChange {
+                        num: 3,
+                        start: 420456448,
+                        end: 420456448 + GIB20,
+                        format: Some(FileSystemType::Xfs),
+                    },
+                ],
+                create_partitions: vec![
+                    PartitionCreate {
+                        start_sector: 2048,
+                        end_sector: 1024_000 + 2047,
+                        file_system: FileSystemType::Fat16,
+                    },
+                    PartitionCreate {
+                        start_sector: 1026_048,
+                        end_sector: GIB20 + 1026_047,
+                        file_system: FileSystemType::Ext4,
+                    },
+                ],
+            }
+        )
+    }
 
     #[test]
     fn partition_add() {
@@ -442,34 +599,15 @@ mod tests {
         // An empty disk should succeed, on the other hand.
         let mut source = get_empty().0.into_iter().next().unwrap();
 
-        // Create 500MiB Fat16 partition w/ 512 byte alignment.
-        source
-            .add_partition(PartitionBuilder::new(
-                2048,
-                1024_000 + 2048,
-                FileSystemType::Fat16,
-            ))
-            .unwrap();
+        // Create 500MiB Fat16 partition w/ 512 byte sectors.
+        source.add_partition(boot_part(2048)).unwrap();
 
-        // This should fail with an off by one error, due to the start sector being located within the previous partition.
-        assert!(
-            source
-                .add_partition(PartitionBuilder::new(
-                    1026_047,
-                    1024_000 + 2048,
-                    FileSystemType::Ext4
-                ))
-                .is_err()
-        );
+        // This should fail with an off by one error, due to the start
+        // sector being located within the previous partition.
+        assert!(source.add_partition(root_part(1026_047)).is_err());
 
         // Create 20GiB Ext4 partition after that.
-        source
-            .add_partition(PartitionBuilder::new(
-                1026_048,
-                41943040 + 1026_048,
-                FileSystemType::Ext4,
-            ))
-            .unwrap();
+        source.add_partition(root_part(1026_048)).unwrap();
     }
 
     #[test]

@@ -23,15 +23,15 @@ pub enum PartitionType {
 }
 
 pub struct PartitionBuilder {
-    pub(crate) start_sector: i64,
-    pub(crate) end_sector: i64,
+    pub(crate) start_sector: u64,
+    pub(crate) end_sector: u64,
     filesystem: FileSystemType,
     part_type: PartitionType,
     name: Option<String>,
 }
 
 impl PartitionBuilder {
-    pub fn new(start: i64, end: i64, fs: FileSystemType) -> PartitionBuilder {
+    pub fn new(start: u64, end: u64, fs: FileSystemType) -> PartitionBuilder {
         PartitionBuilder {
             start_sector: start,
             end_sector: end - 1,
@@ -65,6 +65,7 @@ impl PartitionBuilder {
         PartitionInfo {
             is_source: false,
             remove: false,
+            format: true,
             active: false,
             busy: false,
             number: -1,
@@ -83,11 +84,12 @@ impl PartitionBuilder {
 pub struct PartitionInfo {
     pub(crate) remove: bool,
     pub(crate) is_source: bool,
+    pub format: bool,
     pub active: bool,
     pub busy: bool,
     pub number: i32,
-    pub start_sector: i64,
-    pub end_sector: i64,
+    pub start_sector: u64,
+    pub end_sector: u64,
     pub part_type: PartitionType,
     pub filesystem: Option<FileSystemType>,
     pub name: Option<String>,
@@ -106,6 +108,7 @@ impl PartitionInfo {
         Ok(Some(PartitionInfo {
             is_source: true,
             remove: false,
+            format: false,
             part_type: match partition.type_get_name() {
                 "primary" => PartitionType::Primary,
                 "logical" => PartitionType::Logical,
@@ -123,8 +126,8 @@ impl PartitionInfo {
             device_path,
             active: partition.is_active(),
             busy: partition.is_busy(),
-            start_sector: partition.geom_start(),
-            end_sector: partition.geom_end(),
+            start_sector: partition.geom_start() as u64,
+            end_sector: partition.geom_end() as u64,
         }))
     }
 

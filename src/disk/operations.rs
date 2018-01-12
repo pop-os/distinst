@@ -1,6 +1,7 @@
 use super::*;
 
 /// The first state of disk operations, which provides a method for removing partitions.
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DiskOps {
     pub(crate) remove_partitions: Vec<i32>,
     pub(crate) change_partitions: Vec<PartitionChange>,
@@ -53,23 +54,25 @@ impl CreatePartitions {
 /// # Note
 ///
 /// Resize operations should always be performed before move operations.
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PartitionChange {
     /// The partition ID that will be changed.
     pub(crate) num: i32,
     /// The start sector that the partition will have.
-    pub(crate) start: i64,
+    pub(crate) start: u64,
     /// The end sector that the partition will have.
-    pub(crate) end: i64,
+    pub(crate) end: u64,
     /// Whether the partition should be reformatted, and if so, to what format.
     pub(crate) format: Option<FileSystemType>,
 }
 
 /// Defines a new partition to be created on the file system.
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PartitionCreate {
     /// The start sector that the partition will have.
-    pub(crate) start_sector: i64,
+    pub(crate) start_sector: u64,
     /// The end sector that the partition will have.
-    pub(crate) end_sector: i64,
+    pub(crate) end_sector: u64,
     /// The format that the file system should be formatted to.
     pub(crate) file_system: FileSystemType,
 }
