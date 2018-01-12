@@ -1,16 +1,21 @@
 use super::*;
+use std::path::Path;
 
 /// The first state of disk operations, which provides a method for removing partitions.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct DiskOps {
+pub(crate) struct DiskOps<'a> {
+    pub(crate) device_path: &'a Path,
     pub(crate) remove_partitions: Vec<i32>,
     pub(crate) change_partitions: Vec<PartitionChange>,
     pub(crate) create_partitions: Vec<PartitionCreate>,
 }
 
-impl DiskOps {
-    pub(crate) fn remove(self) -> Result<ChangePartitions, DiskError> {
+impl<'a> DiskOps<'a> {
+    pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
+        for part_id in self.remove_partitions.into_iter() {}
+
         Ok(ChangePartitions {
+            device_path: self.device_path,
             change_partitions: self.change_partitions,
             create_partitions: self.create_partitions,
         })
@@ -18,25 +23,28 @@ impl DiskOps {
 }
 
 /// The second state of disk operations, which provides a method for changing partitions.
-pub(crate) struct ChangePartitions {
+pub(crate) struct ChangePartitions<'a> {
+    device_path: &'a Path,
     change_partitions: Vec<PartitionChange>,
     create_partitions: Vec<PartitionCreate>,
 }
 
-impl ChangePartitions {
-    pub(crate) fn change(self) -> Result<CreatePartitions, DiskError> {
+impl<'a> ChangePartitions<'a> {
+    pub(crate) fn change(self) -> Result<CreatePartitions<'a>, DiskError> {
         Ok(CreatePartitions {
+            device_path: self.device_path,
             create_partitions: self.create_partitions,
         })
     }
 }
 
 /// The final state of disk operations, which provides a method for creating new partitions.
-pub(crate) struct CreatePartitions {
+pub(crate) struct CreatePartitions<'a> {
+    device_path: &'a Path,
     create_partitions: Vec<PartitionCreate>,
 }
 
-impl CreatePartitions {
+impl<'a> CreatePartitions<'a> {
     /// If any new partitions were specified, they will be created here.
     pub(crate) fn create(self) -> Result<(), DiskError> {
         Ok(())

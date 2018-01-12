@@ -21,6 +21,7 @@ pub enum DiskError {
     DeviceProbe,
     DiskGet,
     DiskNew,
+    InvalidSerial,
     LayoutChanged,
     MountsObtain { why: io::Error },
     PartitionNotFound { partition: i32 },
@@ -39,6 +40,7 @@ impl Display for DiskError {
             DeviceProbe => writeln!(f, "unable to probe for devices"),
             DiskGet => writeln!(f, "unable to find disk"),
             DiskNew => writeln!(f, "unable to open disk"),
+            InvalidSerial => writeln!(f, "serial model does not match"),
             LayoutChanged => writeln!(f, "partition layout on disk has changed"),
             MountsObtain { ref why } => writeln!(f, "unable to get mounts: {}", why),
             PartitionOverlaps => writeln!(f, "partition overlaps"),
@@ -186,12 +188,15 @@ impl Disk {
                         .0
                         .into_iter()
                         .find(|disk| &disk.serial == serial)
-                        .ok_or(DiskError::DeviceGet)
+                        .ok_or(DiskError::InvalidSerial)
                 })
             }
         })
     }
 
+    /// Adds a partition to the partition scheme.
+    ///
+    /// An error can occur if the partition will not fit onto the disk.
     pub fn add_partition(&mut self, builder: PartitionBuilder) -> Result<(), DiskError> {
         // Ensure that the values aren't already contained within an existing partition.
         if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
@@ -208,6 +213,11 @@ impl Disk {
         Ok(())
     }
 
+    /// Marks that the partition should be removed.
+    ///
+    /// Partitions marked as source partitions (pre-existing on disk) will have their `remove`
+    /// field set to `true`, whereas all other theoretical partitions will simply be removed
+    /// from the partition vector.
     pub fn remove_partition(&mut self, partition: i32) -> Result<(), DiskError> {
         let id = self.partitions
             .iter_mut()
@@ -230,12 +240,15 @@ impl Disk {
         Ok(())
     }
 
+    /// Obtains a mutable reference to a partition within the partition scheme.
     pub fn get_partition_mut(&mut self, partition: i32) -> Option<&mut PartitionInfo> {
         self.partitions
             .iter_mut()
             .find(|part| part.number == partition)
     }
 
+    /// Designates that the provided partition number should be resized to a specified length,
+    /// and calculates whether it will be possible to do that.
     pub fn resize_partition(&mut self, partition: i32, length: u64) -> Result<(), DiskError> {
         let sector_size = self.sector_size;
         if length <= ((10 * 1024 * 1024) / sector_size) {
@@ -265,6 +278,8 @@ impl Disk {
         Ok(())
     }
 
+    /// Designates that the provided partition number should be moved to a specified sector,
+    /// and calculates whether it will be possible to do that.
     pub fn move_partition(&mut self, partition: i32, start: u64) -> Result<(), DiskError> {
         let end = {
             let partition = self.get_partition_mut(partition)
@@ -292,6 +307,7 @@ impl Disk {
         Ok(())
     }
 
+    /// Designates that the specified partition ID should be formatted with the given file system.
     fn format_partition(&mut self, partition: i32, fs: FileSystemType) -> Result<(), DiskError> {
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
@@ -313,6 +329,8 @@ impl Disk {
             .map(|part| part.number)
     }
 
+    /// If a given start and end range overlaps a pre-existing partition, that
+    /// partition's number will be returned to indicate a potential conflict.
     fn overlaps_region(&self, start: u64, end: u64) -> Option<i32> {
         self.partitions.iter()
             // Only consider partitions which are not set to be removed.
@@ -343,7 +361,10 @@ impl Disk {
         Ok(())
     }
 
-    fn diff(&self, new: &Disk) -> Result<DiskOps, DiskError> {
+    /// Compares the source disk's partition scheme to a possible new partition scheme.
+    ///
+    /// An error can occur if the layout of the new disk conflicts with the source.
+    fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
         self.validate_layout(new)?;
 
         let mut remove_partitions = Vec::new();
@@ -397,15 +418,22 @@ impl Disk {
         }
 
         Ok(DiskOps {
+            device_path: &self.device_path,
             remove_partitions,
             change_partitions,
             create_partitions,
         })
     }
 
+    /// Attempts to commit all changes that have been made to the disk.
     pub fn commit(&self) -> Result<(), DiskError> {
-        let source = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
-        unimplemented!();
+        Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
+            source.diff(self).and_then(|ops| {
+                ops.remove()
+                    .and_then(|ops| ops.change())
+                    .and_then(|ops| ops.create())
+            })
+        })
     }
 
     pub fn path(&self) -> &Path {
