@@ -91,6 +91,7 @@ impl FileSystemType {
 /// # Note
 ///
 /// The `device_path` field may be used for identification of the device in the system.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Disk {
     /// The model name of the device, assigned by the manufacturer.
     pub model_name: String,
@@ -98,7 +99,7 @@ pub struct Disk {
     pub serial: String,
     /// The location in the file system where the block device is located.
     pub device_path: PathBuf,
-    /// The size of the disk in bytes.
+    /// The size of the disk in sectors.
     pub size: u64,
     /// The size of sectors on the disk.
     pub sector_size: u64,
@@ -149,6 +150,10 @@ impl Disk {
             partitions: if table_type.is_some() {
                 let mut partitions = Vec::new();
                 for part in disk.parts() {
+                    // skip invalid partitions (metadata / free)
+                    if part.num() == -1 { continue }
+
+                    // grab partition info results
                     let part_result = PartitionInfo::new(&part, is_msdos)
                         .map_err(|why| DiskError::MountsObtain { why })?;
                     if let Some(part) = part_result {
@@ -210,9 +215,9 @@ impl Disk {
         unimplemented!();
     }
 
-    /// Returns an error if the other disk does not contain the same source partitions.
-    fn validate_layout(&self, other: &Disk) -> Result<(), DiskError> {
-        let mut new_parts = other.partitions.iter();
+    /// Returns an error if the new disk does not contain the same source partitions.
+    fn validate_layout(&self, new: &Disk) -> Result<(), DiskError> {
+        let mut new_parts = new.partitions.iter();
         'outer: for source in &self.partitions {
             'inner: while let Some(new) = new_parts.next() {
                 if source.is_same_partition_as(new) {
@@ -285,19 +290,20 @@ impl Disk {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct PartitionInfo {
     is_source: bool,
     remove: bool,
+    pub active: bool,
+    pub busy: bool,
+    pub number: i32,
+    pub start_sector: i64,
+    pub end_sector: i64,
     pub part_type: PartitionType,
     pub filesystem: Option<FileSystemType>,
-    pub number: i32,
     pub name: Option<String>,
     pub device_path: PathBuf,
     pub mount_point: Option<PathBuf>,
-    pub active: bool,
-    pub busy: bool,
-    pub start_sector: i64,
-    pub end_sector: i64,
 }
 
 impl PartitionInfo {
@@ -363,5 +369,96 @@ impl Disks {
         }
 
         Ok(Disks(output))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_default() -> Disks {
+        Disks(vec![
+            Disk {
+                model_name: "Test Disk".into(),
+                serial: "Test Disk 123".into(),
+                device_path: "/dev/sdz".into(),
+                size: 1953525168,
+                sector_size: 512,
+                device_type: "TEST".into(),
+                table_type: Some(PartitionTable::Gpt),
+                read_only: false,
+                partitions: vec![
+                    PartitionInfo {
+                        active: true,
+                        busy: true,
+                        is_source: true,
+                        remove: false,
+                        device_path: Path::new("/dev/sdz1").to_path_buf(),
+                        mount_point: Some(Path::new("/boot").to_path_buf()),
+                        start_sector: 2048,
+                        end_sector: 1026047,
+                        filesystem: Some(FileSystemType::Fat16),
+                        name: None,
+                        number: 1,
+                        part_type: PartitionType::Primary,
+                    },
+                    PartitionInfo {
+                        active: true,
+                        busy: true,
+                        is_source: true,
+                        remove: false,
+                        device_path: Path::new("/dev/sdz2").to_path_buf(),
+                        mount_point: Some(Path::new("/").to_path_buf()),
+                        start_sector: 1026048,
+                        end_sector: 420456447,
+                        filesystem: Some(FileSystemType::Btrfs),
+                        name: Some("Pop!_OS".into()),
+                        number: 2,
+                        part_type: PartitionType::Primary,
+                    },
+                    PartitionInfo {
+                        active: false,
+                        busy: false,
+                        is_source: true,
+                        remove: false,
+                        device_path: Path::new("/dev/sdz3").to_path_buf(),
+                        mount_point: None,
+                        start_sector: 420456448,
+                        end_sector: 1936738303,
+                        filesystem: Some(FileSystemType::Ext4),
+                        name: Some("Solus OS".into()),
+                        number: 3,
+                        part_type: PartitionType::Primary,
+                    },
+                    PartitionInfo {
+                        active: true,
+                        busy: false,
+                        is_source: true,
+                        remove: false,
+                        device_path: Path::new("/dev/sdz4").to_path_buf(),
+                        mount_point: None,
+                        start_sector: 1936738304,
+                        end_sector: 1953523711,
+                        filesystem: Some(FileSystemType::Swap),
+                        name: None,
+                        number: 4,
+                        part_type: PartitionType::Primary,
+                    },
+                ]
+            }
+        ])
+    }
+
+    #[test]
+    fn layout_validity() {
+        // This test ensures that invalid layouts will raise a flag. An invalid layout is
+        // a layout which is missing some of the original source partitions.
+        let source = &get_default().0[0];
+        let mut duplicate = source.clone();
+        assert!(source.validate_layout(&duplicate).is_ok());
+
+        // This should fail, because a critical source partition was removed.
+        duplicate.partitions.remove(0);
+        assert!(source.validate_layout(&duplicate).is_err());
     }
 }
