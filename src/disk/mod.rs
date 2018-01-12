@@ -1,11 +1,13 @@
 mod mounts;
 mod operations;
+mod partitions;
 mod serial;
 
-use libparted::{Device, Disk as PedDisk, Partition};
+use libparted::{Device, Disk as PedDisk};
 use self::mounts::Mounts;
 use self::serial::get_serial_no;
 use self::operations::*;
+use self::partitions::*;
 use std::io;
 use std::str;
 use std::path::{Path, PathBuf};
@@ -17,12 +19,12 @@ pub enum DiskError {
     DeviceProbe,
     DiskGet,
     DiskNew,
-    EndSectorOverlaps,
     LayoutChanged,
     MountsObtain { why: io::Error },
     PartitionOverlaps,
+    SectorOverlaps { id: i32 },
     SerialGet { why: io::Error },
-    StartSectorOverlaps,
+    PartitionOOB,
 }
 
 impl Display for DiskError {
@@ -33,33 +35,14 @@ impl Display for DiskError {
             DeviceProbe => writeln!(f, "unable to probe for devices"),
             DiskGet => writeln!(f, "unable to find disk"),
             DiskNew => writeln!(f, "unable to open disk"),
-            EndSectorOverlaps => writeln!(f, "end sector overlaps"),
             LayoutChanged => writeln!(f, "partition layout on disk has changed"),
             MountsObtain { ref why } => writeln!(f, "unable to get mounts: {}", why),
             PartitionOverlaps => writeln!(f, "partition overlaps"),
             SerialGet { ref why } => writeln!(f, "unable to get serial number of device: {}", why),
-            StartSectorOverlaps => writeln!(f, "start sector overlaps"),
+            SectorOverlaps { id } => writeln!(f, "sector overlaps partition {}", id),
+            PartitionOOB => writeln!(f, "partition exceeds size of disk"),
         }
     }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy, Hash)]
-pub enum FileSystemType {
-    Btrfs,
-    Exfat,
-    Ext2,
-    Ext3,
-    Ext4,
-    Fat16,
-    Fat32,
-    Swap,
-    Xfs,
-}
-
-#[derive(Debug, PartialEq, Clone, Copy, Hash)]
-pub enum PartitionType {
-    Primary,
-    Logical,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
@@ -151,10 +134,12 @@ impl Disk {
                 let mut partitions = Vec::new();
                 for part in disk.parts() {
                     // skip invalid partitions (metadata / free)
-                    if part.num() == -1 { continue }
+                    if part.num() == -1 {
+                        continue;
+                    }
 
                     // grab partition info results
-                    let part_result = PartitionInfo::new(&part, is_msdos)
+                    let part_result = PartitionInfo::new_from_ped(&part, is_msdos)
                         .map_err(|why| DiskError::MountsObtain { why })?;
                     if let Some(part) = part_result {
                         partitions.push(part);
@@ -199,20 +184,46 @@ impl Disk {
         })
     }
 
-    pub fn add_partition(&mut self, start: i64, end: i64, fs: FileSystemType) -> Result<(), DiskError> {
-        let after = self.sector_overlaps(start).ok_or(DiskError::StartSectorOverlaps)?;
-        let before = self.sector_overlaps(end).ok_or(DiskError::EndSectorOverlaps)?;
-        if after != before - 1 {
-            return Err(DiskError::PartitionOverlaps);
+    pub fn add_partition(&mut self, builder: PartitionBuilder) -> Result<(), DiskError> {
+        // Ensure that the values aren't already contained within an existing partition.
+        if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
+            return Err(DiskError::SectorOverlaps { id });
         }
 
-        unimplemented!();
+        // And that the end can fit onto the disk.
+        if self.size < builder.end_sector as u64 {
+            return Err(DiskError::PartitionOOB);
+        }
+
+        self.partitions.push(builder.build());
 
         Ok(())
     }
 
-    fn sector_overlaps(&self, sector: i64) -> Option<usize> {
-        unimplemented!();
+    /// Returns a partition ID if the given sector is within that partition.
+    fn get_partition_at(&self, sector: i64) -> Option<i32> {
+        self.partitions.iter()
+            // Only consider partitions which are not set to be removed.
+            .filter(|part| !part.remove)
+            // Return upon the first partition where the sector is within the partition.
+            .find(|part| sector >= part.start_sector && sector <= part.end_sector)
+            // If found, return the partition number.
+            .map(|part| part.number)
+    }
+
+    fn overlaps_region(&self, start: i64, end: i64) -> Option<i32> {
+        self.partitions.iter()
+            // Only consider partitions which are not set to be removed.
+            .filter(|part| !part.remove)
+            // Return upon the first partition where the sector is within the partition.
+            .find(|part|
+                !(
+                    (start < part.start_sector && end < part.start_sector)
+                    || (start > part.end_sector && end > part.end_sector)
+                )
+            )
+            // If found, return the partition number.
+            .map(|part| part.number)
     }
 
     /// Returns an error if the new disk does not contain the same source partitions.
@@ -259,7 +270,7 @@ impl Disk {
                                 num: source.number,
                                 start: new.start_sector,
                                 end: new.end_sector,
-                                format: new.filesystem
+                                format: new.filesystem,
                             });
                         }
 
@@ -277,7 +288,11 @@ impl Disk {
             }
         }
 
-        Ok(DiskOps { remove_partitions, change_partitions, create_partitions })
+        Ok(DiskOps {
+            remove_partitions,
+            change_partitions,
+            create_partitions,
+        })
     }
 
     pub fn commit(&self) -> Result<(), DiskError> {
@@ -287,74 +302,6 @@ impl Disk {
 
     pub fn path(&self) -> &Path {
         &self.device_path
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PartitionInfo {
-    is_source: bool,
-    remove: bool,
-    pub active: bool,
-    pub busy: bool,
-    pub number: i32,
-    pub start_sector: i64,
-    pub end_sector: i64,
-    pub part_type: PartitionType,
-    pub filesystem: Option<FileSystemType>,
-    pub name: Option<String>,
-    pub device_path: PathBuf,
-    pub mount_point: Option<PathBuf>,
-}
-
-impl PartitionInfo {
-    pub fn new(partition: &Partition, is_msdos: bool) -> io::Result<Option<PartitionInfo>> {
-        let device_path = partition.get_path().unwrap().to_path_buf();
-        let mounts = Mounts::new()?;
-
-        Ok(Some(PartitionInfo {
-            is_source: true,
-            remove: false,
-            part_type: match partition.type_get_name() {
-                "primary" => PartitionType::Primary,
-                "logical" => PartitionType::Logical,
-                _ => return Ok(None),
-            },
-            mount_point: mounts.get_mount_point(&device_path),
-            filesystem: partition.fs_type_name().and_then(FileSystemType::from),
-            number: partition.num(),
-            name: if is_msdos {
-                None
-            } else {
-                partition.name().map(String::from)
-            },
-            // Note that primary and logical partitions should always have a path.
-            device_path,
-            active: partition.is_active(),
-            busy: partition.is_busy(),
-            start_sector: partition.geom_start(),
-            end_sector: partition.geom_end(),
-        }))
-    }
-
-    pub fn is_swap(&self) -> bool {
-        self.filesystem
-            .map_or(false, |fs| fs == FileSystemType::Swap)
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.device_path
-    }
-
-    fn requires_changes(&self, other: &PartitionInfo) -> bool {
-        self.sectors_differ_from(other) || self.filesystem != other.filesystem
-    }
-
-    fn sectors_differ_from(&self, other: &PartitionInfo) -> bool {
-        self.start_sector != other.start_sector || self.end_sector != other.end_sector
-    }
-
-    fn is_same_partition_as(&self, other: &PartitionInfo) -> bool {
-        self.is_source && other.is_source && self.number == other.number
     }
 }
 
@@ -444,21 +391,110 @@ mod tests {
                         number: 4,
                         part_type: PartitionType::Primary,
                     },
-                ]
-            }
+                ],
+            },
         ])
+    }
+
+    fn get_empty() -> Disks {
+        Disks(vec![
+            Disk {
+                model_name: "Test Disk".into(),
+                serial: "Test Disk 123".into(),
+                device_path: "/dev/sdz".into(),
+                size: 1953525168,
+                sector_size: 512,
+                device_type: "TEST".into(),
+                table_type: Some(PartitionTable::Gpt),
+                read_only: false,
+                partitions: Vec::new(),
+            },
+        ])
+    }
+
+    // #[test]
+    // fn layout_diff() {
+    //     let source = get_default().0.into_iter().next().unwrap();
+    //     // source.add_partition()
+    // }
+
+    #[test]
+    fn partition_add() {
+        // The default sample is maxed out, so any partition added should fail.
+        let mut source = get_default().0.into_iter().next().unwrap();
+        assert!(
+            source
+                .add_partition(PartitionBuilder::new(2048, 2_000_000, FileSystemType::Ext4))
+                .is_err()
+        );
+
+        // Failures should also occur if the end sector exceeds the size of
+        assert!(
+            source
+                .add_partition(PartitionBuilder::new(
+                    2048,
+                    1953525169,
+                    FileSystemType::Ext4
+                ))
+                .is_err()
+        );
+
+        // An empty disk should succeed, on the other hand.
+        let mut source = get_empty().0.into_iter().next().unwrap();
+
+        // Create 500MiB Fat16 partition w/ 512 byte alignment.
+        source
+            .add_partition(PartitionBuilder::new(
+                2048,
+                1024_000 + 2048,
+                FileSystemType::Fat16,
+            ))
+            .unwrap();
+
+        // This should fail with an off by one error, due to the start sector being located within the previous partition.
+        assert!(
+            source
+                .add_partition(PartitionBuilder::new(
+                    1026_047,
+                    1024_000 + 2048,
+                    FileSystemType::Ext4
+                ))
+                .is_err()
+        );
+
+        // Create 20GiB Ext4 partition after that.
+        source
+            .add_partition(PartitionBuilder::new(
+                1026_048,
+                41943040 + 1026_048,
+                FileSystemType::Ext4,
+            ))
+            .unwrap();
     }
 
     #[test]
     fn layout_validity() {
         // This test ensures that invalid layouts will raise a flag. An invalid layout is
         // a layout which is missing some of the original source partitions.
-        let source = &get_default().0[0];
+        let source = get_default().0.into_iter().next().unwrap();
         let mut duplicate = source.clone();
         assert!(source.validate_layout(&duplicate).is_ok());
 
         // This should fail, because a critical source partition was removed.
         duplicate.partitions.remove(0);
         assert!(source.validate_layout(&duplicate).is_err());
+
+        // An empty partition should always succeed.
+        let source = get_empty().0.into_iter().next().unwrap();
+        let mut duplicate = source.clone();
+        assert!(source.validate_layout(&duplicate).is_ok());
+        duplicate
+            .add_partition(PartitionBuilder::new(
+                2048,
+                1024_00 + 2048,
+                FileSystemType::Fat16,
+            ))
+            .unwrap();
+        assert!(source.validate_layout(&duplicate).is_ok());
     }
 }

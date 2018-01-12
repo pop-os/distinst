@@ -42,7 +42,6 @@ impl CreatePartitions {
     }
 }
 
-
 /// Defines the move and resize operations that the partition with this number
 /// will need to perform.
 ///
@@ -62,7 +61,7 @@ pub(crate) struct PartitionChange {
     /// The end sector that the partition will have.
     pub(crate) end: i64,
     /// Whether the partition should be reformatted, and if so, to what format.
-    pub(crate) format: Option<FileSystemType>
+    pub(crate) format: Option<FileSystemType>,
 }
 
 /// Defines a new partition to be created on the file system.
