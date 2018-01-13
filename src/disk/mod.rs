@@ -82,6 +82,7 @@ impl Display for DiskError {
     }
 }
 
+/// Specifies whether the partition table on the disk is **MSDOS** or **GPT**.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum PartitionTable {
     Msdos,
@@ -180,7 +181,7 @@ impl Disk {
         Disk::new(&mut device).map_err(|_| DiskError::DiskNew)
     }
 
-    /// Obtains the disk that corresponds to a given serial number.
+    /// Obtains the disk that corresponds to a given serial model.
     ///
     /// First attempts to check if the supplied name has the valid serial number (highly likely),
     /// then performs a full probe of all disks in the system to attempt to find the matching
@@ -192,6 +193,7 @@ impl Disk {
             if &source.serial == serial {
                 Ok(source)
             } else {
+                // Attempt to find the serial model on another disk.
                 Disks::probe_devices().and_then(|disks| {
                     disks
                         .0
@@ -276,12 +278,11 @@ impl Disk {
             partition.end_sector = end;
         }
 
-        if let Some(id) = self.overlaps_region(start, end) {
-            if id != num {
-                let partition = self.get_partition_mut(partition).unwrap();
-                partition.end_sector = backup;
-                return Err(DiskError::SectorOverlaps { id });
-            }
+        // Ensure that the new dimensions are not overlapping.
+        if let Some(id) = self.overlaps_region_excluding(start, end, num) {
+            let partition = self.get_partition_mut(partition).unwrap();
+            partition.end_sector = backup;
+            return Err(DiskError::SectorOverlaps { id });
         }
 
         Ok(())
@@ -305,7 +306,7 @@ impl Disk {
             }
         };
 
-        if let Some(id) = self.overlaps_region(start, end) {
+        if let Some(id) = self.overlaps_region_excluding(start, end, partition) {
             return Err(DiskError::SectorOverlaps { id });
         }
 
@@ -355,6 +356,26 @@ impl Disk {
             .map(|part| part.number)
     }
 
+    /// If a given start and end range overlaps a pre-existing partition, that
+    /// partition's number will be returned to indicate a potential conflict.
+    ///
+    /// Allows for a partition to be excluded from the search.
+    fn overlaps_region_excluding(&self, start: u64, end: u64, exclude: i32) -> Option<i32> {
+        self.partitions.iter()
+            // Only consider partitions which are not set to be removed,
+            // and are not to be excluded.
+            .filter(|part| !part.remove && part.number != exclude)
+            // Return upon the first partition where the sector is within the partition.
+            .find(|part|
+                !(
+                    (start < part.start_sector && end < part.start_sector)
+                    || (start > part.end_sector && end > part.end_sector)
+                )
+            )
+            // If found, return the partition number.
+            .map(|part| part.number)
+    }
+
     /// Returns an error if the new disk does not contain the same source partitions.
     fn validate_layout(&self, new: &Disk) -> Result<(), DiskError> {
         let mut new_parts = new.partitions.iter();
@@ -387,9 +408,10 @@ impl Disk {
             'inner: loop {
                 let mut next_part = new_part.take().or(new_parts.next());
                 if let Some(new) = next_part {
+                    // Source partitions may be removed or changed.
                     if new.is_source {
                         if source.number != new.number {
-                            unreachable!("layout validation");
+                            unreachable!("layout validation: wrong number");
                         }
 
                         if new.remove {
@@ -412,13 +434,19 @@ impl Disk {
 
                         continue 'outer;
                     } else {
-                        unreachable!("layout validation");
+                        // Non-source partitions should not be discovered at this stage.
+                        unreachable!("layout validation: less sources");
                     }
                 }
             }
         }
 
+        // Handle all of the non-source partitions, which are to be added to the disk.
         for partition in new_parts {
+            if partition.is_source {
+                unreachable!("layout validation: extra sources")
+            }
+
             create_partitions.push(PartitionCreate {
                 start_sector: partition.start_sector,
                 end_sector: partition.end_sector,
@@ -454,6 +482,7 @@ impl Disk {
 pub struct Disks(Vec<Disk>);
 
 impl Disks {
+    /// Probes for and returns disk information for every disk in the system.
     pub fn probe_devices() -> Result<Disks, DiskError> {
         let mut output: Vec<Disk> = Vec::new();
         for device_result in Device::devices(true) {

@@ -3,6 +3,7 @@ use super::Mounts;
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// Specifies which file system format to use.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum FileSystemType {
     Btrfs,
@@ -34,12 +35,14 @@ impl FileSystemType {
     }
 }
 
+/// Defines whether the partition is a primary or logical partition.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum PartitionType {
     Primary,
     Logical,
 }
 
+/// An intermediary structure for building `PartitionInfo`s.
 pub struct PartitionBuilder {
     pub(crate) start_sector: u64,
     pub(crate) end_sector: u64,
@@ -98,20 +101,40 @@ impl PartitionBuilder {
     }
 }
 
+/// Contains relevant information about a certain partition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PartitionInfo {
-    pub(crate) remove: bool,
+    /// If set to true, this is a source partition, which means it currently exists on the disk.
     pub(crate) is_source: bool,
+    /// Source partitions will set this field. If set, this partition will be removed.
+    pub(crate) remove: bool,
+    /// Whether the filesystem should be formatted or not.
     pub format: bool,
+    /// If the partition is currently active, this will be true.
     pub active: bool,
+    /// If the partition is currently busy, this will be true.
     pub busy: bool,
+    /// The partition number is the numeric value that follows the disk's device path.
+    /// IE: _/dev/sda1_
     pub number: i32,
+    /// The initial sector where the partition currently, or will, reside.
     pub start_sector: u64,
+    /// The final sector where the partition currently, or will, reside.
+    /// # Note
+    /// The length of the partion can be calculated by substracting the `end_sector`
+    /// from the `start_sector`, and multiplying that by the value of the disk's
+    /// sector size.
     pub end_sector: u64,
+    /// Whether this partition is a primary or logical partition.
     pub part_type: PartitionType,
+    /// Whether there is a file system currently, or will be, on this partition.
     pub filesystem: Option<FileSystemType>,
+    /// Specifies the name of the partition.
     pub name: Option<String>,
+    /// Contains the device path of the partition, which is the disk's device path plus
+    /// the partition number.
     pub device_path: PathBuf,
+    /// Where this partition is mounted in the file system, if at all.
     pub mount_point: Option<PathBuf>,
 }
 

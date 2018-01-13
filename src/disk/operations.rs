@@ -35,6 +35,7 @@ impl<'a> DiskOps<'a> {
         // Flush the OS cache to ensure that the OS knows about the changes.
         device.sync().map_err(|_| DiskError::DiskSync)?;
 
+        // Proceed to the next state in the machine.
         Ok(ChangePartitions {
             device_path: self.device_path,
             change_partitions: self.change_partitions,
@@ -59,45 +60,58 @@ impl<'a> ChangePartitions<'a> {
                 let mut disk = PedDisk::new(&mut device).map_err(|_| DiskError::DiskNew)?;
 
                 {
+                    // Obtain the partition that needs to be changed by its ID.
                     let mut part = disk.get_partition(change.num as u32).ok_or(
                         DiskError::PartitionNotFound {
                             partition: change.num,
                         },
                     )?;
 
+                    // For convenience, grab the start and env sectors from the partition's geom.
                     let start = part.geom_start() as u64;
                     let end = part.geom_end() as u64;
+
+                    // If the partition needs to be resized/moved, this will execute.
                     if end != change.end || start != change.start {
+                        // Grab the geometry, duplicate it, set the new values, and open the FS.
                         let mut geom = part.get_geom();
                         let mut new_geom =
                             geom.duplicate().map_err(|_| DiskError::GeometryDuplicate)?;
 
+                        // libparted will automatically set the length after manually setting the
+                        // start and end sector values.
                         new_geom
                             .set_start(change.start as i64)
                             .and_then(|_| new_geom.set_end(change.end as i64))
                             .map_err(|_| DiskError::GeometrySet)?;
 
+                        // Open the FS located at the original geometry coordinates.
                         let mut fs = geom.open_fs().ok_or(DiskError::NoFilesystem)?;
+
+                        // Resize the file system with the new geometry's data.
                         fs.resize(&new_geom, None)
                             .map_err(|_| DiskError::PartitionResize)?;
                     }
                 }
 
+                // Commit all the partition move/resizing operations.
                 disk.commit().map_err(|_| DiskError::DiskCommit)?;
             }
         }
 
+        // Flush the OS cache and drop the device before proceeding to formatting.
         device.sync().map_err(|_| DiskError::DiskSync)?;
         drop(device);
 
         // Format all the partitions that need to be formatted.
         for change in &self.change_partitions {
-            let partition = format!("{}{}", self.device_path.display(), change.num);
+            let device_path = format!("{}{}", self.device_path.display(), change.num);
             if let Some(fs) = change.format {
-                mkfs(&partition, fs).map_err(|why| DiskError::PartitionFormat { why })?;
+                mkfs(&device_path, fs).map_err(|why| DiskError::PartitionFormat { why })?;
             }
         }
 
+        // Proceed to the next state in the machine.
         Ok(CreatePartitions {
             device_path: self.device_path,
             create_partitions: self.create_partitions,
@@ -117,15 +131,18 @@ impl<'a> CreatePartitions<'a> {
         for partition in &self.create_partitions {
             let mut device = PedDevice::new(self.device_path).map_err(|_| DiskError::DeviceGet)?;
             {
+                // Create a new geometry from the start sector and length of the new partition.
                 let length = partition.end_sector - partition.start_sector;
                 let geometry = Geometry::new(&device, partition.start_sector as i64, length as i64)
                     .map_err(|why| DiskError::GeometryCreate { why })?;
 
+                // Convert our internal partition type enum into libparted's variant.
                 let part_type = match partition.kind {
                     PartitionType::Primary => PedPartitionType::PED_PARTITION_NORMAL,
                     PartitionType::Logical => PedPartitionType::PED_PARTITION_LOGICAL,
                 };
 
+                // Open the disk, create the new partition, and add it to the disk.
                 let mut disk = PedDisk::new(&mut device).map_err(|_| DiskError::DiskNew)?;
                 let mut part = PedPartition::new(
                     &mut disk,
@@ -140,6 +157,7 @@ impl<'a> CreatePartitions<'a> {
                 disk.add_partition(&mut part, &constraint)
                     .map_err(|why| DiskError::PartitionCreate { why })?;
 
+                // Attempt to write the new partition to the disk.
                 disk.commit().map_err(|_| DiskError::DiskCommit)?;
             }
 
