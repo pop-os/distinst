@@ -10,6 +10,7 @@ use self::mounts::Mounts;
 use self::serial::get_serial_no;
 use self::operations::*;
 use self::partitions::*;
+pub use self::partitions::FileSystemType;
 use std::io;
 use std::str;
 use std::path::{Path, PathBuf};
@@ -19,14 +20,21 @@ use std::fmt::{self, Display, Formatter};
 pub enum DiskError {
     DeviceGet,
     DeviceProbe,
+    DiskCommit,
     DiskGet,
     DiskNew,
+    DiskSync,
     InvalidSerial,
+    GeometryDuplicate,
+    GeometrySet,
     LayoutChanged,
     MountsObtain { why: io::Error },
+    NoFilesystem,
+    PartitionFormat { why: io::Error },
     PartitionNotFound { partition: i32 },
     PartitionOverlaps,
     PartitionRemove { partition: i32 },
+    PartitionResize,
     SectorOverlaps { id: i32 },
     SerialGet { why: io::Error },
     PartitionOOB,
@@ -39,12 +47,19 @@ impl Display for DiskError {
         match *self {
             DeviceGet => writeln!(f, "unable to get device"),
             DeviceProbe => writeln!(f, "unable to probe for devices"),
+            DiskCommit => writeln!(f, "unable to commit changes to disk"),
             DiskGet => writeln!(f, "unable to find disk"),
             DiskNew => writeln!(f, "unable to open disk"),
+            DiskSync => writeln!(f, "unable to sync disk changes with OS"),
+            GeometryDuplicate => writeln!(f, "failed to duplicate partition geometry"),
+            GeometrySet => writeln!(f, "failed to set values on partition geometry"),
             InvalidSerial => writeln!(f, "serial model does not match"),
             LayoutChanged => writeln!(f, "partition layout on disk has changed"),
             MountsObtain { ref why } => writeln!(f, "unable to get mounts: {}", why),
+            NoFilesystem => writeln!(f, "no file system found on partition"),
+            PartitionFormat { ref why } => writeln!(f, "unable to format partition: {}", why),
             PartitionOverlaps => writeln!(f, "partition overlaps"),
+            PartitionResize => writeln!(f, "unable to resize partition on disk"),
             SerialGet { ref why } => writeln!(f, "unable to get serial number of device: {}", why),
             PartitionRemove { partition } => writeln!(f, "unable to remove partition {}", partition),
             SectorOverlaps { id } => writeln!(f, "sector overlaps partition {}", id),
@@ -61,24 +76,6 @@ impl Display for DiskError {
 pub enum PartitionTable {
     Msdos,
     Gpt,
-}
-
-impl FileSystemType {
-    fn from(string: &str) -> Option<FileSystemType> {
-        let type_ = match string {
-            "btrfs" => FileSystemType::Btrfs,
-            "exfat" => FileSystemType::Exfat,
-            "ext2" => FileSystemType::Ext2,
-            "ext3" => FileSystemType::Ext3,
-            "ext4" => FileSystemType::Ext4,
-            "fat16" => FileSystemType::Fat16,
-            "fat32" => FileSystemType::Fat32,
-            "linux-swap(v1)" => FileSystemType::Swap,
-            "xfs" => FileSystemType::Xfs,
-            _ => return None,
-        };
-        Some(type_)
-    }
 }
 
 /// Contains all of the information relevant to a given device.

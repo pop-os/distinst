@@ -16,6 +16,24 @@ pub enum FileSystemType {
     Xfs,
 }
 
+impl FileSystemType {
+    fn from(string: &str) -> Option<FileSystemType> {
+        let type_ = match string {
+            "btrfs" => FileSystemType::Btrfs,
+            "exfat" => FileSystemType::Exfat,
+            "ext2" => FileSystemType::Ext2,
+            "ext3" => FileSystemType::Ext3,
+            "ext4" => FileSystemType::Ext4,
+            "fat16" => FileSystemType::Fat16,
+            "fat32" => FileSystemType::Fat32,
+            "linux-swap(v1)" => FileSystemType::Swap,
+            "xfs" => FileSystemType::Xfs,
+            _ => return None,
+        };
+        Some(type_)
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum PartitionType {
     Primary,

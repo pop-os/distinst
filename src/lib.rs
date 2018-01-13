@@ -13,7 +13,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use disk::{Disk, Disks};
-use format::{MkfsKind, mkfs};
+pub use disk::FileSystemType;
+use format::mkfs;
 use partition::{blockdev, parted};
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
@@ -296,7 +297,7 @@ impl Installer {
 
                 let part_dev = part.path();
                 info!("{}: Formatting ext4 root partition", part_dev.display());
-                mkfs(&part_dev, MkfsKind::Ext4)?;
+                mkfs(&part_dev, FileSystemType::Ext4)?;
             },
             Bootloader::Efi => {
                 {
@@ -306,7 +307,7 @@ impl Installer {
 
                     let part_dev = part.path();
                     info!("{}: Formatting fat32 efi partition", part_dev.display());
-                    mkfs(&part_dev, MkfsKind::Fat32)?;
+                    mkfs(&part_dev, FileSystemType::Fat32)?;
                 }
 
                 callback(50);
@@ -318,7 +319,7 @@ impl Installer {
 
                     let part_dev = part.path();
                     info!("{}: Formatting ext4 root partition", part_dev.display());
-                    mkfs(&part_dev, MkfsKind::Ext4)?;
+                    mkfs(&part_dev, FileSystemType::Ext4)?;
                 }
             }
         }
