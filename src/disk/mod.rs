@@ -14,72 +14,57 @@ pub use self::partitions::FileSystemType;
 use std::io;
 use std::str;
 use std::path::{Path, PathBuf};
-use std::fmt::{self, Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum DiskError {
+    #[fail(display = "unable to get device")]
     DeviceGet,
+    #[fail(display = "unable to probe for devices")]
     DeviceProbe,
+    #[fail(display = "unable to commit changes to disk")]
     DiskCommit,
+    #[fail(display = "unable to find disk")]
     DiskGet,
+    #[fail(display = "unable to open disk")]
     DiskNew,
+    #[fail(display = "unable to sync disk changes with OS")]
     DiskSync,
+    #[fail(display = "serial model does not match")]
     InvalidSerial,
+    #[fail(display = "failed to create partition geometry: {}", why)]
     GeometryCreate { why: io::Error },
+    #[fail(display = "failed to duplicate partition geometry")]
     GeometryDuplicate,
+    #[fail(display = "failed to set values on partition geometry")]
     GeometrySet,
+    #[fail(display = "partition layout on disk has changed")]
     LayoutChanged,
+    #[fail(display = "unable to get mount points: {}", why)]
     MountsObtain { why: io::Error },
+    #[fail(display = "new partition could not be found")]
     NewPartNotFound,
+    #[fail(display = "no file system was found on the partition")]
     NoFilesystem,
+    #[fail(display = "unable to create partition: {}", why)]
     PartitionCreate { why: io::Error },
+    #[fail(display = "unable to format partition: {}", why)]
     PartitionFormat { why: io::Error },
+    #[fail(display = "partition {} not be found on disk", partition)]
     PartitionNotFound { partition: i32 },
+    #[fail(display = "partition overlaps other partitions")]
     PartitionOverlaps,
+    #[fail(display = "unable to remove partition {}", partition)]
     PartitionRemove { partition: i32 },
+    #[fail(display = "unable to resize partition")]
     PartitionResize,
+    #[fail(display = "sector overlaps partition {}", id)]
     SectorOverlaps { id: i32 },
+    #[fail(display = "unable to get serial model of device: {}", why)]
     SerialGet { why: io::Error },
+    #[fail(display = "partition exceeds size of disk")]
     PartitionOOB,
+    #[fail(display = "partition resize value is too small")]
     ResizeTooSmall,
-}
-
-impl Display for DiskError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        use self::DiskError::*;
-        match *self {
-            DeviceGet => writeln!(f, "unable to get device"),
-            DeviceProbe => writeln!(f, "unable to probe for devices"),
-            DiskCommit => writeln!(f, "unable to commit changes to disk"),
-            DiskGet => writeln!(f, "unable to find disk"),
-            DiskNew => writeln!(f, "unable to open disk"),
-            DiskSync => writeln!(f, "unable to sync disk changes with OS"),
-            GeometryCreate { ref why } => {
-                writeln!(f, "failed to create partition geometry: {}", why)
-            }
-            GeometryDuplicate => writeln!(f, "failed to duplicate partition geometry"),
-            GeometrySet => writeln!(f, "failed to set values on partition geometry"),
-            InvalidSerial => writeln!(f, "serial model does not match"),
-            LayoutChanged => writeln!(f, "partition layout on disk has changed"),
-            MountsObtain { ref why } => writeln!(f, "unable to get mounts: {}", why),
-            NewPartNotFound => writeln!(f, "new partition not found"),
-            NoFilesystem => writeln!(f, "no file system found on partition"),
-            PartitionCreate { ref why } => writeln!(f, "unable to create partition: {}", why),
-            PartitionFormat { ref why } => writeln!(f, "unable to format partition: {}", why),
-            PartitionOverlaps => writeln!(f, "partition overlaps"),
-            PartitionResize => writeln!(f, "unable to resize partition on disk"),
-            SerialGet { ref why } => writeln!(f, "unable to get serial number of device: {}", why),
-            PartitionRemove { partition } => {
-                writeln!(f, "unable to remove partition {}", partition)
-            }
-            SectorOverlaps { id } => writeln!(f, "sector overlaps partition {}", id),
-            PartitionOOB => writeln!(f, "partition exceeds size of disk"),
-            ResizeTooSmall => writeln!(f, "partition resize value too small"),
-            PartitionNotFound { partition } => {
-                writeln!(f, "partition {} not found on disk", partition)
-            }
-        }
-    }
 }
 
 /// Specifies whether the partition table on the disk is **MSDOS** or **GPT**.

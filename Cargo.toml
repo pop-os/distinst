@@ -18,3 +18,5 @@ libparted = { git = "https://github.com/system76/libparted.git" }
 log = "0.3"
 pbr = "1.0"
 tempdir = "0.3"
+failure = "0.1.1"
+failure_derive = "0.1.1"
