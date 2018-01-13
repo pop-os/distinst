@@ -25,11 +25,14 @@ pub enum DiskError {
     DiskNew,
     DiskSync,
     InvalidSerial,
+    GeometryCreate { why: io::Error },
     GeometryDuplicate,
     GeometrySet,
     LayoutChanged,
     MountsObtain { why: io::Error },
+    NewPartNotFound,
     NoFilesystem,
+    PartitionCreate { why: io::Error },
     PartitionFormat { why: io::Error },
     PartitionNotFound { partition: i32 },
     PartitionOverlaps,
@@ -51,17 +54,24 @@ impl Display for DiskError {
             DiskGet => writeln!(f, "unable to find disk"),
             DiskNew => writeln!(f, "unable to open disk"),
             DiskSync => writeln!(f, "unable to sync disk changes with OS"),
+            GeometryCreate { ref why } => {
+                writeln!(f, "failed to create partition geometry: {}", why)
+            }
             GeometryDuplicate => writeln!(f, "failed to duplicate partition geometry"),
             GeometrySet => writeln!(f, "failed to set values on partition geometry"),
             InvalidSerial => writeln!(f, "serial model does not match"),
             LayoutChanged => writeln!(f, "partition layout on disk has changed"),
             MountsObtain { ref why } => writeln!(f, "unable to get mounts: {}", why),
+            NewPartNotFound => writeln!(f, "new partition not found"),
             NoFilesystem => writeln!(f, "no file system found on partition"),
+            PartitionCreate { ref why } => writeln!(f, "unable to create partition: {}", why),
             PartitionFormat { ref why } => writeln!(f, "unable to format partition: {}", why),
             PartitionOverlaps => writeln!(f, "partition overlaps"),
             PartitionResize => writeln!(f, "unable to resize partition on disk"),
             SerialGet { ref why } => writeln!(f, "unable to get serial number of device: {}", why),
-            PartitionRemove { partition } => writeln!(f, "unable to remove partition {}", partition),
+            PartitionRemove { partition } => {
+                writeln!(f, "unable to remove partition {}", partition)
+            }
             SectorOverlaps { id } => writeln!(f, "sector overlaps partition {}", id),
             PartitionOOB => writeln!(f, "partition exceeds size of disk"),
             ResizeTooSmall => writeln!(f, "partition resize value too small"),
@@ -413,6 +423,7 @@ impl Disk {
                 start_sector: partition.start_sector,
                 end_sector: partition.end_sector,
                 file_system: partition.filesystem.unwrap(),
+                kind: partition.part_type,
             });
         }
 
