@@ -617,6 +617,7 @@ mod tests {
         assert_eq!(
             source.diff(&new).unwrap(),
             DiskOps {
+                device_path: Path::new("/dev/sdz"),
                 remove_partitions: vec![1, 2, 4],
                 change_partitions: vec![
                     PartitionChange {
@@ -631,11 +632,13 @@ mod tests {
                         start_sector: 2048,
                         end_sector: 1024_000 + 2047,
                         file_system: FileSystemType::Fat16,
+                        kind: PartitionType::Primary,
                     },
                     PartitionCreate {
                         start_sector: 1026_048,
                         end_sector: GIB20 + 1026_047,
                         file_system: FileSystemType::Ext4,
+                        kind: PartitionType::Primary,
                     },
                 ],
             }
