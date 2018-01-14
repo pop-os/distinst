@@ -17,18 +17,18 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Fail)]
 pub enum DiskError {
-    #[fail(display = "unable to get device")]
-    DeviceGet,
+    #[fail(display = "unable to get device: {}", why)]
+    DeviceGet { why: io::Error },
     #[fail(display = "unable to probe for devices")]
     DeviceProbe,
-    #[fail(display = "unable to commit changes to disk")]
-    DiskCommit,
+    #[fail(display = "unable to commit changes to disk: {}", why)]
+    DiskCommit { why: io::Error },
     #[fail(display = "unable to find disk")]
     DiskGet,
-    #[fail(display = "unable to open disk")]
-    DiskNew,
-    #[fail(display = "unable to sync disk changes with OS")]
-    DiskSync,
+    #[fail(display = "unable to open disk: {}", why)]
+    DiskNew { why: io::Error },
+    #[fail(display = "unable to sync disk changes with OS: {}", why)]
+    DiskSync { why: io::Error },
     #[fail(display = "serial model does not match")]
     InvalidSerial,
     #[fail(display = "failed to create partition geometry: {}", why)]
@@ -53,8 +53,8 @@ pub enum DiskError {
     PartitionNotFound { partition: i32 },
     #[fail(display = "partition overlaps other partitions")]
     PartitionOverlaps,
-    #[fail(display = "unable to remove partition {}", partition)]
-    PartitionRemove { partition: i32 },
+    #[fail(display = "unable to remove partition {}: {}", partition, why)]
+    PartitionRemove { partition: i32, why: io::Error },
     #[fail(display = "unable to resize partition")]
     PartitionResize,
     #[fail(display = "sector overlaps partition {}", id)]
@@ -113,7 +113,7 @@ impl Disk {
 
         // Attempts to open the disk to obtain information regarding the partition table
         // and the partitions stored on the device.
-        let disk = PedDisk::new(device).map_err(|_| DiskError::DiskNew)?;
+        let disk = PedDisk::new(device).map_err(|why| DiskError::DiskNew { why })?;
 
         // Checks whether there is a partition table, and if so, which kind.
         let table_type = disk.get_disk_type_name().and_then(|tn| match tn {
@@ -162,8 +162,8 @@ impl Disk {
     /// The `name` of the device should be a path, such as `/dev/sda`. If the device could
     /// not be found, then `Err(DiskError::DeviceGet)` will be returned.
     pub fn from_name<P: AsRef<Path>>(name: P) -> Result<Disk, DiskError> {
-        let mut device = Device::get(name).map_err(|_| DiskError::DeviceGet)?;
-        Disk::new(&mut device).map_err(|_| DiskError::DiskNew)
+        Device::get(name).map_err(|why| DiskError::DeviceGet { why })
+            .and_then(|mut device| Disk::new(&mut device))
     }
 
     /// Obtains the disk that corresponds to a given serial model.
