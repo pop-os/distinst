@@ -11,8 +11,10 @@ pub enum FileSystemType {
     Ext2,
     Ext3,
     Ext4,
+    F2fs,
     Fat16,
     Fat32,
+    Ntfs,
     Swap,
     Xfs,
 }
@@ -25,9 +27,11 @@ impl FileSystemType {
             "ext2" => FileSystemType::Ext2,
             "ext3" => FileSystemType::Ext3,
             "ext4" => FileSystemType::Ext4,
+            "f2fs" => FileSystemType::F2fs,
             "fat16" => FileSystemType::Fat16,
             "fat32" => FileSystemType::Fat32,
             "linux-swap(v1)" => FileSystemType::Swap,
+            "ntfs" => FileSystemType::Ntfs,
             "xfs" => FileSystemType::Xfs,
             _ => return None,
         };

@@ -4,35 +4,26 @@ use std::process::{Command, Stdio};
 use super::FileSystemType;
 
 pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
-    let mut command = match kind {
-        FileSystemType::Fat32 => {
-            let mut command = Command::new("mkfs.fat");
-
-            command.arg("-F");
-            command.arg("32");
-            command.arg(part.as_ref());
-
-            command.stdout(Stdio::null());
-
-            command
-        },
-        FileSystemType::Ext4 => {
-            let mut command = Command::new("mkfs.ext4");
-
-            command.arg("-F");
-            command.arg("-q");
-            command.arg(part.as_ref());
-
-            command.stdout(Stdio::null());
-
-            command
-        },
-        _ => unimplemented!(),
+    let (command, args): (&str, Option<&[&str]>) = match kind {
+        FileSystemType::Btrfs => ("mkfs.btrfs", Some(&["-f"])),
+        FileSystemType::Exfat => ("mkfs.exfat", None),
+        FileSystemType::Ext2 => ("mkfs.ext2", Some(&["-F", "-q"])),
+        FileSystemType::Ext3 => ("mkfs.ext3", Some(&["-F", "-q"])),
+        FileSystemType::Ext4 => ("mkfs.ext4", Some(&["-F", "-q"])),
+        FileSystemType::F2fs => ("mkfs.f2fs", Some(&["-q"])),
+        FileSystemType::Fat16 => ("mkfs.fat", Some(&["-F", "16"])),
+        FileSystemType::Fat32 => ("mkfs.fat", Some(&["-F", "32"])),
+        FileSystemType::Ntfs => ("mkfs.ntfs", Some(&["-F", "-q"])),
+        FileSystemType::Swap => ("mkswap", Some(&["-f"])),
+        FileSystemType::Xfs => ("mkfs.xfs", Some(&["-f"]))
     };
+    
+    let mut command = Command::new(command);
+    args.map(|args| command.args(args));
 
     debug!("{:?}", command);
 
-    let status = command.status()?;
+    let status = command.stdout(Stdio::null()).status()?;
     if status.success() {
         Ok(())
     } else {
