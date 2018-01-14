@@ -74,6 +74,20 @@ pub enum PartitionTable {
     Gpt,
 }
 
+/// Gets a `libparted::Device` from the given name.
+fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
+    Device::new(name).map_err(|why| DiskError::DeviceGet { why })
+}
+
+/// Gets and opens a `libparted::Device` from the given name.
+fn open_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
+    Device::new(name).map_err(|why| DiskError::DeviceGet { why })
+}
+
+fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskError> {
+    PedDisk::new(device).map_err(|why| DiskError::DiskNew { why })
+}
+
 /// Contains all of the information relevant to a given device.
 ///
 /// # Note
@@ -113,7 +127,7 @@ impl Disk {
 
         // Attempts to open the disk to obtain information regarding the partition table
         // and the partitions stored on the device.
-        let disk = PedDisk::new(device).map_err(|why| DiskError::DiskNew { why })?;
+        let disk = open_disk(device)?;
 
         // Checks whether there is a partition table, and if so, which kind.
         let table_type = disk.get_disk_type_name().and_then(|tn| match tn {
@@ -162,8 +176,7 @@ impl Disk {
     /// The `name` of the device should be a path, such as `/dev/sda`. If the device could
     /// not be found, then `Err(DiskError::DeviceGet)` will be returned.
     pub fn from_name<P: AsRef<Path>>(name: P) -> Result<Disk, DiskError> {
-        Device::get(name).map_err(|why| DiskError::DeviceGet { why })
-            .and_then(|mut device| Disk::new(&mut device))
+        get_device(name).and_then(|mut device| Disk::new(&mut device))
     }
 
     /// Obtains the disk that corresponds to a given serial model.
@@ -458,7 +471,7 @@ impl Disk {
             })
         })
     }
-
+    
     pub fn path(&self) -> &Path {
         &self.device_path
     }

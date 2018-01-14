@@ -4,6 +4,23 @@ use super::*;
 use std::path::Path;
 use format::mkfs;
 
+fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
+    disk.commit().map_err(|why| DiskError::DiskCommit { why })
+}
+
+fn sync(device: &mut PedDevice) -> Result<(), DiskError> {
+    device.sync().map_err(|why| DiskError::DiskSync { why })
+}
+
+fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError> {
+    disk.remove_partition(partition)
+        .map_err(|why| DiskError::PartitionRemove { partition: partition as i32, why })
+}
+
+fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a>, DiskError> {
+    disk.get_partition(part).ok_or(DiskError::PartitionNotFound { partition: part as i32 })
+}
+
 /// The first state of disk operations, which provides a method for removing partitions.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DiskOps<'a> {
@@ -15,28 +32,25 @@ pub(crate) struct DiskOps<'a> {
 
 impl<'a> DiskOps<'a> {
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
-        // Open the disk so that we can perform destructive changes on it.
-        let mut device = PedDevice::new(self.device_path)
-            .map_err(|why| DiskError::DeviceGet { why })?;
+        let mut device = open_device(self.device_path)?;
 
         {
-            // Open the disk to prepare for altering it's partition scheme.
-            let mut disk = PedDisk::new(&mut device).map_err(|why| DiskError::DiskNew { why })?;
-
-            // Delete all of the specified partitions.
+            let mut disk = open_disk(&mut device)?;
+            let mut changes_required = false;
             for partition in self.remove_partitions {
-                disk.remove_partition(partition as u32)
-                    .map_err(|why| DiskError::PartitionRemove { partition, why })?;
+                info!("adding partition {} from {} for removal", partition, self.device_path.display());
+                remove_partition(&mut disk, partition as u32)?;
+                changes_required = true;
             }
 
-            // Write the changes to the disk, and notify the OS.
-            disk.commit().map_err(|why| DiskError::DiskCommit { why })?;
+            if changes_required {
+                info!("attempting to remove partitions from {}", self.device_path.display());
+                commit(&mut disk)?;
+                info!("successfully removed partitions from {}", self.device_path.display());
+            }
         }
 
-        // Flush the OS cache to ensure that the OS knows about the changes.
-        device.sync().map_err(|why| DiskError::DiskSync { why })?;
-
-        // Proceed to the next state in the machine.
+        sync(&mut device)?;
         Ok(ChangePartitions {
             device_path: self.device_path,
             change_partitions: self.change_partitions,
@@ -54,17 +68,15 @@ pub(crate) struct ChangePartitions<'a> {
 
 impl<'a> ChangePartitions<'a> {
     pub(crate) fn change(self) -> Result<CreatePartitions<'a>, DiskError> {
-        let mut device = PedDevice::new(self.device_path).map_err(|why| DiskError::DeviceGet { why })?;
+        let mut device = open_device(self.device_path)?;
+
         for change in &self.change_partitions {
-            let mut disk = PedDisk::new(&mut device).map_err(|why| DiskError::DiskNew { why })?;
+            let mut disk = open_disk(&mut device)?;
+            let mut changes_required = false;
 
             {
                 // Obtain the partition that needs to be changed by its ID.
-                let mut part = disk.get_partition(change.num as u32).ok_or(
-                    DiskError::PartitionNotFound {
-                        partition: change.num,
-                    },
-                )?;
+                let mut part = get_partition(&mut disk, change.num as u32)?;
 
                 // For convenience, grab the start and env sectors from the partition's geom.
                 let start = part.geom_start() as u64;
@@ -72,6 +84,8 @@ impl<'a> ChangePartitions<'a> {
 
                 // If the partition needs to be resized/moved, this will execute.
                 if end != change.end || start != change.start {
+                    changes_required = true;
+
                     // Grab the geometry, duplicate it, set the new values, and open the FS.
                     let mut geom = part.get_geom();
                     let mut new_geom =
@@ -88,16 +102,26 @@ impl<'a> ChangePartitions<'a> {
                     let mut fs = geom.open_fs().ok_or(DiskError::NoFilesystem)?;
 
                     // Resize the file system with the new geometry's data.
-                    fs.resize(&new_geom, None)
-                        .map_err(|_| DiskError::PartitionResize)?;
+                    info!(
+                        "will partition {} on {} from {}:{} to {}:{}",
+                        change.num,
+                        self.device_path.display(),
+                        start, end,
+                        change.start, change.end,
+                    );
+                    fs.resize(&new_geom, None).map_err(|_| DiskError::PartitionResize)?;
                 }
             }
 
-            // Commit all the partition move/resizing operations.
-            disk.commit().map_err(|why| DiskError::DiskCommit { why })?;
+            if changes_required {
+                // Commit all the partition move/resizing operations.
+                info!("resizing {} on {}", change.num, self.device_path.display());
+                commit(&mut disk)?;
+                info!("successfully resized {} on {}", change.num, self.device_path.display());
+            }
         }
         // Flush the OS cache and drop the device before proceeding to formatting.
-        device.sync().map_err(|why| DiskError::DiskSync { why })?;
+        sync(&mut device)?;
         drop(device);
 
         // Format all the partitions that need to be formatted.
@@ -126,7 +150,7 @@ impl<'a> CreatePartitions<'a> {
     /// If any new partitions were specified, they will be created here.
     pub(crate) fn create(self) -> Result<(), DiskError> {
         for partition in &self.create_partitions {
-            let mut device = PedDevice::new(self.device_path).map_err(|why| DiskError::DeviceGet { why })?;
+            let mut device = open_device(self.device_path)?;
             {
                 // Create a new geometry from the start sector and length of the new partition.
                 let length = partition.end_sector - partition.start_sector;
@@ -140,14 +164,11 @@ impl<'a> CreatePartitions<'a> {
                 };
 
                 // Open the disk, create the new partition, and add it to the disk.
-                let mut disk = PedDisk::new(&mut device).map_err(|why| DiskError::DiskNew { why })?;
-                let mut part = PedPartition::new(
-                    &mut disk,
-                    part_type,
-                    None,
-                    geometry.start(),
-                    geometry.start() + geometry.length(),
-                ).map_err(|why| DiskError::PartitionCreate { why })?;
+                let (start, end) = (geometry.start(), geometry.start() + geometry.length());
+
+                let mut disk = open_disk(&mut device)?;
+                let mut part = PedPartition::new(&mut disk, part_type, None, start, end)
+                    .map_err(|why| DiskError::PartitionCreate { why })?;
 
                 // Add the partition, and commit the changes to the disk.
                 let constraint = geometry.exact().unwrap();
@@ -155,16 +176,18 @@ impl<'a> CreatePartitions<'a> {
                     .map_err(|why| DiskError::PartitionCreate { why })?;
 
                 // Attempt to write the new partition to the disk.
-                disk.commit().map_err(|why| DiskError::DiskCommit { why })?;
+                info!("creating new partition ({}:{}) on {}", start, end, self.device_path.display());
+                commit(&mut disk)?;
+                info!("successfully created new partition");
             }
 
             // Flush the OS caches before proceeding to format the new partition.
-            device.sync().map_err(|why| DiskError::DiskSync { why })?;
+            sync(&mut device)?;
             drop(device);
 
             // Open a second instance of the disk which we need to get the new partition ID.
-            let mut device = PedDevice::new(self.device_path).map_err(|why| DiskError::DeviceGet { why })?;
-            let disk = PedDisk::new(&mut device).map_err(|why| DiskError::DiskNew { why })?;
+            let mut device = open_device(self.device_path)?;
+            let disk = open_disk(&mut device)?;
             let num = disk.get_partition_by_sector(partition.start_sector as i64)
                 .map(|part| part.num())
                 .ok_or(DiskError::NewPartNotFound)?;
