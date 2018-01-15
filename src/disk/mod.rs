@@ -15,6 +15,7 @@ use std::io;
 use std::str;
 use std::path::{Path, PathBuf};
 
+/// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
 pub enum DiskError {
     #[fail(display = "unable to get device: {}", why)]
@@ -82,6 +83,8 @@ pub enum PartitionTable {
     Gpt,
 }
 
+/// Used with the `Disk::get_sector` method for converting a more human-readable unit
+/// into the corresponding sector for the given disk.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum Sector {
     Start,
@@ -92,7 +95,7 @@ pub enum Sector {
 
 /// Gets a `libparted::Device` from the given name.
 fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
-    Device::new(name).map_err(|why| DiskError::DeviceGet { why })
+    Device::get(name).map_err(|why| DiskError::DeviceGet { why })
 }
 
 /// Gets and opens a `libparted::Device` from the given name.
@@ -100,14 +103,17 @@ fn open_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
     Device::new(name).map_err(|why| DiskError::DeviceGet { why })
 }
 
+/// Opens a `libparted::Disk` from a `libparted::Device`.
 fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskError> {
     PedDisk::new(device).map_err(|why| DiskError::DiskNew { why })
 }
 
+/// Attempts to commit changes to the disk, return a `DiskError` on failure.
 fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
     disk.commit().map_err(|why| DiskError::DiskCommit { why })
 }
 
+/// Flushes the OS cache, return a `DiskError` on failure.
 fn sync(device: &mut Device) -> Result<(), DiskError> {
     device.sync().map_err(|why| DiskError::DiskSync { why })
 }

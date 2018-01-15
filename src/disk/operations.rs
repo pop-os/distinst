@@ -5,6 +5,7 @@ use super::*;
 use std::path::Path;
 use format::mkfs;
 
+/// Removes a partition by its ID from the disk.
 fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError> {
     disk.remove_partition(partition)
         .map_err(|why| DiskError::PartitionRemove {
@@ -13,6 +14,7 @@ fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError>
         })
 }
 
+/// Obtains a partition from the disk by its ID.
 fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a>, DiskError> {
     disk.get_partition(part)
         .ok_or(DiskError::PartitionNotFound {
