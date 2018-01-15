@@ -19,7 +19,7 @@ use disk::{Disk, Disks, PartitionBuilder, Sector, mklabel};
 pub use libparted::PartitionFlag;
 pub use disk::{FileSystemType, PartitionTable, PartitionType};
 use format::mkfs;
-use partition::{blockdev, parted};
+use partition::blockdev;
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
 

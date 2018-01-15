@@ -1,5 +1,3 @@
-// TODO: Handle MSDOS primary partition restrictions.
-
 mod mounts;
 mod operations;
 mod partitions;
@@ -60,6 +58,10 @@ pub enum DiskError {
     PartitionRemove { partition: i32, why: io::Error },
     #[fail(display = "unable to resize partition")]
     PartitionResize,
+    #[fail(display = "partition table not found on disk")]
+    PartitionTableNotFound,
+    #[fail(display = "too many primary partitions in MSDOS partition table")]
+    PrimaryPartitionsExceeded,
     #[fail(display = "sector overlaps partition {}", id)]
     SectorOverlaps { id: i32 },
     #[fail(display = "unable to get serial model of device: {}", why)]
@@ -256,6 +258,14 @@ impl Disk {
         }
     }
 
+    /// Obtain the number of primary and logical partitions, in that order.
+    fn get_partition_type_count(&self) -> (usize, usize) {
+        self.partitions.iter().fold((0, 0), |sum, part| match part.part_type {
+            PartitionType::Logical => (sum.0, sum.1 + 1),
+            PartitionType::Primary => (sum.0 + 1, sum.1)
+        })
+    }
+
     /// Adds a partition to the partition scheme.
     ///
     /// An error can occur if the partition will not fit onto the disk.
@@ -268,6 +278,22 @@ impl Disk {
         // And that the end can fit onto the disk.
         if self.size < builder.end_sector as u64 {
             return Err(DiskError::PartitionOOB);
+        }
+
+        // Perform partition table & MSDOS restriction tests.
+        match self.table_type {
+            Some(PartitionTable::Gpt) => (),
+            Some(PartitionTable::Msdos) => {
+                let (primary, logical) = self.get_partition_type_count();
+                if builder.part_type == PartitionType::Primary {
+                    if primary == 4 || (primary == 3 && logical != 0) {
+                        return Err(DiskError::PrimaryPartitionsExceeded);
+                    }
+                } else if primary == 4 {
+                    return Err(DiskError::PrimaryPartitionsExceeded);
+                }
+            }
+            None => return Err(DiskError::PartitionTableNotFound)
         }
 
         self.partitions.push(builder.build());

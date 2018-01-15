@@ -68,10 +68,10 @@ pub enum PartitionType {
 pub struct PartitionBuilder {
     pub(crate) start_sector: u64,
     pub(crate) end_sector: u64,
-    filesystem: FileSystemType,
-    part_type: PartitionType,
-    name: Option<String>,
-    flags: Vec<PartitionFlag>,
+    pub(crate) filesystem: FileSystemType,
+    pub(crate) part_type: PartitionType,
+    pub(crate) name: Option<String>,
+    pub(crate) flags: Vec<PartitionFlag>,
 }
 
 impl PartitionBuilder {
