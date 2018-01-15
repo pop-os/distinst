@@ -261,9 +261,7 @@ impl Installer {
         // TODO: Use libparted
         match bootloader {
             Bootloader::Bios => {
-                mklabel(&disk.path(), PartitionTable::Msdos).map_err(|why| {
-                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
-                })?;
+                mklabel(&disk.path(), PartitionTable::Msdos)?;
                 callback(33);
 
                 let start = disk.get_sector(Sector::Start);
@@ -272,16 +270,12 @@ impl Installer {
                     PartitionBuilder::new(start, end, FileSystemType::Ext4)
                         .partition_type(PartitionType::Primary)
                         .flag(PartitionFlag::PED_PARTITION_BOOT)
-                ).map_err(|why| {
-                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
-                })?;
+                )?;
 
                 callback(66);
             },
             Bootloader::Efi => {
-                mklabel(&disk.path(), PartitionTable::Gpt).map_err(|why| {
-                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
-                })?;
+                mklabel(&disk.path(), PartitionTable::Gpt)?;
                 callback(25);
 
                 let mut start = disk.get_sector(Sector::Start);
@@ -290,9 +284,7 @@ impl Installer {
                     PartitionBuilder::new(start, end, FileSystemType::Fat32)
                         .partition_type(PartitionType::Primary)
                         .flag(PartitionFlag::PED_PARTITION_ESP)
-                ).map_err(|why| {
-                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
-                })?;
+                )?;
 
                 callback(50);
 
@@ -301,9 +293,7 @@ impl Installer {
                 disk.add_partition(
                     PartitionBuilder::new(start, end, FileSystemType::Ext4)
                         .partition_type(PartitionType::Primary)
-                ).map_err(|why| {
-                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
-                })?;
+                )?;
 
                 callback(75);
             }

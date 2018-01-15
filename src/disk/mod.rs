@@ -69,6 +69,12 @@ pub enum DiskError {
     ResizeTooSmall,
 }
 
+impl From<DiskError> for io::Error {
+    fn from(err: DiskError) -> io::Error {
+        io::Error::new(io::ErrorKind::Other, format!("{}", err))
+    }
+}
+
 /// Specifies whether the partition table on the disk is **MSDOS** or **GPT**.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum PartitionTable {
