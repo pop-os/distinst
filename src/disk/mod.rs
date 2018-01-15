@@ -424,13 +424,13 @@ impl Disk {
     /// Returns an error if the new disk does not contain the same source partitions.
     fn validate_layout(&self, new: &Disk) -> Result<(), DiskError> {
         let mut new_parts = new.partitions.iter();
-        'outer: for source in &self.partitions {
-            'inner: while let Some(new) = new_parts.next() {
-                if source.is_same_partition_as(new) {
-                    continue 'outer;
+        for source in &self.partitions {
+            match new_parts.next() {
+                Some(new) => if !source.is_same_partition_as(new) {
+                    return Err(DiskError::LayoutChanged);
                 }
+                None => return Err(DiskError::LayoutChanged)
             }
-            return Err(DiskError::LayoutChanged);
         }
 
         Ok(())

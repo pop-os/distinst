@@ -258,7 +258,6 @@ impl Installer {
     fn partition<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
         info!("{}: Partitioning for {:?}", disk.path().display(), bootloader);
 
-        // TODO: Use libparted
         match bootloader {
             Bootloader::Bios => {
                 mklabel(&disk.path(), PartitionTable::Msdos)?;
