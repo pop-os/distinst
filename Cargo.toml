@@ -6,7 +6,7 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 build = "build.rs"
 
 [lib]
-crate-type = ["dylib"]
+crate-type = ["rlib", "dylib"]
 
 [build-dependencies]
 cbindgen = "0.3"
