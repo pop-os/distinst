@@ -517,14 +517,17 @@ impl Disk {
     }
 
     /// Attempts to commit all changes that have been made to the disk.
-    pub fn commit(&self) -> Result<(), DiskError> {
+    pub fn commit(&mut self) -> Result<(), DiskError> {
         Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
             source.diff(self).and_then(|ops| {
                 ops.remove()
                     .and_then(|ops| ops.change())
                     .and_then(|ops| ops.create())
             })
-        })
+        })?;
+
+        *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
+        Ok(())
     }
     
     pub fn path(&self) -> &Path {
