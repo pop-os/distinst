@@ -1,4 +1,4 @@
-use libparted::Partition;
+use libparted::{Partition, PartitionFlag};
 use super::Mounts;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -39,6 +39,24 @@ impl FileSystemType {
     }
 }
 
+impl Into<&'static str> for FileSystemType {
+    fn into(self) -> &'static str {
+        match self {
+            FileSystemType::Btrfs => "btrfs",
+            FileSystemType::Exfat => "exfat",
+            FileSystemType::Ext2 => "ext2",
+            FileSystemType::Ext3 => "ext3",
+            FileSystemType::Ext4 => "ext4",
+            FileSystemType::F2fs => "f2fs",
+            FileSystemType::Fat16 => "fat16",
+            FileSystemType::Fat32 => "fat32",
+            FileSystemType::Ntfs => "ntfs",
+            FileSystemType::Swap => "linux-swap(v1)",
+            FileSystemType::Xfs => "xfs"
+        }
+    }
+}
+
 /// Defines whether the partition is a primary or logical partition.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum PartitionType {
@@ -53,6 +71,7 @@ pub struct PartitionBuilder {
     filesystem: FileSystemType,
     part_type: PartitionType,
     name: Option<String>,
+    flags: Vec<PartitionFlag>,
 }
 
 impl PartitionBuilder {
@@ -63,6 +82,7 @@ impl PartitionBuilder {
             filesystem: fs,
             part_type: PartitionType::Primary,
             name: None,
+            flags: Vec::new(),
         }
     }
 
@@ -73,6 +93,7 @@ impl PartitionBuilder {
             filesystem: self.filesystem,
             part_type: self.part_type,
             name: Some(name),
+            flags: self.flags,
         }
     }
 
@@ -83,6 +104,19 @@ impl PartitionBuilder {
             filesystem: self.filesystem,
             part_type,
             name: self.name,
+            flags: self.flags,
+        }
+    }
+
+    pub fn flag(mut self, flag: PartitionFlag) -> PartitionBuilder {
+        self.flags.push(flag);
+        PartitionBuilder {
+            start_sector: self.start_sector,
+            end_sector: self.end_sector,
+            filesystem: self.filesystem,
+            part_type: self.part_type,
+            name: self.name,
+            flags: self.flags,
         }
     }
 
@@ -98,6 +132,7 @@ impl PartitionBuilder {
             end_sector: self.end_sector,
             part_type: self.part_type,
             filesystem: Some(self.filesystem),
+            flags: self.flags,
             name: self.name,
             device_path: PathBuf::new(),
             mount_point: None,
@@ -133,6 +168,8 @@ pub struct PartitionInfo {
     pub part_type: PartitionType,
     /// Whether there is a file system currently, or will be, on this partition.
     pub filesystem: Option<FileSystemType>,
+    /// Specifies optional flags that should be applied to the partition, if not already set.
+    pub flags: Vec<PartitionFlag>,
     /// Specifies the name of the partition.
     pub name: Option<String>,
     /// Contains the device path of the partition, which is the disk's device path plus
@@ -161,6 +198,7 @@ impl PartitionInfo {
             },
             mount_point: mounts.get_mount_point(&device_path),
             filesystem: partition.fs_type_name().and_then(FileSystemType::from),
+            flags: get_flags(&partition),
             number: partition.num(),
             name: if is_msdos {
                 None
@@ -196,4 +234,32 @@ impl PartitionInfo {
     pub(crate) fn is_same_partition_as(&self, other: &PartitionInfo) -> bool {
         self.is_source && other.is_source && self.number == other.number
     }
+}
+
+const FLAGS: &[PartitionFlag] = &[
+    PartitionFlag::PED_PARTITION_BOOT,
+    PartitionFlag::PED_PARTITION_ROOT,
+    PartitionFlag::PED_PARTITION_SWAP,
+    PartitionFlag::PED_PARTITION_HIDDEN,
+    PartitionFlag::PED_PARTITION_RAID,
+    PartitionFlag::PED_PARTITION_LVM,
+    PartitionFlag::PED_PARTITION_LBA,
+    PartitionFlag::PED_PARTITION_HPSERVICE,
+    PartitionFlag::PED_PARTITION_PALO,
+    PartitionFlag::PED_PARTITION_PREP,
+    PartitionFlag::PED_PARTITION_MSFT_RESERVED,
+    PartitionFlag::PED_PARTITION_BIOS_GRUB,
+    PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY,
+    PartitionFlag::PED_PARTITION_DIAG,
+    PartitionFlag::PED_PARTITION_LEGACY_BOOT,
+    PartitionFlag::PED_PARTITION_MSFT_DATA,
+    PartitionFlag::PED_PARTITION_IRST,
+    PartitionFlag::PED_PARTITION_ESP,
+];
+
+fn get_flags(partition: &Partition) -> Vec<PartitionFlag> {
+    FLAGS.into_iter()
+        .filter(|&&f| partition.is_flag_available(f) && partition.get_flag(f))
+        .cloned()
+        .collect::<Vec<PartitionFlag>>()
 }

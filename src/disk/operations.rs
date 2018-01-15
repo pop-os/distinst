@@ -1,24 +1,23 @@
-use libparted::{Device as PedDevice, Disk as PedDisk, Geometry, Partition as PedPartition,
-                PartitionType as PedPartitionType};
+use libparted::{Disk as PedDisk, Geometry, Partition as PedPartition,
+                PartitionType as PedPartitionType, PartitionFlag,
+                FileSystemType as PedFileSystemType};
 use super::*;
 use std::path::Path;
 use format::mkfs;
 
-fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
-    disk.commit().map_err(|why| DiskError::DiskCommit { why })
-}
-
-fn sync(device: &mut PedDevice) -> Result<(), DiskError> {
-    device.sync().map_err(|why| DiskError::DiskSync { why })
-}
-
 fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError> {
     disk.remove_partition(partition)
-        .map_err(|why| DiskError::PartitionRemove { partition: partition as i32, why })
+        .map_err(|why| DiskError::PartitionRemove {
+            partition: partition as i32,
+            why,
+        })
 }
 
 fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a>, DiskError> {
-    disk.get_partition(part).ok_or(DiskError::PartitionNotFound { partition: part as i32 })
+    disk.get_partition(part)
+        .ok_or(DiskError::PartitionNotFound {
+            partition: part as i32,
+        })
 }
 
 /// The first state of disk operations, which provides a method for removing partitions.
@@ -38,15 +37,25 @@ impl<'a> DiskOps<'a> {
             let mut disk = open_disk(&mut device)?;
             let mut changes_required = false;
             for partition in self.remove_partitions {
-                info!("adding partition {} from {} for removal", partition, self.device_path.display());
+                info!(
+                    "adding partition {} from {} for removal",
+                    partition,
+                    self.device_path.display()
+                );
                 remove_partition(&mut disk, partition as u32)?;
                 changes_required = true;
             }
 
             if changes_required {
-                info!("attempting to remove partitions from {}", self.device_path.display());
+                info!(
+                    "attempting to remove partitions from {}",
+                    self.device_path.display()
+                );
                 commit(&mut disk)?;
-                info!("successfully removed partitions from {}", self.device_path.display());
+                info!(
+                    "successfully removed partitions from {}",
+                    self.device_path.display()
+                );
             }
         }
 
@@ -72,24 +81,39 @@ impl<'a> ChangePartitions<'a> {
 
         for change in &self.change_partitions {
             let mut disk = open_disk(&mut device)?;
-            let mut changes_required = false;
+            let mut resize_required = false;
+            let mut flags_changed = false;
 
             {
                 // Obtain the partition that needs to be changed by its ID.
                 let mut part = get_partition(&mut disk, change.num as u32)?;
 
+                for flag in &change.flags {
+                    if part.is_flag_available(*flag) {
+                        match part.set_flag(*flag, true) {
+                            Ok(()) => flags_changed = true,
+                            Err(_) => {
+                                info!(
+                                    "unable to set {:?} for {}{}",
+                                    flag,
+                                    self.device_path.display(),
+                                    change.num
+                                );
+                            }
+                        }
+                    }
+                }
+
                 // For convenience, grab the start and env sectors from the partition's geom.
-                let start = part.geom_start() as u64;
-                let end = part.geom_end() as u64;
+                let (start, end) = (part.geom_start() as u64, part.geom_end() as u64);
 
                 // If the partition needs to be resized/moved, this will execute.
                 if end != change.end || start != change.start {
-                    changes_required = true;
+                    resize_required = true;
 
                     // Grab the geometry, duplicate it, set the new values, and open the FS.
                     let mut geom = part.get_geom();
-                    let mut new_geom =
-                        geom.duplicate().map_err(|_| DiskError::GeometryDuplicate)?;
+                    let mut new_geom = geom.duplicate().map_err(|_| DiskError::GeometryDuplicate)?;
 
                     // libparted will automatically set the length after manually setting the
                     // start and end sector values.
@@ -106,18 +130,31 @@ impl<'a> ChangePartitions<'a> {
                         "will partition {} on {} from {}:{} to {}:{}",
                         change.num,
                         self.device_path.display(),
-                        start, end,
-                        change.start, change.end,
+                        start,
+                        end,
+                        change.start,
+                        change.end,
                     );
-                    fs.resize(&new_geom, None).map_err(|_| DiskError::PartitionResize)?;
+                    fs.resize(&new_geom, None)
+                        .map_err(|_| DiskError::PartitionResize)?;
                 }
             }
 
-            if changes_required {
+            if resize_required || flags_changed {
                 // Commit all the partition move/resizing operations.
-                info!("resizing {} on {}", change.num, self.device_path.display());
+                if resize_required {
+                    info!("resizing {} on {}", change.num, self.device_path.display());
+                }
+
                 commit(&mut disk)?;
-                info!("successfully resized {} on {}", change.num, self.device_path.display());
+
+                if resize_required {
+                    info!(
+                        "successfully resized {} on {}",
+                        change.num,
+                        self.device_path.display()
+                    );
+                }
             }
         }
         // Flush the OS cache and drop the device before proceeding to formatting.
@@ -166,9 +203,19 @@ impl<'a> CreatePartitions<'a> {
                 // Open the disk, create the new partition, and add it to the disk.
                 let (start, end) = (geometry.start(), geometry.start() + geometry.length());
 
+                let fs_type = PedFileSystemType::get(partition.file_system.into()).unwrap();
+
                 let mut disk = open_disk(&mut device)?;
-                let mut part = PedPartition::new(&mut disk, part_type, None, start, end)
+                let mut part = PedPartition::new(&mut disk, part_type, Some(&fs_type), start, end)
                     .map_err(|why| DiskError::PartitionCreate { why })?;
+
+                for &flag in &partition.flags {
+                    if part.is_flag_available(flag) {
+                        if let Err(_) = part.set_flag(flag, true) {
+                            info!("unable to set {:?}", flag);
+                        }
+                    }
+                }
 
                 // Add the partition, and commit the changes to the disk.
                 let constraint = geometry.exact().unwrap();
@@ -176,7 +223,12 @@ impl<'a> CreatePartitions<'a> {
                     .map_err(|why| DiskError::PartitionCreate { why })?;
 
                 // Attempt to write the new partition to the disk.
-                info!("creating new partition ({}:{}) on {}", start, end, self.device_path.display());
+                info!(
+                    "creating new partition ({}:{}) on {}",
+                    start,
+                    end,
+                    self.device_path.display()
+                );
                 commit(&mut disk)?;
                 info!("successfully created new partition");
             }
@@ -222,6 +274,8 @@ pub(crate) struct PartitionChange {
     pub(crate) end: u64,
     /// Whether the partition should be reformatted, and if so, to what format.
     pub(crate) format: Option<FileSystemType>,
+    /// Flags which should be set on the partition.
+    pub(crate) flags: Vec<PartitionFlag>,
 }
 
 /// Defines a new partition to be created on the file system.
@@ -235,4 +289,6 @@ pub(crate) struct PartitionCreate {
     pub(crate) file_system: FileSystemType,
     /// Whether the partition should be primary or logical.
     pub(crate) kind: PartitionType,
+    /// Flags which should be set on the partition.
+    pub(crate) flags: Vec<PartitionFlag>,
 }

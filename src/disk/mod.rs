@@ -5,12 +5,12 @@ mod operations;
 mod partitions;
 mod serial;
 
-use libparted::{Device, Disk as PedDisk};
+use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType, PartitionFlag};
 use self::mounts::Mounts;
 use self::serial::get_serial_no;
 use self::operations::*;
 use self::partitions::*;
-pub use self::partitions::FileSystemType;
+pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionType};
 use std::io;
 use std::str;
 use std::path::{Path, PathBuf};
@@ -23,6 +23,8 @@ pub enum DiskError {
     DeviceProbe,
     #[fail(display = "unable to commit changes to disk: {}", why)]
     DiskCommit { why: io::Error },
+    #[fail(display = "unable to format partition table: {}", why)]
+    DiskFresh { why: io::Error },
     #[fail(display = "unable to find disk")]
     DiskGet,
     #[fail(display = "unable to open disk: {}", why)]
@@ -74,6 +76,14 @@ pub enum PartitionTable {
     Gpt,
 }
 
+#[derive(Debug, PartialEq, Clone, Copy, Hash)]
+pub enum Sector {
+    Start,
+    End,
+    Unit(u64),
+    Megabyte(u64),
+}
+
 /// Gets a `libparted::Device` from the given name.
 fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
     Device::new(name).map_err(|why| DiskError::DeviceGet { why })
@@ -86,6 +96,26 @@ fn open_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
 
 fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskError> {
     PedDisk::new(device).map_err(|why| DiskError::DiskNew { why })
+}
+
+fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
+    disk.commit().map_err(|why| DiskError::DiskCommit { why })
+}
+
+fn sync(device: &mut Device) -> Result<(), DiskError> {
+    device.sync().map_err(|why| DiskError::DiskSync { why })
+}
+
+/// Opens and formats the specified disk with the given partition table.
+pub fn mklabel<P: AsRef<Path>>(name: P, kind: PartitionTable) -> Result<(), DiskError> {
+    open_device(name).and_then(|mut device| {
+        PedDisk::new_fresh(&mut device, match kind {
+            PartitionTable::Gpt   => PedDiskType::get("gpt").unwrap(),
+            PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
+        }).map_err(|why| DiskError::DiskFresh { why }).and_then(|mut disk| {
+            commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
+        })
+    })
 }
 
 /// Contains all of the information relevant to a given device.
@@ -201,6 +231,17 @@ impl Disk {
                 })
             }
         })
+    }
+
+    /// Calculates the requested sector from a given `Sector` variant.
+    pub fn get_sector(&self, sector: Sector) -> u64 {
+        const MIB2: u64 = 2 * 1024 * 1024;
+        match sector {
+            Sector::Start => MIB2 / self.sector_size,
+            Sector::End => self.size - (MIB2 / self.sector_size),
+            Sector::Megabyte(size) => (size * 1_000_000) / self.sector_size,
+            Sector::Unit(size) => size,
+        }
     }
 
     /// Adds a partition to the partition scheme.
@@ -402,6 +443,12 @@ impl Disk {
         let mut new_parts = new.partitions.iter();
         let mut new_part = None;
 
+        fn flags_diff<I: Iterator<Item = PartitionFlag>>(source: &[PartitionFlag], flags: I)
+            -> Vec<PartitionFlag>
+        {
+            flags.filter(|f| !source.contains(f)).collect()
+        }
+
         'outer: for source in &self.partitions {
             'inner: loop {
                 let mut next_part = new_part.take().or(new_parts.next());
@@ -427,6 +474,7 @@ impl Disk {
                                 } else {
                                     None
                                 },
+                                flags: flags_diff(&source.flags, new.flags.clone().into_iter()),
                             });
                         }
 
@@ -450,6 +498,7 @@ impl Disk {
                 end_sector: partition.end_sector,
                 file_system: partition.filesystem.unwrap(),
                 kind: partition.part_type,
+                flags: partition.flags.clone(),
             });
         }
 

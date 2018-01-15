@@ -15,8 +15,9 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use disk::{Disk, Disks};
-pub use disk::FileSystemType;
+use disk::{Disk, Disks, PartitionBuilder, Sector, mklabel};
+pub use libparted::PartitionFlag;
+pub use disk::{FileSystemType, PartitionTable, PartitionType};
 use format::mkfs;
 use partition::{blockdev, parted};
 pub use chroot::Chroot;
@@ -255,34 +256,66 @@ impl Installer {
     }
 
     fn partition<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
-        let disk_dev = disk.path();
-        info!("{}: Partitioning for {:?}", disk_dev.display(), bootloader);
+        info!("{}: Partitioning for {:?}", disk.path().display(), bootloader);
 
         // TODO: Use libparted
         match bootloader {
             Bootloader::Bios => {
-                parted(&disk_dev, &["mklabel", "msdos"])?;
+                mklabel(&disk.path(), PartitionTable::Msdos).map_err(|why| {
+                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
+                })?;
                 callback(33);
 
-                parted(&disk_dev, &["mkpart", "primary", "ext4", "0%", "100%"])?;
-                parted(&disk_dev, &["set", "1", "boot", "on"])?;
+                let start = disk.get_sector(Sector::Start);
+                let end = disk.get_sector(Sector::End);
+                disk.add_partition(
+                    PartitionBuilder::new(start, end, FileSystemType::Ext4)
+                        .partition_type(PartitionType::Primary)
+                        .flag(PartitionFlag::PED_PARTITION_BOOT)
+                ).map_err(|why| {
+                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
+                })?;
+
                 callback(66);
             },
             Bootloader::Efi => {
-                parted(&disk_dev, &["mklabel", "gpt"])?;
+                mklabel(&disk.path(), PartitionTable::Gpt).map_err(|why| {
+                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
+                })?;
                 callback(25);
 
-                parted(&disk_dev, &["mkpart", "primary", "fat32", "0%", "512M"])?;
-                parted(&disk_dev, &["set", "1", "esp", "on"])?;
+                let mut start = disk.get_sector(Sector::Start);
+                let mut end = disk.get_sector(Sector::Megabyte(512));
+                disk.add_partition(
+                    PartitionBuilder::new(start, end, FileSystemType::Fat32)
+                        .partition_type(PartitionType::Primary)
+                        .flag(PartitionFlag::PED_PARTITION_ESP)
+                ).map_err(|why| {
+                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
+                })?;
+
                 callback(50);
 
-                parted(&disk_dev, &["mkpart", "primary", "ext4", "512M", "100%"])?;
+                start = disk.get_sector(Sector::Megabyte(512));
+                end = disk.get_sector(Sector::End);
+                disk.add_partition(
+                    PartitionBuilder::new(start, end, FileSystemType::Ext4)
+                        .partition_type(PartitionType::Primary)
+                ).map_err(|why| {
+                    io::Error::new(io::ErrorKind::Other, format!("{}", why))
+                })?;
+
                 callback(75);
             }
         }
 
-        info!("{}: Rereading partition table", disk_dev.display());
-        blockdev(&disk_dev, &["--rereadpt"])?;
+        info!("{}: Committing changes to disk", disk.path().display());
+        disk.commit().map_err(|why| {
+            io::Error::new(io::ErrorKind::Other, format!("{}", why))
+        })?;
+
+        info!("{}: Rereading partition table", disk.path().display());
+        blockdev(&disk.path(), &["--rereadpt"])?;
         callback(100);
 
         Ok(())
