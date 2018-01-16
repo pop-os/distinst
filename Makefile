@@ -43,13 +43,16 @@ vendor: .cargo/config
 	cargo vendor
 	touch vendor
 
+# Each lib crate type has to be built independently, else there will be a compiler error.
 target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub:
 	if [ -d vendor ]; \
 	then \
-	    cargbo build --lib --release; \
+		cargo rustc --lib --release -- --crate-type=lib; \
+	    cargo rustc --lib --release -- --crate-type=dylib; \
 		cargo build --bin distinst --release --frozen; \
 	else \
-	    cargo build --lib --release; \
+		cargo rustc --lib --release -- --crate-type=lib; \
+	    cargo rustc --lib --release -- --crate-type=dylib; \
 		cargo build --bin distinst --release; \
 	fi
 

@@ -317,6 +317,80 @@ pub enum PARTITION_TYPE {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[allow(non_camel_case_types)]
+pub enum PARTITION_FLAG {
+    BOOT,
+    ROOT,
+    SWAP,
+    HIDDEN,
+    RAID,
+    LVM,
+    LBA,
+    HPSERVICE,
+    PALO,
+    PREP,
+    MSFT_RESERVED,
+    BIOS_GRUB,
+    APPLE_TV_RECOVERY,
+    DIAG,
+    LEGACY_BOOT,
+    MSFT_DATA,
+    IRST,
+    ESP
+}
+
+impl From<PartitionFlag> for PARTITION_FLAG {
+    fn from(flag: PartitionFlag) -> PARTITION_FLAG {
+        match flag {
+            PartitionFlag::PED_PARTITION_BOOT => PARTITION_FLAG::BOOT,
+            PartitionFlag::PED_PARTITION_ROOT => PARTITION_FLAG::ROOT,
+            PartitionFlag::PED_PARTITION_SWAP => PARTITION_FLAG::SWAP,
+            PartitionFlag::PED_PARTITION_HIDDEN => PARTITION_FLAG::HIDDEN,
+            PartitionFlag::PED_PARTITION_RAID => PARTITION_FLAG::RAID,
+            PartitionFlag::PED_PARTITION_LVM => PARTITION_FLAG::LVM,
+            PartitionFlag::PED_PARTITION_LBA => PARTITION_FLAG::LBA,
+            PartitionFlag::PED_PARTITION_HPSERVICE => PARTITION_FLAG::HPSERVICE,
+            PartitionFlag::PED_PARTITION_PALO => PARTITION_FLAG::PALO,
+            PartitionFlag::PED_PARTITION_PREP => PARTITION_FLAG::PREP,
+            PartitionFlag::PED_PARTITION_MSFT_RESERVED => PARTITION_FLAG::MSFT_RESERVED,
+            PartitionFlag::PED_PARTITION_BIOS_GRUB => PARTITION_FLAG::BIOS_GRUB,
+            PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY => PARTITION_FLAG::APPLE_TV_RECOVERY,
+            PartitionFlag::PED_PARTITION_DIAG => PARTITION_FLAG::DIAG,
+            PartitionFlag::PED_PARTITION_LEGACY_BOOT => PARTITION_FLAG::LEGACY_BOOT,
+            PartitionFlag::PED_PARTITION_MSFT_DATA => PARTITION_FLAG::MSFT_DATA,
+            PartitionFlag::PED_PARTITION_IRST => PARTITION_FLAG::IRST,
+            PartitionFlag::PED_PARTITION_ESP => PARTITION_FLAG::ESP,
+        }
+    }
+}
+
+impl From<PARTITION_FLAG> for PartitionFlag {
+    fn from(flag: PARTITION_FLAG) -> PartitionFlag {
+        match flag {
+            PARTITION_FLAG::BOOT => PartitionFlag::PED_PARTITION_BOOT,
+            PARTITION_FLAG::ROOT => PartitionFlag::PED_PARTITION_ROOT,
+            PARTITION_FLAG::SWAP => PartitionFlag::PED_PARTITION_SWAP,
+            PARTITION_FLAG::HIDDEN => PartitionFlag::PED_PARTITION_HIDDEN,
+            PARTITION_FLAG::RAID => PartitionFlag::PED_PARTITION_RAID,
+            PARTITION_FLAG::LVM => PartitionFlag::PED_PARTITION_LVM,
+            PARTITION_FLAG::LBA => PartitionFlag::PED_PARTITION_LBA,
+            PARTITION_FLAG::HPSERVICE => PartitionFlag::PED_PARTITION_HPSERVICE,
+            PARTITION_FLAG::PALO => PartitionFlag::PED_PARTITION_PALO,
+            PARTITION_FLAG::PREP => PartitionFlag::PED_PARTITION_PREP,
+            PARTITION_FLAG::MSFT_RESERVED => PartitionFlag::PED_PARTITION_MSFT_RESERVED,
+            PARTITION_FLAG::BIOS_GRUB => PartitionFlag::PED_PARTITION_BIOS_GRUB,
+            PARTITION_FLAG::APPLE_TV_RECOVERY => PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY,
+            PARTITION_FLAG::DIAG => PartitionFlag::PED_PARTITION_DIAG,
+            PARTITION_FLAG::LEGACY_BOOT => PartitionFlag::PED_PARTITION_LEGACY_BOOT,
+            PARTITION_FLAG::MSFT_DATA => PartitionFlag::PED_PARTITION_MSFT_DATA,
+            PARTITION_FLAG::IRST => PartitionFlag::PED_PARTITION_IRST,
+            PARTITION_FLAG::ESP => PartitionFlag::PED_PARTITION_ESP,
+        }
+    }
+}
+
+#[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FILE_SYSTEM {
     NONE = 0,
@@ -684,7 +758,7 @@ impl From<DistinstPartitionBuilder> for PartitionBuilder {
                     distinst.flags.flags,
                     distinst.flags.length,
                     distinst.flags.capacity,
-                )
+                ).into_iter().map(PartitionFlag::from).collect()
             },
         }
     }
@@ -743,7 +817,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_set_partition_type(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_partition_builder_add_flag(
     builder: *mut DistinstPartitionBuilder,
-    flag: PartitionFlag,
+    flag: PARTITION_FLAG,
 ) {
     let mut flags = Vec::from_raw_parts(
         (*builder).flags.flags,
@@ -776,16 +850,17 @@ pub struct DistinstPartition {
 }
 
 impl From<PartitionInfo> for DistinstPartition {
-    fn from(mut part: PartitionInfo) -> DistinstPartition {
-        part.flags.shrink_to_fit();
+    fn from(part: PartitionInfo) -> DistinstPartition {
+        let mut pflags: Vec<PARTITION_FLAG> = part.flags.into_iter().map(PARTITION_FLAG::from).collect();
+        pflags.shrink_to_fit();
 
         let flags = DistinstPartitionFlags {
-            flags: part.flags.as_mut_ptr(),
-            length: part.flags.len(),
-            capacity: part.flags.capacity(),
+            flags: pflags.as_mut_ptr(),
+            length: pflags.len(),
+            capacity: pflags.capacity(),
         };
 
-        mem::forget(part.flags);
+        mem::forget(pflags);
         DistinstPartition {
             is_source: if part.is_source { 1 } else { 0 },
             remove: if part.remove { 1 } else { 0 },
@@ -838,7 +913,10 @@ impl From<DistinstPartition> for PartitionInfo {
                 PARTITION_TYPE::PRIMARY => PartitionType::Primary,
             },
             filesystem: Option::<FileSystemType>::from(part.filesystem),
-            flags: unsafe { Vec::from_raw_parts(flags, flen, flen) },
+            flags: unsafe {
+                Vec::from_raw_parts(flags, flen, flen)
+                    .into_iter().map(PartitionFlag::from).collect()
+            },
             name: if part.name.is_null() {
                 None
             } else {
@@ -856,7 +934,7 @@ impl From<DistinstPartition> for PartitionInfo {
 
 #[repr(C)]
 pub struct DistinstPartitionFlags {
-    flags: *mut PartitionFlag,
+    flags: *mut PARTITION_FLAG,
     length: size_t,
     capacity: size_t,
 }
