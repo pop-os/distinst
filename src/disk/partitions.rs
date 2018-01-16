@@ -140,6 +140,8 @@ impl PartitionBuilder {
     }
 }
 
+// TODO: Compress boolean fields into a single byte.
+
 /// Contains relevant information about a certain partition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PartitionInfo {

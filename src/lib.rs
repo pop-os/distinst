@@ -17,7 +17,7 @@ use std::process::Command;
 
 use disk::{Disk, Disks, PartitionBuilder, Sector, mklabel};
 pub use libparted::PartitionFlag;
-pub use disk::{FileSystemType, PartitionTable, PartitionType};
+pub use disk::{FileSystemType, PartitionInfo, PartitionTable, PartitionType};
 use format::mkfs;
 use partition::blockdev;
 pub use chroot::Chroot;

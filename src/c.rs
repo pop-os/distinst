@@ -1,9 +1,15 @@
 extern crate libc;
 
-use std::ffi::{CStr, CString};
+use self::libc::{uint8_t, uint64_t, size_t};
+use std::ffi::{CStr, CString, OsStr};
 use std::io;
-
-use super::{log, Config, Error, Installer, Status, Step};
+use std::mem;
+use std::os::unix::ffi::OsStrExt;
+use std::path::PathBuf;
+use std::ptr;
+use super::{log, Config, Error, Installer, Status, Step, Disk, Disks,
+            PartitionTable, PartitionInfo, PartitionFlag, PartitionType,
+            FileSystemType};
 
 /// Log level
 #[repr(C)]
@@ -247,4 +253,366 @@ pub unsafe extern "C" fn distinst_installer_install(installer: *mut DistinstInst
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_destroy(installer: *mut DistinstInstaller) {
     drop(Box::from_raw(installer as *mut Installer))
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub enum PARTITION_TABLE {
+    NONE = 0,
+    GPT = 1,
+    MSDOS = 2,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub enum PARTITION_TYPE {
+    PRIMARY = 1,
+    LOGICAL = 2,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub enum FILE_SYSTEM {
+    NONE = 0,
+    BTRFS = 1,
+    EXFAT = 2,
+    EXT2 = 3,
+    EXT3 = 4,
+    EXT4 = 5,
+    F2FS = 6,
+    FAT16 = 7,
+    FAT32 = 8,
+    NTFS = 9,
+    SWAP = 10,
+    XFS = 11,
+}
+
+#[repr(C)]
+pub struct DistinstDisks {
+    disks: *mut DistinstDisk,
+    length: size_t
+}
+
+impl Drop for DistinstDisks {
+    fn drop(&mut self) {
+        drop(unsafe { Vec::from_raw_parts(self.disks, self.length, self.length) });
+    }
+}
+
+/// Probes the disk for information about every disk in the device.
+///
+/// On error, a null pointer will be returned.
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
+    match Disks::probe_devices() {
+        Ok(pdisks) => {
+            let mut pdisks = pdisks.0.into_iter()
+                .map(DistinstDisk::from)
+                .collect::<Vec<DistinstDisk>>();
+
+            pdisks.shrink_to_fit();
+            let new_disks = DistinstDisks {
+                disks: pdisks.as_mut_ptr(),
+                length: pdisks.len()
+            };
+
+            mem::forget(pdisks);
+            Box::into_raw(Box::new(new_disks))
+        }
+        Err(why) => {
+            info!("unable to probe devices: {}", why);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// The deconstructor for a `DistinstDisks`.
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
+    if !disks.is_null() {
+        drop(Box::from_raw(disks))
+    }
+}
+
+/// Attempts to obtain a specific partition's information based on it's index.
+///
+/// Returns a null pointer if the partition could not be found (index is out of bounds).
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_get(disks: *mut DistinstDisks, index: size_t)
+    -> *mut DistinstDisk
+{
+    if disks.is_null() {
+        ptr::null_mut()
+    } else if index >= (*disks).length {
+        ptr::null_mut()
+    } else {
+        (*disks).disks.offset(index as isize)
+    }
+}
+
+/// Obtains a specific disk's information by the device path.
+///
+/// On an error, this will return a null pointer.
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut DistinstDisk {
+    if path.is_null() {
+        return ptr::null_mut();
+    }
+    let cstring = CStr::from_ptr(path);
+    let ostring = OsStr::from_bytes(cstring.to_bytes());
+    match Disk::from_name(ostring).map(DistinstDisk::from) {
+        Ok(disk) => Box::into_raw(Box::new(disk)),
+        Err(why) => {
+            info!("unable to open device at {}: {}", ostring.to_string_lossy(), why);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[repr(C)]
+pub struct DistinstDisk {
+    model_name: *mut libc::c_char,
+    serial: *mut libc::c_char,
+    device_path: *mut libc::c_char,
+    device_type: *mut libc::c_char,
+    sectors: uint64_t,
+    sector_size: uint64_t,
+    partitions: DistinstPartitions,
+    table_type: PARTITION_TABLE,
+    read_only: uint8_t,
+}
+
+impl Drop for DistinstDisk {
+    fn drop(&mut self) {
+        unsafe { 
+            drop(CString::from_raw(self.model_name));
+            drop(CString::from_raw(self.serial));
+            drop(CString::from_raw(self.device_type));
+            drop(CString::from_raw(self.device_path));
+            let length = self.partitions.length;
+            drop(Vec::from_raw_parts(self.partitions.parts, length, length));
+        }
+    }
+}
+
+impl From<Disk> for DistinstDisk {
+    fn from(disk: Disk) -> DistinstDisk {
+        let mut parts: Vec<DistinstPartition> = disk.partitions.into_iter()
+            .map(DistinstPartition::from).collect();
+        parts.shrink_to_fit();
+        let partitions = DistinstPartitions {
+            parts: parts.as_mut_ptr(),
+            length: parts.len()
+        };
+        
+        mem::forget(parts);
+        DistinstDisk {
+            model_name: from_string_to_ptr(disk.model_name),
+            serial: from_string_to_ptr(disk.serial),
+            device_path: from_path_to_ptr(disk.device_path),
+            device_type: from_string_to_ptr(disk.device_type),
+            sectors: disk.size as libc::c_ulong,
+            sector_size: disk.sector_size,
+            table_type: match disk.table_type {
+                None => PARTITION_TABLE::NONE,
+                Some(PartitionTable::Msdos) => PARTITION_TABLE::MSDOS,
+                Some(PartitionTable::Gpt) => PARTITION_TABLE::GPT,
+            },
+            read_only: if disk.read_only { 1 } else { 0 },
+            partitions
+        }
+    }
+}
+
+impl From<DistinstDisk> for Disk {
+    fn from(disk: DistinstDisk) -> Disk {
+        let (parts, plen) = (disk.partitions.parts, disk.partitions.length);
+
+        Disk {
+            model_name: from_ptr_to_string(disk.model_name),
+            serial: from_ptr_to_string(disk.serial),
+            device_path: from_ptr_to_path(disk.device_path),
+            size: disk.sectors as u64,
+            sector_size: disk.sector_size as u64,
+            device_type: from_ptr_to_string(disk.device_type),
+            table_type: match disk.table_type {
+                PARTITION_TABLE::GPT => Some(PartitionTable::Gpt),
+                PARTITION_TABLE::MSDOS => Some(PartitionTable::Msdos),
+                PARTITION_TABLE::NONE => None
+            },
+            read_only: disk.read_only != 0,
+            partitions: unsafe { Vec::from_raw_parts(parts, plen, plen) }
+                .into_iter()
+                .map(PartitionInfo::from)
+                .collect::<Vec<_>>()
+        }
+    }
+}
+
+#[repr(C)]
+pub struct DistinstPartition {
+    is_source: uint8_t,
+    remove: uint8_t,
+    format: uint8_t,
+    active: uint8_t,
+    busy: uint8_t,
+    part_type: PARTITION_TYPE,
+    filesystem: FILE_SYSTEM,
+    number: libc::int32_t,
+    start_sector: uint64_t,
+    end_sector: uint64_t,
+    flags: DistinstPartitionFlags,
+    name: *mut libc::c_char,
+    device_path: *mut libc::c_char,
+    mount_point: *mut libc::c_char
+}
+
+impl From<PartitionInfo> for DistinstPartition {
+    fn from(mut part: PartitionInfo) -> DistinstPartition {
+        part.flags.shrink_to_fit();
+
+        let flags = DistinstPartitionFlags {
+            flags: part.flags.as_mut_ptr(),
+            length: part.flags.len()
+        };
+
+        mem::forget(part.flags);
+        DistinstPartition {
+            is_source: if part.is_source { 1 } else { 0 },
+            remove: if part.remove { 1 } else { 0 },
+            format: if part.format { 1 } else { 0 },
+            active: if part.active { 1 } else { 0 },
+            busy: if part.busy { 1 } else { 0 },
+            number: part.number as libc::int32_t,
+            start_sector: part.start_sector as uint64_t,
+            end_sector: part.end_sector as uint64_t,
+            part_type: match part.part_type {
+                PartitionType::Logical => PARTITION_TYPE::LOGICAL,
+                PartitionType::Primary => PARTITION_TYPE::PRIMARY,
+            },
+            filesystem: part.filesystem.map_or(FILE_SYSTEM::NONE, |part| match part {
+                FileSystemType::Btrfs => FILE_SYSTEM::BTRFS,
+                FileSystemType::Exfat => FILE_SYSTEM::EXFAT,
+                FileSystemType::Ext2 => FILE_SYSTEM::EXT2,
+                FileSystemType::Ext3 => FILE_SYSTEM::EXT3,
+                FileSystemType::Ext4 => FILE_SYSTEM::EXT4,
+                FileSystemType::F2fs => FILE_SYSTEM::F2FS,
+                FileSystemType::Fat16 => FILE_SYSTEM::FAT16,
+                FileSystemType::Fat32 => FILE_SYSTEM::FAT32,
+                FileSystemType::Ntfs => FILE_SYSTEM::NTFS,
+                FileSystemType::Swap => FILE_SYSTEM::SWAP,
+                FileSystemType::Xfs => FILE_SYSTEM::XFS,
+            }),
+            flags,
+            name: part.name.map_or(ptr::null_mut(), from_string_to_ptr),
+            device_path: from_path_to_ptr(part.device_path),
+            mount_point: part.mount_point
+                .map_or(ptr::null_mut(), from_path_to_ptr)
+        }
+    }
+}
+
+impl From<DistinstPartition> for PartitionInfo {
+    fn from(part: DistinstPartition) -> PartitionInfo {
+        let (flags, flen) = (part.flags.flags, part.flags.length);
+        PartitionInfo {
+            is_source: part.is_source != 0,
+            remove: part.remove != 0,
+            format: part.format != 0,
+            active: part.active != 0,
+            busy: part.busy != 0,
+            number: part.number as i32,
+            start_sector: part.start_sector as u64,
+            end_sector: part.end_sector as u64,
+            part_type: match part.part_type {
+                PARTITION_TYPE::LOGICAL => PartitionType::Logical,
+                PARTITION_TYPE::PRIMARY => PartitionType::Primary,
+            },
+            filesystem: match part.filesystem {
+                FILE_SYSTEM::BTRFS => Some(FileSystemType::Btrfs),
+                FILE_SYSTEM::EXFAT => Some(FileSystemType::Exfat),
+                FILE_SYSTEM::EXT2 => Some(FileSystemType::Ext2),
+                FILE_SYSTEM::EXT3 => Some(FileSystemType::Ext3),
+                FILE_SYSTEM::EXT4 => Some(FileSystemType::Ext4),
+                FILE_SYSTEM::F2FS => Some(FileSystemType::F2fs),
+                FILE_SYSTEM::FAT16 => Some(FileSystemType::Fat16),
+                FILE_SYSTEM::FAT32 => Some(FileSystemType::Fat32),
+                FILE_SYSTEM::NONE => None,
+                FILE_SYSTEM::NTFS => Some(FileSystemType::Ntfs),
+                FILE_SYSTEM::SWAP => Some(FileSystemType::Swap),
+                FILE_SYSTEM::XFS => Some(FileSystemType::Xfs)
+            },
+            flags: unsafe { Vec::from_raw_parts(flags, flen, flen) },
+            name: if part.name.is_null() {
+                None
+            } else {
+                Some(from_ptr_to_string(part.name))
+            },
+            device_path: from_ptr_to_path(part.device_path),
+            mount_point: if part.mount_point.is_null() {
+                None
+            } else {
+                Some(from_ptr_to_path(part.mount_point))
+            },
+        }
+    }
+}
+
+#[repr(C)]
+pub struct DistinstPartitionFlags {
+    flags: *mut PartitionFlag,
+    length: size_t,
+}
+
+impl Drop for DistinstPartitionFlags {
+    fn drop(&mut self) {
+        drop(unsafe { Vec::from_raw_parts(self.flags, self.length, self.length) });
+    }
+}
+
+#[repr(C)]
+pub struct DistinstPartitions {
+    parts: *mut DistinstPartition,
+    length: size_t,
+}
+
+impl Drop for DistinstPartitions {
+    fn drop(&mut self) {
+        drop(unsafe { Vec::from_raw_parts(self.parts, self.length, self.length) });
+    }
+}
+
+/// Should only be used internally to recover strings that were converted into pointers.
+fn from_ptr_to_string(pointer: *mut libc::c_char) -> String {
+    unsafe {
+        String::from_utf8_unchecked(
+            CString::from_raw(pointer).into_bytes()
+        )
+    }
+}
+
+/// Converts a Rust string into a C-native char array.
+fn from_string_to_ptr(mut string: String) -> *mut libc::c_char {
+    string.shrink_to_fit();
+    CString::new(string).ok()
+        .map_or(ptr::null_mut(), |string| string.into_raw())
+}
+
+
+/// Should only be used internally to recover paths that were converted into pointers.
+fn from_ptr_to_path(pointer: *mut libc::c_char) -> PathBuf {
+    unsafe {
+        PathBuf::from(
+            String::from_utf8_unchecked(
+                CString::from_raw(pointer).into_bytes()
+            )
+        )
+    }
+}
+
+/// Converts a Rust path into a C-native char array.
+fn from_path_to_ptr(path: PathBuf) -> *mut libc::c_char {
+    path.to_str()
+        .and_then(|string| CString::new(string).ok())
+        .map_or(ptr::null_mut(), |string| string.into_raw())
 }

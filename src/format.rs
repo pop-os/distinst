@@ -20,7 +20,8 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
     
     let mut command = Command::new(command);
     args.map(|args| command.args(args));
-
+    command.arg(part.as_ref());
+    
     debug!("{:?}", command);
 
     let status = command.stdout(Stdio::null()).status()?;

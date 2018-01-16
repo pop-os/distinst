@@ -7,8 +7,7 @@ use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType, PartitionFlag}
 use self::mounts::Mounts;
 use self::serial::get_serial_no;
 use self::operations::*;
-use self::partitions::*;
-pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionType};
+pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
 use std::io;
 use std::str;
 use std::path::{Path, PathBuf};
@@ -567,7 +566,7 @@ impl Disk {
     }
 }
 
-pub struct Disks(Vec<Disk>);
+pub struct Disks(pub(crate) Vec<Disk>);
 
 impl Disks {
     /// Probes for and returns disk information for every disk in the system.
