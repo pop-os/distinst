@@ -531,7 +531,7 @@ pub unsafe extern "C" fn distinst_disk_destroy(disk: *mut DistinstDisk) {
 
 /// Converts a `DistinstDisk` into a `Disk`, executes a given action with that `Disk`,
 /// then converts it back into a `DistinstDisk`, returning the exit status of the function.
-fn disk_action<F: Fn(&mut Disk) -> libc::c_int>(disk: *mut DistinstDisk, action: F) -> libc::c_int {
+unsafe fn disk_action<F: Fn(&mut Disk) -> libc::c_int>(disk: *mut DistinstDisk, action: F) -> libc::c_int {
     let mut new_disk = Disk::from(*Box::from_raw(disk));
     let exit_status = action(&mut new_disk);
     *disk = DistinstDisk::from(new_disk);
@@ -541,10 +541,12 @@ fn disk_action<F: Fn(&mut Disk) -> libc::c_int>(disk: *mut DistinstDisk, action:
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_add_partition(
     disk: *mut DistinstDisk,
-    partition: DistinstPartitionBuilder,
+    partition: *mut DistinstPartitionBuilder,
 ) -> libc::c_int {
     disk_action(disk, |disk| {
-        if let Err(why) = disk.add_partition(PartitionBuilder::from(partition)) {
+        if let Err(why) = disk.add_partition(
+            PartitionBuilder::from(*Box::from_raw(partition))
+        ) {
             info!("unable to add partition: {}", why);
             1
         } else {
