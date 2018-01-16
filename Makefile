@@ -46,9 +46,11 @@ vendor: .cargo/config
 target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub:
 	if [ -d vendor ]; \
 	then \
-		cargo build --release --frozen; \
+	    cargbo build --lib --release; \
+		cargo build --bin distinst --release --frozen; \
 	else \
-		cargo build --release; \
+	    cargo build --lib --release; \
+		cargo build --bin distinst --release; \
 	fi
 
 target/pkgconfig/$(BIN).pc: target/pkgconfig/$(BIN).pc.stub
