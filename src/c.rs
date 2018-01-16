@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::ptr;
 use super::{log, Config, Error, Installer, Status, Step, Disk, Disks,
             PartitionTable, PartitionInfo, PartitionFlag, PartitionType,
-            FileSystemType};
+            FileSystemType, PartitionBuilder};
 
 /// Log level
 #[repr(C)]
@@ -264,14 +264,14 @@ pub enum PARTITION_TABLE {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PARTITION_TYPE {
     PRIMARY = 1,
     LOGICAL = 2,
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FILE_SYSTEM {
     NONE = 0,
     BTRFS = 1,
@@ -285,6 +285,25 @@ pub enum FILE_SYSTEM {
     NTFS = 9,
     SWAP = 10,
     XFS = 11,
+}
+
+impl From<FILE_SYSTEM> for Option<FileSystemType> {
+    fn from(fs: FILE_SYSTEM) -> Option<FileSystemType> {
+        match fs {
+            FILE_SYSTEM::BTRFS => Some(FileSystemType::Btrfs),
+            FILE_SYSTEM::EXFAT => Some(FileSystemType::Exfat),
+            FILE_SYSTEM::EXT2 => Some(FileSystemType::Ext2),
+            FILE_SYSTEM::EXT3 => Some(FileSystemType::Ext3),
+            FILE_SYSTEM::EXT4 => Some(FileSystemType::Ext4),
+            FILE_SYSTEM::F2FS => Some(FileSystemType::F2fs),
+            FILE_SYSTEM::FAT16 => Some(FileSystemType::Fat16),
+            FILE_SYSTEM::FAT32 => Some(FileSystemType::Fat32),
+            FILE_SYSTEM::NONE => None,
+            FILE_SYSTEM::NTFS => Some(FileSystemType::Ntfs),
+            FILE_SYSTEM::SWAP => Some(FileSystemType::Swap),
+            FILE_SYSTEM::XFS => Some(FileSystemType::Xfs)
+        }
+    }
 }
 
 #[repr(C)]
@@ -347,25 +366,6 @@ pub unsafe extern "C" fn distinst_disks_get(disks: *mut DistinstDisks, index: si
         ptr::null_mut()
     } else {
         (*disks).disks.offset(index as isize)
-    }
-}
-
-/// Obtains a specific disk's information by the device path.
-///
-/// On an error, this will return a null pointer.
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut DistinstDisk {
-    if path.is_null() {
-        return ptr::null_mut();
-    }
-    let cstring = CStr::from_ptr(path);
-    let ostring = OsStr::from_bytes(cstring.to_bytes());
-    match Disk::from_name(ostring).map(DistinstDisk::from) {
-        Ok(disk) => Box::into_raw(Box::new(disk)),
-        Err(why) => {
-            info!("unable to open device at {}: {}", ostring.to_string_lossy(), why);
-            ptr::null_mut()
-        }
     }
 }
 
@@ -449,6 +449,175 @@ impl From<DistinstDisk> for Disk {
     }
 }
 
+/// Obtains a specific disk's information by the device path.
+///
+/// On an error, this will return a null pointer.
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut DistinstDisk {
+    if path.is_null() {
+        return ptr::null_mut();
+    }
+    let cstring = CStr::from_ptr(path);
+    let ostring = OsStr::from_bytes(cstring.to_bytes());
+    match Disk::from_name(ostring).map(DistinstDisk::from) {
+        Ok(disk) => Box::into_raw(Box::new(disk)),
+        Err(why) => {
+            info!("unable to open device at {}: {}", ostring.to_string_lossy(), why);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// A destructor for a `DistinstDisk`
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_destroy(disk: *mut DistinstDisk) {
+    drop(Box::from_raw(disk))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_add_partition(
+    disk: *mut DistinstDisk,
+    partition: DistinstPartitionBuilder
+) -> libc::c_int {
+    // Convert the raw data into a Disk to utilizing it's method, freeing the original
+    // allocated data in the process.
+    let mut temp = Disk::from(*Box::from_raw(disk));
+    
+    let exit_status = if let Err(why) = temp.add_partition(PartitionBuilder::from(partition)) {
+        info!("unable to add partition: {}", why);
+        1
+    } else {
+        0
+    };
+
+    // Write a new copy of the disk information to the original pointer.
+    // The original data should no longer be valid at this point.
+    *disk = DistinstDisk::from(temp);
+
+    exit_status
+}
+
+#[repr(C)]
+pub struct DistinstPartitionBuilder {
+    start_sector: uint64_t,
+    end_sector: uint64_t,
+    filesystem: FILE_SYSTEM,
+    part_type: PARTITION_TYPE,
+    name: *mut libc::c_char,
+    flags: DistinstPartitionFlags,
+}
+
+impl Drop for DistinstPartitionBuilder {
+    fn drop(&mut self) {
+        if !self.name.is_null() {
+            drop(unsafe { CString::from_raw(self.name) });
+        }
+    }
+}
+
+impl From<DistinstPartitionBuilder> for PartitionBuilder {
+    fn from(distinst: DistinstPartitionBuilder) -> PartitionBuilder {
+        debug_assert!(distinst.filesystem != FILE_SYSTEM::NONE);
+
+        PartitionBuilder {
+            start_sector: distinst.start_sector as u64,
+            end_sector: distinst.end_sector as u64,
+            filesystem: Option::<FileSystemType>::from(distinst.filesystem).unwrap(),
+            part_type: match distinst.part_type {
+                PARTITION_TYPE::LOGICAL => PartitionType::Logical,
+                PARTITION_TYPE::PRIMARY => PartitionType::Primary
+            },
+            name: if distinst.name.is_null() {
+                None
+            } else {
+                match String::from_utf8(unsafe {
+                    CString::from_raw(distinst.name).into_bytes()
+                }) {
+                    Ok(name) => Some(name),
+                    Err(why) => {
+                        info!("partition name was not valid UTF-8: {}", why);
+                        None
+                    }
+                }
+            },
+            flags: unsafe {
+                Vec::from_raw_parts(
+                    distinst.flags.flags,
+                    distinst.flags.length,
+                    distinst.flags.capacity
+                )
+            },
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_partition_builder_destroy(
+    builder: *mut DistinstPartitionBuilder
+) {
+    drop(Box::from_raw(builder));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_partition_builder_new(
+    start_sector: uint64_t,
+    end_sector: uint64_t,
+    filesystem: FILE_SYSTEM
+) -> *mut DistinstPartitionBuilder {
+    let mut vec = Vec::with_capacity(8);
+    let flags = vec.as_mut_ptr();
+    let capacity = vec.capacity();
+    mem::forget(vec);
+
+    let builder = DistinstPartitionBuilder {
+        start_sector,
+        end_sector: end_sector - 1,
+        filesystem,
+        part_type: PARTITION_TYPE::PRIMARY,
+        name: ptr::null_mut(),
+        flags: DistinstPartitionFlags {
+            flags,
+            length: 0,
+            capacity,
+        }
+    };
+
+    Box::into_raw(Box::new(builder))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_partition_builder_set_name(
+    builder: &mut DistinstPartitionBuilder,
+    name: *mut libc::c_char,
+) {
+    (*builder).name = name;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_partition_builder_set_partition_type(
+    builder: &mut DistinstPartitionBuilder,
+    part_type: PARTITION_TYPE,
+) {
+    (*builder).part_type = part_type;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_partition_builder_add_flag(
+    builder: *mut DistinstPartitionBuilder,
+    flag: PartitionFlag,
+) {
+    let mut flags = Vec::from_raw_parts(
+        (*builder).flags.flags,
+        (*builder).flags.length,
+        (*builder).flags.capacity
+    );
+    flags.push(flag);
+    (*builder).flags.length = flags.len();
+    (*builder).flags.capacity = flags.capacity();
+    (*builder).flags.flags = flags.as_mut_ptr();
+    mem::forget(flags);
+}
+
 #[repr(C)]
 pub struct DistinstPartition {
     is_source: uint8_t,
@@ -473,7 +642,8 @@ impl From<PartitionInfo> for DistinstPartition {
 
         let flags = DistinstPartitionFlags {
             flags: part.flags.as_mut_ptr(),
-            length: part.flags.len()
+            length: part.flags.len(),
+            capacity: part.flags.capacity(),
         };
 
         mem::forget(part.flags);
@@ -528,20 +698,7 @@ impl From<DistinstPartition> for PartitionInfo {
                 PARTITION_TYPE::LOGICAL => PartitionType::Logical,
                 PARTITION_TYPE::PRIMARY => PartitionType::Primary,
             },
-            filesystem: match part.filesystem {
-                FILE_SYSTEM::BTRFS => Some(FileSystemType::Btrfs),
-                FILE_SYSTEM::EXFAT => Some(FileSystemType::Exfat),
-                FILE_SYSTEM::EXT2 => Some(FileSystemType::Ext2),
-                FILE_SYSTEM::EXT3 => Some(FileSystemType::Ext3),
-                FILE_SYSTEM::EXT4 => Some(FileSystemType::Ext4),
-                FILE_SYSTEM::F2FS => Some(FileSystemType::F2fs),
-                FILE_SYSTEM::FAT16 => Some(FileSystemType::Fat16),
-                FILE_SYSTEM::FAT32 => Some(FileSystemType::Fat32),
-                FILE_SYSTEM::NONE => None,
-                FILE_SYSTEM::NTFS => Some(FileSystemType::Ntfs),
-                FILE_SYSTEM::SWAP => Some(FileSystemType::Swap),
-                FILE_SYSTEM::XFS => Some(FileSystemType::Xfs)
-            },
+            filesystem: Option::<FileSystemType>::from(part.filesystem),
             flags: unsafe { Vec::from_raw_parts(flags, flen, flen) },
             name: if part.name.is_null() {
                 None
@@ -562,11 +719,12 @@ impl From<DistinstPartition> for PartitionInfo {
 pub struct DistinstPartitionFlags {
     flags: *mut PartitionFlag,
     length: size_t,
+    capacity: size_t,
 }
 
 impl Drop for DistinstPartitionFlags {
     fn drop(&mut self) {
-        drop(unsafe { Vec::from_raw_parts(self.flags, self.length, self.length) });
+        drop(unsafe { Vec::from_raw_parts(self.flags, self.length, self.capacity) });
     }
 }
 
