@@ -15,60 +15,71 @@ use std::path::{Path, PathBuf};
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
 pub enum DiskError {
-    #[fail(display = "unable to get device: {}", why)]
-    DeviceGet { why: io::Error },
-    #[fail(display = "unable to probe for devices")]
-    DeviceProbe,
+    #[fail(display = "unable to get device: {}", why)] DeviceGet {
+        why: io::Error,
+    },
+    #[fail(display = "unable to probe for devices")] DeviceProbe,
     #[fail(display = "unable to commit changes to disk: {}", why)]
-    DiskCommit { why: io::Error },
+    DiskCommit {
+        why: io::Error,
+    },
     #[fail(display = "unable to format partition table: {}", why)]
-    DiskFresh { why: io::Error },
-    #[fail(display = "unable to find disk")]
-    DiskGet,
-    #[fail(display = "unable to open disk: {}", why)]
-    DiskNew { why: io::Error },
+    DiskFresh {
+        why: io::Error,
+    },
+    #[fail(display = "unable to find disk")] DiskGet,
+    #[fail(display = "unable to open disk: {}", why)] DiskNew {
+        why: io::Error,
+    },
     #[fail(display = "unable to sync disk changes with OS: {}", why)]
-    DiskSync { why: io::Error },
-    #[fail(display = "serial model does not match")]
-    InvalidSerial,
+    DiskSync {
+        why: io::Error,
+    },
+    #[fail(display = "serial model does not match")] InvalidSerial,
     #[fail(display = "failed to create partition geometry: {}", why)]
-    GeometryCreate { why: io::Error },
-    #[fail(display = "failed to duplicate partition geometry")]
-    GeometryDuplicate,
-    #[fail(display = "failed to set values on partition geometry")]
-    GeometrySet,
-    #[fail(display = "partition layout on disk has changed")]
-    LayoutChanged,
+    GeometryCreate {
+        why: io::Error,
+    },
+    #[fail(display = "failed to duplicate partition geometry")] GeometryDuplicate,
+    #[fail(display = "failed to set values on partition geometry")] GeometrySet,
+    #[fail(display = "partition layout on disk has changed")] LayoutChanged,
     #[fail(display = "unable to get mount points: {}", why)]
-    MountsObtain { why: io::Error },
-    #[fail(display = "new partition could not be found")]
-    NewPartNotFound,
-    #[fail(display = "no file system was found on the partition")]
-    NoFilesystem,
+    MountsObtain {
+        why: io::Error,
+    },
+    #[fail(display = "new partition could not be found")] NewPartNotFound,
+    #[fail(display = "no file system was found on the partition")] NoFilesystem,
     #[fail(display = "unable to create partition: {}", why)]
-    PartitionCreate { why: io::Error },
+    PartitionCreate {
+        why: io::Error,
+    },
     #[fail(display = "unable to format partition: {}", why)]
-    PartitionFormat { why: io::Error },
+    PartitionFormat {
+        why: io::Error,
+    },
     #[fail(display = "partition {} not be found on disk", partition)]
-    PartitionNotFound { partition: i32 },
-    #[fail(display = "partition overlaps other partitions")]
-    PartitionOverlaps,
+    PartitionNotFound {
+        partition: i32,
+    },
+    #[fail(display = "partition overlaps other partitions")] PartitionOverlaps,
     #[fail(display = "unable to remove partition {}: {}", partition, why)]
-    PartitionRemove { partition: i32, why: io::Error },
-    #[fail(display = "unable to resize partition")]
-    PartitionResize,
-    #[fail(display = "partition table not found on disk")]
-    PartitionTableNotFound,
+    PartitionRemove {
+        partition: i32,
+        why: io::Error,
+    },
+    #[fail(display = "unable to resize partition")] PartitionResize,
+    #[fail(display = "partition table not found on disk")] PartitionTableNotFound,
     #[fail(display = "too many primary partitions in MSDOS partition table")]
     PrimaryPartitionsExceeded,
-    #[fail(display = "sector overlaps partition {}", id)]
-    SectorOverlaps { id: i32 },
+    #[fail(display = "sector overlaps partition {}", id)] SectorOverlaps {
+        id: i32,
+    },
     #[fail(display = "unable to get serial model of device: {}", why)]
-    SerialGet { why: io::Error },
-    #[fail(display = "partition exceeds size of disk")]
-    PartitionOOB,
-    #[fail(display = "partition resize value is too small")]
-    ResizeTooSmall,
+    SerialGet {
+        why: io::Error,
+    },
+    #[fail(display = "partition exceeds size of disk")] PartitionOOB,
+    #[fail(display = "partition resize value is too small")] ResizeTooSmall,
 }
 
 impl From<DiskError> for io::Error {
@@ -122,12 +133,16 @@ fn sync(device: &mut Device) -> Result<(), DiskError> {
 /// Opens and formats the specified disk with the given partition table.
 pub fn mklabel<P: AsRef<Path>>(name: P, kind: PartitionTable) -> Result<(), DiskError> {
     open_device(name).and_then(|mut device| {
-        PedDisk::new_fresh(&mut device, match kind {
-            PartitionTable::Gpt   => PedDiskType::get("gpt").unwrap(),
-            PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
-        }).map_err(|why| DiskError::DiskFresh { why }).and_then(|mut disk| {
-            commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
-        })
+        PedDisk::new_fresh(
+            &mut device,
+            match kind {
+                PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
+                PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
+            },
+        ).map_err(|why| DiskError::DiskFresh { why })
+            .and_then(|mut disk| {
+                commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
+            })
     })
 }
 
@@ -259,10 +274,12 @@ impl Disk {
 
     /// Obtain the number of primary and logical partitions, in that order.
     fn get_partition_type_count(&self) -> (usize, usize) {
-        self.partitions.iter().fold((0, 0), |sum, part| match part.part_type {
-            PartitionType::Logical => (sum.0, sum.1 + 1),
-            PartitionType::Primary => (sum.0 + 1, sum.1)
-        })
+        self.partitions
+            .iter()
+            .fold((0, 0), |sum, part| match part.part_type {
+                PartitionType::Logical => (sum.0, sum.1 + 1),
+                PartitionType::Primary => (sum.0 + 1, sum.1),
+            })
     }
 
     /// Adds a partition to the partition scheme.
@@ -292,7 +309,7 @@ impl Disk {
                     return Err(DiskError::PrimaryPartitionsExceeded);
                 }
             }
-            None => return Err(DiskError::PartitionTableNotFound)
+            None => return Err(DiskError::PartitionTableNotFound),
         }
 
         self.partitions.push(builder.build());
@@ -394,7 +411,11 @@ impl Disk {
     }
 
     /// Designates that the specified partition ID should be formatted with the given file system.
-    fn format_partition(&mut self, partition: i32, fs: FileSystemType) -> Result<(), DiskError> {
+    pub fn format_partition(
+        &mut self,
+        partition: i32,
+        fs: FileSystemType,
+    ) -> Result<(), DiskError> {
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
             .map(|partition| {
@@ -459,8 +480,8 @@ impl Disk {
             match new_parts.next() {
                 Some(new) => if !source.is_same_partition_as(new) {
                     return Err(DiskError::LayoutChanged);
-                }
-                None => return Err(DiskError::LayoutChanged)
+                },
+                None => return Err(DiskError::LayoutChanged),
             }
         }
 
@@ -480,9 +501,10 @@ impl Disk {
         let mut new_parts = new.partitions.iter();
         let mut new_part = None;
 
-        fn flags_diff<I: Iterator<Item = PartitionFlag>>(source: &[PartitionFlag], flags: I)
-            -> Vec<PartitionFlag>
-        {
+        fn flags_diff<I: Iterator<Item = PartitionFlag>>(
+            source: &[PartitionFlag],
+            flags: I,
+        ) -> Vec<PartitionFlag> {
             flags.filter(|f| !source.contains(f)).collect()
         }
 
@@ -560,7 +582,7 @@ impl Disk {
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
         Ok(())
     }
-    
+
     pub fn path(&self) -> &Path {
         &self.device_path
     }

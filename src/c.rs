@@ -1,15 +1,14 @@
 extern crate libc;
 
-use self::libc::{uint8_t, uint64_t, size_t};
+use self::libc::{size_t, uint64_t, uint8_t};
 use std::ffi::{CStr, CString, OsStr};
 use std::io;
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr;
-use super::{log, Config, Error, Installer, Status, Step, Disk, Disks,
-            PartitionTable, PartitionInfo, PartitionFlag, PartitionType,
-            FileSystemType, PartitionBuilder};
+use super::{log, Config, Disk, Disks, Error, FileSystemType, Installer, PartitionBuilder,
+            PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Status, Step};
 
 /// Log level
 #[repr(C)]
@@ -23,7 +22,11 @@ pub enum DISTINST_LOG_LEVEL {
 }
 
 /// Installer log callback
-pub type DistinstLogCallback = extern "C" fn(level: DISTINST_LOG_LEVEL, message: *const libc::c_char, user_data: * mut libc::c_void);
+pub type DistinstLogCallback = extern "C" fn(
+    level: DISTINST_LOG_LEVEL,
+    message: *const libc::c_char,
+    user_data: *mut libc::c_void,
+);
 
 /// Bootloader steps
 #[repr(C)]
@@ -40,7 +43,7 @@ pub enum DISTINST_STEP {
 impl From<DISTINST_STEP> for Step {
     fn from(step: DISTINST_STEP) -> Self {
         use DISTINST_STEP::*;
-        match step{
+        match step {
             INIT => Step::Init,
             PARTITION => Step::Partition,
             FORMAT => Step::Format,
@@ -54,7 +57,7 @@ impl From<DISTINST_STEP> for Step {
 impl From<Step> for DISTINST_STEP {
     fn from(step: Step) -> Self {
         use DISTINST_STEP::*;
-        match step{
+        match step {
             Step::Init => INIT,
             Step::Partition => PARTITION,
             Step::Format => FORMAT,
@@ -78,35 +81,59 @@ pub struct DistinstConfig {
 impl DistinstConfig {
     unsafe fn into_config(&self) -> Result<Config, io::Error> {
         if self.squashfs.is_null() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "config.squashfs: null pointer"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "config.squashfs: null pointer",
+            ));
         }
 
         let squashfs = CStr::from_ptr(self.squashfs).to_str().map_err(|err| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("config.squashfs: invalid UTF-8: {}", err))
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("config.squashfs: invalid UTF-8: {}", err),
+            )
         })?;
 
         if self.disk.is_null() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "config.disk: null pointer"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "config.disk: null pointer",
+            ));
         }
 
         let disk = CStr::from_ptr(self.disk).to_str().map_err(|err| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("config.disk: invalid UTF-8: {}", err))
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("config.disk: invalid UTF-8: {}", err),
+            )
         })?;
 
         if self.lang.is_null() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "config.lang: null pointer"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "config.lang: null pointer",
+            ));
         }
 
         let lang = CStr::from_ptr(self.lang).to_str().map_err(|err| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("config.lang: invalid UTF-8: {}", err))
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("config.lang: invalid UTF-8: {}", err),
+            )
         })?;
 
         if self.remove.is_null() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "config.remove: null pointer"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "config.remove: null pointer",
+            ));
         }
 
         let remove = CStr::from_ptr(self.remove).to_str().map_err(|err| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("config.remove: invalid UTF-8: {}", err))
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("config.remove: invalid UTF-8: {}", err),
+            )
         })?;
 
         Ok(Config {
@@ -127,7 +154,8 @@ pub struct DistinstError {
 }
 
 /// Installer error callback
-pub type DistinstErrorCallback = extern "C" fn(status: *const DistinstError, user_data: * mut libc::c_void);
+pub type DistinstErrorCallback =
+    extern "C" fn(status: *const DistinstError, user_data: *mut libc::c_void);
 
 /// Installer status message
 #[repr(C)]
@@ -138,7 +166,8 @@ pub struct DistinstStatus {
 }
 
 /// Installer status callback
-pub type DistinstStatusCallback = extern "C" fn(status: *const DistinstStatus, user_data: * mut libc::c_void);
+pub type DistinstStatusCallback =
+    extern "C" fn(status: *const DistinstStatus, user_data: *mut libc::c_void);
 
 /// An installer object
 #[repr(C)]
@@ -146,7 +175,10 @@ pub struct DistinstInstaller;
 
 /// Initialize logging
 #[no_mangle]
-pub unsafe extern "C" fn distinst_log(callback: DistinstLogCallback, user_data: * mut libc::c_void) -> libc::c_int {
+pub unsafe extern "C" fn distinst_log(
+    callback: DistinstLogCallback,
+    user_data: *mut libc::c_void,
+) -> libc::c_int {
     use DISTINST_LOG_LEVEL::*;
     use log::LogLevel;
 
@@ -160,10 +192,14 @@ pub unsafe extern "C" fn distinst_log(callback: DistinstLogCallback, user_data: 
             LogLevel::Error => ERROR,
         };
         let c_message = CString::new(message).unwrap();
-        callback(c_level, c_message.as_ptr(), user_data_sync as * mut libc::c_void);
+        callback(
+            c_level,
+            c_message.as_ptr(),
+            user_data_sync as *mut libc::c_void,
+        );
     }) {
         Ok(()) => 0,
-        Err(_err) => libc::EINVAL
+        Err(_err) => libc::EINVAL,
     }
 }
 
@@ -175,66 +211,76 @@ pub unsafe extern "C" fn distinst_installer_new() -> *mut DistinstInstaller {
 
 /// Send an installer status message
 #[no_mangle]
-pub unsafe extern "C" fn distinst_installer_emit_error(installer: *mut DistinstInstaller, error: *const DistinstError) {
-    (*(installer as *mut Installer)).emit_error(
-        &Error {
-            step: (*error).step.into(),
-            err: io::Error::from_raw_os_error((*error).err)
-        }
-    );
+pub unsafe extern "C" fn distinst_installer_emit_error(
+    installer: *mut DistinstInstaller,
+    error: *const DistinstError,
+) {
+    (*(installer as *mut Installer)).emit_error(&Error {
+        step: (*error).step.into(),
+        err: io::Error::from_raw_os_error((*error).err),
+    });
 }
 
 /// Set the installer status callback
 #[no_mangle]
-pub unsafe extern "C" fn distinst_installer_on_error(installer: *mut DistinstInstaller, callback: DistinstErrorCallback, user_data: * mut libc::c_void)
-{
+pub unsafe extern "C" fn distinst_installer_on_error(
+    installer: *mut DistinstInstaller,
+    callback: DistinstErrorCallback,
+    user_data: *mut libc::c_void,
+) {
     (*(installer as *mut Installer)).on_error(move |error| {
         callback(
-            & DistinstError {
+            &DistinstError {
                 step: error.step.into(),
                 err: error.err.raw_os_error().unwrap_or(libc::EIO),
             } as *const DistinstError,
-            user_data
+            user_data,
         )
     });
 }
 
 /// Send an installer status message
 #[no_mangle]
-pub unsafe extern "C" fn distinst_installer_emit_status(installer: *mut DistinstInstaller, status: *const DistinstStatus) {
-    (*(installer as *mut Installer)).emit_status(
-        &Status {
-            step: (*status).step.into(),
-            percent: (*status).percent
-        }
-    );
+pub unsafe extern "C" fn distinst_installer_emit_status(
+    installer: *mut DistinstInstaller,
+    status: *const DistinstStatus,
+) {
+    (*(installer as *mut Installer)).emit_status(&Status {
+        step: (*status).step.into(),
+        percent: (*status).percent,
+    });
 }
 
 /// Set the installer status callback
 #[no_mangle]
-pub unsafe extern "C" fn distinst_installer_on_status(installer: *mut DistinstInstaller, callback: DistinstStatusCallback, user_data: * mut libc::c_void) {
+pub unsafe extern "C" fn distinst_installer_on_status(
+    installer: *mut DistinstInstaller,
+    callback: DistinstStatusCallback,
+    user_data: *mut libc::c_void,
+) {
     (*(installer as *mut Installer)).on_status(move |status| {
         callback(
             &DistinstStatus {
                 step: status.step.into(),
                 percent: status.percent,
             } as *const DistinstStatus,
-            user_data
+            user_data,
         )
     });
 }
 
 /// Install using this installer
 #[no_mangle]
-pub unsafe extern "C" fn distinst_installer_install(installer: *mut DistinstInstaller, config: *const DistinstConfig) -> libc::c_int {
+pub unsafe extern "C" fn distinst_installer_install(
+    installer: *mut DistinstInstaller,
+    config: *const DistinstConfig,
+) -> libc::c_int {
     match (*config).into_config() {
-        Ok(config) => {
-            match (*(installer as *mut Installer)).install(&config) {
-                Ok(()) => 0,
-                Err(err) => {
-                    info!("Install error: {}", err);
-                    err.raw_os_error().unwrap_or(libc::EIO)
-                }
+        Ok(config) => match (*(installer as *mut Installer)).install(&config) {
+            Ok(()) => 0,
+            Err(err) => {
+                info!("Install error: {}", err);
+                err.raw_os_error().unwrap_or(libc::EIO)
             }
         },
         Err(err) => {
@@ -301,7 +347,7 @@ impl From<FILE_SYSTEM> for Option<FileSystemType> {
             FILE_SYSTEM::NONE => None,
             FILE_SYSTEM::NTFS => Some(FileSystemType::Ntfs),
             FILE_SYSTEM::SWAP => Some(FileSystemType::Swap),
-            FILE_SYSTEM::XFS => Some(FileSystemType::Xfs)
+            FILE_SYSTEM::XFS => Some(FileSystemType::Xfs),
         }
     }
 }
@@ -309,7 +355,7 @@ impl From<FILE_SYSTEM> for Option<FileSystemType> {
 #[repr(C)]
 pub struct DistinstDisks {
     disks: *mut DistinstDisk,
-    length: size_t
+    length: size_t,
 }
 
 impl Drop for DistinstDisks {
@@ -325,14 +371,16 @@ impl Drop for DistinstDisks {
 pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
     match Disks::probe_devices() {
         Ok(pdisks) => {
-            let mut pdisks = pdisks.0.into_iter()
+            let mut pdisks = pdisks
+                .0
+                .into_iter()
                 .map(DistinstDisk::from)
                 .collect::<Vec<DistinstDisk>>();
 
             pdisks.shrink_to_fit();
             let new_disks = DistinstDisks {
                 disks: pdisks.as_mut_ptr(),
-                length: pdisks.len()
+                length: pdisks.len(),
             };
 
             mem::forget(pdisks);
@@ -357,9 +405,10 @@ pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
 ///
 /// Returns a null pointer if the partition could not be found (index is out of bounds).
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disks_get(disks: *mut DistinstDisks, index: size_t)
-    -> *mut DistinstDisk
-{
+pub unsafe extern "C" fn distinst_disks_get(
+    disks: *mut DistinstDisks,
+    index: size_t,
+) -> *mut DistinstDisk {
     if disks.is_null() {
         ptr::null_mut()
     } else if index >= (*disks).length {
@@ -384,7 +433,7 @@ pub struct DistinstDisk {
 
 impl Drop for DistinstDisk {
     fn drop(&mut self) {
-        unsafe { 
+        unsafe {
             drop(CString::from_raw(self.model_name));
             drop(CString::from_raw(self.serial));
             drop(CString::from_raw(self.device_type));
@@ -397,14 +446,16 @@ impl Drop for DistinstDisk {
 
 impl From<Disk> for DistinstDisk {
     fn from(disk: Disk) -> DistinstDisk {
-        let mut parts: Vec<DistinstPartition> = disk.partitions.into_iter()
-            .map(DistinstPartition::from).collect();
+        let mut parts: Vec<DistinstPartition> = disk.partitions
+            .into_iter()
+            .map(DistinstPartition::from)
+            .collect();
         parts.shrink_to_fit();
         let partitions = DistinstPartitions {
             parts: parts.as_mut_ptr(),
-            length: parts.len()
+            length: parts.len(),
         };
-        
+
         mem::forget(parts);
         DistinstDisk {
             model_name: from_string_to_ptr(disk.model_name),
@@ -419,7 +470,7 @@ impl From<Disk> for DistinstDisk {
                 Some(PartitionTable::Gpt) => PARTITION_TABLE::GPT,
             },
             read_only: if disk.read_only { 1 } else { 0 },
-            partitions
+            partitions,
         }
     }
 }
@@ -438,13 +489,13 @@ impl From<DistinstDisk> for Disk {
             table_type: match disk.table_type {
                 PARTITION_TABLE::GPT => Some(PartitionTable::Gpt),
                 PARTITION_TABLE::MSDOS => Some(PartitionTable::Msdos),
-                PARTITION_TABLE::NONE => None
+                PARTITION_TABLE::NONE => None,
             },
             read_only: disk.read_only != 0,
             partitions: unsafe { Vec::from_raw_parts(parts, plen, plen) }
                 .into_iter()
                 .map(PartitionInfo::from)
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
         }
     }
 }
@@ -462,7 +513,11 @@ pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut Di
     match Disk::from_name(ostring).map(DistinstDisk::from) {
         Ok(disk) => Box::into_raw(Box::new(disk)),
         Err(why) => {
-            info!("unable to open device at {}: {}", ostring.to_string_lossy(), why);
+            info!(
+                "unable to open device at {}: {}",
+                ostring.to_string_lossy(),
+                why
+            );
             ptr::null_mut()
         }
     }
@@ -474,27 +529,111 @@ pub unsafe extern "C" fn distinst_disk_destroy(disk: *mut DistinstDisk) {
     drop(Box::from_raw(disk))
 }
 
+/// Converts a `DistinstDisk` into a `Disk`, executes a given action with that `Disk`,
+/// then converts it back into a `DistinstDisk`, returning the exit status of the function.
+fn disk_action<F: Fn(&mut Disk) -> libc::c_int>(disk: *mut DistinstDisk, action: F) -> libc::c_int {
+    let mut new_disk = Disk::from(*Box::from_raw(disk));
+    let exit_status = action(&mut new_disk);
+    *disk = DistinstDisk::from(new_disk);
+    exit_status
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_add_partition(
     disk: *mut DistinstDisk,
-    partition: DistinstPartitionBuilder
+    partition: DistinstPartitionBuilder,
 ) -> libc::c_int {
-    // Convert the raw data into a Disk to utilizing it's method, freeing the original
-    // allocated data in the process.
-    let mut temp = Disk::from(*Box::from_raw(disk));
-    
-    let exit_status = if let Err(why) = temp.add_partition(PartitionBuilder::from(partition)) {
-        info!("unable to add partition: {}", why);
-        1
-    } else {
-        0
+    disk_action(disk, |disk| {
+        if let Err(why) = disk.add_partition(PartitionBuilder::from(partition)) {
+            info!("unable to add partition: {}", why);
+            1
+        } else {
+            0
+        }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_remove_partition(
+    disk: *mut DistinstDisk,
+    partition: libc::c_int,
+) -> libc::c_int {
+    disk_action(disk, |disk| {
+        if let Err(why) = disk.remove_partition(partition) {
+            info!("unable to remove partition: {}", why);
+            1
+        } else {
+            0
+        }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_resize_partition(
+    disk: *mut DistinstDisk,
+    partition: libc::c_int,
+    length: uint64_t,
+) -> libc::c_int {
+    disk_action(disk, |disk| {
+        if let Err(why) = disk.resize_partition(partition, length) {
+            info!("unable to resize partition: {}", why);
+            1
+        } else {
+            0
+        }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_move_partition(
+    disk: *mut DistinstDisk,
+    partition: libc::c_int,
+    start: uint64_t,
+) -> libc::c_int {
+    disk_action(disk, |disk| {
+        if let Err(why) = disk.move_partition(partition, start) {
+            info!("unable to remove partition: {}", why);
+            1
+        } else {
+            0
+        }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_format_partition(
+    disk: *mut DistinstDisk,
+    partition: libc::c_int,
+    fs: FILE_SYSTEM,
+) -> libc::c_int {
+    let fs = match Option::<FileSystemType>::from(fs) {
+        Some(fs) => fs,
+        None => {
+            info!("file system type required");
+            return 1;
+        }
     };
 
-    // Write a new copy of the disk information to the original pointer.
-    // The original data should no longer be valid at this point.
-    *disk = DistinstDisk::from(temp);
+    disk_action(disk, |disk| {
+        if let Err(why) = disk.format_partition(partition, fs) {
+            info!("unable to remove partition: {}", why);
+            1
+        } else {
+            0
+        }
+    })
+}
 
-    exit_status
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::c_int {
+    disk_action(disk, |disk| {
+        if let Err(why) = disk.commit() {
+            info!("unable to commit changes to disk: {}", why);
+            1
+        } else {
+            0
+        }
+    })
 }
 
 #[repr(C)]
@@ -525,14 +664,12 @@ impl From<DistinstPartitionBuilder> for PartitionBuilder {
             filesystem: Option::<FileSystemType>::from(distinst.filesystem).unwrap(),
             part_type: match distinst.part_type {
                 PARTITION_TYPE::LOGICAL => PartitionType::Logical,
-                PARTITION_TYPE::PRIMARY => PartitionType::Primary
+                PARTITION_TYPE::PRIMARY => PartitionType::Primary,
             },
             name: if distinst.name.is_null() {
                 None
             } else {
-                match String::from_utf8(unsafe {
-                    CString::from_raw(distinst.name).into_bytes()
-                }) {
+                match String::from_utf8(unsafe { CString::from_raw(distinst.name).into_bytes() }) {
                     Ok(name) => Some(name),
                     Err(why) => {
                         info!("partition name was not valid UTF-8: {}", why);
@@ -544,7 +681,7 @@ impl From<DistinstPartitionBuilder> for PartitionBuilder {
                 Vec::from_raw_parts(
                     distinst.flags.flags,
                     distinst.flags.length,
-                    distinst.flags.capacity
+                    distinst.flags.capacity,
                 )
             },
         }
@@ -553,7 +690,7 @@ impl From<DistinstPartitionBuilder> for PartitionBuilder {
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_partition_builder_destroy(
-    builder: *mut DistinstPartitionBuilder
+    builder: *mut DistinstPartitionBuilder,
 ) {
     drop(Box::from_raw(builder));
 }
@@ -562,7 +699,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_destroy(
 pub unsafe extern "C" fn distinst_disk_partition_builder_new(
     start_sector: uint64_t,
     end_sector: uint64_t,
-    filesystem: FILE_SYSTEM
+    filesystem: FILE_SYSTEM,
 ) -> *mut DistinstPartitionBuilder {
     let mut vec = Vec::with_capacity(8);
     let flags = vec.as_mut_ptr();
@@ -579,7 +716,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_new(
             flags,
             length: 0,
             capacity,
-        }
+        },
     };
 
     Box::into_raw(Box::new(builder))
@@ -609,7 +746,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_add_flag(
     let mut flags = Vec::from_raw_parts(
         (*builder).flags.flags,
         (*builder).flags.length,
-        (*builder).flags.capacity
+        (*builder).flags.capacity,
     );
     flags.push(flag);
     (*builder).flags.length = flags.len();
@@ -633,7 +770,7 @@ pub struct DistinstPartition {
     flags: DistinstPartitionFlags,
     name: *mut libc::c_char,
     device_path: *mut libc::c_char,
-    mount_point: *mut libc::c_char
+    mount_point: *mut libc::c_char,
 }
 
 impl From<PartitionInfo> for DistinstPartition {
@@ -660,24 +797,24 @@ impl From<PartitionInfo> for DistinstPartition {
                 PartitionType::Logical => PARTITION_TYPE::LOGICAL,
                 PartitionType::Primary => PARTITION_TYPE::PRIMARY,
             },
-            filesystem: part.filesystem.map_or(FILE_SYSTEM::NONE, |part| match part {
-                FileSystemType::Btrfs => FILE_SYSTEM::BTRFS,
-                FileSystemType::Exfat => FILE_SYSTEM::EXFAT,
-                FileSystemType::Ext2 => FILE_SYSTEM::EXT2,
-                FileSystemType::Ext3 => FILE_SYSTEM::EXT3,
-                FileSystemType::Ext4 => FILE_SYSTEM::EXT4,
-                FileSystemType::F2fs => FILE_SYSTEM::F2FS,
-                FileSystemType::Fat16 => FILE_SYSTEM::FAT16,
-                FileSystemType::Fat32 => FILE_SYSTEM::FAT32,
-                FileSystemType::Ntfs => FILE_SYSTEM::NTFS,
-                FileSystemType::Swap => FILE_SYSTEM::SWAP,
-                FileSystemType::Xfs => FILE_SYSTEM::XFS,
-            }),
+            filesystem: part.filesystem
+                .map_or(FILE_SYSTEM::NONE, |part| match part {
+                    FileSystemType::Btrfs => FILE_SYSTEM::BTRFS,
+                    FileSystemType::Exfat => FILE_SYSTEM::EXFAT,
+                    FileSystemType::Ext2 => FILE_SYSTEM::EXT2,
+                    FileSystemType::Ext3 => FILE_SYSTEM::EXT3,
+                    FileSystemType::Ext4 => FILE_SYSTEM::EXT4,
+                    FileSystemType::F2fs => FILE_SYSTEM::F2FS,
+                    FileSystemType::Fat16 => FILE_SYSTEM::FAT16,
+                    FileSystemType::Fat32 => FILE_SYSTEM::FAT32,
+                    FileSystemType::Ntfs => FILE_SYSTEM::NTFS,
+                    FileSystemType::Swap => FILE_SYSTEM::SWAP,
+                    FileSystemType::Xfs => FILE_SYSTEM::XFS,
+                }),
             flags,
             name: part.name.map_or(ptr::null_mut(), from_string_to_ptr),
             device_path: from_path_to_ptr(part.device_path),
-            mount_point: part.mount_point
-                .map_or(ptr::null_mut(), from_path_to_ptr)
+            mount_point: part.mount_point.map_or(ptr::null_mut(), from_path_to_ptr),
         }
     }
 }
@@ -742,29 +879,23 @@ impl Drop for DistinstPartitions {
 
 /// Should only be used internally to recover strings that were converted into pointers.
 fn from_ptr_to_string(pointer: *mut libc::c_char) -> String {
-    unsafe {
-        String::from_utf8_unchecked(
-            CString::from_raw(pointer).into_bytes()
-        )
-    }
+    unsafe { String::from_utf8_unchecked(CString::from_raw(pointer).into_bytes()) }
 }
 
 /// Converts a Rust string into a C-native char array.
 fn from_string_to_ptr(mut string: String) -> *mut libc::c_char {
     string.shrink_to_fit();
-    CString::new(string).ok()
+    CString::new(string)
+        .ok()
         .map_or(ptr::null_mut(), |string| string.into_raw())
 }
-
 
 /// Should only be used internally to recover paths that were converted into pointers.
 fn from_ptr_to_path(pointer: *mut libc::c_char) -> PathBuf {
     unsafe {
-        PathBuf::from(
-            String::from_utf8_unchecked(
-                CString::from_raw(pointer).into_bytes()
-            )
-        )
+        PathBuf::from(String::from_utf8_unchecked(
+            CString::from_raw(pointer).into_bytes(),
+        ))
     }
 }
 

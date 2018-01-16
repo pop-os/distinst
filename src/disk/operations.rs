@@ -1,6 +1,5 @@
-use libparted::{Disk as PedDisk, Geometry, Partition as PedPartition,
-                PartitionType as PedPartitionType, PartitionFlag,
-                FileSystemType as PedFileSystemType};
+use libparted::{Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry,
+                Partition as PedPartition, PartitionFlag, PartitionType as PedPartitionType};
 use super::*;
 use std::path::Path;
 use format::mkfs;

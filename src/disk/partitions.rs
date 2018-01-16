@@ -52,7 +52,7 @@ impl Into<&'static str> for FileSystemType {
             FileSystemType::Fat32 => "fat32",
             FileSystemType::Ntfs => "ntfs",
             FileSystemType::Swap => "linux-swap(v1)",
-            FileSystemType::Xfs => "xfs"
+            FileSystemType::Xfs => "xfs",
         }
     }
 }
@@ -260,7 +260,8 @@ const FLAGS: &[PartitionFlag] = &[
 ];
 
 fn get_flags(partition: &Partition) -> Vec<PartitionFlag> {
-    FLAGS.into_iter()
+    FLAGS
+        .into_iter()
         .filter(|&&f| partition.is_flag_available(f) && partition.get_flag(f))
         .cloned()
         .collect::<Vec<PartitionFlag>>()
