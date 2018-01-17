@@ -15,7 +15,7 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use disk::{Disk, Disks, PartitionBuilder, Sector, mklabel};
+use disk::{Disk, Disks, PartitionBuilder, Sector};
 pub use libparted::PartitionFlag;
 pub use disk::{FileSystemType, PartitionInfo, PartitionTable, PartitionType};
 use format::mkfs;
@@ -260,7 +260,7 @@ impl Installer {
 
         match bootloader {
             Bootloader::Bios => {
-                mklabel(&disk.path(), PartitionTable::Msdos)?;
+                disk.mklabel(PartitionTable::Msdos)?;
                 callback(33);
 
                 let start = disk.get_sector(Sector::Start);
@@ -274,7 +274,7 @@ impl Installer {
                 callback(66);
             },
             Bootloader::Efi => {
-                mklabel(&disk.path(), PartitionTable::Gpt)?;
+                disk.mklabel(PartitionTable::Gpt)?;
                 callback(25);
 
                 let mut start = disk.get_sector(Sector::Start);

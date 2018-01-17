@@ -130,22 +130,6 @@ fn sync(device: &mut Device) -> Result<(), DiskError> {
     device.sync().map_err(|why| DiskError::DiskSync { why })
 }
 
-/// Opens and formats the specified disk with the given partition table.
-pub fn mklabel<P: AsRef<Path>>(name: P, kind: PartitionTable) -> Result<(), DiskError> {
-    open_device(name).and_then(|mut device| {
-        PedDisk::new_fresh(
-            &mut device,
-            match kind {
-                PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
-                PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
-            },
-        ).map_err(|why| DiskError::DiskFresh { why })
-            .and_then(|mut disk| {
-                commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
-            })
-    })
-}
-
 /// Contains all of the information relevant to a given device.
 ///
 /// # Note
@@ -280,6 +264,24 @@ impl Disk {
                 PartitionType::Logical => (sum.0, sum.1 + 1),
                 PartitionType::Primary => (sum.0 + 1, sum.1),
             })
+    }
+
+    /// Opens and formats the specified disk with the given partition table.
+    pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
+        open_device(&self.device_path).and_then(|mut device| {
+            PedDisk::new_fresh(
+                &mut device,
+                match kind {
+                    PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
+                    PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
+                },
+            ).map_err(|why| DiskError::DiskFresh { why })
+                .and_then(|mut disk| {
+                    commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
+                })
+        })?;
+
+        self.reload()
     }
 
     /// Adds a partition to the partition scheme.
