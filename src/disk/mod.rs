@@ -610,6 +610,15 @@ impl Disks {
     }
 }
 
+impl IntoIterator for Disks {
+    type Item = Disk;
+    type IntoIter = ::std::vec::IntoIter<Disk>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
