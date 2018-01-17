@@ -286,6 +286,7 @@ impl Disk {
     ///
     /// An error can occur if the partition will not fit onto the disk.
     pub fn add_partition(&mut self, builder: PartitionBuilder) -> Result<(), DiskError> {
+        info!("checking if {}:{} overlaps", builder.start_sector, builder.end_sector);
         // Ensure that the values aren't already contained within an existing partition.
         if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
             return Err(DiskError::SectorOverlaps { id });
@@ -579,6 +580,11 @@ impl Disk {
             })
         })?;
 
+        self.reload()
+    }
+
+    pub fn reload(&mut self) -> Result<(), DiskError> {
+        info!("reloading disk information");
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
         Ok(())
     }

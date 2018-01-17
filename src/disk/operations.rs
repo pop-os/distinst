@@ -167,6 +167,7 @@ impl<'a> ChangePartitions<'a> {
             let device_path = format!("{}{}", self.device_path.display(), change.num);
             if let Some(fs) = change.format {
                 mkfs(&device_path, fs).map_err(|why| DiskError::PartitionFormat { why })?;
+                eprintln!("escaped from mkfs");
             }
         }
 
@@ -188,62 +189,70 @@ impl<'a> CreatePartitions<'a> {
     /// If any new partitions were specified, they will be created here.
     pub(crate) fn create(self) -> Result<(), DiskError> {
         for partition in &self.create_partitions {
-            let mut device = open_device(self.device_path)?;
             {
-                // Create a new geometry from the start sector and length of the new partition.
-                let length = partition.end_sector - partition.start_sector;
-                let geometry = Geometry::new(&device, partition.start_sector as i64, length as i64)
-                    .map_err(|why| DiskError::GeometryCreate { why })?;
+                let mut device = open_device(self.device_path)?;
 
-                // Convert our internal partition type enum into libparted's variant.
-                let part_type = match partition.kind {
-                    PartitionType::Primary => PedPartitionType::PED_PARTITION_NORMAL,
-                    PartitionType::Logical => PedPartitionType::PED_PARTITION_LOGICAL,
-                };
+                {
+                    // Create a new geometry from the start sector and length of the new partition.
+                    let length = partition.end_sector - partition.start_sector;
+                    let geometry = Geometry::new(&device, partition.start_sector as i64, length as i64)
+                        .map_err(|why| DiskError::GeometryCreate { why })?;
 
-                // Open the disk, create the new partition, and add it to the disk.
-                let (start, end) = (geometry.start(), geometry.start() + geometry.length());
+                    // Convert our internal partition type enum into libparted's variant.
+                    let part_type = match partition.kind {
+                        PartitionType::Primary => PedPartitionType::PED_PARTITION_NORMAL,
+                        PartitionType::Logical => PedPartitionType::PED_PARTITION_LOGICAL,
+                    };
 
-                let fs_type = PedFileSystemType::get(partition.file_system.into()).unwrap();
+                    // Open the disk, create the new partition, and add it to the disk.
+                    let (start, end) = (geometry.start(), geometry.start() + geometry.length());
 
-                let mut disk = open_disk(&mut device)?;
-                let mut part = PedPartition::new(&mut disk, part_type, Some(&fs_type), start, end)
-                    .map_err(|why| DiskError::PartitionCreate { why })?;
+                    let fs_type = PedFileSystemType::get(partition.file_system.into()).unwrap();
 
-                for &flag in &partition.flags {
-                    if part.is_flag_available(flag) {
-                        if let Err(_) = part.set_flag(flag, true) {
-                            info!("unable to set {:?}", flag);
+                    let mut disk = open_disk(&mut device)?;
+                    let mut part = PedPartition::new(&mut disk, part_type, Some(&fs_type), start, end)
+                        .map_err(|why| DiskError::PartitionCreate { why })?;
+
+                    for &flag in &partition.flags {
+                        if part.is_flag_available(flag) {
+                            if let Err(_) = part.set_flag(flag, true) {
+                                info!("unable to set {:?}", flag);
+                            }
                         }
                     }
+
+                    let _ = part.set_name("aname");
+
+                    // Add the partition, and commit the changes to the disk.
+                    let constraint = geometry.exact().unwrap();
+                    disk.add_partition(&mut part, &constraint)
+                        .map_err(|why| DiskError::PartitionCreate { why })?;
+
+                    // Attempt to write the new partition to the disk.
+                    info!(
+                        "creating new partition ({}:{}) on {}",
+                        start,
+                        end,
+                        self.device_path.display()
+                    );
+                    commit(&mut disk)?;
+                    info!("successfully created new partition");
                 }
 
-                // Add the partition, and commit the changes to the disk.
-                let constraint = geometry.exact().unwrap();
-                disk.add_partition(&mut part, &constraint)
-                    .map_err(|why| DiskError::PartitionCreate { why })?;
-
-                // Attempt to write the new partition to the disk.
-                info!(
-                    "creating new partition ({}:{}) on {}",
-                    start,
-                    end,
-                    self.device_path.display()
-                );
-                commit(&mut disk)?;
-                info!("successfully created new partition");
+                sync(&mut device)?;
             }
 
-            // Flush the OS caches before proceeding to format the new partition.
-            sync(&mut device)?;
-            drop(device);
-
             // Open a second instance of the disk which we need to get the new partition ID.
-            let mut device = open_device(self.device_path)?;
-            let disk = open_disk(&mut device)?;
-            let num = disk.get_partition_by_sector(partition.start_sector as i64)
-                .map(|part| part.num())
-                .ok_or(DiskError::NewPartNotFound)?;
+            let num = get_device(self.device_path).and_then(|mut device| {
+                open_disk(&mut device).and_then(|disk| {
+                    disk.get_partition_by_sector(partition.start_sector as i64)
+                        .map(|part| {
+                            eprintln!("Partition name: {:?}", part.name());
+                            part.num()
+                        })
+                        .ok_or(DiskError::NewPartNotFound)
+                })
+            })?;
 
             // Finally, partition the newly-created partition.
             let path = format!("{}{}", self.device_path.display(), num);

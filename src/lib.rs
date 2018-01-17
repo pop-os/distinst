@@ -310,50 +310,6 @@ impl Installer {
         Ok(())
     }
 
-    fn format<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
-        let disk_dev = disk.path();
-        info!("{}: Formatting for {:?}", disk_dev.display(), bootloader);
-
-        match bootloader {
-            Bootloader::Bios => {
-                let part = disk.partitions.iter().next().ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                )?;
-
-                let part_dev = part.path();
-                info!("{}: Formatting ext4 root partition", part_dev.display());
-                mkfs(&part_dev, FileSystemType::Ext4)?;
-            },
-            Bootloader::Efi => {
-                {
-                    let part = disk.partitions.iter().next().ok_or(
-                        io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                    )?;
-
-                    let part_dev = part.path();
-                    info!("{}: Formatting fat32 efi partition", part_dev.display());
-                    mkfs(&part_dev, FileSystemType::Fat32)?;
-                }
-
-                callback(50);
-
-                {
-                    let part = disk.partitions.iter().skip(1).next().ok_or(
-                        io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
-                    )?;
-
-                    let part_dev = part.path();
-                    info!("{}: Formatting ext4 root partition", part_dev.display());
-                    mkfs(&part_dev, FileSystemType::Ext4)?;
-                }
-            }
-        }
-
-        callback(100);
-
-        Ok(())
-    }
-
     fn extract<P: AsRef<Path>, F: FnMut(i32)>(squashfs: P, disk: &mut Disk, bootloader: Bootloader, callback: F) -> io::Result<()> {
         let disk_dev = disk.path();
         info!("{}: Extracting {}", disk_dev.display(), squashfs.as_ref().display());
@@ -640,22 +596,10 @@ impl Installer {
             return Err(error.err);
         }
 
+        // TODO: Format is automatically part of the Partition step
         status.step = Step::Format;
         status.percent = 0;
         self.emit_status(&status);
-
-        if let Err(err) = Installer::format(&mut disk, bootloader, |percent| {
-            status.percent = percent;
-            self.emit_status(&status);
-        }) {
-            error!("format: {}", err);
-            let error = Error {
-                step: status.step,
-                err: err,
-            };
-            self.emit_error(&error);
-            return Err(error.err);
-        }
 
         status.step = Step::Extract;
         status.percent = 0;
