@@ -594,8 +594,7 @@ impl Disks {
     /// Probes for and returns disk information for every disk in the system.
     pub fn probe_devices() -> Result<Disks, DiskError> {
         let mut output: Vec<Disk> = Vec::new();
-        for device_result in Device::devices(true) {
-            let mut device = device_result.map_err(|_| DiskError::DeviceProbe)?;
+        for mut device in Device::devices(true) {
             output.push(Disk::new(&mut device)?);
         }
 
