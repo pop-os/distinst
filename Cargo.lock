@@ -255,6 +255,7 @@ dependencies = [
 name = "libparted"
 version = "0.1.0"
 dependencies = [
+ "libc 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
  "libparted-sys 0.1.0 (git+https://github.com/system76/libparted-sys.git)",
 ]
 
