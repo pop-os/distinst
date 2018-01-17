@@ -12,6 +12,8 @@ BIN=distinst
 
 all: target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
 
+debug: target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
+
 clean:
 	cargo clean
 
@@ -21,6 +23,14 @@ distclean: clean
 install: all
 	install -D -m 0755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
 	install -D -m 0644 "target/release/lib$(BIN).so" "$(DESTDIR)$(libdir)/lib$(BIN).so"
+	install -D -m 0644 "target/include/$(BIN).h" "$(DESTDIR)$(includedir)/$(BIN).h"
+	install -D -m 0644 "target/pkgconfig/$(BIN).pc" "$(DESTDIR)$(datadir)/pkgconfig/$(BIN).pc"
+	install -D -m 0644 "src/$(BIN).vapi" "$(DESTDIR)$(datadir)/vala/vapi/$(BIN).vapi"
+
+
+install-debug: debug
+	install -D -m 0755 "target/debug/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
+	install -D -m 0644 "target/debug/lib$(BIN).so" "$(DESTDIR)$(libdir)/lib$(BIN).so"
 	install -D -m 0644 "target/include/$(BIN).h" "$(DESTDIR)$(includedir)/$(BIN).h"
 	install -D -m 0644 "target/pkgconfig/$(BIN).pc" "$(DESTDIR)$(datadir)/pkgconfig/$(BIN).pc"
 	install -D -m 0644 "src/$(BIN).vapi" "$(DESTDIR)$(datadir)/vala/vapi/$(BIN).vapi"
@@ -54,6 +64,18 @@ target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target
 		cargo rustc --lib --release -- --crate-type=lib; \
 	    cargo rustc --lib --release -- --crate-type=dylib; \
 		cargo build --bin distinst --release; \
+	fi
+
+target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub:
+	if [ -d vendor ]; \
+	then \
+		cargo rustc --lib -- --crate-type=lib; \
+	    cargo rustc --lib -- --crate-type=dylib; \
+		cargo build --bin distinst --frozen; \
+	else \
+		cargo rustc --lib -- --crate-type=lib; \
+	    cargo rustc --lib -- --crate-type=dylib; \
+		cargo build --bin distinst; \
 	fi
 
 target/pkgconfig/$(BIN).pc: target/pkgconfig/$(BIN).pc.stub
