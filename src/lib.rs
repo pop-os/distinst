@@ -16,10 +16,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use disk::{Disk, Disks, PartitionBuilder, Sector};
+use partition::blockdev;
 pub use libparted::PartitionFlag;
 pub use disk::{FileSystemType, PartitionInfo, PartitionTable, PartitionType};
 use format::mkfs;
-use partition::blockdev;
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
 
@@ -304,7 +304,7 @@ impl Installer {
         })?;
 
         info!("{}: Rereading partition table", disk.path().display());
-        blockdev(&disk.path(), &["--rereadpt"])?;
+        blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
         callback(100);
 
         Ok(())

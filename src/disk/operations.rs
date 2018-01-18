@@ -246,10 +246,7 @@ impl<'a> CreatePartitions<'a> {
             let num = get_device(self.device_path).and_then(|mut device| {
                 open_disk(&mut device).and_then(|disk| {
                     disk.get_partition_by_sector(partition.start_sector as i64)
-                        .map(|part| {
-                            eprintln!("Partition name: {:?}", part.name());
-                            part.num()
-                        })
+                        .map(|part| part.num())
                         .ok_or(DiskError::NewPartNotFound)
                 })
             })?;

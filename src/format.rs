@@ -21,11 +21,12 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
     };
 
     let mut command = Command::new(cmd);
-    eprintln!("Executing args: {:?}", args);
     command.arg(part);
-    command.args(args);
+    for arg in args {
+		command.arg(arg);
+	}
 
-    debug!("{} + {} + {:?} = {:?} ?", cmd, part.display(), args, command);
+    debug!("{:?}", command);
 
     let status = command.stdout(Stdio::null()).status()?;
 
