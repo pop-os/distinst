@@ -3,7 +3,7 @@ mod operations;
 mod partitions;
 mod serial;
 
-use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType, PartitionFlag};
+use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType, PartitionFlag};
 use self::mounts::Mounts;
 use self::serial::get_serial_no;
 use self::operations::*;
@@ -288,7 +288,10 @@ impl Disk {
     ///
     /// An error can occur if the partition will not fit onto the disk.
     pub fn add_partition(&mut self, builder: PartitionBuilder) -> Result<(), DiskError> {
-        info!("checking if {}:{} overlaps", builder.start_sector, builder.end_sector);
+        info!(
+            "checking if {}:{} overlaps",
+            builder.start_sector, builder.end_sector
+        );
         // Ensure that the values aren't already contained within an existing partition.
         if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
             return Err(DiskError::SectorOverlaps { id });
@@ -603,7 +606,12 @@ impl Disks {
     pub fn probe_devices() -> Result<Disks, DiskError> {
         let mut output: Vec<Disk> = Vec::new();
         for mut device in Device::devices(true) {
-            output.push(Disk::new(&mut device)?);
+			match device.type_() {
+				DeviceType::PED_DEVICE_UNKNOWN
+					| DeviceType::PED_DEVICE_LOOP
+					| DeviceType::PED_DEVICE_FILE => continue,
+				_ => output.push(Disk::new(&mut device)?)
+			}
         }
 
         Ok(Disks(output))
