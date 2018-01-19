@@ -181,7 +181,6 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Ext4)
                     .partition_type(PartitionType::Primary)
-                    .flag(PartitionFlag::PED_PARTITION_BOOT)
                     .set_mount(Path::new("/").to_path_buf()),
             )?;
         }

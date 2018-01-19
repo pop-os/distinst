@@ -250,22 +250,25 @@ pub unsafe extern "C" fn distinst_installer_on_status(
     });
 }
 
-// TODO: Take *mut DistinstDisks instead.
 /// Install using this installer
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_install(
     installer: *mut DistinstInstaller,
-    disk: *mut DistinstDisk,
+    disk: *mut DistinstDisks,
     config: *const DistinstConfig,
 ) -> libc::c_int {
-    let disk = if disk.is_null() {
+    let disks = if disk.is_null() {
         return libc::EIO;
     } else {
-        Disk::from(DistinstDisk::from(*Box::from_raw(disk)))
+        let disks = DistinstDisks::from(*Box::from_raw(disk));
+        Vec::from_raw_parts(disks.disks, disks.length, disks.length)
+            .into_iter()
+            .map(Disk::from)
+            .collect()
     };
 
     match (*config).into_config() {
-        Ok(config) => match (*(installer as *mut Installer)).install(vec![disk], &config) {
+        Ok(config) => match (*(installer as *mut Installer)).install(disks, &config) {
             Ok(()) => 0,
             Err(err) => {
                 info!("Install error: {}", err);
