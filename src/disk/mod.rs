@@ -436,17 +436,16 @@ impl Disk {
             })
     }
 
-    // NOTE: There may be a use for this in the future.
-    // /// Returns a partition ID if the given sector is within that partition.
-    // fn get_partition_at(&self, sector: u64) -> Option<i32> {
-    //     self.partitions.iter()
-    //         // Only consider partitions which are not set to be removed.
-    //         .filter(|part| !part.remove)
-    //         // Return upon the first partition where the sector is within the partition.
-    //         .find(|part| sector >= part.start_sector && sector <= part.end_sector)
-    //         // If found, return the partition number.
-    //         .map(|part| part.number)
-    // }
+    /// Returns a partition ID if the given sector is within that partition.
+    fn get_partition_at(&self, sector: u64) -> Option<i32> {
+        self.partitions.iter()
+            // Only consider partitions which are not set to be removed.
+            .filter(|part| !part.remove)
+            // Return upon the first partition where the sector is within the partition.
+            .find(|part| sector >= part.start_sector && sector <= part.end_sector)
+            // If found, return the partition number.
+            .map(|part| part.number)
+    }
 
     /// If a given start and end range overlaps a pre-existing partition, that
     /// partition's number will be returned to indicate a potential conflict.
@@ -596,7 +595,23 @@ impl Disk {
 
     /// Reloads the disk information from the disk into our in-memory representation.
     pub fn reload(&mut self) -> Result<(), DiskError> {
+        let mounts: Vec<(u64, PathBuf)> = self.partitions
+            .iter()
+            .filter_map(|p| match p.target {
+                Some(ref path) => Some((p.start_sector, path.to_path_buf())),
+                None => None,
+            })
+            .collect();
+
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
+
+        for (sector, mount) in mounts {
+            let mut part = self.get_partition_at(sector)
+                .and_then(|num| self.get_partition_mut(num))
+                .expect("partition sectors are off");
+            part.target = Some(mount);
+        }
+
         Ok(())
     }
 
