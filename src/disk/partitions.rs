@@ -64,7 +64,7 @@ pub enum PartitionType {
     Logical,
 }
 
-/// An intermediary structure for building `PartitionInfo`s.
+/// Partition builders are supplied as inputs to `Disk::add_partition`.
 pub struct PartitionBuilder {
     pub(crate) start_sector: u64,
     pub(crate) end_sector: u64,
@@ -76,6 +76,7 @@ pub struct PartitionBuilder {
 }
 
 impl PartitionBuilder {
+    /// Creates a new partition builder.
     pub fn new(start: u64, end: u64, fs: FileSystemType) -> PartitionBuilder {
         PartitionBuilder {
             start_sector: start,
@@ -88,53 +89,24 @@ impl PartitionBuilder {
         }
     }
 
-    pub fn name(self, name: String) -> PartitionBuilder {
-        PartitionBuilder {
-            start_sector: self.start_sector,
-            end_sector: self.end_sector,
-            filesystem: self.filesystem,
-            part_type: self.part_type,
-            name: Some(name),
-            flags: self.flags,
-            mount: self.mount,
-        }
+    pub fn name(mut self, name: String) -> PartitionBuilder {
+        self.name = Some(name);
+        self
     }
 
-    pub fn partition_type(self, part_type: PartitionType) -> PartitionBuilder {
-        PartitionBuilder {
-            start_sector: self.start_sector,
-            end_sector: self.end_sector,
-            filesystem: self.filesystem,
-            part_type,
-            name: self.name,
-            flags: self.flags,
-            mount: self.mount,
-        }
+    pub fn partition_type(mut self, part_type: PartitionType) -> PartitionBuilder {
+        self.part_type = part_type;
+        self
     }
 
     pub fn flag(mut self, flag: PartitionFlag) -> PartitionBuilder {
         self.flags.push(flag);
-        PartitionBuilder {
-            start_sector: self.start_sector,
-            end_sector: self.end_sector,
-            filesystem: self.filesystem,
-            part_type: self.part_type,
-            name: self.name,
-            flags: self.flags,
-            mount: self.mount,
-        }
+        self
     }
 
-    pub fn set_mount(self, mount: PathBuf) -> PartitionBuilder {
-        PartitionBuilder {
-            start_sector: self.start_sector,
-            end_sector: self.end_sector,
-            filesystem: self.filesystem,
-            part_type: self.part_type,
-            name: self.name,
-            flags: self.flags,
-            mount: Some(mount),
-        }
+    pub fn set_mount(mut self, mount: PathBuf) -> PartitionBuilder {
+        self.mount = Some(mount);
+        self
     }
 
     pub fn build(self) -> PartitionInfo {
