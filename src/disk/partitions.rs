@@ -72,6 +72,7 @@ pub struct PartitionBuilder {
     pub(crate) part_type: PartitionType,
     pub(crate) name: Option<String>,
     pub(crate) flags: Vec<PartitionFlag>,
+    pub(crate) mount: Option<PathBuf>,
 }
 
 impl PartitionBuilder {
@@ -83,6 +84,7 @@ impl PartitionBuilder {
             part_type: PartitionType::Primary,
             name: None,
             flags: Vec::new(),
+            mount: None,
         }
     }
 
@@ -94,6 +96,7 @@ impl PartitionBuilder {
             part_type: self.part_type,
             name: Some(name),
             flags: self.flags,
+            mount: self.mount,
         }
     }
 
@@ -105,6 +108,7 @@ impl PartitionBuilder {
             part_type,
             name: self.name,
             flags: self.flags,
+            mount: self.mount,
         }
     }
 
@@ -117,6 +121,19 @@ impl PartitionBuilder {
             part_type: self.part_type,
             name: self.name,
             flags: self.flags,
+            mount: self.mount,
+        }
+    }
+
+    pub fn set_mount(self, mount: PathBuf) -> PartitionBuilder {
+        PartitionBuilder {
+            start_sector: self.start_sector,
+            end_sector: self.end_sector,
+            filesystem: self.filesystem,
+            part_type: self.part_type,
+            name: self.name,
+            flags: self.flags,
+            mount: Some(mount),
         }
     }
 
@@ -136,6 +153,7 @@ impl PartitionBuilder {
             name: self.name,
             device_path: PathBuf::new(),
             mount_point: None,
+            target: self.mount,
         }
     }
 }
@@ -179,6 +197,8 @@ pub struct PartitionInfo {
     pub device_path: PathBuf,
     /// Where this partition is mounted in the file system, if at all.
     pub mount_point: Option<PathBuf>,
+    /// Where this partition will be mounted in the future
+    pub target: Option<PathBuf>,
 }
 
 impl PartitionInfo {
@@ -199,6 +219,7 @@ impl PartitionInfo {
                 _ => return Ok(None),
             },
             mount_point: mounts.get_mount_point(&device_path),
+            target: None,
             filesystem: partition.fs_type_name().and_then(FileSystemType::from),
             flags: get_flags(&partition),
             number: partition.num(),
@@ -235,6 +256,10 @@ impl PartitionInfo {
 
     pub(crate) fn is_same_partition_as(&self, other: &PartitionInfo) -> bool {
         self.is_source && other.is_source && self.number == other.number
+    }
+
+    pub fn set_mount(&mut self, target: PathBuf) {
+        self.target = Some(target);
     }
 }
 

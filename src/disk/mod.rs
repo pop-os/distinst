@@ -3,7 +3,7 @@ mod operations;
 mod partitions;
 mod serial;
 
-use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType, PartitionFlag};
+use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 use self::mounts::Mounts;
 use self::serial::get_serial_no;
 use self::operations::*;
@@ -11,6 +11,7 @@ pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionInfo, Part
 use std::io;
 use std::str;
 use std::path::{Path, PathBuf};
+pub use libparted::PartitionFlag;
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
@@ -269,19 +270,23 @@ impl Disk {
     /// Opens and formats the specified disk with the given partition table.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
         open_device(&self.device_path).and_then(|mut device| {
-            PedDisk::new_fresh(
-                &mut device,
-                match kind {
-                    PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
-                    PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
-                },
-            ).map_err(|why| DiskError::DiskFresh { why })
+            let kind = match kind {
+                PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
+                PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
+            };
+            PedDisk::new_fresh(&mut device, kind)
+                .map_err(|why| DiskError::DiskFresh { why })
                 .and_then(|mut disk| {
                     commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
                 })
         })?;
 
-        self.reload()
+        // As the table has been wiped, we should not have any mount points.
+        self.partitions
+            .iter_mut()
+            .for_each(|p| p.mount_point = None);
+
+        Ok(())
     }
 
     /// Adds a partition to the partition scheme.
@@ -431,16 +436,17 @@ impl Disk {
             })
     }
 
-    /// Returns a partition ID if the given sector is within that partition.
-    fn get_partition_at(&self, sector: u64) -> Option<i32> {
-        self.partitions.iter()
-            // Only consider partitions which are not set to be removed.
-            .filter(|part| !part.remove)
-            // Return upon the first partition where the sector is within the partition.
-            .find(|part| sector >= part.start_sector && sector <= part.end_sector)
-            // If found, return the partition number.
-            .map(|part| part.number)
-    }
+    // NOTE: There may be a use for this in the future.
+    // /// Returns a partition ID if the given sector is within that partition.
+    // fn get_partition_at(&self, sector: u64) -> Option<i32> {
+    //     self.partitions.iter()
+    //         // Only consider partitions which are not set to be removed.
+    //         .filter(|part| !part.remove)
+    //         // Return upon the first partition where the sector is within the partition.
+    //         .find(|part| sector >= part.start_sector && sector <= part.end_sector)
+    //         // If found, return the partition number.
+    //         .map(|part| part.number)
+    // }
 
     /// If a given start and end range overlaps a pre-existing partition, that
     /// partition's number will be returned to indicate a potential conflict.
@@ -588,8 +594,8 @@ impl Disk {
         self.reload()
     }
 
+    /// Reloads the disk information from the disk into our in-memory representation.
     pub fn reload(&mut self) -> Result<(), DiskError> {
-        info!("reloading disk information");
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
         Ok(())
     }
@@ -606,12 +612,12 @@ impl Disks {
     pub fn probe_devices() -> Result<Disks, DiskError> {
         let mut output: Vec<Disk> = Vec::new();
         for mut device in Device::devices(true) {
-			match device.type_() {
-				DeviceType::PED_DEVICE_UNKNOWN
-					| DeviceType::PED_DEVICE_LOOP
-					| DeviceType::PED_DEVICE_FILE => continue,
-				_ => output.push(Disk::new(&mut device)?)
-			}
+            match device.type_() {
+                DeviceType::PED_DEVICE_UNKNOWN
+                | DeviceType::PED_DEVICE_LOOP
+                | DeviceType::PED_DEVICE_FILE => continue,
+                _ => output.push(Disk::new(&mut device)?),
+            }
         }
 
         Ok(Disks(output))

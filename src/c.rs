@@ -34,7 +34,6 @@ pub type DistinstLogCallback = extern "C" fn(
 pub enum DISTINST_STEP {
     INIT,
     PARTITION,
-    FORMAT,
     EXTRACT,
     CONFIGURE,
     BOOTLOADER,
@@ -46,7 +45,6 @@ impl From<DISTINST_STEP> for Step {
         match step {
             INIT => Step::Init,
             PARTITION => Step::Partition,
-            FORMAT => Step::Format,
             EXTRACT => Step::Extract,
             CONFIGURE => Step::Configure,
             BOOTLOADER => Step::Bootloader,
@@ -60,7 +58,6 @@ impl From<Step> for DISTINST_STEP {
         match step {
             Step::Init => INIT,
             Step::Partition => PARTITION,
-            Step::Format => FORMAT,
             Step::Extract => EXTRACT,
             Step::Configure => CONFIGURE,
             Step::Bootloader => BOOTLOADER,
@@ -73,7 +70,6 @@ impl From<Step> for DISTINST_STEP {
 #[derive(Debug)]
 pub struct DistinstConfig {
     squashfs: *const libc::c_char,
-    disk: *const libc::c_char,
     lang: *const libc::c_char,
     remove: *const libc::c_char,
 }
@@ -91,20 +87,6 @@ impl DistinstConfig {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("config.squashfs: invalid UTF-8: {}", err),
-            )
-        })?;
-
-        if self.disk.is_null() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "config.disk: null pointer",
-            ));
-        }
-
-        let disk = CStr::from_ptr(self.disk).to_str().map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("config.disk: invalid UTF-8: {}", err),
             )
         })?;
 
@@ -138,7 +120,6 @@ impl DistinstConfig {
 
         Ok(Config {
             squashfs: squashfs.to_string(),
-            disk: disk.to_string(),
             lang: lang.to_string(),
             remove: remove.to_string(),
         })
@@ -273,10 +254,17 @@ pub unsafe extern "C" fn distinst_installer_on_status(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_install(
     installer: *mut DistinstInstaller,
+    disk: *mut DistinstDisk,
     config: *const DistinstConfig,
 ) -> libc::c_int {
+    let disk = if disk.is_null() {
+        return libc::EIO;
+    } else {
+        Disk::from(DistinstDisk::from(*Box::from_raw(disk)))
+    };
+
     match (*config).into_config() {
-        Ok(config) => match (*(installer as *mut Installer)).install(&config) {
+        Ok(config) => match (*(installer as *mut Installer)).install(disk, &config) {
             Ok(()) => 0,
             Err(err) => {
                 info!("Install error: {}", err);
@@ -337,7 +325,7 @@ pub enum PARTITION_FLAG {
     LEGACY_BOOT,
     MSFT_DATA,
     IRST,
-    ESP
+    ESP,
 }
 
 impl From<PartitionFlag> for PARTITION_FLAG {
@@ -422,6 +410,24 @@ impl From<FILE_SYSTEM> for Option<FileSystemType> {
             FILE_SYSTEM::NTFS => Some(FileSystemType::Ntfs),
             FILE_SYSTEM::SWAP => Some(FileSystemType::Swap),
             FILE_SYSTEM::XFS => Some(FileSystemType::Xfs),
+        }
+    }
+}
+
+impl From<FileSystemType> for FILE_SYSTEM {
+    fn from(fs: FileSystemType) -> FILE_SYSTEM {
+        match fs {
+            FileSystemType::Btrfs => FILE_SYSTEM::BTRFS,
+            FileSystemType::Exfat => FILE_SYSTEM::EXFAT,
+            FileSystemType::Ext2 => FILE_SYSTEM::EXT2,
+            FileSystemType::Ext3 => FILE_SYSTEM::EXT3,
+            FileSystemType::Ext4 => FILE_SYSTEM::EXT4,
+            FileSystemType::F2fs => FILE_SYSTEM::F2FS,
+            FileSystemType::Fat16 => FILE_SYSTEM::FAT16,
+            FileSystemType::Fat32 => FILE_SYSTEM::FAT32,
+            FileSystemType::Ntfs => FILE_SYSTEM::NTFS,
+            FileSystemType::Swap => FILE_SYSTEM::SWAP,
+            FileSystemType::Xfs => FILE_SYSTEM::XFS,
         }
     }
 }
@@ -629,7 +635,10 @@ pub unsafe extern "C" fn distinst_disk_destroy(disk: *mut DistinstDisk) {
 
 /// Converts a `DistinstDisk` into a `Disk`, executes a given action with that `Disk`,
 /// then converts it back into a `DistinstDisk`, returning the exit status of the function.
-unsafe fn disk_action<F: Fn(&mut Disk) -> libc::c_int>(disk: *mut DistinstDisk, action: F) -> libc::c_int {
+unsafe fn disk_action<F: Fn(&mut Disk) -> libc::c_int>(
+    disk: *mut DistinstDisk,
+    action: F,
+) -> libc::c_int {
     let mut new_disk = Disk::from(*Box::from_raw(disk));
     let exit_status = action(&mut new_disk);
     *disk = DistinstDisk::from(new_disk);
@@ -642,9 +651,7 @@ pub unsafe extern "C" fn distinst_disk_add_partition(
     partition: *mut DistinstPartitionBuilder,
 ) -> libc::c_int {
     disk_action(disk, |disk| {
-        if let Err(why) = disk.add_partition(
-            PartitionBuilder::from(*Box::from_raw(partition))
-        ) {
+        if let Err(why) = disk.add_partition(PartitionBuilder::from(*Box::from_raw(partition))) {
             info!("unable to add partition: {}", why);
             1
         } else {
@@ -743,6 +750,7 @@ pub struct DistinstPartitionBuilder {
     filesystem: FILE_SYSTEM,
     part_type: PARTITION_TYPE,
     name: *mut libc::c_char,
+    target: *mut libc::c_char,
     flags: DistinstPartitionFlags,
 }
 
@@ -782,7 +790,14 @@ impl From<DistinstPartitionBuilder> for PartitionBuilder {
                     distinst.flags.flags,
                     distinst.flags.length,
                     distinst.flags.capacity,
-                ).into_iter().map(PartitionFlag::from).collect()
+                ).into_iter()
+                    .map(PartitionFlag::from)
+                    .collect()
+            },
+            mount: if distinst.target.is_null() {
+                None
+            } else {
+                Some(from_ptr_to_path(distinst.target))
             },
         }
     }
@@ -812,6 +827,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_new(
         filesystem,
         part_type: PARTITION_TYPE::PRIMARY,
         name: ptr::null_mut(),
+        target: ptr::null_mut(),
         flags: DistinstPartitionFlags {
             flags,
             length: 0,
@@ -828,6 +844,14 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_set_name(
     name: *mut libc::c_char,
 ) {
     (*builder).name = name;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_partition_builder_set_mount(
+    builder: &mut DistinstPartitionBuilder,
+    target: *mut libc::c_char,
+) {
+    (*builder).target = target;
 }
 
 #[no_mangle]
@@ -871,11 +895,13 @@ pub struct DistinstPartition {
     name: *mut libc::c_char,
     device_path: *mut libc::c_char,
     mount_point: *mut libc::c_char,
+    target: *mut libc::c_char,
 }
 
 impl From<PartitionInfo> for DistinstPartition {
     fn from(part: PartitionInfo) -> DistinstPartition {
-        let mut pflags: Vec<PARTITION_FLAG> = part.flags.into_iter().map(PARTITION_FLAG::from).collect();
+        let mut pflags: Vec<PARTITION_FLAG> =
+            part.flags.into_iter().map(PARTITION_FLAG::from).collect();
         pflags.shrink_to_fit();
 
         let flags = DistinstPartitionFlags {
@@ -898,24 +924,12 @@ impl From<PartitionInfo> for DistinstPartition {
                 PartitionType::Logical => PARTITION_TYPE::LOGICAL,
                 PartitionType::Primary => PARTITION_TYPE::PRIMARY,
             },
-            filesystem: part.filesystem
-                .map_or(FILE_SYSTEM::NONE, |part| match part {
-                    FileSystemType::Btrfs => FILE_SYSTEM::BTRFS,
-                    FileSystemType::Exfat => FILE_SYSTEM::EXFAT,
-                    FileSystemType::Ext2 => FILE_SYSTEM::EXT2,
-                    FileSystemType::Ext3 => FILE_SYSTEM::EXT3,
-                    FileSystemType::Ext4 => FILE_SYSTEM::EXT4,
-                    FileSystemType::F2fs => FILE_SYSTEM::F2FS,
-                    FileSystemType::Fat16 => FILE_SYSTEM::FAT16,
-                    FileSystemType::Fat32 => FILE_SYSTEM::FAT32,
-                    FileSystemType::Ntfs => FILE_SYSTEM::NTFS,
-                    FileSystemType::Swap => FILE_SYSTEM::SWAP,
-                    FileSystemType::Xfs => FILE_SYSTEM::XFS,
-                }),
+            filesystem: part.filesystem.map_or(FILE_SYSTEM::NONE, FILE_SYSTEM::from),
             flags,
             name: part.name.map_or(ptr::null_mut(), from_string_to_ptr),
             device_path: from_path_to_ptr(part.device_path),
             mount_point: part.mount_point.map_or(ptr::null_mut(), from_path_to_ptr),
+            target: part.target.map_or(ptr::null_mut(), from_path_to_ptr),
         }
     }
 }
@@ -939,7 +953,9 @@ impl From<DistinstPartition> for PartitionInfo {
             filesystem: Option::<FileSystemType>::from(part.filesystem),
             flags: unsafe {
                 Vec::from_raw_parts(flags, flen, flen)
-                    .into_iter().map(PartitionFlag::from).collect()
+                    .into_iter()
+                    .map(PartitionFlag::from)
+                    .collect()
             },
             name: if part.name.is_null() {
                 None
@@ -951,6 +967,11 @@ impl From<DistinstPartition> for PartitionInfo {
                 None
             } else {
                 Some(from_ptr_to_path(part.mount_point))
+            },
+            target: if part.target.is_null() {
+                None
+            } else {
+                Some(from_ptr_to_path(part.target))
             },
         }
     }

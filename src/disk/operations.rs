@@ -167,7 +167,6 @@ impl<'a> ChangePartitions<'a> {
             let device_path = format!("{}{}", self.device_path.display(), change.num);
             if let Some(fs) = change.format {
                 mkfs(&device_path, fs).map_err(|why| DiskError::PartitionFormat { why })?;
-                eprintln!("escaped from mkfs");
             }
         }
 
@@ -195,8 +194,9 @@ impl<'a> CreatePartitions<'a> {
                 {
                     // Create a new geometry from the start sector and length of the new partition.
                     let length = partition.end_sector - partition.start_sector;
-                    let geometry = Geometry::new(&device, partition.start_sector as i64, length as i64)
-                        .map_err(|why| DiskError::GeometryCreate { why })?;
+                    let geometry =
+                        Geometry::new(&device, partition.start_sector as i64, length as i64)
+                            .map_err(|why| DiskError::GeometryCreate { why })?;
 
                     // Convert our internal partition type enum into libparted's variant.
                     let part_type = match partition.kind {
@@ -210,8 +210,9 @@ impl<'a> CreatePartitions<'a> {
                     let fs_type = PedFileSystemType::get(partition.file_system.into()).unwrap();
 
                     let mut disk = open_disk(&mut device)?;
-                    let mut part = PedPartition::new(&mut disk, part_type, Some(&fs_type), start, end)
-                        .map_err(|why| DiskError::PartitionCreate { why })?;
+                    let mut part =
+                        PedPartition::new(&mut disk, part_type, Some(&fs_type), start, end)
+                            .map_err(|why| DiskError::PartitionCreate { why })?;
 
                     for &flag in &partition.flags {
                         if part.is_flag_available(flag) {
@@ -220,8 +221,6 @@ impl<'a> CreatePartitions<'a> {
                             }
                         }
                     }
-
-                    let _ = part.set_name("aname");
 
                     // Add the partition, and commit the changes to the disk.
                     let constraint = geometry.exact().unwrap();
@@ -236,7 +235,6 @@ impl<'a> CreatePartitions<'a> {
                         self.device_path.display()
                     );
                     commit(&mut disk)?;
-                    info!("successfully created new partition");
                 }
 
                 sync(&mut device)?;
