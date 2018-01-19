@@ -281,12 +281,13 @@ impl Disk {
                 })
         })?;
 
-        // As the table has been wiped, we should not have any mount points.
-        self.partitions
-            .iter_mut()
-            .for_each(|p| p.mount_point = None);
+        info!(
+            "distinst: overwrote partition table on {} with a {:?} table",
+            self.device_path.display(),
+            kind
+        );
 
-        Ok(())
+        self.reload()
     }
 
     /// Adds a partition to the partition scheme.
