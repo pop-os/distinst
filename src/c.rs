@@ -250,6 +250,7 @@ pub unsafe extern "C" fn distinst_installer_on_status(
     });
 }
 
+// TODO: Take *mut DistinstDisks instead.
 /// Install using this installer
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_install(
@@ -264,7 +265,7 @@ pub unsafe extern "C" fn distinst_installer_install(
     };
 
     match (*config).into_config() {
-        Ok(config) => match (*(installer as *mut Installer)).install(disk, &config) {
+        Ok(config) => match (*(installer as *mut Installer)).install(vec![disk], &config) {
             Ok(()) => 0,
             Err(err) => {
                 info!("Install error: {}", err);
