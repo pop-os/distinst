@@ -128,7 +128,15 @@ namespace Distinst {
         public void set_partition_type(PartitionType part_type);
         public Partition build();
     }
-    
+
+    [Compact]
+    [CCode (free_function = "", has_type_id = false)]
+    public class Sector {
+        public Sector start ();
+        public Sector end ();
+        public Sector unit (uint64 value);
+        public Sector megabyte (uint64 value);
+    }
 
     [CCode (has_type_id = false, free_function = "distinst_disk_destroy")]
     public class Disk {
@@ -143,11 +151,12 @@ namespace Distinst {
         bool read_only;
 
         public Disk (string path);
-        public int add_partition(PartitionBuilder partition);
-        public int format_partition(int partition, FileSystemType fs);
-        public int move_partition(int partition, uint64 start);
-        public int remove_partition(int partition);
-        public int resize_partition(int partition, uint64 length);
+        public int add_partition (PartitionBuilder partition);
+        public int format_partition (int partition, FileSystemType fs);
+        public uint64 get_sector (Sector sector);
+        public int move_partition (int partition, uint64 start);
+        public int remove_partition (int partition);
+        public int resize_partition (int partition, uint64 length);
         public int commit();
     }
 
@@ -176,6 +185,8 @@ namespace Distinst {
     public delegate void StatusCallback (Distinst.Status status);
 
     int log (Distinst.LogCallback callback);
+
+    public PartitionTable bootloader_detect ();
 
     [Compact]
     [CCode (free_function = "distinst_installer_destroy", has_type_id = false)]

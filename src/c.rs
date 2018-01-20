@@ -7,8 +7,10 @@ use std::mem;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr;
-use super::{log, Config, Disk, Disks, Error, FileSystemType, Installer, PartitionBuilder,
-            PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Status, Step};
+use std::slice;
+use super::{log, Bootloader, Config, Disk, Disks, Error, FileSystemType, Installer,
+            PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector,
+            Status, Step};
 
 /// Log level
 #[repr(C)]
@@ -301,6 +303,14 @@ pub enum PARTITION_TABLE {
     MSDOS = 2,
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn distinst_bootloader_detect() -> PARTITION_TABLE {
+    match Bootloader::detect() {
+        Bootloader::Bios => PARTITION_TABLE::MSDOS,
+        Bootloader::Efi => PARTITION_TABLE::GPT,
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PARTITION_TYPE {
@@ -509,23 +519,6 @@ pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
     }
 }
 
-/// Attempts to obtain a specific partition's information based on it's index.
-///
-/// Returns a null pointer if the partition could not be found (index is out of bounds).
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disks_get(
-    disks: *mut DistinstDisks,
-    index: size_t,
-) -> *mut DistinstDisk {
-    if disks.is_null() {
-        ptr::null_mut()
-    } else if index >= (*disks).length {
-        ptr::null_mut()
-    } else {
-        (*disks).disks.offset(index as isize)
-    }
-}
-
 #[repr(C)]
 pub struct DistinstDisk {
     model_name: *mut libc::c_char,
@@ -537,6 +530,22 @@ pub struct DistinstDisk {
     partitions: DistinstPartitions,
     table_type: PARTITION_TABLE,
     read_only: uint8_t,
+}
+
+impl Clone for DistinstDisk {
+    fn clone(&self) -> DistinstDisk {
+        DistinstDisk {
+            model_name: clone_cstr(self.model_name),
+            serial: clone_cstr(self.serial),
+            device_path: clone_cstr(self.device_path),
+            device_type: clone_cstr(self.device_type),
+            sectors: self.sectors,
+            sector_size: self.sector_size,
+            partitions: self.partitions.clone(),
+            table_type: self.table_type,
+            read_only: self.read_only,
+        }
+    }
 }
 
 impl Drop for DistinstDisk {
@@ -608,6 +617,63 @@ impl From<DistinstDisk> for Disk {
     }
 }
 
+#[repr(C)]
+pub struct DistinstSector {
+    flag: DistinstSectorKind,
+    value: uint64_t,
+}
+
+#[repr(C)]
+pub enum DistinstSectorKind {
+    Start = 1,
+    End = 2,
+    Unit = 3,
+    Megabyte = 4,
+}
+
+impl From<DistinstSector> for Sector {
+    fn from(sector: DistinstSector) -> Sector {
+        match sector.flag {
+            DistinstSectorKind::Start => Sector::Start,
+            DistinstSectorKind::End => Sector::End,
+            DistinstSectorKind::Unit => Sector::Unit(sector.value as u64),
+            DistinstSectorKind::Megabyte => Sector::Megabyte(sector.value as u64),
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_start() -> DistinstSector {
+    DistinstSector {
+        flag: DistinstSectorKind::Start,
+        value: 0,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_end() -> DistinstSector {
+    DistinstSector {
+        flag: DistinstSectorKind::End,
+        value: 0,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_megabyte(value: uint64_t) -> DistinstSector {
+    DistinstSector {
+        flag: DistinstSectorKind::Megabyte,
+        value,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_unit(value: uint64_t) -> DistinstSector {
+    DistinstSector {
+        flag: DistinstSectorKind::Unit,
+        value,
+    }
+}
+
 /// Obtains a specific disk's information by the device path.
 ///
 /// On an error, this will return a null pointer.
@@ -629,6 +695,14 @@ pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut Di
             ptr::null_mut()
         }
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_sector(
+    disk: *mut DistinstDisk,
+    sector: DistinstSector,
+) -> uint64_t {
+    Disk::from((*disk).clone()).get_sector(Sector::from(sector))
 }
 
 /// A destructor for a `DistinstDisk`
@@ -902,6 +976,28 @@ pub struct DistinstPartition {
     target: *mut libc::c_char,
 }
 
+impl Clone for DistinstPartition {
+    fn clone(&self) -> DistinstPartition {
+        DistinstPartition {
+            is_source: self.is_source,
+            remove: self.remove,
+            format: self.format,
+            active: self.active,
+            busy: self.busy,
+            part_type: self.part_type,
+            filesystem: self.filesystem,
+            number: self.number,
+            start_sector: self.start_sector,
+            end_sector: self.end_sector,
+            flags: self.flags.clone(),
+            name: clone_cstr(self.name),
+            device_path: clone_cstr(self.device_path),
+            mount_point: clone_cstr(self.mount_point),
+            target: clone_cstr(self.target),
+        }
+    }
+}
+
 impl From<PartitionInfo> for DistinstPartition {
     fn from(part: PartitionInfo) -> DistinstPartition {
         let mut pflags: Vec<PARTITION_FLAG> =
@@ -988,6 +1084,21 @@ pub struct DistinstPartitionFlags {
     capacity: size_t,
 }
 
+impl Clone for DistinstPartitionFlags {
+    fn clone(&self) -> Self {
+        DistinstPartitionFlags {
+            flags: unsafe {
+                let mut vec = slice::from_raw_parts(self.flags, self.length).to_owned();
+                let ptr = vec.as_mut_ptr();
+                mem::forget(vec);
+                ptr
+            },
+            length: self.length,
+            capacity: self.capacity,
+        }
+    }
+}
+
 impl Drop for DistinstPartitionFlags {
     fn drop(&mut self) {
         drop(unsafe { Vec::from_raw_parts(self.flags, self.length, self.capacity) });
@@ -998,6 +1109,20 @@ impl Drop for DistinstPartitionFlags {
 pub struct DistinstPartitions {
     parts: *mut DistinstPartition,
     length: size_t,
+}
+
+impl Clone for DistinstPartitions {
+    fn clone(&self) -> Self {
+        DistinstPartitions {
+            parts: unsafe {
+                let mut vec = slice::from_raw_parts(self.parts, self.length).to_owned();
+                let ptr = vec.as_mut_ptr();
+                mem::forget(vec);
+                ptr
+            },
+            length: self.length,
+        }
+    }
 }
 
 impl Drop for DistinstPartitions {
@@ -1033,4 +1158,12 @@ fn from_path_to_ptr(path: PathBuf) -> *mut libc::c_char {
     path.to_str()
         .and_then(|string| CString::new(string).ok())
         .map_or(ptr::null_mut(), |string| string.into_raw())
+}
+
+fn clone_cstr(string: *const libc::c_char) -> *mut libc::c_char {
+    if string.is_null() {
+        ptr::null_mut()
+    } else {
+        unsafe { CStr::from_ptr(string).to_owned().into_raw() }
+    }
 }
