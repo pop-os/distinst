@@ -297,23 +297,23 @@ pub unsafe extern "C" fn distinst_installer_destroy(installer: *mut DistinstInst
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-pub enum PARTITION_TABLE {
+pub enum DISTINST_PARTITION_TABLE {
     NONE = 0,
     GPT = 1,
     MSDOS = 2,
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_bootloader_detect() -> PARTITION_TABLE {
+pub unsafe extern "C" fn distinst_bootloader_detect() -> DISTINST_PARTITION_TABLE {
     match Bootloader::detect() {
-        Bootloader::Bios => PARTITION_TABLE::MSDOS,
-        Bootloader::Efi => PARTITION_TABLE::GPT,
+        Bootloader::Bios => DISTINST_PARTITION_TABLE::MSDOS,
+        Bootloader::Efi => DISTINST_PARTITION_TABLE::GPT,
     }
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PARTITION_TYPE {
+pub enum DISTINST_PARTITION_TYPE {
     PRIMARY = 1,
     LOGICAL = 2,
 }
@@ -321,7 +321,7 @@ pub enum PARTITION_TYPE {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
-pub enum PARTITION_FLAG {
+pub enum DISTINST_PARTITION_FLAG {
     BOOT,
     ROOT,
     SWAP,
@@ -342,59 +342,63 @@ pub enum PARTITION_FLAG {
     ESP,
 }
 
-impl From<PartitionFlag> for PARTITION_FLAG {
-    fn from(flag: PartitionFlag) -> PARTITION_FLAG {
+impl From<PartitionFlag> for DISTINST_PARTITION_FLAG {
+    fn from(flag: PartitionFlag) -> DISTINST_PARTITION_FLAG {
         match flag {
-            PartitionFlag::PED_PARTITION_BOOT => PARTITION_FLAG::BOOT,
-            PartitionFlag::PED_PARTITION_ROOT => PARTITION_FLAG::ROOT,
-            PartitionFlag::PED_PARTITION_SWAP => PARTITION_FLAG::SWAP,
-            PartitionFlag::PED_PARTITION_HIDDEN => PARTITION_FLAG::HIDDEN,
-            PartitionFlag::PED_PARTITION_RAID => PARTITION_FLAG::RAID,
-            PartitionFlag::PED_PARTITION_LVM => PARTITION_FLAG::LVM,
-            PartitionFlag::PED_PARTITION_LBA => PARTITION_FLAG::LBA,
-            PartitionFlag::PED_PARTITION_HPSERVICE => PARTITION_FLAG::HPSERVICE,
-            PartitionFlag::PED_PARTITION_PALO => PARTITION_FLAG::PALO,
-            PartitionFlag::PED_PARTITION_PREP => PARTITION_FLAG::PREP,
-            PartitionFlag::PED_PARTITION_MSFT_RESERVED => PARTITION_FLAG::MSFT_RESERVED,
-            PartitionFlag::PED_PARTITION_BIOS_GRUB => PARTITION_FLAG::BIOS_GRUB,
-            PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY => PARTITION_FLAG::APPLE_TV_RECOVERY,
-            PartitionFlag::PED_PARTITION_DIAG => PARTITION_FLAG::DIAG,
-            PartitionFlag::PED_PARTITION_LEGACY_BOOT => PARTITION_FLAG::LEGACY_BOOT,
-            PartitionFlag::PED_PARTITION_MSFT_DATA => PARTITION_FLAG::MSFT_DATA,
-            PartitionFlag::PED_PARTITION_IRST => PARTITION_FLAG::IRST,
-            PartitionFlag::PED_PARTITION_ESP => PARTITION_FLAG::ESP,
+            PartitionFlag::PED_PARTITION_BOOT => DISTINST_PARTITION_FLAG::BOOT,
+            PartitionFlag::PED_PARTITION_ROOT => DISTINST_PARTITION_FLAG::ROOT,
+            PartitionFlag::PED_PARTITION_SWAP => DISTINST_PARTITION_FLAG::SWAP,
+            PartitionFlag::PED_PARTITION_HIDDEN => DISTINST_PARTITION_FLAG::HIDDEN,
+            PartitionFlag::PED_PARTITION_RAID => DISTINST_PARTITION_FLAG::RAID,
+            PartitionFlag::PED_PARTITION_LVM => DISTINST_PARTITION_FLAG::LVM,
+            PartitionFlag::PED_PARTITION_LBA => DISTINST_PARTITION_FLAG::LBA,
+            PartitionFlag::PED_PARTITION_HPSERVICE => DISTINST_PARTITION_FLAG::HPSERVICE,
+            PartitionFlag::PED_PARTITION_PALO => DISTINST_PARTITION_FLAG::PALO,
+            PartitionFlag::PED_PARTITION_PREP => DISTINST_PARTITION_FLAG::PREP,
+            PartitionFlag::PED_PARTITION_MSFT_RESERVED => DISTINST_PARTITION_FLAG::MSFT_RESERVED,
+            PartitionFlag::PED_PARTITION_BIOS_GRUB => DISTINST_PARTITION_FLAG::BIOS_GRUB,
+            PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY => {
+                DISTINST_PARTITION_FLAG::APPLE_TV_RECOVERY
+            }
+            PartitionFlag::PED_PARTITION_DIAG => DISTINST_PARTITION_FLAG::DIAG,
+            PartitionFlag::PED_PARTITION_LEGACY_BOOT => DISTINST_PARTITION_FLAG::LEGACY_BOOT,
+            PartitionFlag::PED_PARTITION_MSFT_DATA => DISTINST_PARTITION_FLAG::MSFT_DATA,
+            PartitionFlag::PED_PARTITION_IRST => DISTINST_PARTITION_FLAG::IRST,
+            PartitionFlag::PED_PARTITION_ESP => DISTINST_PARTITION_FLAG::ESP,
         }
     }
 }
 
-impl From<PARTITION_FLAG> for PartitionFlag {
-    fn from(flag: PARTITION_FLAG) -> PartitionFlag {
+impl From<DISTINST_PARTITION_FLAG> for PartitionFlag {
+    fn from(flag: DISTINST_PARTITION_FLAG) -> PartitionFlag {
         match flag {
-            PARTITION_FLAG::BOOT => PartitionFlag::PED_PARTITION_BOOT,
-            PARTITION_FLAG::ROOT => PartitionFlag::PED_PARTITION_ROOT,
-            PARTITION_FLAG::SWAP => PartitionFlag::PED_PARTITION_SWAP,
-            PARTITION_FLAG::HIDDEN => PartitionFlag::PED_PARTITION_HIDDEN,
-            PARTITION_FLAG::RAID => PartitionFlag::PED_PARTITION_RAID,
-            PARTITION_FLAG::LVM => PartitionFlag::PED_PARTITION_LVM,
-            PARTITION_FLAG::LBA => PartitionFlag::PED_PARTITION_LBA,
-            PARTITION_FLAG::HPSERVICE => PartitionFlag::PED_PARTITION_HPSERVICE,
-            PARTITION_FLAG::PALO => PartitionFlag::PED_PARTITION_PALO,
-            PARTITION_FLAG::PREP => PartitionFlag::PED_PARTITION_PREP,
-            PARTITION_FLAG::MSFT_RESERVED => PartitionFlag::PED_PARTITION_MSFT_RESERVED,
-            PARTITION_FLAG::BIOS_GRUB => PartitionFlag::PED_PARTITION_BIOS_GRUB,
-            PARTITION_FLAG::APPLE_TV_RECOVERY => PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY,
-            PARTITION_FLAG::DIAG => PartitionFlag::PED_PARTITION_DIAG,
-            PARTITION_FLAG::LEGACY_BOOT => PartitionFlag::PED_PARTITION_LEGACY_BOOT,
-            PARTITION_FLAG::MSFT_DATA => PartitionFlag::PED_PARTITION_MSFT_DATA,
-            PARTITION_FLAG::IRST => PartitionFlag::PED_PARTITION_IRST,
-            PARTITION_FLAG::ESP => PartitionFlag::PED_PARTITION_ESP,
+            DISTINST_PARTITION_FLAG::BOOT => PartitionFlag::PED_PARTITION_BOOT,
+            DISTINST_PARTITION_FLAG::ROOT => PartitionFlag::PED_PARTITION_ROOT,
+            DISTINST_PARTITION_FLAG::SWAP => PartitionFlag::PED_PARTITION_SWAP,
+            DISTINST_PARTITION_FLAG::HIDDEN => PartitionFlag::PED_PARTITION_HIDDEN,
+            DISTINST_PARTITION_FLAG::RAID => PartitionFlag::PED_PARTITION_RAID,
+            DISTINST_PARTITION_FLAG::LVM => PartitionFlag::PED_PARTITION_LVM,
+            DISTINST_PARTITION_FLAG::LBA => PartitionFlag::PED_PARTITION_LBA,
+            DISTINST_PARTITION_FLAG::HPSERVICE => PartitionFlag::PED_PARTITION_HPSERVICE,
+            DISTINST_PARTITION_FLAG::PALO => PartitionFlag::PED_PARTITION_PALO,
+            DISTINST_PARTITION_FLAG::PREP => PartitionFlag::PED_PARTITION_PREP,
+            DISTINST_PARTITION_FLAG::MSFT_RESERVED => PartitionFlag::PED_PARTITION_MSFT_RESERVED,
+            DISTINST_PARTITION_FLAG::BIOS_GRUB => PartitionFlag::PED_PARTITION_BIOS_GRUB,
+            DISTINST_PARTITION_FLAG::APPLE_TV_RECOVERY => {
+                PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY
+            }
+            DISTINST_PARTITION_FLAG::DIAG => PartitionFlag::PED_PARTITION_DIAG,
+            DISTINST_PARTITION_FLAG::LEGACY_BOOT => PartitionFlag::PED_PARTITION_LEGACY_BOOT,
+            DISTINST_PARTITION_FLAG::MSFT_DATA => PartitionFlag::PED_PARTITION_MSFT_DATA,
+            DISTINST_PARTITION_FLAG::IRST => PartitionFlag::PED_PARTITION_IRST,
+            DISTINST_PARTITION_FLAG::ESP => PartitionFlag::PED_PARTITION_ESP,
         }
     }
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum FILE_SYSTEM {
+pub enum DISTINST_FILE_SYSTEM_TYPE {
     NONE = 0,
     BTRFS = 1,
     EXFAT = 2,
@@ -409,64 +413,86 @@ pub enum FILE_SYSTEM {
     XFS = 11,
 }
 
-impl From<FILE_SYSTEM> for Option<FileSystemType> {
-    fn from(fs: FILE_SYSTEM) -> Option<FileSystemType> {
+impl From<DISTINST_FILE_SYSTEM_TYPE> for Option<FileSystemType> {
+    fn from(fs: DISTINST_FILE_SYSTEM_TYPE) -> Option<FileSystemType> {
         match fs {
-            FILE_SYSTEM::BTRFS => Some(FileSystemType::Btrfs),
-            FILE_SYSTEM::EXFAT => Some(FileSystemType::Exfat),
-            FILE_SYSTEM::EXT2 => Some(FileSystemType::Ext2),
-            FILE_SYSTEM::EXT3 => Some(FileSystemType::Ext3),
-            FILE_SYSTEM::EXT4 => Some(FileSystemType::Ext4),
-            FILE_SYSTEM::F2FS => Some(FileSystemType::F2fs),
-            FILE_SYSTEM::FAT16 => Some(FileSystemType::Fat16),
-            FILE_SYSTEM::FAT32 => Some(FileSystemType::Fat32),
-            FILE_SYSTEM::NONE => None,
-            FILE_SYSTEM::NTFS => Some(FileSystemType::Ntfs),
-            FILE_SYSTEM::SWAP => Some(FileSystemType::Swap),
-            FILE_SYSTEM::XFS => Some(FileSystemType::Xfs),
+            DISTINST_FILE_SYSTEM_TYPE::BTRFS => Some(FileSystemType::Btrfs),
+            DISTINST_FILE_SYSTEM_TYPE::EXFAT => Some(FileSystemType::Exfat),
+            DISTINST_FILE_SYSTEM_TYPE::EXT2 => Some(FileSystemType::Ext2),
+            DISTINST_FILE_SYSTEM_TYPE::EXT3 => Some(FileSystemType::Ext3),
+            DISTINST_FILE_SYSTEM_TYPE::EXT4 => Some(FileSystemType::Ext4),
+            DISTINST_FILE_SYSTEM_TYPE::F2FS => Some(FileSystemType::F2fs),
+            DISTINST_FILE_SYSTEM_TYPE::FAT16 => Some(FileSystemType::Fat16),
+            DISTINST_FILE_SYSTEM_TYPE::FAT32 => Some(FileSystemType::Fat32),
+            DISTINST_FILE_SYSTEM_TYPE::NONE => None,
+            DISTINST_FILE_SYSTEM_TYPE::NTFS => Some(FileSystemType::Ntfs),
+            DISTINST_FILE_SYSTEM_TYPE::SWAP => Some(FileSystemType::Swap),
+            DISTINST_FILE_SYSTEM_TYPE::XFS => Some(FileSystemType::Xfs),
         }
     }
 }
 
-impl From<FileSystemType> for FILE_SYSTEM {
-    fn from(fs: FileSystemType) -> FILE_SYSTEM {
+impl From<FileSystemType> for DISTINST_FILE_SYSTEM_TYPE {
+    fn from(fs: FileSystemType) -> DISTINST_FILE_SYSTEM_TYPE {
         match fs {
-            FileSystemType::Btrfs => FILE_SYSTEM::BTRFS,
-            FileSystemType::Exfat => FILE_SYSTEM::EXFAT,
-            FileSystemType::Ext2 => FILE_SYSTEM::EXT2,
-            FileSystemType::Ext3 => FILE_SYSTEM::EXT3,
-            FileSystemType::Ext4 => FILE_SYSTEM::EXT4,
-            FileSystemType::F2fs => FILE_SYSTEM::F2FS,
-            FileSystemType::Fat16 => FILE_SYSTEM::FAT16,
-            FileSystemType::Fat32 => FILE_SYSTEM::FAT32,
-            FileSystemType::Ntfs => FILE_SYSTEM::NTFS,
-            FileSystemType::Swap => FILE_SYSTEM::SWAP,
-            FileSystemType::Xfs => FILE_SYSTEM::XFS,
+            FileSystemType::Btrfs => DISTINST_FILE_SYSTEM_TYPE::BTRFS,
+            FileSystemType::Exfat => DISTINST_FILE_SYSTEM_TYPE::EXFAT,
+            FileSystemType::Ext2 => DISTINST_FILE_SYSTEM_TYPE::EXT2,
+            FileSystemType::Ext3 => DISTINST_FILE_SYSTEM_TYPE::EXT3,
+            FileSystemType::Ext4 => DISTINST_FILE_SYSTEM_TYPE::EXT4,
+            FileSystemType::F2fs => DISTINST_FILE_SYSTEM_TYPE::F2FS,
+            FileSystemType::Fat16 => DISTINST_FILE_SYSTEM_TYPE::FAT16,
+            FileSystemType::Fat32 => DISTINST_FILE_SYSTEM_TYPE::FAT32,
+            FileSystemType::Ntfs => DISTINST_FILE_SYSTEM_TYPE::NTFS,
+            FileSystemType::Swap => DISTINST_FILE_SYSTEM_TYPE::SWAP,
+            FileSystemType::Xfs => DISTINST_FILE_SYSTEM_TYPE::XFS,
         }
     }
 }
 
-impl FILE_SYSTEM {
+impl DISTINST_FILE_SYSTEM_TYPE {
     fn get_cstr(&self) -> *const libc::c_char {
         match *self {
-            FILE_SYSTEM::BTRFS => CStr::from_bytes_with_nul(b"btrfs\0").unwrap().as_ptr(),
-            FILE_SYSTEM::EXFAT => CStr::from_bytes_with_nul(b"exfat\0").unwrap().as_ptr(),
-            FILE_SYSTEM::EXT2 => CStr::from_bytes_with_nul(b"ext2\0").unwrap().as_ptr(),
-            FILE_SYSTEM::EXT3 => CStr::from_bytes_with_nul(b"ext3\0").unwrap().as_ptr(),
-            FILE_SYSTEM::EXT4 => CStr::from_bytes_with_nul(b"ext4\0").unwrap().as_ptr(),
-            FILE_SYSTEM::F2FS => CStr::from_bytes_with_nul(b"f2fs\0").unwrap().as_ptr(),
-            FILE_SYSTEM::FAT16 => CStr::from_bytes_with_nul(b"fat16\0").unwrap().as_ptr(),
-            FILE_SYSTEM::FAT32 => CStr::from_bytes_with_nul(b"fat32\0").unwrap().as_ptr(),
-            FILE_SYSTEM::NONE => CStr::from_bytes_with_nul(b"none\0").unwrap().as_ptr(),
-            FILE_SYSTEM::NTFS => CStr::from_bytes_with_nul(b"ntfs\0").unwrap().as_ptr(),
-            FILE_SYSTEM::SWAP => CStr::from_bytes_with_nul(b"swap\0").unwrap().as_ptr(),
-            FILE_SYSTEM::XFS => CStr::from_bytes_with_nul(b"xfs\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM_TYPE::BTRFS => {
+                CStr::from_bytes_with_nul(b"btrfs\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::EXFAT => {
+                CStr::from_bytes_with_nul(b"exfat\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::EXT2 => {
+                CStr::from_bytes_with_nul(b"ext2\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::EXT3 => {
+                CStr::from_bytes_with_nul(b"ext3\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::EXT4 => {
+                CStr::from_bytes_with_nul(b"ext4\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::F2FS => {
+                CStr::from_bytes_with_nul(b"f2fs\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::FAT16 => {
+                CStr::from_bytes_with_nul(b"fat16\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::FAT32 => {
+                CStr::from_bytes_with_nul(b"fat32\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::NONE => {
+                CStr::from_bytes_with_nul(b"none\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::NTFS => {
+                CStr::from_bytes_with_nul(b"ntfs\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::SWAP => {
+                CStr::from_bytes_with_nul(b"swap\0").unwrap().as_ptr()
+            }
+            DISTINST_FILE_SYSTEM_TYPE::XFS => CStr::from_bytes_with_nul(b"xfs\0").unwrap().as_ptr(),
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn strfilesys(fs: FILE_SYSTEM) -> *const libc::c_char {
+pub unsafe extern "C" fn strfilesys(fs: DISTINST_FILE_SYSTEM_TYPE) -> *const libc::c_char {
     fs.get_cstr()
 }
 
@@ -474,11 +500,12 @@ pub unsafe extern "C" fn strfilesys(fs: FILE_SYSTEM) -> *const libc::c_char {
 pub struct DistinstDisks {
     disks: *mut DistinstDisk,
     length: size_t,
+    capacity: size_t,
 }
 
 impl Drop for DistinstDisks {
     fn drop(&mut self) {
-        drop(unsafe { Vec::from_raw_parts(self.disks, self.length, self.length) });
+        drop(unsafe { Vec::from_raw_parts(self.disks, self.length, self.capacity) });
     }
 }
 
@@ -499,6 +526,7 @@ pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
             let new_disks = DistinstDisks {
                 disks: pdisks.as_mut_ptr(),
                 length: pdisks.len(),
+                capacity: pdisks.len(),
             };
 
             mem::forget(pdisks);
@@ -509,6 +537,48 @@ pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
             ptr::null_mut()
         }
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_with_capacity(length: size_t) -> *mut DistinstDisks {
+    let mut vector: Vec<DistinstDisk> = Vec::with_capacity(length as usize);
+    let disks = vector.as_mut_ptr();
+    let length = vector.len();
+    let capacity = vector.capacity();
+    mem::forget(vector);
+    Box::into_raw(Box::new(DistinstDisks {
+        disks,
+        length,
+        capacity,
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_push(
+    disks: *mut *mut DistinstDisks,
+    disk: *mut DistinstDisk,
+) {
+    let new_disks: *mut DistinstDisks = {
+        let disks = Box::from_raw(*disks);
+        let mut disks: Vec<DistinstDisk> =
+            Vec::from_raw_parts(disks.disks, disks.length, disks.capacity);
+        disks.push(*Box::from_raw(disk));
+
+        let mut new_disks = disks.as_mut_ptr();
+        let length = disks.len();
+        let capacity = disks.capacity();
+        mem::forget(disks);
+
+        let new_disks = DistinstDisks {
+            disks: new_disks,
+            length,
+            capacity,
+        };
+
+        Box::into_raw(Box::new(new_disks))
+    };
+
+    *disks = new_disks;
 }
 
 /// The deconstructor for a `DistinstDisks`.
@@ -528,7 +598,7 @@ pub struct DistinstDisk {
     sectors: uint64_t,
     sector_size: uint64_t,
     partitions: DistinstPartitions,
-    table_type: PARTITION_TABLE,
+    table_type: DISTINST_PARTITION_TABLE,
     read_only: uint8_t,
 }
 
@@ -582,9 +652,9 @@ impl From<Disk> for DistinstDisk {
             sectors: disk.size as libc::c_ulong,
             sector_size: disk.sector_size,
             table_type: match disk.table_type {
-                None => PARTITION_TABLE::NONE,
-                Some(PartitionTable::Msdos) => PARTITION_TABLE::MSDOS,
-                Some(PartitionTable::Gpt) => PARTITION_TABLE::GPT,
+                None => DISTINST_PARTITION_TABLE::NONE,
+                Some(PartitionTable::Msdos) => DISTINST_PARTITION_TABLE::MSDOS,
+                Some(PartitionTable::Gpt) => DISTINST_PARTITION_TABLE::GPT,
             },
             read_only: if disk.read_only { 1 } else { 0 },
             partitions,
@@ -604,9 +674,9 @@ impl From<DistinstDisk> for Disk {
             sector_size: disk.sector_size as u64,
             device_type: from_ptr_to_string(disk.device_type),
             table_type: match disk.table_type {
-                PARTITION_TABLE::GPT => Some(PartitionTable::Gpt),
-                PARTITION_TABLE::MSDOS => Some(PartitionTable::Msdos),
-                PARTITION_TABLE::NONE => None,
+                DISTINST_PARTITION_TABLE::GPT => Some(PartitionTable::Gpt),
+                DISTINST_PARTITION_TABLE::MSDOS => Some(PartitionTable::Msdos),
+                DISTINST_PARTITION_TABLE::NONE => None,
             },
             read_only: disk.read_only != 0,
             partitions: unsafe { Vec::from_raw_parts(parts, plen, plen) }
@@ -699,10 +769,35 @@ pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut Di
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_sector(
-    disk: *mut DistinstDisk,
+    disk: *const DistinstDisk,
     sector: DistinstSector,
 ) -> uint64_t {
     Disk::from((*disk).clone()).get_sector(Sector::from(sector))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_mklabel(
+    disk: *mut *mut DistinstDisk,
+    table: DISTINST_PARTITION_TABLE,
+) -> libc::c_int {
+    let table = match table {
+        DISTINST_PARTITION_TABLE::GPT => PartitionTable::Gpt,
+        DISTINST_PARTITION_TABLE::MSDOS => PartitionTable::Msdos,
+        _ => return 1,
+    };
+
+    disk_action(disk, |disk| {
+        if let Err(why) = disk.mklabel(table) {
+            info!(
+                "unable to write partition table on {}: {}",
+                disk.path().display(),
+                why
+            );
+            1
+        } else {
+            0
+        }
+    })
 }
 
 /// A destructor for a `DistinstDisk`
@@ -714,18 +809,18 @@ pub unsafe extern "C" fn distinst_disk_destroy(disk: *mut DistinstDisk) {
 /// Converts a `DistinstDisk` into a `Disk`, executes a given action with that `Disk`,
 /// then converts it back into a `DistinstDisk`, returning the exit status of the function.
 unsafe fn disk_action<F: Fn(&mut Disk) -> libc::c_int>(
-    disk: *mut DistinstDisk,
+    disk: *mut *mut DistinstDisk,
     action: F,
 ) -> libc::c_int {
-    let mut new_disk = Disk::from(*Box::from_raw(disk));
+    let mut new_disk = Disk::from(*Box::from_raw(*disk));
     let exit_status = action(&mut new_disk);
-    *disk = DistinstDisk::from(new_disk);
+    *disk = Box::into_raw(Box::new(DistinstDisk::from(new_disk)));
     exit_status
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_add_partition(
-    disk: *mut DistinstDisk,
+    disk: *mut *mut DistinstDisk,
     partition: *mut DistinstPartitionBuilder,
 ) -> libc::c_int {
     disk_action(disk, |disk| {
@@ -740,7 +835,7 @@ pub unsafe extern "C" fn distinst_disk_add_partition(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_remove_partition(
-    disk: *mut DistinstDisk,
+    disk: *mut *mut DistinstDisk,
     partition: libc::c_int,
 ) -> libc::c_int {
     disk_action(disk, |disk| {
@@ -755,7 +850,7 @@ pub unsafe extern "C" fn distinst_disk_remove_partition(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_resize_partition(
-    disk: *mut DistinstDisk,
+    disk: *mut *mut DistinstDisk,
     partition: libc::c_int,
     length: uint64_t,
 ) -> libc::c_int {
@@ -771,7 +866,7 @@ pub unsafe extern "C" fn distinst_disk_resize_partition(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_move_partition(
-    disk: *mut DistinstDisk,
+    disk: *mut *mut DistinstDisk,
     partition: libc::c_int,
     start: uint64_t,
 ) -> libc::c_int {
@@ -787,9 +882,9 @@ pub unsafe extern "C" fn distinst_disk_move_partition(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_format_partition(
-    disk: *mut DistinstDisk,
+    disk: *mut *mut DistinstDisk,
     partition: libc::c_int,
-    fs: FILE_SYSTEM,
+    fs: DISTINST_FILE_SYSTEM_TYPE,
 ) -> libc::c_int {
     let fs = match Option::<FileSystemType>::from(fs) {
         Some(fs) => fs,
@@ -810,7 +905,7 @@ pub unsafe extern "C" fn distinst_disk_format_partition(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::c_int {
+pub unsafe extern "C" fn distinst_disk_commit(disk: *mut *mut DistinstDisk) -> libc::c_int {
     disk_action(disk, |disk| {
         if let Err(why) = disk.commit() {
             info!("unable to commit changes to disk: {}", why);
@@ -825,8 +920,8 @@ pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::
 pub struct DistinstPartitionBuilder {
     start_sector: uint64_t,
     end_sector: uint64_t,
-    filesystem: FILE_SYSTEM,
-    part_type: PARTITION_TYPE,
+    filesystem: DISTINST_FILE_SYSTEM_TYPE,
+    part_type: DISTINST_PARTITION_TYPE,
     name: *mut libc::c_char,
     target: *mut libc::c_char,
     flags: DistinstPartitionFlags,
@@ -842,15 +937,15 @@ impl Drop for DistinstPartitionBuilder {
 
 impl From<DistinstPartitionBuilder> for PartitionBuilder {
     fn from(distinst: DistinstPartitionBuilder) -> PartitionBuilder {
-        debug_assert!(distinst.filesystem != FILE_SYSTEM::NONE);
+        debug_assert!(distinst.filesystem != DISTINST_FILE_SYSTEM_TYPE::NONE);
 
         PartitionBuilder {
             start_sector: distinst.start_sector as u64,
             end_sector: distinst.end_sector as u64,
             filesystem: Option::<FileSystemType>::from(distinst.filesystem).unwrap(),
             part_type: match distinst.part_type {
-                PARTITION_TYPE::LOGICAL => PartitionType::Logical,
-                PARTITION_TYPE::PRIMARY => PartitionType::Primary,
+                DISTINST_PARTITION_TYPE::LOGICAL => PartitionType::Logical,
+                DISTINST_PARTITION_TYPE::PRIMARY => PartitionType::Primary,
             },
             name: if distinst.name.is_null() {
                 None
@@ -892,7 +987,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_destroy(
 pub unsafe extern "C" fn distinst_disk_partition_builder_new(
     start_sector: uint64_t,
     end_sector: uint64_t,
-    filesystem: FILE_SYSTEM,
+    filesystem: DISTINST_FILE_SYSTEM_TYPE,
 ) -> *mut DistinstPartitionBuilder {
     let mut vec = Vec::with_capacity(8);
     let flags = vec.as_mut_ptr();
@@ -903,7 +998,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_new(
         start_sector,
         end_sector: end_sector - 1,
         filesystem,
-        part_type: PARTITION_TYPE::PRIMARY,
+        part_type: DISTINST_PARTITION_TYPE::PRIMARY,
         name: ptr::null_mut(),
         target: ptr::null_mut(),
         flags: DistinstPartitionFlags {
@@ -935,7 +1030,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_set_mount(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_partition_builder_set_partition_type(
     builder: &mut DistinstPartitionBuilder,
-    part_type: PARTITION_TYPE,
+    part_type: DISTINST_PARTITION_TYPE,
 ) {
     (*builder).part_type = part_type;
 }
@@ -943,7 +1038,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_set_partition_type(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_partition_builder_add_flag(
     builder: *mut DistinstPartitionBuilder,
-    flag: PARTITION_FLAG,
+    flag: DISTINST_PARTITION_FLAG,
 ) {
     let mut flags = Vec::from_raw_parts(
         (*builder).flags.flags,
@@ -964,8 +1059,8 @@ pub struct DistinstPartition {
     format: uint8_t,
     active: uint8_t,
     busy: uint8_t,
-    part_type: PARTITION_TYPE,
-    filesystem: FILE_SYSTEM,
+    part_type: DISTINST_PARTITION_TYPE,
+    filesystem: DISTINST_FILE_SYSTEM_TYPE,
     number: libc::int32_t,
     start_sector: uint64_t,
     end_sector: uint64_t,
@@ -1000,8 +1095,10 @@ impl Clone for DistinstPartition {
 
 impl From<PartitionInfo> for DistinstPartition {
     fn from(part: PartitionInfo) -> DistinstPartition {
-        let mut pflags: Vec<PARTITION_FLAG> =
-            part.flags.into_iter().map(PARTITION_FLAG::from).collect();
+        let mut pflags: Vec<DISTINST_PARTITION_FLAG> = part.flags
+            .into_iter()
+            .map(DISTINST_PARTITION_FLAG::from)
+            .collect();
         pflags.shrink_to_fit();
 
         let flags = DistinstPartitionFlags {
@@ -1021,10 +1118,13 @@ impl From<PartitionInfo> for DistinstPartition {
             start_sector: part.start_sector as uint64_t,
             end_sector: part.end_sector as uint64_t,
             part_type: match part.part_type {
-                PartitionType::Logical => PARTITION_TYPE::LOGICAL,
-                PartitionType::Primary => PARTITION_TYPE::PRIMARY,
+                PartitionType::Logical => DISTINST_PARTITION_TYPE::LOGICAL,
+                PartitionType::Primary => DISTINST_PARTITION_TYPE::PRIMARY,
             },
-            filesystem: part.filesystem.map_or(FILE_SYSTEM::NONE, FILE_SYSTEM::from),
+            filesystem: part.filesystem.map_or(
+                DISTINST_FILE_SYSTEM_TYPE::NONE,
+                DISTINST_FILE_SYSTEM_TYPE::from,
+            ),
             flags,
             name: part.name.map_or(ptr::null_mut(), from_string_to_ptr),
             device_path: from_path_to_ptr(part.device_path),
@@ -1047,8 +1147,8 @@ impl From<DistinstPartition> for PartitionInfo {
             start_sector: part.start_sector as u64,
             end_sector: part.end_sector as u64,
             part_type: match part.part_type {
-                PARTITION_TYPE::LOGICAL => PartitionType::Logical,
-                PARTITION_TYPE::PRIMARY => PartitionType::Primary,
+                DISTINST_PARTITION_TYPE::LOGICAL => PartitionType::Logical,
+                DISTINST_PARTITION_TYPE::PRIMARY => PartitionType::Primary,
             },
             filesystem: Option::<FileSystemType>::from(part.filesystem),
             flags: unsafe {
@@ -1079,7 +1179,7 @@ impl From<DistinstPartition> for PartitionInfo {
 
 #[repr(C)]
 pub struct DistinstPartitionFlags {
-    flags: *mut PARTITION_FLAG,
+    flags: *mut DISTINST_PARTITION_FLAG,
     length: size_t,
     capacity: size_t,
 }

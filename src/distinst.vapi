@@ -35,6 +35,8 @@ namespace Distinst {
         MSDOS
     }
 
+    public PartitionTable bootloader_detect ();
+
     [CCode (has_type_id = false, destroy_function = "")]
     public enum PartitionType {
         PRIMARY,
@@ -122,20 +124,29 @@ namespace Distinst {
         PartitionFlags flags;
 
         public PartitionBuilder (uint64 start_sector, uint64 end_sector, FileSystemType filesystem);
-        public void add_flag(PartitionFlag flag);
-        public void set_mount(string target);
-        public void set_name(string name);
-        public void set_partition_type(PartitionType part_type);
-        public Partition build();
+        public PartitionBuilder add_flag(PartitionFlag flag);
+        public PartitionBuilder set_mount(string target);
+        public PartitionBuilder set_name(string name);
+        public PartitionBuilder set_partition_type(PartitionType part_type);
     }
 
-    [Compact]
-    [CCode (free_function = "", has_type_id = false)]
+    [CCode (has_type_id = false, free_function = "")]
+    public enum SectorKind {
+        Start,
+        End,
+        Unit,
+        Megabyte
+    }
+
+    [CCode (has_type_id = false, free_function = "")]
     public class Sector {
-        public Sector start ();
-        public Sector end ();
-        public Sector unit (uint64 value);
-        public Sector megabyte (uint64 value);
+        SectorKind flag;
+        uint64 value;
+
+        public static Sector start ();
+        public static Sector end ();
+        public static Sector unit (uint64 value);
+        public static Sector megabyte (uint64 value);
     }
 
     [CCode (has_type_id = false, free_function = "distinst_disk_destroy")]
@@ -151,9 +162,10 @@ namespace Distinst {
         bool read_only;
 
         public Disk (string path);
-        public int add_partition (PartitionBuilder partition);
+        public int add_partition (PartitionBuilder* partition);
         public int format_partition (int partition, FileSystemType fs);
         public uint64 get_sector (Sector sector);
+        public int mklabel (PartitionTable table);
         public int move_partition (int partition, uint64 start);
         public int remove_partition (int partition);
         public int resize_partition (int partition, uint64 length);
@@ -166,6 +178,8 @@ namespace Distinst {
         size_t length;
 
         public Disks ();
+        public static Disks new_with_capacity(size_t cap);
+        public void push(Disk* disk);
     }
 
     [CCode (has_type_id = false)]
@@ -185,8 +199,6 @@ namespace Distinst {
     public delegate void StatusCallback (Distinst.Status status);
 
     int log (Distinst.LogCallback callback);
-
-    public PartitionTable bootloader_detect ();
 
     [Compact]
     [CCode (free_function = "distinst_installer_destroy", has_type_id = false)]
