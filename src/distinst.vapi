@@ -21,14 +21,14 @@ namespace Distinst {
         BOOTLOADER
     }
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (has_type_id = false)]
     public struct Config {
         string squashfs;
         string lang;
         string remove;
     }
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (cname = "DISTINST_PARTITION_TABLE", has_type_id = false)]
     public enum PartitionTable {
         NONE,
         GPT,
@@ -37,13 +37,13 @@ namespace Distinst {
 
     public PartitionTable bootloader_detect ();
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (has_type_id = false)]
     public enum PartitionType {
         PRIMARY,
         LOGICAL
     }
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (has_type_id = false)]
     public enum FileSystemType {
         NONE,
         BTRFS,
@@ -59,7 +59,7 @@ namespace Distinst {
         XFS
     }
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (has_type_id = false)]
     public enum PartitionFlag {
         BOOT,
         ROOT,
@@ -81,14 +81,14 @@ namespace Distinst {
         ESP
     }
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (has_type_id = false)]
     public struct PartitionFlags {
         PartitionFlag *flags;
         size_t length;
         size_t capacity;
     }
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (has_type_id = false)]
     public struct Partition {
         bool is_source;
         bool remove;
@@ -107,13 +107,13 @@ namespace Distinst {
     }
     
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (has_type_id = false)]
     public struct Partitions {
         Partition *parts;
         size_t length;
     }
 
-    [CCode (has_type_id = false, destroy_function = "")]
+    [CCode (has_type_id = false)]
     public class PartitionBuilder {
         uint64 start_sector;
         uint64 end_sector;
@@ -130,7 +130,7 @@ namespace Distinst {
         public PartitionBuilder set_partition_type(PartitionType part_type);
     }
 
-    [CCode (has_type_id = false, free_function = "")]
+    [CCode (has_type_id = false)]
     public enum SectorKind {
         Start,
         End,
@@ -138,8 +138,8 @@ namespace Distinst {
         Megabyte
     }
 
-    [CCode (has_type_id = false, free_function = "")]
-    public class Sector {
+    [CCode (has_type_id = false)]
+    public struct Sector {
         SectorKind flag;
         uint64 value;
 
@@ -178,7 +178,7 @@ namespace Distinst {
         size_t length;
 
         public Disks ();
-        public static Disks new_with_capacity(size_t cap);
+        public static Disks with_capacity(size_t cap);
         public void push(Disk* disk);
     }
 

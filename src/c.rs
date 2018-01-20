@@ -688,12 +688,14 @@ impl From<DistinstDisk> for Disk {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct DistinstSector {
     flag: DistinstSectorKind,
     value: uint64_t,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub enum DistinstSectorKind {
     Start = 1,
     End = 2,
@@ -770,9 +772,9 @@ pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut Di
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_sector(
     disk: *const DistinstDisk,
-    sector: DistinstSector,
+    sector: *const DistinstSector,
 ) -> uint64_t {
-    Disk::from((*disk).clone()).get_sector(Sector::from(sector))
+    Disk::from((*disk).clone()).get_sector(Sector::from(*sector))
 }
 
 #[no_mangle]
@@ -977,14 +979,14 @@ impl From<DistinstPartitionBuilder> for PartitionBuilder {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_partition_builder_destroy(
+pub unsafe extern "C" fn distinst_partition_builder_destroy(
     builder: *mut DistinstPartitionBuilder,
 ) {
     drop(Box::from_raw(builder));
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_partition_builder_new(
+pub unsafe extern "C" fn distinst_partition_builder_new(
     start_sector: uint64_t,
     end_sector: uint64_t,
     filesystem: DISTINST_FILE_SYSTEM_TYPE,
@@ -1012,7 +1014,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_new(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_partition_builder_set_name(
+pub unsafe extern "C" fn distinst_partition_builder_set_name(
     builder: &mut DistinstPartitionBuilder,
     name: *mut libc::c_char,
 ) {
@@ -1020,7 +1022,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_set_name(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_partition_builder_set_mount(
+pub unsafe extern "C" fn distinst_partition_builder_set_mount(
     builder: &mut DistinstPartitionBuilder,
     target: *mut libc::c_char,
 ) {
@@ -1028,7 +1030,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_set_mount(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_partition_builder_set_partition_type(
+pub unsafe extern "C" fn distinst_partition_builder_set_partition_type(
     builder: &mut DistinstPartitionBuilder,
     part_type: DISTINST_PARTITION_TYPE,
 ) {
@@ -1036,7 +1038,7 @@ pub unsafe extern "C" fn distinst_disk_partition_builder_set_partition_type(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_partition_builder_add_flag(
+pub unsafe extern "C" fn distinst_partition_builder_add_flag(
     builder: *mut DistinstPartitionBuilder,
     flag: DISTINST_PARTITION_FLAG,
 ) {
