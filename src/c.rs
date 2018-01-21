@@ -1015,33 +1015,36 @@ pub unsafe extern "C" fn distinst_partition_builder_new(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_builder_set_name(
-    builder: &mut DistinstPartitionBuilder,
+    builder: *mut DistinstPartitionBuilder,
     name: *mut libc::c_char,
-) {
+) -> *mut DistinstPartitionBuilder {
     (*builder).name = name;
+    builder
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_builder_set_mount(
-    builder: &mut DistinstPartitionBuilder,
+    builder: *mut DistinstPartitionBuilder,
     target: *mut libc::c_char,
-) {
+) -> *mut DistinstPartitionBuilder {
     (*builder).target = target;
+    builder
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_builder_set_partition_type(
-    builder: &mut DistinstPartitionBuilder,
+    builder: *mut DistinstPartitionBuilder,
     part_type: DISTINST_PARTITION_TYPE,
-) {
+) -> *mut DistinstPartitionBuilder {
     (*builder).part_type = part_type;
+    builder
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_builder_add_flag(
     builder: *mut DistinstPartitionBuilder,
     flag: DISTINST_PARTITION_FLAG,
-) {
+) -> *mut DistinstPartitionBuilder {
     let mut flags = Vec::from_raw_parts(
         (*builder).flags.flags,
         (*builder).flags.length,
@@ -1052,6 +1055,7 @@ pub unsafe extern "C" fn distinst_partition_builder_add_flag(
     (*builder).flags.capacity = flags.capacity();
     (*builder).flags.flags = flags.as_mut_ptr();
     mem::forget(flags);
+    builder
 }
 
 #[repr(C)]
