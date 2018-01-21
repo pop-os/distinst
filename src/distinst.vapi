@@ -21,7 +21,7 @@ namespace Distinst {
         BOOTLOADER
     }
 
-    [CCode (has_type_id = false)]
+    [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
         string squashfs;
         string lang;
@@ -113,7 +113,7 @@ namespace Distinst {
         size_t length;
     }
 
-    [CCode (has_type_id = false)]
+    [CCode (has_type_id = false, unref_function = "")]
     public class PartitionBuilder {
         uint64 start_sector;
         uint64 end_sector;
@@ -149,7 +149,12 @@ namespace Distinst {
         public static Sector megabyte (uint64 value);
     }
 
-    [CCode (has_type_id = false, free_function = "distinst_disk_destroy")]
+    public Sector sector_start ();
+    public Sector sector_end ();
+    public Sector sector_unit (uint64 value);
+    public Sector sector_megabyte (uint64 value);
+
+    [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
     public class Disk {
         string model_name;
         string serial;
@@ -162,7 +167,7 @@ namespace Distinst {
         bool read_only;
 
         public Disk (string path);
-        public int add_partition (PartitionBuilder* partition);
+        public int add_partition (owned PartitionBuilder partition);
         public int format_partition (int partition, FileSystemType fs);
         public uint64 get_sector (Sector sector);
         public int mklabel (PartitionTable table);
@@ -172,7 +177,7 @@ namespace Distinst {
         public int commit();
     }
 
-    [CCode (has_type_id = false, free_function = "distinst_disks_destroy")]
+    [CCode (has_type_id = false, destroy_function = "distinst_disks_destroy", free_function = "", unref_function = "")]
     public class Disks {
         Disk *disks;
         size_t length;
@@ -201,7 +206,7 @@ namespace Distinst {
     int log (Distinst.LogCallback callback);
 
     [Compact]
-    [CCode (free_function = "distinst_installer_destroy", has_type_id = false)]
+    [CCode (destroy_function = "distinst_installer_destroy", free_function = "", has_type_id = false)]
     public class Installer {
         public Installer ();
         public void emit_error (Distinst.Error error);
