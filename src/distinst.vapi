@@ -105,7 +105,7 @@ namespace Distinst {
         string mount_point;
         string target;
     }
-    
+
 
     [CCode (has_type_id = false)]
     public struct Partitions {
@@ -132,10 +132,10 @@ namespace Distinst {
 
     [CCode (has_type_id = false)]
     public enum SectorKind {
-        Start,
-        End,
-        Unit,
-        Megabyte
+        START,
+        END,
+        UNIT,
+        MEGABYTE
     }
 
     [CCode (has_type_id = false)]
@@ -148,11 +148,6 @@ namespace Distinst {
         public static Sector unit (uint64 value);
         public static Sector megabyte (uint64 value);
     }
-
-    public Sector sector_start ();
-    public Sector sector_end ();
-    public Sector sector_unit (uint64 value);
-    public Sector sector_megabyte (uint64 value);
 
     [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
     public class Disk {

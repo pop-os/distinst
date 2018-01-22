@@ -690,26 +690,26 @@ impl From<DistinstDisk> for Disk {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct DistinstSector {
-    flag: DistinstSectorKind,
+    flag: DISTINST_SECTOR_KIND,
     value: uint64_t,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub enum DistinstSectorKind {
-    Start = 1,
-    End = 2,
-    Unit = 3,
-    Megabyte = 4,
+pub enum DISTINST_SECTOR_KIND {
+    START = 1,
+    END = 2,
+    UNIT = 3,
+    MEGABYTE = 4,
 }
 
 impl From<DistinstSector> for Sector {
     fn from(sector: DistinstSector) -> Sector {
         match sector.flag {
-            DistinstSectorKind::Start => Sector::Start,
-            DistinstSectorKind::End => Sector::End,
-            DistinstSectorKind::Unit => Sector::Unit(sector.value as u64),
-            DistinstSectorKind::Megabyte => Sector::Megabyte(sector.value as u64),
+            DISTINST_SECTOR_KIND::START => Sector::Start,
+            DISTINST_SECTOR_KIND::END => Sector::End,
+            DISTINST_SECTOR_KIND::UNIT => Sector::Unit(sector.value as u64),
+            DISTINST_SECTOR_KIND::MEGABYTE => Sector::Megabyte(sector.value as u64),
         }
     }
 }
@@ -717,7 +717,7 @@ impl From<DistinstSector> for Sector {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_start() -> DistinstSector {
     DistinstSector {
-        flag: DistinstSectorKind::Start,
+        flag: DISTINST_SECTOR_KIND::START,
         value: 0,
     }
 }
@@ -725,7 +725,7 @@ pub unsafe extern "C" fn distinst_sector_start() -> DistinstSector {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_end() -> DistinstSector {
     DistinstSector {
-        flag: DistinstSectorKind::End,
+        flag: DISTINST_SECTOR_KIND::END,
         value: 0,
     }
 }
@@ -733,7 +733,7 @@ pub unsafe extern "C" fn distinst_sector_end() -> DistinstSector {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_megabyte(value: uint64_t) -> DistinstSector {
     DistinstSector {
-        flag: DistinstSectorKind::Megabyte,
+        flag: DISTINST_SECTOR_KIND::MEGABYTE,
         value,
     }
 }
@@ -741,7 +741,7 @@ pub unsafe extern "C" fn distinst_sector_megabyte(value: uint64_t) -> DistinstSe
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_unit(value: uint64_t) -> DistinstSector {
     DistinstSector {
-        flag: DistinstSectorKind::Unit,
+        flag: DISTINST_SECTOR_KIND::UNIT,
         value,
     }
 }
