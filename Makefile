@@ -50,10 +50,10 @@ target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target
 	if [ -d vendor ]; \
 	then \
 	    cargo rustc --lib --release -- --crate-type=dylib; \
-		cargo build --bin distinst; \
+		cargo build --bin distinst --release; \
 	else \
 	    cargo rustc --lib --release -- --crate-type=dylib; \
-		cargo build --bin distinst; \
+		cargo build --bin distinst --release; \
 	fi
 
 target/pkgconfig/$(BIN).pc: target/pkgconfig/$(BIN).pc.stub
