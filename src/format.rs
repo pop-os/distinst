@@ -1,43 +1,38 @@
 use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use super::FileSystemType;
 
-#[derive(Copy, Clone, Debug)]
-pub enum MkfsKind {
-    Fat32,
-    Ext4,
-}
+pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
+    let part = part.as_ref();
 
-pub fn mkfs<P: AsRef<Path>>(part: P, kind: MkfsKind) -> Result<()> {
-    let mut command = match kind {
-        MkfsKind::Fat32 => {
-            let mut command = Command::new("mkfs.fat");
-
-            command.arg("-F");
-            command.arg("32");
-            command.arg(part.as_ref());
-
-            command.stdout(Stdio::null());
-
-            command
-        },
-        MkfsKind::Ext4 => {
-            let mut command = Command::new("mkfs.ext4");
-
-            command.arg("-F");
-            command.arg("-q");
-            command.arg(part.as_ref());
-
-            command.stdout(Stdio::null());
-
-            command
-        }
+    let (cmd, args): (&'static str, &'static [&'static str]) = match kind {
+        FileSystemType::Btrfs => ("mkfs.btrfs", &["-f"]),
+        FileSystemType::Exfat => ("mkfs.exfat", &[]),
+        FileSystemType::Ext2 => ("mkfs.ext2", &["-F", "-q"]),
+        FileSystemType::Ext3 => ("mkfs.ext3", &["-F", "-q"]),
+        FileSystemType::Ext4 => ("mkfs.ext4", &["-F", "-q"]),
+        FileSystemType::F2fs => ("mkfs.f2fs", &["-q"]),
+        FileSystemType::Fat16 => ("mkfs.fat", &["-F", "16"]),
+        FileSystemType::Fat32 => ("mkfs.fat", &["-F", "32"]),
+        FileSystemType::Ntfs => ("mkfs.ntfs", &["-F", "-q"]),
+        FileSystemType::Swap => ("mkswap", &["-f"]),
+        FileSystemType::Xfs => ("mkfs.xfs", &["-f"])
     };
+
+    let mut command = Command::new(cmd);
+    command.arg(part);
+    for arg in args {
+		command.arg(arg);
+	}
 
     debug!("{:?}", command);
 
-    let status = command.status()?;
+    let status = command.stdout(Stdio::null()).status()?;
+
     if status.success() {
+        info!("{} formatted with {:?}", part.display(), kind);
+        drop(command);
         Ok(())
     } else {
         Err(Error::new(

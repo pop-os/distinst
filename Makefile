@@ -12,6 +12,8 @@ BIN=distinst
 
 all: target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
 
+debug: target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
+
 clean:
 	cargo clean
 
@@ -43,12 +45,15 @@ vendor: .cargo/config
 	cargo vendor
 	touch vendor
 
+# Each lib crate type has to be built independently, else there will be a compiler error.
 target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub:
 	if [ -d vendor ]; \
 	then \
-		cargo build --release --frozen; \
+	    cargo rustc --lib --release -- --crate-type=dylib; \
+		cargo build --bin distinst; \
 	else \
-		cargo build --release; \
+	    cargo rustc --lib --release -- --crate-type=dylib; \
+		cargo build --bin distinst; \
 	fi
 
 target/pkgconfig/$(BIN).pc: target/pkgconfig/$(BIN).pc.stub

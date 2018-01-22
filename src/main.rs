@@ -3,31 +3,57 @@ extern crate distinst;
 extern crate pbr;
 
 use clap::{App, Arg};
-use distinst::{Config, Installer, Step};
+use distinst::{Bootloader, Config, Disk, DiskError, FileSystemType, Installer, PartitionBuilder,
+               PartitionFlag, PartitionTable, PartitionType, Sector, Step};
 use pbr::ProgressBar;
 
 use std::{io, process};
 use std::cell::RefCell;
+use std::path::Path;
 use std::rc::Rc;
 
 fn main() {
     let matches = App::new("distinst")
-        .arg(
-            Arg::with_name("squashfs")
-                .required(true)
+        .arg(Arg::with_name("squashfs").required(true))
+        .arg(Arg::with_name("lang").required(true))
+        .arg(Arg::with_name("remove").required(true))
+        .arg(Arg::with_name("disk")
+            .short("b")
+            .long("block")
+            .takes_value(true)
+            .multiple(true)
+            .required(true)
         )
-        .arg(
-            Arg::with_name("disk")
-                .required(true)
+        .arg(Arg::with_name("table")
+            .short("t")
+            .long("new-table")
+            .takes_value(true)
+            .multiple(true)
         )
-        .arg(
-            Arg::with_name("lang")
-                .required(true)
+        .arg(Arg::with_name("new")
+            .short("n")
+            .long("new")
+            .takes_value(true)
+            .multiple(true)
         )
-        .arg(
-            Arg::with_name("remove")
-                .required(true)
-        )
+        // .arg(Arg::with_name("reuse")
+        //     .short("u")
+        //     .long("use")
+        //     .takes_value(true)
+        //     .multiple(true)
+        // )
+        // .arg(Arg::with_name("delete")
+        //     .short("d")
+        //     .long("delete")
+        //     .takes_value(true)
+        //     .multiple(true)
+        // )
+        // .arg(Arg::with_name("move")
+        //     .short("m")
+        //     .long("move")
+        //     .takes_value(true)
+        //     .multiple(true)
+        // )
         .get_matches();
 
     if let Err(err) = distinst::log(|_level, message| {
@@ -74,7 +100,6 @@ fn main() {
                     pb.message(match status.step {
                         Step::Init => "Initializing",
                         Step::Partition => "Partitioning disk ",
-                        Step::Format => "Formatting partitions ",
                         Step::Extract => "Extracting filesystem ",
                         Step::Configure => "Configuring installation",
                         Step::Bootloader => "Installing bootloader ",
@@ -88,26 +113,78 @@ fn main() {
             });
         }
 
-        installer.install(&Config {
-            squashfs: squashfs.to_string(),
-            disk: disk.to_string(),
-            lang: lang.to_string(),
-            remove: remove.to_string(),
-        })
+        let disk = match configure_disk(disk) {
+            Ok(disk) => disk,
+            Err(why) => {
+                eprintln!("distinst: invalid disk configuration: {}", why);
+                process::exit(1);
+            }
+        };
+
+        installer.install(
+            vec![disk],
+            &Config {
+                squashfs: squashfs.to_string(),
+                lang: lang.to_string(),
+                remove: remove.to_string(),
+            },
+        )
     };
 
     if let Some(mut pb) = pb_opt.borrow_mut().take() {
         pb.finish_println("");
     }
 
-    match res {
+    let status = match res {
         Ok(()) => {
-            println!("Install was successful");
-            process::exit(0);
-        },
+            println!("install was successful");
+            0
+        }
         Err(err) => {
-            println!("Install failed: {}", err);
-            process::exit(1);
+            println!("install failed: {}", err);
+            1
+        }
+    };
+
+    process::exit(status);
+}
+
+fn configure_disk(path: &str) -> Result<Disk, DiskError> {
+    let mut disk = Disk::from_name(path)?;
+    match Bootloader::detect() {
+        Bootloader::Bios => {
+            disk.mklabel(PartitionTable::Msdos)?;
+
+            let start = disk.get_sector(Sector::Start);
+            let end = disk.get_sector(Sector::End);
+            disk.add_partition(
+                PartitionBuilder::new(start, end, FileSystemType::Ext4)
+                    .partition_type(PartitionType::Primary)
+                    .flag(PartitionFlag::PED_PARTITION_BOOT)
+                    .set_mount(Path::new("/").to_path_buf()),
+            )?;
+        }
+        Bootloader::Efi => {
+            disk.mklabel(PartitionTable::Gpt)?;
+
+            let mut start = disk.get_sector(Sector::Start);
+            let mut end = disk.get_sector(Sector::Megabyte(512));
+            disk.add_partition(
+                PartitionBuilder::new(start, end, FileSystemType::Fat32)
+                    .partition_type(PartitionType::Primary)
+                    .flag(PartitionFlag::PED_PARTITION_ESP)
+                    .set_mount(Path::new("/boot/efi").to_path_buf()),
+            )?;
+
+            start = disk.get_sector(Sector::Megabyte(512));
+            end = disk.get_sector(Sector::End);
+            disk.add_partition(
+                PartitionBuilder::new(start, end, FileSystemType::Ext4)
+                    .partition_type(PartitionType::Primary)
+                    .set_mount(Path::new("/").to_path_buf()),
+            )?;
         }
     }
+
+    Ok(disk)
 }

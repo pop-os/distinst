@@ -2,3 +2,7 @@
 /debian/files
 /target/
 /vendor/
+/examples/c/install
+/examples/c/install-debug
+/examples/c/list
+/examples/c/list-debug

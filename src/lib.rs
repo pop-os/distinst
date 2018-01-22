@@ -1,5 +1,9 @@
 //! A crate for installing Ubuntu distributions from a live squashfs
 
+extern crate failure;
+#[macro_use]
+extern crate failure_derive;
+extern crate libparted;
 #[macro_use]
 extern crate log;
 extern crate tempdir;
@@ -11,9 +15,9 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use disk::Disk;
-use format::{MkfsKind, mkfs};
-use partition::{blockdev, parted};
+use partition::blockdev;
+pub use disk::{Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
+               PartitionInfo, PartitionTable, PartitionType, Sector};
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
 
@@ -30,7 +34,9 @@ mod partition;
 mod squashfs;
 
 /// Initialize logging
-pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(callback: F) -> Result<(), log::SetLoggerError> {
+pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
+    callback: F,
+) -> Result<(), log::SetLoggerError> {
     match log::set_logger(|max_log_level| {
         max_log_level.set(log::LogLevelFilter::Debug);
         Box::new(logger::Logger::new(callback))
@@ -38,8 +44,8 @@ pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(callback: F) -> R
         Ok(()) => {
             info!("Logging enabled");
             Ok(())
-        },
-        Err(err) => Err(err)
+        }
+        Err(err) => Err(err),
     }
 }
 
@@ -65,7 +71,6 @@ impl Bootloader {
 pub enum Step {
     Init,
     Partition,
-    Format,
     Extract,
     Configure,
     Bootloader,
@@ -75,7 +80,6 @@ pub enum Step {
 #[derive(Debug)]
 pub struct Config {
     pub squashfs: String,
-    pub disk: String,
     pub lang: String,
     pub remove: String,
 }
@@ -169,7 +173,11 @@ impl Installer {
         self.status_cb = Some(Box::new(callback));
     }
 
-    fn initialize<F: FnMut(i32)>(config: &Config, mut callback: F) -> io::Result<(PathBuf, Disk, Vec<String>)> {
+    fn initialize<F: FnMut(i32)>(
+        disks: &mut [Disk],
+        config: &Config,
+        mut callback: F,
+    ) -> io::Result<(PathBuf, Vec<String>)> {
         info!("Initializing");
 
         let squashfs = match Path::new(&config.squashfs).canonicalize() {
@@ -182,48 +190,39 @@ impl Installer {
 
         callback(20);
 
-        let disk = match Disk::from_name(&config.disk) {
-            Ok(disk) => disk,
-            Err(err) => {
-                error!("config.disk: {}", err);
-                return Err(err);
+        // let disk_path = &disk.device_path;
+        // let partitions = &mut disk.partitions;
+
+        for partition in disks.iter_mut().flat_map(|p| p.partitions.iter_mut()) {
+            if partition.is_swap() {
+                info!("unswapping '{}'", partition.path().display(),);
+
+                let status = Command::new("swapoff").arg(&partition.path()).status()?;
+                if !status.success() {
+                    error!("config.disk: failed to swapoff with status {}", status);
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("swapoff failed with status: {}", status),
+                    ));
+                }
+            } else if let Some(ref mount) = partition.mount_point {
+                info!(
+                    "unmounting {}, which is mounted at {}",
+                    partition.path().display(),
+                    mount.display()
+                );
+
+                let status = Command::new("umount").arg(&partition.path()).status()?;
+                if !status.success() {
+                    error!("config.disk: failed to umount with status {}", status);
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("umount failed with status: {}", status),
+                    ));
+                }
             }
-        };
 
-        callback(40);
-
-        for mount in disk.mounts()? {
-            info!(
-                "Unmounting '{}': {:?} is mounted at {:?}",
-                disk.name(), mount.source, mount.dest
-            );
-
-            let status = Command::new("umount").arg(&mount.source).status()?;
-            if ! status.success() {
-                error!("config.disk: failed to umount with status {}", status);
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("umount failed with status: {}", status)
-                ));
-            }
-        }
-
-        callback(60);
-
-        for swap in disk.swaps()? {
-            info!(
-                "Unswapping '{}': {:?} is swapped",
-                disk.name(), swap.source,
-            );
-
-            let status = Command::new("swapoff").arg(&swap.source).status()?;
-            if ! status.success() {
-                error!("config.disk: failed to swapoff with status {}", status);
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("swapoff failed with status: {}", status)
-                ));
-            }
+            partition.mount_point = None;
         }
 
         callback(80);
@@ -249,111 +248,41 @@ impl Installer {
             }
         }
 
-        Ok((squashfs, disk, remove_pkgs))
+        Ok((squashfs, remove_pkgs))
     }
 
-    fn partition<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
-        let disk_dev = disk.path();
-        info!("{}: Partitioning for {:?}", disk_dev.display(), bootloader);
+    fn partition<F: FnMut(i32)>(disks: &mut [Disk], mut callback: F) -> io::Result<()> {
+        for disk in disks {
+            info!("{}: Committing changes to disk", disk.path().display());
+            disk.commit()
+                .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
 
-        // TODO: Use libparted
-        match bootloader {
-            Bootloader::Bios => {
-                parted(&disk_dev, &["mklabel", "msdos"])?;
-                callback(33);
-
-                parted(&disk_dev, &["mkpart", "primary", "ext4", "0%", "100%"])?;
-                parted(&disk_dev, &["set", "1", "boot", "on"])?;
-                callback(66);
-            },
-            Bootloader::Efi => {
-                parted(&disk_dev, &["mklabel", "gpt"])?;
-                callback(25);
-
-                parted(&disk_dev, &["mkpart", "primary", "fat32", "0%", "512M"])?;
-                parted(&disk_dev, &["set", "1", "esp", "on"])?;
-                callback(50);
-
-                parted(&disk_dev, &["mkpart", "primary", "ext4", "512M", "100%"])?;
-                callback(75);
-            }
+            info!("{}: Rereading partition table", disk.path().display());
+            blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
+            callback(100);
         }
-
-        info!("{}: Rereading partition table", disk_dev.display());
-        blockdev(&disk_dev, &["--rereadpt"])?;
-        callback(100);
 
         Ok(())
     }
 
-    fn format<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
-        let disk_dev = disk.path();
-        info!("{}: Formatting for {:?}", disk_dev.display(), bootloader);
+    fn extract<P: AsRef<Path>, F: FnMut(i32)>(
+        squashfs: P,
+        disks: &mut [Disk],
+        callback: F,
+    ) -> io::Result<()> {
+        let (_root_dev, root) = find_partition(disks, Path::new("/"))
+            .expect("verify_partitions() should have ensured that a root partition was created");
 
-        // TODO: Use libparted
-        let parts = disk.parts()?;
-        match bootloader {
-            Bootloader::Bios => {
-                let part = parts.get(0).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                )?;
-
-                let part_dev = part.path();
-                info!("{}: Formatting ext4 root partition", part_dev.display());
-                mkfs(&part_dev, MkfsKind::Ext4)?;
-            },
-            Bootloader::Efi => {
-                {
-                    let part = parts.get(0).ok_or(
-                        io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                    )?;
-
-                    let part_dev = part.path();
-                    info!("{}: Formatting fat32 efi partition", part_dev.display());
-                    mkfs(&part_dev, MkfsKind::Fat32)?;
-                }
-
-                callback(50);
-
-                {
-                    let part = parts.get(1).ok_or(
-                        io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
-                    )?;
-
-                    let part_dev = part.path();
-                    info!("{}: Formatting ext4 root partition", part_dev.display());
-                    mkfs(&part_dev, MkfsKind::Ext4)?;
-                }
-            }
-        }
-
-        callback(100);
-
-        Ok(())
-    }
-
-    fn extract<P: AsRef<Path>, F: FnMut(i32)>(squashfs: P, disk: &mut Disk, bootloader: Bootloader, callback: F) -> io::Result<()> {
-        let disk_dev = disk.path();
-        info!("{}: Extracting {}", disk_dev.display(), squashfs.as_ref().display());
-
-        let parts = disk.parts()?;
-        let part = match bootloader {
-            Bootloader::Bios => {
-                parts.get(0).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                )?
-            },
-            Bootloader::Efi => {
-                parts.get(1).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
-                )?
-            }
-        };
+        info!(
+            "{}: Extracting {}",
+            root.path().display(),
+            squashfs.as_ref().display()
+        );
 
         let mount_dir = TempDir::new("distinst")?;
 
         {
-            let part_dev = part.path();
+            let part_dev = root.path();
             let mut mount = Mount::new(&part_dev, mount_dir.path(), &[])?;
 
             {
@@ -361,53 +290,34 @@ impl Installer {
             }
 
             mount.unmount(false)?;
-
         }
         mount_dir.close()?;
 
         Ok(())
     }
 
-    fn configure<S: AsRef<str>, I: IntoIterator<Item=S>, F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, lang: &str, remove_pkgs: I, mut callback: F) -> io::Result<()> {
-        let disk_dev = disk.path();
-        info!("{}: Configuring for {:?}", disk_dev.display(), bootloader);
-
-        let parts = disk.parts()?;
-        let (part, efi_opt) = match bootloader {
-            Bootloader::Bios => {
-                let part = parts.get(0).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                )?;
-
-                (part, None)
-            },
-            Bootloader::Efi => {
-                let efi = parts.get(0).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                )?;
-
-                let part = parts.get(1).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
-                )?;
-
-                (part, Some(efi))
-            }
-        };
-
+    fn configure<S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
+        disks: &mut [Disk],
+        bootloader: Bootloader,
+        lang: &str,
+        remove_pkgs: I,
+        mut callback: F,
+    ) -> io::Result<()> {
+        let ((_root_dev, root_part), efi_opt) = get_base_partitions(&disks, bootloader);
         let mount_dir = TempDir::new("distinst")?;
 
         {
-            let part_dev = part.path();
-            let mut mount = Mount::new(&part_dev, mount_dir.path(), &[])?;
+            let root_dev = root_part.path();
+            let mut mount = Mount::new(&root_dev, mount_dir.path(), &[])?;
 
             let mut efi_mount_opt = match efi_opt {
-                Some(efi) => {
+                Some((_, efi)) => {
                     let efi_path = mount_dir.path().join("boot").join("efi");
                     fs::create_dir_all(&efi_path)?;
                     let efi_dev = efi.path();
                     Some(Mount::new(&efi_dev, &efi_path, &[])?)
-                },
-                None => None
+                }
+                None => None,
             };
 
             {
@@ -425,12 +335,13 @@ impl Installer {
                     let mut chroot = Chroot::new(mount_dir.path())?;
 
                     {
-                        let configure_chroot = configure.strip_prefix(mount_dir.path()).map_err(|err| {
-                            io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("Path::strip_prefix failed: {}", err)
-                            )
-                        })?;
+                        let configure_chroot =
+                            configure.strip_prefix(mount_dir.path()).map_err(|err| {
+                                io::Error::new(
+                                    io::ErrorKind::Other,
+                                    format!("Path::strip_prefix failed: {}", err),
+                                )
+                            })?;
 
                         let grub_pkg = match bootloader {
                             Bootloader::Bios => "grub-pc",
@@ -457,10 +368,10 @@ impl Installer {
 
                         let status = chroot.command("/usr/bin/env", args.iter())?;
 
-                        if ! status.success() {
+                        if !status.success() {
                             return Err(io::Error::new(
                                 io::ErrorKind::Other,
-                                format!("configure.sh failed with status: {}", status)
+                                format!("configure.sh failed with status: {}", status),
                             ));
                         }
                     }
@@ -485,31 +396,24 @@ impl Installer {
         Ok(())
     }
 
-    fn bootloader<F: FnMut(i32)>(disk: &mut Disk, bootloader: Bootloader, mut callback: F) -> io::Result<()> {
-        let disk_dev = disk.path();
-        info!("{}: Installing bootloader for {:?}", disk_dev.display(), bootloader);
+    fn bootloader<F: FnMut(i32)>(
+        disk: &mut [Disk],
+        bootloader: Bootloader,
+        mut callback: F,
+    ) -> io::Result<()> {
+        // Obtain the root device & partition, with an optional EFI device & partition.
+        let ((root_dev, root_part), efi_opt) = get_base_partitions(&disk, bootloader);
 
-        let parts = disk.parts()?;
-        let (part, efi_opt) = match bootloader {
-            Bootloader::Bios => {
-                let part = parts.get(0).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                )?;
-
-                (part, None)
-            },
-            Bootloader::Efi => {
-                let efi = parts.get(0).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 0 not found")
-                )?;
-
-                let part = parts.get(1).ok_or(
-                    io::Error::new(io::ErrorKind::NotFound, "Partition 1 not found")
-                )?;
-
-                (part, Some(efi))
-            }
+        let bootloader_dev = match efi_opt {
+            Some((dev, _)) => dev,
+            None => root_dev,
         };
+
+        info!(
+            "{}: installing bootloader for {:?}",
+            bootloader_dev.display(),
+            bootloader
+        );
 
         let mount_dir = TempDir::new("distinst")?;
 
@@ -517,16 +421,16 @@ impl Installer {
             let boot_path = mount_dir.path().join("boot");
             let efi_path = boot_path.join("efi");
 
-            let part_dev = part.path();
-            let mut mount = Mount::new(&part_dev, mount_dir.path(), &[])?;
+            let root_part = root_part.path();
+            let mut mount = Mount::new(&root_part, mount_dir.path(), &[])?;
 
             let mut efi_mount_opt = match efi_opt {
-                Some(efi) => {
+                Some((_, efi)) => {
                     fs::create_dir_all(&efi_path)?;
                     let efi_dev = efi.path();
                     Some(Mount::new(&efi_dev, &efi_path, &[])?)
-                },
-                None => None
+                }
+                None => None,
             };
 
             {
@@ -540,19 +444,19 @@ impl Installer {
                     match bootloader {
                         Bootloader::Bios => {
                             args.push(format!("--target=i386-pc"));
-                        },
+                        }
                         Bootloader::Efi => {
                             args.push(format!("--target=x86_64-efi"));
                         }
                     }
 
-                    args.push(disk_dev.into_os_string().into_string().unwrap());
+                    args.push(bootloader_dev.to_str().unwrap().to_owned());
 
                     let status = chroot.command("grub-install", args.iter())?;
-                    if ! status.success() {
+                    if !status.success() {
                         return Err(io::Error::new(
                             io::ErrorKind::Other,
-                            format!("grub-install failed with status: {}", status)
+                            format!("grub-install failed with status: {}", status),
                         ));
                     }
                 }
@@ -575,8 +479,11 @@ impl Installer {
     }
 
     /// Install the system with the specified bootloader
-    pub fn install(&mut self, config: &Config) -> io::Result<()> {
-        info!("Installing {:?}", config);
+    pub fn install(&mut self, mut disks: Vec<Disk>, config: &Config) -> io::Result<()> {
+        let bootloader = Bootloader::detect();
+        verify_partitions(&disks, bootloader)?;
+
+        info!("Installing {:?} with {:?}", config, bootloader);
 
         let mut status = Status {
             step: Step::Init,
@@ -584,7 +491,7 @@ impl Installer {
         };
         self.emit_status(&status);
 
-        let (squashfs, mut disk, remove_pkgs) = match Installer::initialize(&config, |percent| {
+        let (squashfs, remove_pkgs) = match Installer::initialize(&mut disks, &config, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
@@ -600,15 +507,11 @@ impl Installer {
             }
         };
 
-        let bootloader = Bootloader::detect();
-
-        info!("Detected {:?}", bootloader);
-
         status.step = Step::Partition;
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::partition(&mut disk, bootloader, |percent| {
+        if let Err(err) = Installer::partition(&mut disks, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
@@ -621,28 +524,11 @@ impl Installer {
             return Err(error.err);
         }
 
-        status.step = Step::Format;
-        status.percent = 0;
-        self.emit_status(&status);
-
-        if let Err(err) = Installer::format(&mut disk, bootloader, |percent| {
-            status.percent = percent;
-            self.emit_status(&status);
-        }) {
-            error!("format: {}", err);
-            let error = Error {
-                step: status.step,
-                err: err,
-            };
-            self.emit_error(&error);
-            return Err(error.err);
-        }
-
         status.step = Step::Extract;
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::extract(&squashfs, &mut disk, bootloader, |percent| {
+        if let Err(err) = Installer::extract(&squashfs, &mut disks, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
@@ -659,10 +545,16 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::configure(&mut disk, bootloader, &config.lang, &remove_pkgs, |percent| {
-            status.percent = percent;
-            self.emit_status(&status);
-        }) {
+        if let Err(err) = Installer::configure(
+            &mut disks,
+            bootloader,
+            &config.lang,
+            &remove_pkgs,
+            |percent| {
+                status.percent = percent;
+                self.emit_status(&status);
+            },
+        ) {
             error!("configure: {}", err);
             let error = Error {
                 step: status.step,
@@ -676,7 +568,7 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::bootloader(&mut disk, bootloader, |percent| {
+        if let Err(err) = Installer::bootloader(&mut disks, bootloader, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
@@ -699,11 +591,74 @@ impl Installer {
     /// let installer = Installer::new();
     /// let disks = installer.disks().unwrap();
     /// ```
-    pub fn disks(&self) -> io::Result<Vec<Disk>> {
-        let mut disks = Disk::all()?;
-        disks.retain(|disk| {
-            ! disk.name().starts_with("loop")
-        });
-        Ok(disks)
+    pub fn disks(&self) -> io::Result<Disks> {
+        Disks::probe_devices()
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
+}
+
+fn find_partition<'a>(disks: &'a [Disk], target: &Path) -> Option<(&'a Path, &'a PartitionInfo)> {
+    for disk in disks {
+        for partition in &disk.partitions {
+            if let Some(ref ptarget) = partition.target {
+                if ptarget == target {
+                    return Some((&disk.device_path, partition));
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn get_base_partitions<'a>(
+    disks: &'a [Disk],
+    bootloader: Bootloader,
+) -> (
+    (&'a Path, &'a PartitionInfo),
+    Option<(&'a Path, &'a PartitionInfo)>,
+) {
+    match bootloader {
+        Bootloader::Bios => {
+            let root = find_partition(disks, Path::new("/")).expect(
+                "verify_partitions() should have ensured that a root partition was created",
+            );
+
+            (root, None)
+        }
+        Bootloader::Efi => {
+            let efi = find_partition(disks, Path::new("/boot/efi")).expect(
+                "verify_partitions() should have ensured that an EFI partition was created",
+            );
+
+            let root = find_partition(disks, Path::new("/")).expect(
+                "verify_partitions() should have ensured that a root partition was created",
+            );
+
+            (root, Some(efi))
+        }
+    }
+}
+
+pub fn verify_partitions(disks: &[Disk], bootloader: Bootloader) -> io::Result<()> {
+    let _root = find_partition(disks, Path::new("/")).ok_or(io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "root partition was not defined",
+    ))?;
+
+    if bootloader == Bootloader::Efi {
+        let efi = find_partition(disks, Path::new("/boot/efi")).ok_or(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "EFI partition was not defined",
+        ))?;
+
+        if !efi.1.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "EFI partition did not have ESP flag set",
+            ));
+        }
+    }
+
+    Ok(())
 }
