@@ -576,5 +576,3 @@ impl Installer {
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
 }
-
-

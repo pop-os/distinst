@@ -1,5 +1,6 @@
 use libparted::{Partition, PartitionFlag};
 use super::Mounts;
+use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -17,6 +18,15 @@ pub enum FileSystemType {
     Ntfs,
     Swap,
     Xfs,
+}
+
+impl FileSystemType {
+    fn get_preferred_options(&self) -> &'static str {
+        match *self {
+            FileSystemType::Ext4 => "noatime,errors=remount-ro",
+            _ => "default"
+        }
+    }
 }
 
 impl FileSystemType {
@@ -173,6 +183,27 @@ pub struct PartitionInfo {
     pub target: Option<PathBuf>,
 }
 
+/// Information that will be used to generate a fstab entry for the given partition.
+pub(crate) struct BlockInfo {
+   pub uuid: OsString,
+   pub mount: PathBuf,
+   pub fs: &'static str,
+   pub options: String,
+   pub dump: bool,
+   pub pass: bool 
+}
+
+impl BlockInfo {
+    /// The size of the data contained within.
+    pub fn len(&self) -> usize {
+        self.uuid.len()
+            + self.mount.as_os_str().len()
+            + self.fs.len()
+            + self.options.len()
+            + 2
+    }
+}
+
 impl PartitionInfo {
     pub fn new_from_ped(
         partition: &Partition,
@@ -232,6 +263,32 @@ impl PartitionInfo {
 
     pub fn set_mount(&mut self, target: PathBuf) {
         self.target = Some(target);
+    }
+
+    pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
+        if self.target.is_none() || self.filesystem.is_none() {
+            return None;
+        }
+
+        let uuid_dir = ::std::fs::read_dir("/dev/disk/by-uuid")
+            .expect("unable to find /dev/disk/by-uuid");
+
+        for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
+            if &uuid_entry.path().canonicalize().unwrap() == &self.device_path {
+                let fs = self.filesystem.unwrap();
+                return Some(BlockInfo {
+                    uuid: uuid_entry.file_name(),
+                    mount: self.target.clone().unwrap(),
+                    fs: fs.into(),
+                    options: fs.get_preferred_options().into(),
+                    dump: false,
+                    pass: false,
+                })
+            }
+        }
+
+        info!("{}: no UUID associated with device", self.device_path.display());
+        None
     }
 }
 

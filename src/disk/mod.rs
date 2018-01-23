@@ -8,6 +8,7 @@ use self::mounts::Mounts;
 use self::serial::get_serial_no;
 use self::operations::*;
 pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
+use std::ffi::OsString;
 use std::io;
 use std::iter::FromIterator;
 use std::str;
@@ -744,6 +745,34 @@ impl Disks {
         }
 
         Ok(())
+    }
+
+    /// Generates fstab entries in memory
+    pub fn generate_fstab(&self) -> OsString {
+        let mut fstab = OsString::with_capacity(1024);
+
+        let fs_entries = self.as_ref().iter()
+            .flat_map(|disk| disk.partitions.iter())
+            .filter_map(|part| part.get_block_info());
+
+        // <file system>  <mount point>  <type>  <options>  <dump>  <pass>
+        for entry in fs_entries {
+            fstab.reserve_exact(entry.len() + 6);
+            fstab.push(&entry.uuid);
+            fstab.push(" ");
+            fstab.push(&entry.mount);
+            fstab.push(" ");
+            fstab.push(&entry.fs);
+            fstab.push(" ");
+            fstab.push(&entry.options);
+            fstab.push(" ");
+            fstab.push(if entry.dump { "1" } else { "0" });
+            fstab.push(" ");
+            fstab.push(if entry.pass { "1" } else { "0" });
+            fstab.push("\n");
+        }
+
+        fstab
     }
 }
 
