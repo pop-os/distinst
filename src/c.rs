@@ -1,6 +1,6 @@
 extern crate libc;
 
-use self::libc::{size_t, uint64_t, uint8_t};
+use self::libc::{size_t, uint64_t, uint8_t, uint16_t};
 use std::ffi::{CStr, CString, OsStr};
 use std::io;
 use std::mem;
@@ -744,21 +744,12 @@ pub unsafe extern "C" fn distinst_sector_megabyte(value: uint64_t) -> DistinstSe
 pub unsafe extern "C" fn distinst_sector_percent(value: uint16_t) -> DistinstSector {
     DistinstSector {
         flag: DISTINST_SECTOR_KIND::PERCENT,
-        value as uint64_t,
+        value: value as uint64_t,
     }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_unit(value: uint64_t) -> DistinstSector {
-    DistinstSector {
-        flag: DISTINST_SECTOR_KIND::UNIT,
-        value,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_sector_unit(value: uint64_t) -> DistinstSector {
-
     DistinstSector {
         flag: DISTINST_SECTOR_KIND::UNIT,
         value,
