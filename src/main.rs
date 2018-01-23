@@ -3,7 +3,7 @@ extern crate distinst;
 extern crate pbr;
 
 use clap::{App, Arg};
-use distinst::{Bootloader, Config, Disk, DiskError, FileSystemType, Installer, PartitionBuilder,
+use distinst::{Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
                PartitionFlag, PartitionTable, PartitionType, Sector, Step};
 use pbr::ProgressBar;
 
@@ -122,7 +122,7 @@ fn main() {
         };
 
         installer.install(
-            vec![disk],
+            Disks(vec![disk]),
             &Config {
                 squashfs: squashfs.to_string(),
                 lang: lang.to_string(),

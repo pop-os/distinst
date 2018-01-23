@@ -9,6 +9,7 @@ use self::serial::get_serial_no;
 use self::operations::*;
 pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
 use std::io;
+use std::iter::FromIterator;
 use std::str;
 use std::path::{Path, PathBuf};
 pub use libparted::PartitionFlag;
@@ -86,6 +87,23 @@ pub enum DiskError {
 impl From<DiskError> for io::Error {
     fn from(err: DiskError) -> io::Error {
         io::Error::new(io::ErrorKind::Other, format!("{}", err))
+    }
+}
+
+/// Bootloader type
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Bootloader {
+    Bios,
+    Efi,
+}
+
+impl Bootloader {
+    pub fn detect() -> Bootloader {
+        if Path::new("/sys/firmware/efi").is_dir() {
+            Bootloader::Efi
+        } else {
+            Bootloader::Bios
+        }
     }
 }
 
@@ -621,7 +639,13 @@ impl Disk {
     }
 }
 
-pub struct Disks(pub(crate) Vec<Disk>);
+pub struct Disks(pub Vec<Disk>);
+
+impl AsRef<[Disk]> for Disks {
+    fn as_ref(& self) -> &[Disk] {
+        &self.0
+    }
+}
 
 impl Disks {
     /// Probes for and returns disk information for every disk in the system.
@@ -638,6 +662,79 @@ impl Disks {
 
         Ok(Disks(output))
     }
+
+    /// Finds the partition block path and associated partition information that is associated with
+    /// the given target mount point.
+    pub fn find_partition<'a>(&'a self, target: &Path) -> Option<(&'a Path, &'a PartitionInfo)> {
+        for disk in self.as_ref() {
+            for partition in &disk.partitions {
+                if let Some(ref ptarget) = partition.target {
+                    if ptarget == target {
+                        return Some((&disk.device_path, partition));
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Obtains the paths to the device and partition block paths where the root and EFI
+    /// partitions are installed. The paths for the EFI partition will not be collected if
+    /// the provided boot loader was of the EFI variety.
+    pub fn get_base_partitions<'a>(
+        &'a self,
+        bootloader: Bootloader,
+    ) -> (
+        (&'a Path, &'a PartitionInfo),
+        Option<(&'a Path, &'a PartitionInfo)>,
+    ) {
+        match bootloader {
+            Bootloader::Bios => {
+                let root = self.find_partition(Path::new("/")).expect(
+                    "verify_partitions() should have ensured that a root partition was created",
+                );
+
+                (root, None)
+            }
+            Bootloader::Efi => {
+                let efi = self.find_partition(Path::new("/boot/efi")).expect(
+                    "verify_partitions() should have ensured that an EFI partition was created",
+                );
+
+                let root = self.find_partition(Path::new("/")).expect(
+                    "verify_partitions() should have ensured that a root partition was created",
+                );
+
+                (root, Some(efi))
+            }
+        }
+    }
+
+    /// Ensures that EFI installs contain a `/boot/efi` and `/` partition, whereas MBR installs
+    /// contain a `/` partition. Additionally, the EFI partition must have the ESP flag set.
+    pub fn verify_partitions(&self, bootloader: Bootloader) -> io::Result<()> {
+        let _root = self.find_partition(Path::new("/")).ok_or(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "root partition was not defined",
+        ))?;
+
+        if bootloader == Bootloader::Efi {
+            let efi = self.find_partition(Path::new("/boot/efi")).ok_or(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "EFI partition was not defined",
+            ))?;
+
+            if !efi.1.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "EFI partition did not have ESP flag set",
+                ));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl IntoIterator for Disks {
@@ -646,6 +743,12 @@ impl IntoIterator for Disks {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl FromIterator<Disk> for Disks {
+    fn from_iter<I: IntoIterator<Item=Disk>>(iter: I) -> Self {
+        Disks(iter.into_iter().collect())
     }
 }
 
