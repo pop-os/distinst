@@ -711,10 +711,7 @@ impl From<DistinstSector> for Sector {
             DISTINST_SECTOR_KIND::END => Sector::End,
             DISTINST_SECTOR_KIND::UNIT => Sector::Unit(sector.value as u64),
             DISTINST_SECTOR_KIND::MEGABYTE => Sector::Megabyte(sector.value as u64),
-            DISTINST_SECTOR_KIND::PERCENT => {
-                debug_assert!(sector.value <= ::std::u16::MAX as u64);
-                Sector::Percent(sector.value as u16)
-            }
+            DISTINST_SECTOR_KIND::PERCENT => Sector::Percent(sector.value as u16),
         }
     }
 }
@@ -744,7 +741,24 @@ pub unsafe extern "C" fn distinst_sector_megabyte(value: uint64_t) -> DistinstSe
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_sector_percent(value: uint16_t) -> DistinstSector {
+    DistinstSector {
+        flag: DISTINST_SECTOR_KIND::PERCENT,
+        value as uint64_t,
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_sector_unit(value: uint64_t) -> DistinstSector {
+    DistinstSector {
+        flag: DISTINST_SECTOR_KIND::UNIT,
+        value,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_unit(value: uint64_t) -> DistinstSector {
+
     DistinstSector {
         flag: DISTINST_SECTOR_KIND::UNIT,
         value,
