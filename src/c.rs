@@ -701,6 +701,7 @@ pub enum DISTINST_SECTOR_KIND {
     END = 2,
     UNIT = 3,
     MEGABYTE = 4,
+    PERCENT = 5,
 }
 
 impl From<DistinstSector> for Sector {
@@ -710,6 +711,10 @@ impl From<DistinstSector> for Sector {
             DISTINST_SECTOR_KIND::END => Sector::End,
             DISTINST_SECTOR_KIND::UNIT => Sector::Unit(sector.value as u64),
             DISTINST_SECTOR_KIND::MEGABYTE => Sector::Megabyte(sector.value as u64),
+            DISTINST_SECTOR_KIND::PERCENT => {
+                debug_assert!(sector.value <= ::std::u16::MAX as u64);
+                Sector::Percent(sector.value as u16)
+            }
         }
     }
 }

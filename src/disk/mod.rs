@@ -118,10 +118,18 @@ pub enum PartitionTable {
 /// into the corresponding sector for the given disk.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum Sector {
+    /// The first sector in the disk where partitions should be created.
     Start,
+    /// The last sector in the disk where partitions should be created.
     End,
+    /// A raw value that directly corrects to the exact number of sectors that will be used.
     Unit(u64),
+    /// Rather than specifying the sector count, the user can specify the actual size in megabytes.
+    /// This value will later be used to get the exact sector count based on the sector size.
     Megabyte(u64),
+    /// The percent can be represented by specifying a value between 0 and
+    /// u16::MAX, where u16::MAX is 100%.
+    Percent(u16),
 }
 
 /// Gets a `libparted::Device` from the given name.
@@ -272,6 +280,8 @@ impl Disk {
             Sector::End => self.size - (MIB2 / self.sector_size),
             Sector::Megabyte(size) => (size * 1_000_000) / self.sector_size,
             Sector::Unit(size) => size,
+            Sector::Percent(value) => ((self.size * self.sector_size) / ::std::u16::MAX as u64)
+                * value as u64 / self.sector_size
         }
     }
 

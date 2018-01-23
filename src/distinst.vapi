@@ -135,7 +135,8 @@ namespace Distinst {
         START,
         END,
         UNIT,
-        MEGABYTE
+        MEGABYTE,
+        PERCENT
     }
 
     [CCode (has_type_id = false)]
