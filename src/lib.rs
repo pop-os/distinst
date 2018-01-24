@@ -9,7 +9,7 @@ extern crate log;
 extern crate tempdir;
 
 use tempdir::TempDir;
-
+use self::partition::blockdev;
 use std::{fs, io};
 use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
@@ -258,6 +258,12 @@ impl Installer {
             disk.commit()
                 .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
             callback(100);
+        }
+
+        // This is to ensure that everything's been written and the OS is ready to proceed.
+        ::std::thread::sleep(::std::time::Duration::from_secs(1));
+        for disk in &disks.0 {
+            blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
         }
 
         Ok(())
@@ -526,7 +532,7 @@ impl Installer {
             CHROOT_ROOT
         );
         let mount_dir = TempDir::new(CHROOT_ROOT)?;
-        let mut mounts = Installer::mount(&disks, CHROOT_ROOT)?;
+        let mounts = Installer::mount(&disks, CHROOT_ROOT)?;
 
         // Extract the Linux image into the new chroot path
         if let Err(err) = Installer::extract(&squashfs, CHROOT_ROOT, |percent| {
