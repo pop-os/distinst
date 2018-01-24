@@ -287,7 +287,7 @@ impl PartitionInfo {
             }
         }
 
-        info!("{}: no UUID associated with device", self.device_path.display());
+        error!("{}: no UUID associated with device", self.device_path.display());
         None
     }
 }

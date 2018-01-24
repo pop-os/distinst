@@ -2,6 +2,8 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+// TODO: Maybe create an abstraction for `libc::{m,unm}ount`?
+
 #[derive(Debug)]
 pub struct Mount {
     source: PathBuf,
@@ -84,6 +86,10 @@ impl Mount {
         } else {
             Ok(())
         }
+    }
+
+    pub fn dest(&self) -> &Path {
+        &self.dest
     }
 }
 

@@ -10,6 +10,7 @@ extern crate tempdir;
 
 use tempdir::TempDir;
 
+use std::collections::BTreeSet;
 use std::{fs, io};
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -84,7 +85,7 @@ pub struct Status {
 /// An installer object
 pub struct Installer {
     error_cb: Option<Box<FnMut(&Error)>>,
-    status_cb: Option<Box<FnMut(&Status)>>,
+    status_cb: Option<Box<FnMut(&Status)>>
 }
 
 impl Installer {
@@ -245,33 +246,49 @@ impl Installer {
         Ok(())
     }
 
+    fn mount(disks: &Disks, chroot: &str) -> io::Result<Vec<Mount>> {
+        let targets = disks.as_ref().iter()
+            .flat_map(|disk| disk.partitions.iter())
+            .filter(|part| !part.target.is_none());
+
+        let mut mounts = Vec::new();
+
+        // Target paths will be stored in a `BTreeSet` so that mounts are
+        // mounted in the correct order.
+        let mut paths = BTreeSet::new();
+
+        for target in targets {
+            // The mount path will actually consist of the target concatenated with the root.
+            // NOTE: It is assumed that the target is an absolute path.
+            let target_mount = [
+                chroot,
+                target.target.as_ref().unwrap().to_string_lossy().to_string().as_str()
+            ].concat();
+
+            mounts.push(Mount::new(&target.device_path, &target_mount, &[])?);
+            paths.insert(target_mount);
+        }
+
+        for target_mount in paths {
+            if let Err(why) = fs::create_dir_all(&target_mount) {
+                error!("unable to create '{}': {}", why, target_mount);
+            }
+        }
+
+        Ok(mounts)
+    } 
+
     fn extract<P: AsRef<Path>, F: FnMut(i32)>(
         squashfs: P,
-        disks: &mut Disks,
+        mount_dir: &'static str,
         callback: F,
     ) -> io::Result<()> {
-        let (_root_dev, root) = disks.find_partition(Path::new("/"))
-            .expect("verify_partitions() should have ensured that a root partition was created");
-
         info!(
-            "{}: Extracting {}",
-            root.path().display(),
+            "distinst: Extracting {}",
             squashfs.as_ref().display()
         );
 
-        let mount_dir = TempDir::new("distinst")?;
-
-        {
-            let part_dev = root.path();
-            let mut mount = Mount::new(&part_dev, mount_dir.path(), &[])?;
-
-            {
-                squashfs::extract(squashfs, mount_dir.path(), callback)?;
-            }
-
-            mount.unmount(false)?;
-        }
-        mount_dir.close()?;
+        squashfs::extract(squashfs, mount_dir, callback)?;
 
         Ok(())
     }
@@ -377,12 +394,13 @@ impl Installer {
     }
 
     fn bootloader<F: FnMut(i32)>(
-        disks: &mut Disks,
+        disks: &Disks,
+        mount_dir: &'static str,
         bootloader: Bootloader,
         mut callback: F,
     ) -> io::Result<()> {
         // Obtain the root device & partition, with an optional EFI device & partition.
-        let ((root_dev, root_part), efi_opt) = disks.get_base_partitions(bootloader);
+        let ((root_dev, _), efi_opt) = disks.get_base_partitions(bootloader);
 
         let bootloader_dev = match efi_opt {
             Some((dev, _)) => dev,
@@ -395,26 +413,17 @@ impl Installer {
             bootloader
         );
 
-        let mount_dir = TempDir::new("distinst")?;
-
         {
-            let boot_path = mount_dir.path().join("boot");
-            let efi_path = boot_path.join("efi");
+            let boot_path = [mount_dir, "/boot"].concat();
+            let efi_path = [&boot_path, "/efi"].concat();
 
-            let root_part = root_part.path();
-            let mut mount = Mount::new(&root_part, mount_dir.path(), &[])?;
-
-            let mut efi_mount_opt = match efi_opt {
-                Some((_, efi)) => {
-                    fs::create_dir_all(&efi_path)?;
-                    let efi_dev = efi.path();
-                    Some(Mount::new(&efi_dev, &efi_path, &[])?)
-                }
-                None => None,
-            };
+            // Also ensure that the /boot/efi directory is created.
+            if let Some(_) = efi_opt {
+                fs::create_dir_all(&efi_path)?;
+            }
 
             {
-                let mut chroot = Chroot::new(mount_dir.path())?;
+                let mut chroot = Chroot::new(mount_dir)?;
 
                 {
                     let mut args = vec![];
@@ -443,15 +452,7 @@ impl Installer {
 
                 chroot.unmount(false)?;
             }
-
-            if let Some(mut efi_mount) = efi_mount_opt.take() {
-                efi_mount.unmount(false)?;
-            }
-
-            mount.unmount(false)?;
         }
-
-        mount_dir.close()?;
 
         callback(100);
 
@@ -491,6 +492,7 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
+        // Create, manipulate, and format partitions provided by the user.
         if let Err(err) = Installer::partition(&mut disks, |percent| {
             status.percent = percent;
             self.emit_status(&status);
@@ -508,7 +510,13 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::extract(&squashfs, &mut disks, |percent| {
+        // Mount the temporary directory, and all of our mount targets.
+        const CHROOT_ROOT: &'static str = "distinst";
+        let mount_dir = TempDir::new(CHROOT_ROOT)?;
+        let mounts = Installer::mount(&disks, CHROOT_ROOT)?;
+
+        // Extract the Linux image into the new chroot path
+        if let Err(err) = Installer::extract(&squashfs, CHROOT_ROOT, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
@@ -525,6 +533,7 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
+        // Configure the new install, using the extracted image as a base.
         if let Err(err) = Installer::configure(
             &mut disks,
             bootloader,
@@ -548,7 +557,8 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::bootloader(&mut disks, bootloader, |percent| {
+        // Configure and install the bootloader
+        if let Err(err) = Installer::bootloader(&disks, CHROOT_ROOT, bootloader, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
@@ -561,6 +571,14 @@ impl Installer {
             return Err(error.err);
         }
 
+        // Unmount mounts in reverse to prevent unmount issues.
+        for mut mount in mounts.into_iter().rev() {
+            if let Err(why) = mount.unmount(true) {
+                error!("{}: unable to unmount: {}", mount.dest().display(), why);
+            }
+        }
+
+        mount_dir.close()?;
         Ok(())
     }
 

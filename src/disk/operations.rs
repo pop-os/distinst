@@ -94,7 +94,7 @@ impl<'a> ChangePartitions<'a> {
                         match part.set_flag(*flag, true) {
                             Ok(()) => flags_changed = true,
                             Err(_) => {
-                                info!(
+                                error!(
                                     "unable to set {:?} for {}{}",
                                     flag,
                                     self.device_path.display(),
@@ -217,7 +217,7 @@ impl<'a> CreatePartitions<'a> {
                     for &flag in &partition.flags {
                         if part.is_flag_available(flag) {
                             if let Err(_) = part.set_flag(flag, true) {
-                                info!("unable to set {:?}", flag);
+                                error!("unable to set {:?}", flag);
                             }
                         }
                     }
