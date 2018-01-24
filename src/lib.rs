@@ -9,16 +9,19 @@ extern crate log;
 extern crate tempdir;
 
 use tempdir::TempDir;
-
+use self::partition::blockdev;
 use std::{fs, io};
+use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use partition::blockdev;
-pub use disk::{Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
-               PartitionInfo, PartitionTable, PartitionType, Sector};
 pub use chroot::Chroot;
+pub use disk::{
+    Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
+    PartitionInfo, PartitionTable, PartitionType, Sector,
+};
 pub use mount::{Mount, MountOption};
 
 #[doc(hidden)]
@@ -32,6 +35,15 @@ mod logger;
 mod mount;
 mod partition;
 mod squashfs;
+
+const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
+#
+# Use 'blkid' to print the universally unique identifier for a
+# device; this may be used with UUID= as a more robust way to name devices
+# that works even if disks are added and removed. See fstab(5).
+#
+# <file system>  <mount point>  <type>  <options>  <dump>  <pass>
+";
 
 /// Initialize logging
 pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
@@ -63,27 +75,27 @@ pub enum Step {
 #[derive(Debug)]
 pub struct Config {
     pub squashfs: String,
-    pub lang: String,
-    pub remove: String,
+    pub lang:     String,
+    pub remove:   String,
 }
 
 /// Installer error
 #[derive(Debug)]
 pub struct Error {
     pub step: Step,
-    pub err: io::Error,
+    pub err:  io::Error,
 }
 
 /// Installer status
 #[derive(Copy, Clone, Debug)]
 pub struct Status {
-    pub step: Step,
+    pub step:    Step,
     pub percent: i32,
 }
 
 /// An installer object
 pub struct Installer {
-    error_cb: Option<Box<FnMut(&Error)>>,
+    error_cb:  Option<Box<FnMut(&Error)>>,
     status_cb: Option<Box<FnMut(&Status)>>,
 }
 
@@ -96,7 +108,7 @@ impl Installer {
     /// ```
     pub fn new() -> Installer {
         Installer {
-            error_cb: None,
+            error_cb:  None,
             status_cb: None,
         }
     }
@@ -104,12 +116,12 @@ impl Installer {
     /// Send an error message
     ///
     /// ```
+    /// use distinst::{Error, Installer, Step};
     /// use std::io;
-    /// use distinst::{Installer, Error, Step};
     /// let mut installer = Installer::new();
     /// installer.emit_error(&Error {
     ///     step: Step::Extract,
-    ///     err: io::Error::new(io::ErrorKind::NotFound, "File not found")
+    ///     err:  io::Error::new(io::ErrorKind::NotFound, "File not found"),
     /// });
     /// ```
     pub fn emit_error(&mut self, error: &Error) {
@@ -135,7 +147,7 @@ impl Installer {
     /// use distinst::{Installer, Status, Step};
     /// let mut installer = Installer::new();
     /// installer.emit_status(&Status {
-    ///     step: Step::Extract,
+    ///     step:    Step::Extract,
     ///     percent: 50,
     /// });
     /// ```
@@ -164,7 +176,16 @@ impl Installer {
         info!("Initializing");
 
         let squashfs = match Path::new(&config.squashfs).canonicalize() {
-            Ok(squashfs) => squashfs,
+            Ok(squashfs) => if squashfs.exists() {
+                info!("config.squashfs: found at {}", squashfs.display());
+                squashfs
+            } else {
+                error!("config.squashfs: supplied file does not exist");
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "invalid squashfs path",
+                ));
+            },
             Err(err) => {
                 error!("config.squashfs: {}", err);
                 return Err(err);
@@ -236,140 +257,151 @@ impl Installer {
             info!("{}: Committing changes to disk", disk.path().display());
             disk.commit()
                 .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
-
-            info!("{}: Rereading partition table", disk.path().display());
-            blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
             callback(100);
         }
 
+        // This is to ensure that everything's been written and the OS is ready to proceed.
+        ::std::thread::sleep(::std::time::Duration::from_secs(1));
+        for disk in &disks.0 {
+            blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
+        }
+
         Ok(())
+    }
+
+    /// Mount all target paths defined within the provided `disks` configuration.
+    fn mount(disks: &Disks, chroot: &str) -> io::Result<Vec<Mount>> {
+        let targets = disks
+            .as_ref()
+            .iter()
+            .flat_map(|disk| disk.partitions.iter())
+            .filter(|part| !part.target.is_none());
+
+        let mut mounts = Vec::new();
+
+        // The mount path will actually consist of the target concatenated with the root.
+        // NOTE: It is assumed that the target is an absolute path.
+        let paths: BTreeMap<String, PathBuf> = targets
+            .map(|target| {
+                let target_path = target.target.as_ref().unwrap();
+                let target_mount =
+                    [chroot, target_path.to_string_lossy().to_string().as_str()].concat();
+
+                (target_mount, target.device_path.clone())
+            })
+            .collect();
+
+        // Each mount directory will be created and then mounted before progressing to the next
+        // mount in the map. The BTreeMap that the mount targets were collected into
+        // will ensure that mounts are created and mounted in the correct order.
+        for (target_mount, device_path) in paths {
+            if let Err(why) = fs::create_dir_all(&target_mount) {
+                error!("unable to create '{}': {}", why, target_mount);
+            }
+
+            info!(
+                "distinst: mounting {} to {}",
+                device_path.display(),
+                target_mount
+            );
+
+            mounts.push(Mount::new(&device_path, &target_mount, &[])?);
+
+            info!(
+                "distinst: mounted {} to {}",
+                device_path.display(),
+                target_mount
+            );
+        }
+
+        Ok(mounts)
     }
 
     fn extract<P: AsRef<Path>, F: FnMut(i32)>(
         squashfs: P,
-        disks: &mut Disks,
+        mount_dir: &'static str,
         callback: F,
     ) -> io::Result<()> {
-        let (_root_dev, root) = disks.find_partition(Path::new("/"))
-            .expect("verify_partitions() should have ensured that a root partition was created");
-
-        info!(
-            "{}: Extracting {}",
-            root.path().display(),
-            squashfs.as_ref().display()
-        );
-
-        let mount_dir = TempDir::new("distinst")?;
-
-        {
-            let part_dev = root.path();
-            let mut mount = Mount::new(&part_dev, mount_dir.path(), &[])?;
-
-            {
-                squashfs::extract(squashfs, mount_dir.path(), callback)?;
-            }
-
-            mount.unmount(false)?;
-        }
-        mount_dir.close()?;
+        info!("distinst: Extracting {}", squashfs.as_ref().display());
+        squashfs::extract(squashfs, mount_dir, callback)?;
 
         Ok(())
     }
 
-    fn configure<S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
-        disks: &mut Disks,
+    fn configure<P: AsRef<Path>, S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
+        disks: &Disks,
+        mount_dir: P,
         bootloader: Bootloader,
         lang: &str,
         remove_pkgs: I,
         mut callback: F,
     ) -> io::Result<()> {
-        let ((_root_dev, root_part), efi_opt) = disks.get_base_partitions(bootloader);
-        let mount_dir = TempDir::new("distinst")?;
+        let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
+        info!("distinst: Configuring on {}", mount_dir.display());
+        let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
+        let configure = configure_dir.path().join("configure.sh");
 
         {
-            let root_dev = root_part.path();
-            let mut mount = Mount::new(&root_dev, mount_dir.path(), &[])?;
-
-            let mut efi_mount_opt = match efi_opt {
-                Some((_, efi)) => {
-                    let efi_path = mount_dir.path().join("boot").join("efi");
-                    fs::create_dir_all(&efi_path)?;
-                    let efi_dev = efi.path();
-                    Some(Mount::new(&efi_dev, &efi_path, &[])?)
-                }
-                None => None,
-            };
-
-            {
-                let configure_dir = TempDir::new_in(mount_dir.path().join("tmp"), "distinst")?;
-
-                {
-                    let configure = configure_dir.path().join("configure.sh");
-
-                    {
-                        let mut file = fs::File::create(&configure)?;
-                        file.write_all(include_bytes!("configure.sh"))?;
-                        file.sync_all()?;
-                    }
-
-                    let mut chroot = Chroot::new(mount_dir.path())?;
-
-                    {
-                        let configure_chroot =
-                            configure.strip_prefix(mount_dir.path()).map_err(|err| {
-                                io::Error::new(
-                                    io::ErrorKind::Other,
-                                    format!("Path::strip_prefix failed: {}", err),
-                                )
-                            })?;
-
-                        let grub_pkg = match bootloader {
-                            Bootloader::Bios => "grub-pc",
-                            Bootloader::Efi => "grub-efi-amd64-signed",
-                        };
-
-                        let mut args = vec![
-                            // Clear existing environment
-                            "-i".to_string(),
-                            // Set language to config setting
-                            format!("LANG={}", lang),
-                            // Run configure script with bash
-                            "bash".to_string(),
-                            // Path to configure script in chroot
-                            configure_chroot.to_str().unwrap().to_string(),
-                            // Install appropriate grub package
-                            grub_pkg.to_string(),
-                        ];
-
-                        for pkg in remove_pkgs {
-                            // Remove installer packages
-                            args.push(format!("-{}", pkg.as_ref()));
-                        }
-
-                        let status = chroot.command("/usr/bin/env", args.iter())?;
-
-                        if !status.success() {
-                            return Err(io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("configure.sh failed with status: {}", status),
-                            ));
-                        }
-                    }
-
-                    chroot.unmount(false)?;
-                }
-
-                configure_dir.close()?;
-            }
-
-            if let Some(mut efi_mount) = efi_mount_opt.take() {
-                efi_mount.unmount(false)?;
-            }
-
-            mount.unmount(false)?;
+            // Write our configuration file to `/tmp/configure.sh`.
+            let mut file = fs::File::create(&configure)?;
+            file.write_all(include_bytes!("configure.sh"))?;
+            file.sync_all()?;
         }
 
-        mount_dir.close()?;
+        {
+            // Write the /etc/fstab file using the target mounts defined in `disks`.
+            let fstab = mount_dir.join("etc/fstab");
+            let mut file = fs::File::create(&fstab)?;
+            file.write_all(FSTAB_HEADER)?;
+            file.write_all(disks.generate_fstab().as_bytes())?;
+            file.sync_all()?;
+        }
+
+        {
+            let mut chroot = Chroot::new(&mount_dir)?;
+            let configure_chroot = configure.strip_prefix(&mount_dir).map_err(|err| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Path::strip_prefix failed: {}", err),
+                )
+            })?;
+
+            let grub_pkg = match bootloader {
+                Bootloader::Bios => "grub-pc",
+                Bootloader::Efi => "grub-efi-amd64-signed",
+            };
+
+            let mut args = vec![
+                // Clear existing environment
+                "-i".to_string(),
+                // Set language to config setting
+                format!("LANG={}", lang),
+                // Run configure script with bash
+                "bash".to_string(),
+                // Path to configure script in chroot
+                configure_chroot.to_str().unwrap().to_string(),
+                // Install appropriate grub package
+                grub_pkg.to_string(),
+            ];
+
+            for pkg in remove_pkgs {
+                // Remove installer packages
+                args.push(format!("-{}", pkg.as_ref()));
+            }
+
+            let status = chroot.command("/usr/bin/env", args.iter())?;
+
+            if !status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("configure.sh failed with status: {}", status),
+                ));
+            }
+
+            chroot.unmount(false)?;
+        }
+
+        configure_dir.close()?;
 
         callback(100);
 
@@ -377,12 +409,13 @@ impl Installer {
     }
 
     fn bootloader<F: FnMut(i32)>(
-        disks: &mut Disks,
+        disks: &Disks,
+        mount_dir: &'static str,
         bootloader: Bootloader,
         mut callback: F,
     ) -> io::Result<()> {
         // Obtain the root device & partition, with an optional EFI device & partition.
-        let ((root_dev, root_part), efi_opt) = disks.get_base_partitions(bootloader);
+        let ((root_dev, _), efi_opt) = disks.get_base_partitions(bootloader);
 
         let bootloader_dev = match efi_opt {
             Some((dev, _)) => dev,
@@ -395,26 +428,17 @@ impl Installer {
             bootloader
         );
 
-        let mount_dir = TempDir::new("distinst")?;
-
         {
-            let boot_path = mount_dir.path().join("boot");
-            let efi_path = boot_path.join("efi");
+            let boot_path = [mount_dir, "/boot"].concat();
+            let efi_path = [&boot_path, "/efi"].concat();
 
-            let root_part = root_part.path();
-            let mut mount = Mount::new(&root_part, mount_dir.path(), &[])?;
-
-            let mut efi_mount_opt = match efi_opt {
-                Some((_, efi)) => {
-                    fs::create_dir_all(&efi_path)?;
-                    let efi_dev = efi.path();
-                    Some(Mount::new(&efi_dev, &efi_path, &[])?)
-                }
-                None => None,
-            };
+            // Also ensure that the /boot/efi directory is created.
+            if let Some(_) = efi_opt {
+                fs::create_dir_all(&efi_path)?;
+            }
 
             {
-                let mut chroot = Chroot::new(mount_dir.path())?;
+                let mut chroot = Chroot::new(mount_dir)?;
 
                 {
                     let mut args = vec![];
@@ -443,15 +467,7 @@ impl Installer {
 
                 chroot.unmount(false)?;
             }
-
-            if let Some(mut efi_mount) = efi_mount_opt.take() {
-                efi_mount.unmount(false)?;
-            }
-
-            mount.unmount(false)?;
         }
-
-        mount_dir.close()?;
 
         callback(100);
 
@@ -466,7 +482,7 @@ impl Installer {
         info!("Installing {:?} with {:?}", config, bootloader);
 
         let mut status = Status {
-            step: Step::Init,
+            step:    Step::Init,
             percent: 0,
         };
         self.emit_status(&status);
@@ -480,7 +496,7 @@ impl Installer {
                 error!("initialize: {}", err);
                 let error = Error {
                     step: status.step,
-                    err: err,
+                    err:  err,
                 };
                 self.emit_error(&error);
                 return Err(error.err);
@@ -491,6 +507,7 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
+        // Create, manipulate, and format partitions provided by the user.
         if let Err(err) = Installer::partition(&mut disks, |percent| {
             status.percent = percent;
             self.emit_status(&status);
@@ -498,7 +515,7 @@ impl Installer {
             error!("partition: {}", err);
             let error = Error {
                 step: status.step,
-                err: err,
+                err:  err,
             };
             self.emit_error(&error);
             return Err(error.err);
@@ -508,14 +525,24 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::extract(&squashfs, &mut disks, |percent| {
+        // Mount the temporary directory, and all of our mount targets.
+        const CHROOT_ROOT: &'static str = "distinst";
+        info!(
+            "distinst: mounting temporary chroot directory at {}",
+            CHROOT_ROOT
+        );
+        let mount_dir = TempDir::new(CHROOT_ROOT)?;
+        let mounts = Installer::mount(&disks, CHROOT_ROOT)?;
+
+        // Extract the Linux image into the new chroot path
+        if let Err(err) = Installer::extract(&squashfs, CHROOT_ROOT, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
             error!("extract: {}", err);
             let error = Error {
                 step: status.step,
-                err: err,
+                err:  err,
             };
             self.emit_error(&error);
             return Err(error.err);
@@ -525,8 +552,10 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
+        // Configure the new install, using the extracted image as a base.
         if let Err(err) = Installer::configure(
-            &mut disks,
+            &disks,
+            CHROOT_ROOT,
             bootloader,
             &config.lang,
             &remove_pkgs,
@@ -538,7 +567,7 @@ impl Installer {
             error!("configure: {}", err);
             let error = Error {
                 step: status.step,
-                err: err,
+                err:  err,
             };
             self.emit_error(&error);
             return Err(error.err);
@@ -548,19 +577,27 @@ impl Installer {
         status.percent = 0;
         self.emit_status(&status);
 
-        if let Err(err) = Installer::bootloader(&mut disks, bootloader, |percent| {
+        // Configure and install the bootloader
+        if let Err(err) = Installer::bootloader(&disks, CHROOT_ROOT, bootloader, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
             error!("bootloader: {}", err);
             let error = Error {
                 step: status.step,
-                err: err,
+                err:  err,
             };
             self.emit_error(&error);
             return Err(error.err);
         }
 
+        // Unmount mounts in reverse to prevent unmount issues.
+        for mut mount in mounts.into_iter().rev() {
+            info!("dropping {}", mount.dest().display());
+            drop(mount);
+        }
+
+        mount_dir.close()?;
         Ok(())
     }
 
@@ -576,5 +613,3 @@ impl Installer {
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
 }
-
-
