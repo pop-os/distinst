@@ -757,7 +757,8 @@ impl Disks {
 
         // <file system>  <mount point>  <type>  <options>  <dump>  <pass>
         for entry in fs_entries {
-            fstab.reserve_exact(entry.len() + 6);
+            fstab.reserve_exact(entry.len() + 11);
+            fstab.push("UUID=")
             fstab.push(&entry.uuid);
             fstab.push(" ");
             fstab.push(&entry.mount);
