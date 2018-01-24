@@ -1,3 +1,0 @@
-[submodule "libparted"]
-	path = libparted
-	url = https://github.com/pop-os/libparted.git
