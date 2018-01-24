@@ -3,6 +3,16 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 // TODO: Maybe create an abstraction for `libc::{m,unm}ount`?
+// use libc::{mount, umount};
+// pub unsafe extern "C" fn mount(
+//     src: *const c_char, 
+//     target: *const c_char, 
+//     fstype: *const c_char, 
+//     flags: c_ulong, 
+//     data: *const c_void
+// ) -> c_int
+// 
+// pub unsafe extern "C" fn umount(target: *const c_char) -> c_int
 
 #[derive(Debug)]
 pub struct Mount {

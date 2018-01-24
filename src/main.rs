@@ -168,7 +168,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
             disk.mklabel(PartitionTable::Gpt)?;
 
             let mut start = disk.get_sector(Sector::Start);
-            let mut end = disk.get_sector(Sector::Megabyte(512));
+            let mut end = disk.get_sector(Sector::Megabyte(150));
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Fat32)
                     .partition_type(PartitionType::Primary)
@@ -176,7 +176,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
                     .set_mount(Path::new("/boot/efi").to_path_buf()),
             )?;
 
-            start = disk.get_sector(Sector::Megabyte(512));
+            start = end;
             end = disk.get_sector(Sector::End);
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Ext4)

@@ -275,7 +275,10 @@ impl PartitionInfo {
                 return Some(BlockInfo {
                     uuid: uuid_entry.file_name(),
                     mount: self.target.clone().unwrap(),
-                    fs: fs.into(),
+                    fs: match fs.into() {
+                        "fat16" | "fat32" => "vfat",
+                        fs => fs,
+                    },
                     options: fs.get_preferred_options().into(),
                     dump: false,
                     pass: false,
