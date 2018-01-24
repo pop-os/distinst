@@ -103,12 +103,6 @@ namespace Distinst {
     public struct Sector {
         SectorKind flag;
         uint64 value;
-
-        public static Sector start ();
-        public static Sector end ();
-        public static Sector unit (uint64 value);
-        public static Sector megabyte (uint64 value);
-        public static Sector percent (uint16 value);
     }
 
     [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
