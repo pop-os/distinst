@@ -27,10 +27,6 @@ dbus-uuidgen > /var/lib/dbus/machine-id
 # Correctly specify resolv.conf
 ln -sf ../run/resolvconf/resolv.conf /etc/resolv.conf
 
-# Create fstab
-echo "# /etc/fstab: static file system information." | tee /etc/fstab
-echo "# <file system> <mount point> <type> <options> <dump> <pass>" | tee -a /etc/fstab
-
 ROOTDEV="$(df --output=source / | sed 1d)"
 ROOTUUID="$(blkid -o value -s UUID "${ROOTDEV}")"
 echo "# / was on ${ROOTDEV} during installation" | tee -a /etc/fstab

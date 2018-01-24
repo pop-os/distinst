@@ -13,6 +13,7 @@ use tempdir::TempDir;
 use std::collections::BTreeSet;
 use std::{fs, io};
 use std::io::{BufRead, Write};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -33,6 +34,15 @@ mod logger;
 mod mount;
 mod partition;
 mod squashfs;
+
+const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
+#
+# Use 'blkid' to print the universally unique identifier for a
+# device; this may be used with UUID= as a more robust way to name devices
+# that works even if disks are added and removed. See fstab(5).
+#
+# <file system>  <mount point>  <type>  <options>  <dump>  <pass>
+";
 
 /// Initialize logging
 pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
@@ -295,6 +305,7 @@ impl Installer {
     }
 
     fn configure<P: AsRef<Path>, S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
+        disks: &Disks,
         mount_dir: P,
         bootloader: Bootloader,
         lang: &str,
@@ -305,16 +316,25 @@ impl Installer {
 
         {
             let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
+            let configure = configure_dir.path().join("configure.sh");
 
             {
-                let configure = configure_dir.path().join("configure.sh");
+                // Write our configuration file to `/tmp/configure.sh`.
+                let mut file = fs::File::create(&configure)?;
+                file.write_all(include_bytes!("configure.sh"))?;
+                file.sync_all()?;
+            }
 
-                {
-                    let mut file = fs::File::create(&configure)?;
-                    file.write_all(include_bytes!("configure.sh"))?;
-                    file.sync_all()?;
-                }
+            {
+                // Write the /etc/fstab file using the target mounts defined in `disks`.
+                let fstab = mount_dir.join("etc/fstab");
+                let mut file = fs::File::create(&fstab)?;
+                file.write_all(FSTAB_HEADER)?;
+                file.write_all(disks.generate_fstab().as_bytes())?;
+                file.sync_all()?;
+            }
 
+            {
                 let mut chroot = Chroot::new(mount_dir)?;
 
                 {
@@ -512,6 +532,7 @@ impl Installer {
 
         // Configure the new install, using the extracted image as a base.
         if let Err(err) = Installer::configure(
+            &disks,
             CHROOT_ROOT,
             bootloader,
             &config.lang,
