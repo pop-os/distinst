@@ -23,6 +23,7 @@ pub enum FileSystemType {
 impl FileSystemType {
     fn get_preferred_options(&self) -> &'static str {
         match *self {
+            FileSystemType::Fat16 | FileSystemType::Fat32 => "umask=0077",
             FileSystemType::Ext4 => "noatime,errors=remount-ro",
             _ => "default",
         }
