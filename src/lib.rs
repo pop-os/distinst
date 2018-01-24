@@ -3,6 +3,7 @@
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
+extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
@@ -576,5 +577,3 @@ impl Installer {
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
 }
-
-

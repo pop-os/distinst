@@ -104,7 +104,7 @@ impl PartitionBuilder {
         self
     }
 
-    pub fn set_mount(mut self, mount: PathBuf) -> PartitionBuilder {
+    pub fn mount(mut self, mount: PathBuf) -> PartitionBuilder {
         self.mount = Some(mount);
         self
     }

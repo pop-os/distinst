@@ -161,7 +161,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
                 PartitionBuilder::new(start, end, FileSystemType::Ext4)
                     .partition_type(PartitionType::Primary)
                     .flag(PartitionFlag::PED_PARTITION_BOOT)
-                    .set_mount(Path::new("/").to_path_buf()),
+                    .mount(Path::new("/").to_path_buf()),
             )?;
         }
         Bootloader::Efi => {
@@ -173,7 +173,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
                 PartitionBuilder::new(start, end, FileSystemType::Fat32)
                     .partition_type(PartitionType::Primary)
                     .flag(PartitionFlag::PED_PARTITION_ESP)
-                    .set_mount(Path::new("/boot/efi").to_path_buf()),
+                    .mount(Path::new("/boot/efi").to_path_buf()),
             )?;
 
             start = disk.get_sector(Sector::Megabyte(512));
@@ -181,7 +181,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Ext4)
                     .partition_type(PartitionType::Primary)
-                    .set_mount(Path::new("/").to_path_buf()),
+                    .mount(Path::new("/").to_path_buf()),
             )?;
         }
     }

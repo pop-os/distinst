@@ -30,5 +30,5 @@ fn generate_dylib_bindings() {
 
 fn main() {
 	// NOTE: Comment this out when developing.
-	generate_dylib_bindings();
+	//generate_dylib_bindings();
 }
