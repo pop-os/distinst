@@ -61,7 +61,7 @@ fn main() {
     if let Err(err) = distinst::log(|_level, message| {
         println!("{}", message);
     }) {
-        println!("Failed to initialize logging: {}", err);
+        eprintln!("Failed to initialize logging: {}", err);
     }
 
     let squashfs = matches.value_of("squashfs").unwrap();
@@ -81,7 +81,7 @@ fn main() {
                     pb.finish_println("");
                 }
 
-                println!("Error: {:?}", error);
+                eprintln!("Error: {:?}", error);
             });
         }
 

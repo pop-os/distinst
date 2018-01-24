@@ -330,8 +330,8 @@ impl Installer {
         remove_pkgs: I,
         mut callback: F,
     ) -> io::Result<()> {
-        info!("distinst: Configuring");
-        let mount_dir = mount_dir.as_ref();
+        let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
+        info!("distinst: Configuring on {}", mount_dir.display());
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
         let configure = configure_dir.path().join("configure.sh");
 
@@ -352,8 +352,8 @@ impl Installer {
         }
 
         {
-            let mut chroot = Chroot::new(mount_dir)?;
-            let configure_chroot = configure.strip_prefix(mount_dir).map_err(|err| {
+            let mut chroot = Chroot::new(&mount_dir)?;
+            let configure_chroot = configure.strip_prefix(&mount_dir).map_err(|err| {
                 io::Error::new(
                     io::ErrorKind::Other,
                     format!("Path::strip_prefix failed: {}", err),

@@ -758,22 +758,23 @@ impl Disks {
 
         // <file system>  <mount point>  <type>  <options>  <dump>  <pass>
         for entry in fs_entries {
-            fstab.reserve_exact(entry.len() + 11);
+            fstab.reserve_exact(entry.len() + 16);
             fstab.push("UUID=");
             fstab.push(&entry.uuid);
-            fstab.push(" ");
+            fstab.push("  ");
             fstab.push(&entry.mount);
-            fstab.push(" ");
+            fstab.push("  ");
             fstab.push(&entry.fs);
-            fstab.push(" ");
+            fstab.push("  ");
             fstab.push(&entry.options);
-            fstab.push(" ");
+            fstab.push("  ");
             fstab.push(if entry.dump { "1" } else { "0" });
-            fstab.push(" ");
+            fstab.push("  ");
             fstab.push(if entry.pass { "1" } else { "0" });
             fstab.push("\n");
         }
 
+        fstab.shrink_to_fit();
         fstab
     }
 }
