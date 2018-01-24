@@ -22,7 +22,7 @@ pub use disk::{
     Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType, Sector,
 };
-pub use mount::{Mount, MountOption};
+pub use mount::{Mount, Mounts, MountOption};
 
 #[doc(hidden)]
 pub use c::*;
@@ -270,7 +270,7 @@ impl Installer {
     }
 
     /// Mount all target paths defined within the provided `disks` configuration.
-    fn mount(disks: &Disks, chroot: &str) -> io::Result<Vec<Mount>> {
+    fn mount(disks: &Disks, chroot: &str) -> io::Result<Mounts> {
         let targets = disks
             .as_ref()
             .iter()
@@ -314,7 +314,7 @@ impl Installer {
             );
         }
 
-        Ok(mounts)
+        Ok(Mounts(mounts))
     }
 
     fn extract<P: AsRef<Path>, F: FnMut(i32)>(
@@ -532,7 +532,7 @@ impl Installer {
             CHROOT_ROOT
         );
         let mount_dir = TempDir::new(CHROOT_ROOT)?;
-        let mounts = Installer::mount(&disks, CHROOT_ROOT)?;
+        let _mounts = Installer::mount(&disks, CHROOT_ROOT)?;
 
         // Extract the Linux image into the new chroot path
         if let Err(err) = Installer::extract(&squashfs, CHROOT_ROOT, |percent| {
@@ -589,12 +589,6 @@ impl Installer {
             };
             self.emit_error(&error);
             return Err(error.err);
-        }
-
-        // Unmount mounts in reverse to prevent unmount issues.
-        for mut mount in mounts.into_iter().rev() {
-            info!("dropping {}", mount.dest().display());
-            drop(mount);
         }
 
         mount_dir.close()?;

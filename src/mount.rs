@@ -14,6 +14,16 @@ use std::process::Command;
 //
 // pub unsafe extern "C" fn umount(target: *const c_char) -> c_int
 
+pub struct Mounts(pub Vec<Mount>);
+
+impl Drop for Mounts {
+    fn drop(&mut self) {
+        for mount in self.0.drain(..).rev() {
+            drop(mount);
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Mount {
     source:  PathBuf,
