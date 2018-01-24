@@ -313,77 +313,72 @@ impl Installer {
         mut callback: F,
     ) -> io::Result<()> {
         let mount_dir = mount_dir.as_ref();
+        let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
+        let configure = configure_dir.path().join("configure.sh");
 
         {
-            let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
-            let configure = configure_dir.path().join("configure.sh");
-
-            {
-                // Write our configuration file to `/tmp/configure.sh`.
-                let mut file = fs::File::create(&configure)?;
-                file.write_all(include_bytes!("configure.sh"))?;
-                file.sync_all()?;
-            }
-
-            {
-                // Write the /etc/fstab file using the target mounts defined in `disks`.
-                let fstab = mount_dir.join("etc/fstab");
-                let mut file = fs::File::create(&fstab)?;
-                file.write_all(FSTAB_HEADER)?;
-                file.write_all(disks.generate_fstab().as_bytes())?;
-                file.sync_all()?;
-            }
-
-            {
-                let mut chroot = Chroot::new(mount_dir)?;
-
-                {
-                    let configure_chroot =
-                        configure.strip_prefix(mount_dir).map_err(|err| {
-                            io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("Path::strip_prefix failed: {}", err),
-                            )
-                        })?;
-
-                    let grub_pkg = match bootloader {
-                        Bootloader::Bios => "grub-pc",
-                        Bootloader::Efi => "grub-efi-amd64-signed",
-                    };
-
-                    let mut args = vec![
-                        // Clear existing environment
-                        "-i".to_string(),
-                        // Set language to config setting
-                        format!("LANG={}", lang),
-                        // Run configure script with bash
-                        "bash".to_string(),
-                        // Path to configure script in chroot
-                        configure_chroot.to_str().unwrap().to_string(),
-                        // Install appropriate grub package
-                        grub_pkg.to_string(),
-                    ];
-
-                    for pkg in remove_pkgs {
-                        // Remove installer packages
-                        args.push(format!("-{}", pkg.as_ref()));
-                    }
-
-                    let status = chroot.command("/usr/bin/env", args.iter())?;
-
-                    if !status.success() {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            format!("configure.sh failed with status: {}", status),
-                        ));
-                    }
-                }
-
-                chroot.unmount(false)?;
-            }
-
-            configure_dir.close()?;
+            // Write our configuration file to `/tmp/configure.sh`.
+            let mut file = fs::File::create(&configure)?;
+            file.write_all(include_bytes!("configure.sh"))?;
+            file.sync_all()?;
         }
+
+        {
+            // Write the /etc/fstab file using the target mounts defined in `disks`.
+            let fstab = mount_dir.join("etc/fstab");
+            let mut file = fs::File::create(&fstab)?;
+            file.write_all(FSTAB_HEADER)?;
+            file.write_all(disks.generate_fstab().as_bytes())?;
+            file.sync_all()?;
+        }
+
+        {
+            let mut chroot = Chroot::new(mount_dir)?;
+
+            let configure_chroot =
+                configure.strip_prefix(mount_dir).map_err(|err| {
+                    io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("Path::strip_prefix failed: {}", err),
+                    )
+                })?;
+
+            let grub_pkg = match bootloader {
+                Bootloader::Bios => "grub-pc",
+                Bootloader::Efi => "grub-efi-amd64-signed",
+            };
+
+            let mut args = vec![
+                // Clear existing environment
+                "-i".to_string(),
+                // Set language to config setting
+                format!("LANG={}", lang),
+                // Run configure script with bash
+                "bash".to_string(),
+                // Path to configure script in chroot
+                configure_chroot.to_str().unwrap().to_string(),
+                // Install appropriate grub package
+                grub_pkg.to_string(),
+            ];
+
+            for pkg in remove_pkgs {
+                // Remove installer packages
+                args.push(format!("-{}", pkg.as_ref()));
+            }
+
+            let status = chroot.command("/usr/bin/env", args.iter())?;
+
+            if !status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("configure.sh failed with status: {}", status),
+                ));
+            }
+
+            chroot.unmount(false)?;
+        }
+
+        configure_dir.close()?;
 
         callback(100);
 
