@@ -3,16 +3,18 @@ mod operations;
 mod partitions;
 mod serial;
 
-use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 use self::mounts::Mounts;
-use self::serial::get_serial_no;
 use self::operations::*;
 pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
+use self::serial::get_serial_no;
+use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
+pub use libparted::PartitionFlag;
+use std::ffi::OsString;
 use std::io;
 use std::iter::FromIterator;
-use std::str;
 use std::path::{Path, PathBuf};
-pub use libparted::PartitionFlag;
+use std::str;
+use std::process::Command;
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
@@ -67,7 +69,7 @@ pub enum DiskError {
     #[fail(display = "unable to remove partition {}: {}", partition, why)]
     PartitionRemove {
         partition: i32,
-        why: io::Error,
+        why:       io::Error,
     },
     #[fail(display = "unable to resize partition")] PartitionResize,
     #[fail(display = "partition table not found on disk")] PartitionTableNotFound,
@@ -82,6 +84,7 @@ pub enum DiskError {
     },
     #[fail(display = "partition exceeds size of disk")] PartitionOOB,
     #[fail(display = "partition resize value is too small")] ResizeTooSmall,
+    #[fail(display = "unable to unmount partition(s): {}", why)] Unmount { why: io::Error }
 }
 
 impl From<DiskError> for io::Error {
@@ -280,8 +283,10 @@ impl Disk {
             Sector::End => self.size - (MIB2 / self.sector_size),
             Sector::Megabyte(size) => (size * 1_000_000) / self.sector_size,
             Sector::Unit(size) => size,
-            Sector::Percent(value) => ((self.size * self.sector_size) / ::std::u16::MAX as u64)
-                * value as u64 / self.sector_size
+            Sector::Percent(value) => {
+                ((self.size * self.sector_size) / ::std::u16::MAX as u64) * value as u64
+                    / self.sector_size
+            }
         }
     }
 
@@ -295,13 +300,54 @@ impl Disk {
             })
     }
 
+    /// Unmounts all partitions on the device
+    pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
+        for partition in self.partitions.iter_mut() {
+            eprintln!("checking if {} needs to be unmounted", partition.device_path.display());
+            if partition.is_swap() {
+                info!("unswapping '{}'", partition.path().display(),);
+
+                let status = Command::new("swapoff").arg(&partition.path()).status()?;
+                if !status.success() {
+                    error!("config.disk: failed to swapoff with status {}", status);
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("swapoff failed with status: {}", status),
+                    ));
+                }
+            } else if let Some(ref mount) = partition.mount_point {
+                info!(
+                    "unmounting {}, which is mounted at {}",
+                    partition.path().display(),
+                    mount.display()
+                );
+
+                let status = Command::new("umount").arg(&partition.path()).status()?;
+                if !status.success() {
+                    error!("config.disk: failed to umount with status {}", status);
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("umount failed with status: {}", status),
+                    ));
+                }
+            }
+
+            partition.mount_point = None;
+        }
+
+        Ok(())
+    }
+
     /// Opens and formats the specified disk with the given partition table.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
+        self.unmount_all_partitions().map_err(|why| DiskError::Unmount { why })?;
+
         open_device(&self.device_path).and_then(|mut device| {
             let kind = match kind {
                 PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
                 PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
             };
+
             PedDisk::new_fresh(&mut device, kind)
                 .map_err(|why| DiskError::DiskFresh { why })
                 .and_then(|mut disk| {
@@ -450,7 +496,8 @@ impl Disk {
         Ok(())
     }
 
-    /// Designates that the specified partition ID should be formatted with the given file system.
+    /// Designates that the specified partition ID should be formatted with the given file
+    /// system.
     pub fn format_partition(
         &mut self,
         partition: i32,
@@ -565,15 +612,15 @@ impl Disk {
 
                         if source.requires_changes(new) {
                             change_partitions.push(PartitionChange {
-                                num: source.number,
-                                start: new.start_sector,
-                                end: new.end_sector,
+                                num:    source.number,
+                                start:  new.start_sector,
+                                end:    new.end_sector,
                                 format: if new.format {
                                     new.filesystem
                                 } else {
                                     None
                                 },
-                                flags: flags_diff(&source.flags, new.flags.clone().into_iter()),
+                                flags:  flags_diff(&source.flags, new.flags.clone().into_iter()),
                             });
                         }
 
@@ -594,10 +641,10 @@ impl Disk {
 
             create_partitions.push(PartitionCreate {
                 start_sector: partition.start_sector,
-                end_sector: partition.end_sector,
-                file_system: partition.filesystem.unwrap(),
-                kind: partition.part_type,
-                flags: partition.flags.clone(),
+                end_sector:   partition.end_sector,
+                file_system:  partition.filesystem.unwrap(),
+                kind:         partition.part_type,
+                flags:        partition.flags.clone(),
             });
         }
 
@@ -644,17 +691,13 @@ impl Disk {
         Ok(())
     }
 
-    pub fn path(&self) -> &Path {
-        &self.device_path
-    }
+    pub fn path(&self) -> &Path { &self.device_path }
 }
 
 pub struct Disks(pub Vec<Disk>);
 
 impl AsRef<[Disk]> for Disks {
-    fn as_ref(& self) -> &[Disk] {
-        &self.0
-    }
+    fn as_ref(&self) -> &[Disk] { &self.0 }
 }
 
 impl Disks {
@@ -730,10 +773,11 @@ impl Disks {
         ))?;
 
         if bootloader == Bootloader::Efi {
-            let efi = self.find_partition(Path::new("/boot/efi")).ok_or(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "EFI partition was not defined",
-            ))?;
+            let efi = self.find_partition(Path::new("/boot/efi"))
+                .ok_or(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "EFI partition was not defined",
+                ))?;
 
             if !efi.1.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
                 return Err(io::Error::new(
@@ -745,19 +789,48 @@ impl Disks {
 
         Ok(())
     }
+
+    /// Generates fstab entries in memory
+    pub fn generate_fstab(&self) -> OsString {
+        let mut fstab = OsString::with_capacity(1024);
+
+        let fs_entries = self.as_ref()
+            .iter()
+            .flat_map(|disk| disk.partitions.iter())
+            .filter_map(|part| part.get_block_info());
+
+        // <file system>  <mount point>  <type>  <options>  <dump>  <pass>
+        for entry in fs_entries {
+            fstab.reserve_exact(entry.len() + 16);
+            fstab.push("UUID=");
+            fstab.push(&entry.uuid);
+            fstab.push("  ");
+            fstab.push(&entry.mount);
+            fstab.push("  ");
+            fstab.push(&entry.fs);
+            fstab.push("  ");
+            fstab.push(&entry.options);
+            fstab.push("  ");
+            fstab.push(if entry.dump { "1" } else { "0" });
+            fstab.push("  ");
+            fstab.push(if entry.pass { "1" } else { "0" });
+            fstab.push("\n");
+        }
+
+        fstab.shrink_to_fit();
+        fstab
+    }
 }
 
 impl IntoIterator for Disks {
     type Item = Disk;
     type IntoIter = ::std::vec::IntoIter<Disk>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
 impl FromIterator<Disk> for Disks {
-    fn from_iter<I: IntoIterator<Item=Disk>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = Disk>>(iter: I) -> Self {
         Disks(iter.into_iter().collect())
     }
 }
@@ -769,82 +842,82 @@ mod tests {
     fn get_default() -> Disks {
         Disks(vec![
             Disk {
-                model_name: "Test Disk".into(),
-                serial: "Test Disk 123".into(),
+                model_name:  "Test Disk".into(),
+                serial:      "Test Disk 123".into(),
                 device_path: "/dev/sdz".into(),
-                size: 1953525168,
+                size:        1953525168,
                 sector_size: 512,
                 device_type: "TEST".into(),
-                table_type: Some(PartitionTable::Gpt),
-                read_only: false,
-                partitions: vec![
+                table_type:  Some(PartitionTable::Gpt),
+                read_only:   false,
+                partitions:  vec![
                     PartitionInfo {
-                        active: true,
-                        busy: true,
-                        is_source: true,
-                        remove: false,
-                        format: false,
-                        device_path: Path::new("/dev/sdz1").to_path_buf(),
-                        flags: vec![],
-                        mount_point: Some(Path::new("/boot/efi").to_path_buf()),
-                        target: Some(Path::new("/boot/efi").to_path_buf()),
+                        active:       true,
+                        busy:         true,
+                        is_source:    true,
+                        remove:       false,
+                        format:       false,
+                        device_path:  Path::new("/dev/sdz1").to_path_buf(),
+                        flags:        vec![],
+                        mount_point:  Some(Path::new("/boot/efi").to_path_buf()),
+                        target:       Some(Path::new("/boot/efi").to_path_buf()),
                         start_sector: 2048,
-                        end_sector: 1026047,
-                        filesystem: Some(FileSystemType::Fat16),
-                        name: None,
-                        number: 1,
-                        part_type: PartitionType::Primary,
+                        end_sector:   1026047,
+                        filesystem:   Some(FileSystemType::Fat16),
+                        name:         None,
+                        number:       1,
+                        part_type:    PartitionType::Primary,
                     },
                     PartitionInfo {
-                        active: true,
-                        busy: true,
-                        is_source: true,
-                        remove: false,
-                        format: false,
-                        device_path: Path::new("/dev/sdz2").to_path_buf(),
-                        flags: vec![],
-                        mount_point: Some(Path::new("/").to_path_buf()),
-                        target: Some(Path::new("/").to_path_buf()),
+                        active:       true,
+                        busy:         true,
+                        is_source:    true,
+                        remove:       false,
+                        format:       false,
+                        device_path:  Path::new("/dev/sdz2").to_path_buf(),
+                        flags:        vec![],
+                        mount_point:  Some(Path::new("/").to_path_buf()),
+                        target:       Some(Path::new("/").to_path_buf()),
                         start_sector: 1026048,
-                        end_sector: 420456447,
-                        filesystem: Some(FileSystemType::Btrfs),
-                        name: Some("Pop!_OS".into()),
-                        number: 2,
-                        part_type: PartitionType::Primary,
+                        end_sector:   420456447,
+                        filesystem:   Some(FileSystemType::Btrfs),
+                        name:         Some("Pop!_OS".into()),
+                        number:       2,
+                        part_type:    PartitionType::Primary,
                     },
                     PartitionInfo {
-                        active: false,
-                        busy: false,
-                        is_source: true,
-                        remove: false,
-                        format: false,
-                        device_path: Path::new("/dev/sdz3").to_path_buf(),
-                        flags: vec![],
-                        mount_point: None,
-                        target: None,
+                        active:       false,
+                        busy:         false,
+                        is_source:    true,
+                        remove:       false,
+                        format:       false,
+                        device_path:  Path::new("/dev/sdz3").to_path_buf(),
+                        flags:        vec![],
+                        mount_point:  None,
+                        target:       None,
                         start_sector: 420456448,
-                        end_sector: 1936738303,
-                        filesystem: Some(FileSystemType::Ext4),
-                        name: Some("Solus OS".into()),
-                        number: 3,
-                        part_type: PartitionType::Primary,
+                        end_sector:   1936738303,
+                        filesystem:   Some(FileSystemType::Ext4),
+                        name:         Some("Solus OS".into()),
+                        number:       3,
+                        part_type:    PartitionType::Primary,
                     },
                     PartitionInfo {
-                        active: true,
-                        busy: false,
-                        is_source: true,
-                        remove: false,
-                        format: false,
-                        device_path: Path::new("/dev/sdz4").to_path_buf(),
-                        flags: vec![],
-                        mount_point: None,
-                        target: None,
+                        active:       true,
+                        busy:         false,
+                        is_source:    true,
+                        remove:       false,
+                        format:       false,
+                        device_path:  Path::new("/dev/sdz4").to_path_buf(),
+                        flags:        vec![],
+                        mount_point:  None,
+                        target:       None,
                         start_sector: 1936738304,
-                        end_sector: 1953523711,
-                        filesystem: Some(FileSystemType::Swap),
-                        name: None,
-                        number: 4,
-                        part_type: PartitionType::Primary,
+                        end_sector:   1953523711,
+                        filesystem:   Some(FileSystemType::Swap),
+                        name:         None,
+                        number:       4,
+                        part_type:    PartitionType::Primary,
                     },
                 ],
             },
@@ -854,15 +927,15 @@ mod tests {
     fn get_empty() -> Disks {
         Disks(vec![
             Disk {
-                model_name: "Test Disk".into(),
-                serial: "Test Disk 123".into(),
+                model_name:  "Test Disk".into(),
+                serial:      "Test Disk 123".into(),
                 device_path: "/dev/sdz".into(),
-                size: 1953525168,
+                size:        1953525168,
                 sector_size: 512,
                 device_type: "TEST".into(),
-                table_type: Some(PartitionTable::Gpt),
-                read_only: false,
-                partitions: Vec::new(),
+                table_type:  Some(PartitionTable::Gpt),
+                read_only:   false,
+                partitions:  Vec::new(),
             },
         ])
     }
@@ -893,31 +966,31 @@ mod tests {
         assert_eq!(
             source.diff(&new).unwrap(),
             DiskOps {
-                device_path: Path::new("/dev/sdz"),
+                device_path:       Path::new("/dev/sdz"),
                 remove_partitions: vec![1, 2, 4],
                 change_partitions: vec![
                     PartitionChange {
-                        num: 3,
-                        start: 420456448,
-                        end: 420456448 + GIB20,
+                        num:    3,
+                        start:  420456448,
+                        end:    420456448 + GIB20,
                         format: Some(FileSystemType::Xfs),
-                        flags: vec![],
+                        flags:  vec![],
                     },
                 ],
                 create_partitions: vec![
                     PartitionCreate {
                         start_sector: 2048,
-                        end_sector: 1024_000 + 2047,
-                        file_system: FileSystemType::Fat16,
-                        kind: PartitionType::Primary,
-                        flags: vec![],
+                        end_sector:   1024_000 + 2047,
+                        file_system:  FileSystemType::Fat16,
+                        kind:         PartitionType::Primary,
+                        flags:        vec![],
                     },
                     PartitionCreate {
                         start_sector: 1026_048,
-                        end_sector: GIB20 + 1026_047,
-                        file_system: FileSystemType::Ext4,
-                        kind: PartitionType::Primary,
-                        flags: vec![],
+                        end_sector:   GIB20 + 1026_047,
+                        file_system:  FileSystemType::Ext4,
+                        kind:         PartitionType::Primary,
+                        flags:        vec![],
                     },
                 ],
             }

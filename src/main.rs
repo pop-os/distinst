@@ -3,8 +3,10 @@ extern crate distinst;
 extern crate pbr;
 
 use clap::{App, Arg};
-use distinst::{Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
-               PartitionFlag, PartitionTable, PartitionType, Sector, Step};
+use distinst::{
+    Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
+    PartitionFlag, PartitionTable, PartitionType, Sector, Step,
+};
 use pbr::ProgressBar;
 
 use std::{io, process};
@@ -59,7 +61,7 @@ fn main() {
     if let Err(err) = distinst::log(|_level, message| {
         println!("{}", message);
     }) {
-        println!("Failed to initialize logging: {}", err);
+        eprintln!("Failed to initialize logging: {}", err);
     }
 
     let squashfs = matches.value_of("squashfs").unwrap();
@@ -79,7 +81,7 @@ fn main() {
                     pb.finish_println("");
                 }
 
-                println!("Error: {:?}", error);
+                eprintln!("Error: {:?}", error);
             });
         }
 
@@ -125,8 +127,8 @@ fn main() {
             Disks(vec![disk]),
             &Config {
                 squashfs: squashfs.to_string(),
-                lang: lang.to_string(),
-                remove: remove.to_string(),
+                lang:     lang.to_string(),
+                remove:   remove.to_string(),
             },
         )
     };
@@ -168,7 +170,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
             disk.mklabel(PartitionTable::Gpt)?;
 
             let mut start = disk.get_sector(Sector::Start);
-            let mut end = disk.get_sector(Sector::Megabyte(512));
+            let mut end = disk.get_sector(Sector::Megabyte(150));
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Fat32)
                     .partition_type(PartitionType::Primary)
@@ -176,7 +178,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
                     .mount(Path::new("/boot/efi").to_path_buf()),
             )?;
 
-            start = disk.get_sector(Sector::Megabyte(512));
+            start = end;
             end = disk.get_sector(Sector::End);
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Ext4)

@@ -22,7 +22,7 @@ impl Mounts {
             }
 
             mounts.push(MountInfo {
-                device: Path::new(&device).to_path_buf(),
+                device:      Path::new(&device).to_path_buf(),
                 mount_point: Path::new(&fields.next().unwrap()).to_path_buf(),
             })
         }
@@ -38,6 +38,6 @@ impl Mounts {
 }
 
 pub struct MountInfo {
-    device: PathBuf,
+    device:      PathBuf,
     mount_point: PathBuf,
 }

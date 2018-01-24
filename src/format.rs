@@ -1,7 +1,7 @@
+use super::FileSystemType;
 use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use super::FileSystemType;
 
 pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
     let part = part.as_ref();
@@ -17,14 +17,14 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
         FileSystemType::Fat32 => ("mkfs.fat", &["-F", "32"]),
         FileSystemType::Ntfs => ("mkfs.ntfs", &["-F", "-q"]),
         FileSystemType::Swap => ("mkswap", &["-f"]),
-        FileSystemType::Xfs => ("mkfs.xfs", &["-f"])
+        FileSystemType::Xfs => ("mkfs.xfs", &["-f"]),
     };
 
     let mut command = Command::new(cmd);
     command.arg(part);
     for arg in args {
-		command.arg(arg);
-	}
+        command.arg(arg);
+    }
 
     debug!("{:?}", command);
 
@@ -37,7 +37,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
     } else {
         Err(Error::new(
             ErrorKind::Other,
-            format!("mkfs for {:?} failed with status: {}", kind, status)
+            format!("mkfs for {:?} failed with status: {}", kind, status),
         ))
     }
 }

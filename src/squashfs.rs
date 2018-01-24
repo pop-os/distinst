@@ -9,7 +9,11 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str;
 
-pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, directory: Q, mut callback: F) -> Result<()> {
+pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
+    squashfs: P,
+    directory: Q,
+    mut callback: F,
+) -> Result<()> {
     let squashfs = squashfs.as_ref().canonicalize()?;
     let directory = directory.as_ref().canonicalize()?;
 
@@ -24,12 +28,14 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, direc
 
     let command = format!(
         "unsquashfs -f -d '{}' '{}'",
-        directory.to_str().ok_or(
-            Error::new(ErrorKind::InvalidData, "Invalid directory path")
-        )?.replace("'", "'\"'\"'"),
-        squashfs.to_str().ok_or(
-            Error::new(ErrorKind::InvalidData, "Invalid squashfs path")
-        )?.replace("'", "'\"'\"'")
+        directory
+            .to_str()
+            .ok_or(Error::new(ErrorKind::InvalidData, "Invalid directory path"))?
+            .replace("'", "'\"'\"'"),
+        squashfs
+            .to_str()
+            .ok_or(Error::new(ErrorKind::InvalidData, "Invalid squashfs path"))?
+            .replace("'", "'\"'\"'")
     );
 
     debug!("{}", command);
@@ -72,7 +78,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(squashfs: P, direc
     } else {
         Err(Error::new(
             ErrorKind::Other,
-            format!("unsquashfs failed with status: {}", status)
+            format!("unsquashfs failed with status: {}", status),
         ))
     }
 }

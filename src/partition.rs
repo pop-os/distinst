@@ -3,7 +3,10 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 use std::process::Command;
 
-pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item=S>>(disk: P, args: I) -> Result<()> {
+pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
+    disk: P,
+    args: I,
+) -> Result<()> {
     let mut command = Command::new("blockdev");
 
     command.args(args);
@@ -17,7 +20,7 @@ pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item=S>>(disk: 
     } else {
         Err(Error::new(
             ErrorKind::Other,
-            format!("blockdev failed with status: {}", status)
+            format!("blockdev failed with status: {}", status),
         ))
     }
 }

@@ -2,10 +2,32 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+// TODO: Maybe create an abstraction for `libc::{m,unm}ount`?
+// use libc::{mount, umount};
+// pub unsafe extern "C" fn mount(
+//     src: *const c_char,
+//     target: *const c_char,
+//     fstype: *const c_char,
+//     flags: c_ulong,
+//     data: *const c_void
+// ) -> c_int
+//
+// pub unsafe extern "C" fn umount(target: *const c_char) -> c_int
+
+pub struct Mounts(pub Vec<Mount>);
+
+impl Drop for Mounts {
+    fn drop(&mut self) {
+        for mount in self.0.drain(..).rev() {
+            drop(mount);
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Mount {
-    source: PathBuf,
-    dest: PathBuf,
+    source:  PathBuf,
+    dest:    PathBuf,
     mounted: bool,
 }
 
@@ -16,7 +38,11 @@ pub enum MountOption {
 }
 
 impl Mount {
-    pub fn new<P: AsRef<Path>, Q: AsRef<Path>>(source: P, dest: Q, options: &[MountOption]) -> Result<Mount> {
+    pub fn new<P: AsRef<Path>, Q: AsRef<Path>>(
+        source: P,
+        dest: Q,
+        options: &[MountOption],
+    ) -> Result<Mount> {
         let source = source.as_ref().canonicalize()?;
         let dest = dest.as_ref().canonicalize()?;
 
@@ -27,7 +53,7 @@ impl Mount {
             match option {
                 MountOption::Bind => {
                     command.arg("--bind");
-                },
+                }
                 MountOption::Synchronize => {
                     option_strings.push("sync");
                 }
@@ -36,7 +62,7 @@ impl Mount {
 
         option_strings.sort();
         option_strings.dedup();
-        if ! option_strings.is_empty() {
+        if !option_strings.is_empty() {
             command.arg("-o");
             command.arg(option_strings.join(","));
         }
@@ -49,14 +75,14 @@ impl Mount {
         let status = command.status()?;
         if status.success() {
             Ok(Mount {
-                source: source,
-                dest: dest,
+                source:  source,
+                dest:    dest,
                 mounted: true,
             })
         } else {
             Err(Error::new(
                 ErrorKind::Other,
-                format!("mount failed with status: {}", status)
+                format!("mount failed with status: {}", status),
             ))
         }
     }
@@ -78,17 +104,17 @@ impl Mount {
             } else {
                 Err(Error::new(
                     ErrorKind::Other,
-                    format!("umount failed with status: {}", status)
+                    format!("umount failed with status: {}", status),
                 ))
             }
         } else {
             Ok(())
         }
     }
+
+    pub fn dest(&self) -> &Path { &self.dest }
 }
 
 impl Drop for Mount {
-    fn drop(&mut self) {
-        let _ = self.unmount(true);
-    }
+    fn drop(&mut self) { let _ = self.unmount(true); }
 }

@@ -1,8 +1,10 @@
-use libparted::{Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry,
-                Partition as PedPartition, PartitionFlag, PartitionType as PedPartitionType};
 use super::*;
-use std::path::Path;
 use format::mkfs;
+use libparted::{
+    Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry, Partition as PedPartition,
+    PartitionFlag, PartitionType as PedPartitionType,
+};
+use std::path::Path;
 
 /// Removes a partition by its ID from the disk.
 fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError> {
@@ -24,7 +26,7 @@ fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a
 /// The first state of disk operations, which provides a method for removing partitions.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DiskOps<'a> {
-    pub(crate) device_path: &'a Path,
+    pub(crate) device_path:       &'a Path,
     pub(crate) remove_partitions: Vec<i32>,
     pub(crate) change_partitions: Vec<PartitionChange>,
     pub(crate) create_partitions: Vec<PartitionCreate>,
@@ -62,7 +64,7 @@ impl<'a> DiskOps<'a> {
 
         sync(&mut device)?;
         Ok(ChangePartitions {
-            device_path: self.device_path,
+            device_path:       self.device_path,
             change_partitions: self.change_partitions,
             create_partitions: self.create_partitions,
         })
@@ -71,7 +73,7 @@ impl<'a> DiskOps<'a> {
 
 /// The second state of disk operations, which provides a method for changing partitions.
 pub(crate) struct ChangePartitions<'a> {
-    device_path: &'a Path,
+    device_path:       &'a Path,
     change_partitions: Vec<PartitionChange>,
     create_partitions: Vec<PartitionCreate>,
 }
@@ -94,7 +96,7 @@ impl<'a> ChangePartitions<'a> {
                         match part.set_flag(*flag, true) {
                             Ok(()) => flags_changed = true,
                             Err(_) => {
-                                info!(
+                                error!(
                                     "unable to set {:?} for {}{}",
                                     flag,
                                     self.device_path.display(),
@@ -172,7 +174,7 @@ impl<'a> ChangePartitions<'a> {
 
         // Proceed to the next state in the machine.
         Ok(CreatePartitions {
-            device_path: self.device_path,
+            device_path:       self.device_path,
             create_partitions: self.create_partitions,
         })
     }
@@ -180,7 +182,7 @@ impl<'a> ChangePartitions<'a> {
 
 /// The final state of disk operations, which provides a method for creating new partitions.
 pub(crate) struct CreatePartitions<'a> {
-    device_path: &'a Path,
+    device_path:       &'a Path,
     create_partitions: Vec<PartitionCreate>,
 }
 
@@ -217,7 +219,7 @@ impl<'a> CreatePartitions<'a> {
                     for &flag in &partition.flags {
                         if part.is_flag_available(flag) {
                             if let Err(_) = part.set_flag(flag, true) {
-                                info!("unable to set {:?}", flag);
+                                error!("unable to set {:?}", flag);
                             }
                         }
                     }
