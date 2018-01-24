@@ -143,8 +143,9 @@ pub unsafe extern "C" fn distinst_partition_builder_new(
         }
     };
 
-    let builder = PartitionBuilder::new(start_sector, end_sector, filesystem);
-    Box::into_raw(Box::new(builder)) as *mut DistinstPartitionBuilder
+    Box::into_raw(Box::new(
+        PartitionBuilder::new(start_sector, end_sector, filesystem)
+    )) as *mut DistinstPartitionBuilder
 }
 
 #[no_mangle]
@@ -161,6 +162,7 @@ unsafe fn builder_action<F: FnOnce(PartitionBuilder) -> PartitionBuilder>(
     builder: *mut DistinstPartitionBuilder,
     action: F,
 ) -> *mut DistinstPartitionBuilder {
+    println!("builder_action {:p}", builder);
     Box::into_raw(Box::new(action(if builder.is_null() {
         panic!("builder_action: builder is null")
     } else {

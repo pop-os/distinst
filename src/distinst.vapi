@@ -81,53 +81,13 @@ namespace Distinst {
         ESP
     }
 
-    [CCode (has_type_id = false)]
-    public struct PartitionFlags {
-        PartitionFlag *flags;
-        size_t length;
-        size_t capacity;
-    }
-
-    [CCode (has_type_id = false)]
-    public struct Partition {
-        bool is_source;
-        bool remove;
-        bool format;
-        bool active;
-        bool busy;
-        int32 number;
-        int64 start_sector;
-        int64 end_sector;
-        PartitionType part_type;
-        FileSystemType filesystem;
-        PartitionFlags flags;
-        string name;
-        string mount_point;
-        string target;
-    }
-
-
-    [CCode (has_type_id = false)]
-    public struct Partitions {
-        Partition *parts;
-        size_t length;
-    }
-
     [CCode (has_type_id = false, unref_function = "")]
     public class PartitionBuilder {
-        uint64 start_sector;
-        uint64 end_sector;
-        FileSystemType filesystem;
-        PartitionType part_type;
-        string name;
-        string target;
-        PartitionFlags flags;
-
         public PartitionBuilder (uint64 start_sector, uint64 end_sector, FileSystemType filesystem);
-        public PartitionBuilder add_flag(PartitionFlag flag);
-        public PartitionBuilder set_mount(string target);
-        public PartitionBuilder set_name(string name);
-        public PartitionBuilder set_partition_type(PartitionType part_type);
+        public PartitionBuilder name(string name);
+        public PartitionBuilder mount(string target);
+        public PartitionBuilder partition_type(PartitionType part_type);
+        public PartitionBuilder flag(PartitionFlag flag);
     }
 
     [CCode (has_type_id = false)]
@@ -153,18 +113,8 @@ namespace Distinst {
 
     [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
     public class Disk {
-        string model_name;
-        string serial;
-        string device_path;
-        string device_type;
-        uint64 sectors;
-        uint64 sector_size;
-        Partitions partitions;
-        PartitionTable table_type;
-        bool read_only;
-
         public Disk (string path);
-        public int add_partition (owned PartitionBuilder partition);
+        public int add_partition (PartitionBuilder partition);
         public int format_partition (int partition, FileSystemType fs);
         public uint64 get_sector (Sector sector);
         public int mklabel (PartitionTable table);
@@ -176,11 +126,7 @@ namespace Distinst {
 
     [CCode (has_type_id = false, destroy_function = "distinst_disks_destroy", free_function = "", unref_function = "")]
     public class Disks {
-        Disk *disks;
-        size_t length;
-
         public Disks ();
-        public static Disks with_capacity(size_t cap);
         public void push(Disk* disk);
     }
 
