@@ -6,7 +6,7 @@ use std::ptr;
 
 use {Disk, Disks, FileSystemType, PartitionBuilder, PartitionTable, Sector};
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
-use c::partition::{DISTINST_PARTITION_TABLE, DistinstPartitionBuilder};
+use c::partition::{DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
 use c::sector::DistinstSector;
 
 #[repr(C)]
@@ -43,10 +43,7 @@ pub unsafe extern "C" fn distinst_disk_destroy(disk: *mut DistinstDisk) {
 
 /// Converts a `DistinstDisk` into a `Disk`, executes a given action with that `Disk`,
 /// then converts it back into a `DistinstDisk`, returning the exit status of the function.
-unsafe fn disk_action<T, F: Fn(&Disk) -> T>(
-    disk: *const DistinstDisk,
-    action: F,
-) -> T {
+unsafe fn disk_action<T, F: Fn(&Disk) -> T>(disk: *const DistinstDisk, action: F) -> T {
     action(if disk.is_null() {
         panic!("disk_action: disk is null")
     } else {
@@ -56,10 +53,7 @@ unsafe fn disk_action<T, F: Fn(&Disk) -> T>(
 
 /// Converts a `DistinstDisk` into a `Disk`, executes a given action with that `Disk`,
 /// then converts it back into a `DistinstDisk`, returning the exit status of the function.
-unsafe fn disk_action_mut<T, F: Fn(&mut Disk) -> T>(
-    disk: *mut DistinstDisk,
-    action: F,
-) -> T {
+unsafe fn disk_action_mut<T, F: Fn(&mut Disk) -> T>(disk: *mut DistinstDisk, action: F) -> T {
     action(if disk.is_null() {
         panic!("disk_action: disk is null")
     } else {
@@ -72,9 +66,7 @@ pub unsafe extern "C" fn distinst_disk_get_sector(
     disk: *const DistinstDisk,
     sector: *const DistinstSector,
 ) -> libc::uint64_t {
-    disk_action(disk, |disk| {
-        disk.get_sector(Sector::from(*sector))
-    })
+    disk_action(disk, |disk| disk.get_sector(Sector::from(*sector)))
 }
 
 #[no_mangle]
@@ -209,9 +201,7 @@ pub struct DistinstDisks;
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
     match Disks::probe_devices() {
-        Ok(disks) => {
-            Box::into_raw(Box::new(disks)) as *mut DistinstDisks
-        }
+        Ok(disks) => Box::into_raw(Box::new(disks)) as *mut DistinstDisks,
         Err(why) => {
             info!("unable to probe devices: {}", why);
             ptr::null_mut()
@@ -220,11 +210,10 @@ pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disks_push(
-    disks: *mut DistinstDisks,
-    disk: *mut DistinstDisk,
-) {
-    (&mut *(disks as *mut Disks)).0.push(*Box::from_raw(disk as *mut Disk))
+pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *mut DistinstDisk) {
+    (&mut *(disks as *mut Disks))
+        .0
+        .push(*Box::from_raw(disk as *mut Disk))
 }
 
 /// The deconstructor for a `DistinstDisks`.

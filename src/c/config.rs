@@ -10,8 +10,8 @@ use Config;
 #[derive(Debug)]
 pub struct DistinstConfig {
     squashfs: *const libc::c_char,
-    lang: *const libc::c_char,
-    remove: *const libc::c_char,
+    lang:     *const libc::c_char,
+    remove:   *const libc::c_char,
 }
 
 impl DistinstConfig {
@@ -60,8 +60,8 @@ impl DistinstConfig {
 
         Ok(Config {
             squashfs: squashfs.to_string(),
-            lang: lang.to_string(),
-            remove: remove.to_string(),
+            lang:     lang.to_string(),
+            remove:   remove.to_string(),
         })
     }
 }

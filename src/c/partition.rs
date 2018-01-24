@@ -143,9 +143,11 @@ pub unsafe extern "C" fn distinst_partition_builder_new(
         }
     };
 
-    Box::into_raw(Box::new(
-        PartitionBuilder::new(start_sector, end_sector, filesystem)
-    )) as *mut DistinstPartitionBuilder
+    Box::into_raw(Box::new(PartitionBuilder::new(
+        start_sector,
+        end_sector,
+        filesystem,
+    ))) as *mut DistinstPartitionBuilder
 }
 
 #[no_mangle]
@@ -183,9 +185,7 @@ pub unsafe extern "C" fn distinst_partition_builder_name(
         }
     };
 
-    builder_action(builder, move |builder| {
-        builder.name(name)
-    })
+    builder_action(builder, move |builder| builder.name(name))
 }
 
 #[no_mangle]
@@ -201,9 +201,7 @@ pub unsafe extern "C" fn distinst_partition_builder_mount(
         }
     };
 
-    builder_action(builder, move |builder| {
-        builder.mount(target)
-    })
+    builder_action(builder, move |builder| builder.mount(target))
 }
 
 #[no_mangle]
@@ -211,9 +209,7 @@ pub unsafe extern "C" fn distinst_partition_builder_partition_type(
     builder: *mut DistinstPartitionBuilder,
     part_type: DISTINST_PARTITION_TYPE,
 ) -> *mut DistinstPartitionBuilder {
-    builder_action(builder, |builder| {
-        builder.partition_type(part_type.into())
-    })
+    builder_action(builder, |builder| builder.partition_type(part_type.into()))
 }
 
 #[no_mangle]
@@ -221,9 +217,7 @@ pub unsafe extern "C" fn distinst_partition_builder_flag(
     builder: *mut DistinstPartitionBuilder,
     flag: DISTINST_PARTITION_FLAG,
 ) -> *mut DistinstPartitionBuilder {
-    builder_action(builder, |builder| {
-        builder.flag(flag.into())
-    })
+    builder_action(builder, |builder| builder.flag(flag.into()))
 }
 
 #[repr(C)]

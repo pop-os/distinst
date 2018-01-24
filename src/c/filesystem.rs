@@ -94,9 +94,7 @@ impl DISTINST_FILE_SYSTEM_TYPE {
             DISTINST_FILE_SYSTEM_TYPE::SWAP => {
                 CStr::from_bytes_with_nul(b"swap\0").unwrap().as_ptr()
             }
-            DISTINST_FILE_SYSTEM_TYPE::XFS => {
-                CStr::from_bytes_with_nul(b"xfs\0").unwrap().as_ptr()
-            },
+            DISTINST_FILE_SYSTEM_TYPE::XFS => CStr::from_bytes_with_nul(b"xfs\0").unwrap().as_ptr(),
         }
     }
 }

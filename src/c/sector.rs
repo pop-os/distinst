@@ -5,7 +5,7 @@ use Sector;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct DistinstSector {
-    flag: DISTINST_SECTOR_KIND,
+    flag:  DISTINST_SECTOR_KIND,
     value: libc::uint64_t,
 }
 
@@ -34,7 +34,7 @@ impl From<DistinstSector> for Sector {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_start() -> DistinstSector {
     DistinstSector {
-        flag: DISTINST_SECTOR_KIND::START,
+        flag:  DISTINST_SECTOR_KIND::START,
         value: 0,
     }
 }
@@ -42,7 +42,7 @@ pub unsafe extern "C" fn distinst_sector_start() -> DistinstSector {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_end() -> DistinstSector {
     DistinstSector {
-        flag: DISTINST_SECTOR_KIND::END,
+        flag:  DISTINST_SECTOR_KIND::END,
         value: 0,
     }
 }
@@ -58,7 +58,7 @@ pub unsafe extern "C" fn distinst_sector_megabyte(value: libc::uint64_t) -> Dist
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_percent(value: libc::uint64_t) -> DistinstSector {
     DistinstSector {
-        flag: DISTINST_SECTOR_KIND::PERCENT,
+        flag:  DISTINST_SECTOR_KIND::PERCENT,
         value: value,
     }
 }

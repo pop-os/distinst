@@ -13,8 +13,8 @@ use std::ffi::OsString;
 use std::io;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
-use std::str;
 use std::process::Command;
+use std::str;
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
@@ -84,7 +84,10 @@ pub enum DiskError {
     },
     #[fail(display = "partition exceeds size of disk")] PartitionOOB,
     #[fail(display = "partition resize value is too small")] ResizeTooSmall,
-    #[fail(display = "unable to unmount partition(s): {}", why)] Unmount { why: io::Error }
+    #[fail(display = "unable to unmount partition(s): {}", why)]
+    Unmount {
+        why: io::Error,
+    },
 }
 
 impl From<DiskError> for io::Error {
@@ -303,7 +306,10 @@ impl Disk {
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
         for partition in self.partitions.iter_mut() {
-            eprintln!("checking if {} needs to be unmounted", partition.device_path.display());
+            eprintln!(
+                "checking if {} needs to be unmounted",
+                partition.device_path.display()
+            );
             if partition.is_swap() {
                 info!("unswapping '{}'", partition.path().display(),);
 
@@ -340,7 +346,8 @@ impl Disk {
 
     /// Opens and formats the specified disk with the given partition table.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
-        self.unmount_all_partitions().map_err(|why| DiskError::Unmount { why })?;
+        self.unmount_all_partitions()
+            .map_err(|why| DiskError::Unmount { why })?;
 
         open_device(&self.device_path).and_then(|mut device| {
             let kind = match kind {

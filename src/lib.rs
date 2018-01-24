@@ -9,20 +9,20 @@ extern crate libparted;
 extern crate log;
 extern crate tempdir;
 
-use tempdir::TempDir;
 use self::partition::blockdev;
 use std::{fs, io};
 use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use tempdir::TempDir;
 
 pub use chroot::Chroot;
 pub use disk::{
     Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType, Sector,
 };
-pub use mount::{Mount, Mounts, MountOption};
+pub use mount::{Mount, MountOption, Mounts};
 
 #[doc(hidden)]
 pub use c::*;

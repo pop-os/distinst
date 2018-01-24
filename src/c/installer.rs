@@ -48,7 +48,7 @@ impl From<Step> for DISTINST_STEP {
 #[derive(Copy, Clone, Debug)]
 pub struct DistinstError {
     step: DISTINST_STEP,
-    err: libc::c_int,
+    err:  libc::c_int,
 }
 
 /// Installer error callback
@@ -59,7 +59,7 @@ pub type DistinstErrorCallback =
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct DistinstStatus {
-    step: DISTINST_STEP,
+    step:    DISTINST_STEP,
     percent: libc::c_int,
 }
 
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn distinst_installer_emit_error(
 ) {
     (*(installer as *mut Installer)).emit_error(&Error {
         step: (*error).step.into(),
-        err: io::Error::from_raw_os_error((*error).err),
+        err:  io::Error::from_raw_os_error((*error).err),
     });
 }
 
@@ -100,7 +100,7 @@ pub unsafe extern "C" fn distinst_installer_on_error(
         callback(
             &DistinstError {
                 step: error.step.into(),
-                err: error.err.raw_os_error().unwrap_or(libc::EIO),
+                err:  error.err.raw_os_error().unwrap_or(libc::EIO),
             } as *const DistinstError,
             user_data,
         )
@@ -114,7 +114,7 @@ pub unsafe extern "C" fn distinst_installer_emit_status(
     status: *const DistinstStatus,
 ) {
     (*(installer as *mut Installer)).emit_status(&Status {
-        step: (*status).step.into(),
+        step:    (*status).step.into(),
         percent: (*status).percent,
     });
 }
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn distinst_installer_on_status(
     (*(installer as *mut Installer)).on_status(move |status| {
         callback(
             &DistinstStatus {
-                step: status.step.into(),
+                step:    status.step.into(),
                 percent: status.percent,
             } as *const DistinstStatus,
             user_data,
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn distinst_installer_install(
             let errno = err.raw_os_error().unwrap_or(libc::EIO);
             (*(installer as *mut Installer)).emit_error(&Error {
                 step: Step::Init,
-                err: err,
+                err:  err,
             });
             errno
         }
