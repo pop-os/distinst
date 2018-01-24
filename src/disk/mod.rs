@@ -14,6 +14,7 @@ use std::io;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use std::str;
+use std::process::Command;
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
@@ -83,6 +84,7 @@ pub enum DiskError {
     },
     #[fail(display = "partition exceeds size of disk")] PartitionOOB,
     #[fail(display = "partition resize value is too small")] ResizeTooSmall,
+    #[fail(display = "unable to unmount partition(s): {}", why)] Unmount { why: io::Error }
 }
 
 impl From<DiskError> for io::Error {
@@ -298,13 +300,54 @@ impl Disk {
             })
     }
 
+    /// Unmounts all partitions on the device
+    pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
+        for partition in self.partitions.iter_mut() {
+            eprintln!("checking if {} needs to be unmounted", partition.device_path.display());
+            if partition.is_swap() {
+                info!("unswapping '{}'", partition.path().display(),);
+
+                let status = Command::new("swapoff").arg(&partition.path()).status()?;
+                if !status.success() {
+                    error!("config.disk: failed to swapoff with status {}", status);
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("swapoff failed with status: {}", status),
+                    ));
+                }
+            } else if let Some(ref mount) = partition.mount_point {
+                info!(
+                    "unmounting {}, which is mounted at {}",
+                    partition.path().display(),
+                    mount.display()
+                );
+
+                let status = Command::new("umount").arg(&partition.path()).status()?;
+                if !status.success() {
+                    error!("config.disk: failed to umount with status {}", status);
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("umount failed with status: {}", status),
+                    ));
+                }
+            }
+
+            partition.mount_point = None;
+        }
+
+        Ok(())
+    }
+
     /// Opens and formats the specified disk with the given partition table.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
+        self.unmount_all_partitions().map_err(|why| DiskError::Unmount { why })?;
+
         open_device(&self.device_path).and_then(|mut device| {
             let kind = match kind {
                 PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
                 PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
             };
+
             PedDisk::new_fresh(&mut device, kind)
                 .map_err(|why| DiskError::DiskFresh { why })
                 .and_then(|mut disk| {

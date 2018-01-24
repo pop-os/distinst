@@ -15,7 +15,6 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 pub use chroot::Chroot;
 pub use disk::{
@@ -194,36 +193,11 @@ impl Installer {
 
         callback(20);
 
-        for partition in disks.0.iter_mut().flat_map(|p| p.partitions.iter_mut()) {
-            if partition.is_swap() {
-                info!("unswapping '{}'", partition.path().display(),);
-
-                let status = Command::new("swapoff").arg(&partition.path()).status()?;
-                if !status.success() {
-                    error!("config.disk: failed to swapoff with status {}", status);
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("swapoff failed with status: {}", status),
-                    ));
-                }
-            } else if let Some(ref mount) = partition.mount_point {
-                info!(
-                    "unmounting {}, which is mounted at {}",
-                    partition.path().display(),
-                    mount.display()
-                );
-
-                let status = Command::new("umount").arg(&partition.path()).status()?;
-                if !status.success() {
-                    error!("config.disk: failed to umount with status {}", status);
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("umount failed with status: {}", status),
-                    ));
-                }
+        for disk in &mut disks.0 {
+            if let Err(why) = disk.unmount_all_partitions() {
+                error!("unable to unmount partitions");
+                return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
             }
-
-            partition.mount_point = None;
         }
 
         callback(80);
