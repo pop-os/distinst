@@ -1,7 +1,7 @@
+use super::FileSystemType;
 use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use super::FileSystemType;
 
 pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
     let part = part.as_ref();

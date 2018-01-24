@@ -5,19 +5,19 @@ use std::process::Command;
 // TODO: Maybe create an abstraction for `libc::{m,unm}ount`?
 // use libc::{mount, umount};
 // pub unsafe extern "C" fn mount(
-//     src: *const c_char, 
-//     target: *const c_char, 
-//     fstype: *const c_char, 
-//     flags: c_ulong, 
+//     src: *const c_char,
+//     target: *const c_char,
+//     fstype: *const c_char,
+//     flags: c_ulong,
 //     data: *const c_void
 // ) -> c_int
-// 
+//
 // pub unsafe extern "C" fn umount(target: *const c_char) -> c_int
 
 #[derive(Debug)]
 pub struct Mount {
-    source: PathBuf,
-    dest: PathBuf,
+    source:  PathBuf,
+    dest:    PathBuf,
     mounted: bool,
 }
 
@@ -65,8 +65,8 @@ impl Mount {
         let status = command.status()?;
         if status.success() {
             Ok(Mount {
-                source: source,
-                dest: dest,
+                source:  source,
+                dest:    dest,
                 mounted: true,
             })
         } else {
@@ -102,13 +102,9 @@ impl Mount {
         }
     }
 
-    pub fn dest(&self) -> &Path {
-        &self.dest
-    }
+    pub fn dest(&self) -> &Path { &self.dest }
 }
 
 impl Drop for Mount {
-    fn drop(&mut self) {
-        let _ = self.unmount(true);
-    }
+    fn drop(&mut self) { let _ = self.unmount(true); }
 }

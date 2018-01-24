@@ -6,12 +6,12 @@ use std::process::{Command, ExitStatus};
 use mount::{Mount, MountOption};
 
 pub struct Chroot {
-    path: PathBuf,
-    dev_mount: Mount,
-    pts_mount: Mount,
+    path:       PathBuf,
+    dev_mount:  Mount,
+    pts_mount:  Mount,
     proc_mount: Mount,
-    run_mount: Mount,
-    sys_mount: Mount,
+    run_mount:  Mount,
+    sys_mount:  Mount,
 }
 
 impl Chroot {
@@ -27,12 +27,12 @@ impl Chroot {
         let run_mount = Mount::new("/run", path.join("run"), &[MountOption::Bind])?;
         let sys_mount = Mount::new("/sys", path.join("sys"), &[MountOption::Bind])?;
         Ok(Chroot {
-            path: path,
-            dev_mount: dev_mount,
-            pts_mount: pts_mount,
+            path:       path,
+            dev_mount:  dev_mount,
+            pts_mount:  pts_mount,
             proc_mount: proc_mount,
-            run_mount: run_mount,
-            sys_mount: sys_mount,
+            run_mount:  run_mount,
+            sys_mount:  sys_mount,
         })
     }
 

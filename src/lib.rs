@@ -10,16 +10,18 @@ extern crate tempdir;
 
 use tempdir::TempDir;
 
-use std::collections::BTreeMap;
 use std::{fs, io};
+use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub use disk::{Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder,
-               PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector};
 pub use chroot::Chroot;
+pub use disk::{
+    Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
+    PartitionInfo, PartitionTable, PartitionType, Sector,
+};
 pub use mount::{Mount, MountOption};
 
 #[doc(hidden)]
@@ -73,27 +75,27 @@ pub enum Step {
 #[derive(Debug)]
 pub struct Config {
     pub squashfs: String,
-    pub lang: String,
-    pub remove: String,
+    pub lang:     String,
+    pub remove:   String,
 }
 
 /// Installer error
 #[derive(Debug)]
 pub struct Error {
     pub step: Step,
-    pub err: io::Error,
+    pub err:  io::Error,
 }
 
 /// Installer status
 #[derive(Copy, Clone, Debug)]
 pub struct Status {
-    pub step: Step,
+    pub step:    Step,
     pub percent: i32,
 }
 
 /// An installer object
 pub struct Installer {
-    error_cb: Option<Box<FnMut(&Error)>>,
+    error_cb:  Option<Box<FnMut(&Error)>>,
     status_cb: Option<Box<FnMut(&Status)>>,
 }
 
@@ -106,7 +108,7 @@ impl Installer {
     /// ```
     pub fn new() -> Installer {
         Installer {
-            error_cb: None,
+            error_cb:  None,
             status_cb: None,
         }
     }
@@ -114,12 +116,12 @@ impl Installer {
     /// Send an error message
     ///
     /// ```
+    /// use distinst::{Error, Installer, Step};
     /// use std::io;
-    /// use distinst::{Installer, Error, Step};
     /// let mut installer = Installer::new();
     /// installer.emit_error(&Error {
     ///     step: Step::Extract,
-    ///     err: io::Error::new(io::ErrorKind::NotFound, "File not found")
+    ///     err:  io::Error::new(io::ErrorKind::NotFound, "File not found"),
     /// });
     /// ```
     pub fn emit_error(&mut self, error: &Error) {
@@ -145,7 +147,7 @@ impl Installer {
     /// use distinst::{Installer, Status, Step};
     /// let mut installer = Installer::new();
     /// installer.emit_status(&Status {
-    ///     step: Step::Extract,
+    ///     step:    Step::Extract,
     ///     percent: 50,
     /// });
     /// ```
@@ -298,7 +300,7 @@ impl Installer {
             );
 
             mounts.push(Mount::new(&device_path, &target_mount, &[])?);
-            
+
             info!(
                 "distinst: mounted {} to {}",
                 device_path.display(),
@@ -474,7 +476,7 @@ impl Installer {
         info!("Installing {:?} with {:?}", config, bootloader);
 
         let mut status = Status {
-            step: Step::Init,
+            step:    Step::Init,
             percent: 0,
         };
         self.emit_status(&status);
@@ -488,7 +490,7 @@ impl Installer {
                 error!("initialize: {}", err);
                 let error = Error {
                     step: status.step,
-                    err: err,
+                    err:  err,
                 };
                 self.emit_error(&error);
                 return Err(error.err);
@@ -507,7 +509,7 @@ impl Installer {
             error!("partition: {}", err);
             let error = Error {
                 step: status.step,
-                err: err,
+                err:  err,
             };
             self.emit_error(&error);
             return Err(error.err);
@@ -534,7 +536,7 @@ impl Installer {
             error!("extract: {}", err);
             let error = Error {
                 step: status.step,
-                err: err,
+                err:  err,
             };
             self.emit_error(&error);
             return Err(error.err);
@@ -559,7 +561,7 @@ impl Installer {
             error!("configure: {}", err);
             let error = Error {
                 step: status.step,
-                err: err,
+                err:  err,
             };
             self.emit_error(&error);
             return Err(error.err);
@@ -577,7 +579,7 @@ impl Installer {
             error!("bootloader: {}", err);
             let error = Error {
                 step: status.step,
-                err: err,
+                err:  err,
             };
             self.emit_error(&error);
             return Err(error.err);

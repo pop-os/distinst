@@ -1,5 +1,5 @@
-use libparted::{Partition, PartitionFlag};
 use super::Mounts;
+use libparted::{Partition, PartitionFlag};
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -77,12 +77,12 @@ pub enum PartitionType {
 /// Partition builders are supplied as inputs to `Disk::add_partition`.
 pub struct PartitionBuilder {
     pub(crate) start_sector: u64,
-    pub(crate) end_sector: u64,
-    pub(crate) filesystem: FileSystemType,
-    pub(crate) part_type: PartitionType,
-    pub(crate) name: Option<String>,
-    pub(crate) flags: Vec<PartitionFlag>,
-    pub(crate) mount: Option<PathBuf>,
+    pub(crate) end_sector:   u64,
+    pub(crate) filesystem:   FileSystemType,
+    pub(crate) part_type:    PartitionType,
+    pub(crate) name:         Option<String>,
+    pub(crate) flags:        Vec<PartitionFlag>,
+    pub(crate) mount:        Option<PathBuf>,
 }
 
 impl PartitionBuilder {
@@ -90,12 +90,12 @@ impl PartitionBuilder {
     pub fn new(start: u64, end: u64, fs: FileSystemType) -> PartitionBuilder {
         PartitionBuilder {
             start_sector: start,
-            end_sector: end - 1,
-            filesystem: fs,
-            part_type: PartitionType::Primary,
-            name: None,
-            flags: Vec::new(),
-            mount: None,
+            end_sector:   end - 1,
+            filesystem:   fs,
+            part_type:    PartitionType::Primary,
+            name:         None,
+            flags:        Vec::new(),
+            mount:        None,
         }
     }
 
@@ -121,21 +121,21 @@ impl PartitionBuilder {
 
     pub fn build(self) -> PartitionInfo {
         PartitionInfo {
-            is_source: false,
-            remove: false,
-            format: true,
-            active: false,
-            busy: false,
-            number: -1,
+            is_source:    false,
+            remove:       false,
+            format:       true,
+            active:       false,
+            busy:         false,
+            number:       -1,
             start_sector: self.start_sector,
-            end_sector: self.end_sector,
-            part_type: self.part_type,
-            filesystem: Some(self.filesystem),
-            flags: self.flags,
-            name: self.name,
-            device_path: PathBuf::new(),
-            mount_point: None,
-            target: self.mount,
+            end_sector:   self.end_sector,
+            part_type:    self.part_type,
+            filesystem:   Some(self.filesystem),
+            flags:        self.flags,
+            name:         self.name,
+            device_path:  PathBuf::new(),
+            mount_point:  None,
+            target:       self.mount,
         }
     }
 }
@@ -145,7 +145,8 @@ impl PartitionBuilder {
 /// Contains relevant information about a certain partition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PartitionInfo {
-    /// If set to true, this is a source partition, which means it currently exists on the disk.
+    /// If set to true, this is a source partition, which means it currently exists on the
+    /// disk.
     pub(crate) is_source: bool,
     /// Source partitions will set this field. If set, this partition will be removed.
     pub(crate) remove: bool,
@@ -185,12 +186,12 @@ pub struct PartitionInfo {
 
 /// Information that will be used to generate a fstab entry for the given partition.
 pub(crate) struct BlockInfo {
-    pub uuid: OsString,
-    pub mount: PathBuf,
-    pub fs: &'static str,
+    pub uuid:    OsString,
+    pub mount:   PathBuf,
+    pub fs:      &'static str,
     pub options: String,
-    pub dump: bool,
-    pub pass: bool,
+    pub dump:    bool,
+    pub pass:    bool,
 }
 
 impl BlockInfo {
@@ -241,9 +242,7 @@ impl PartitionInfo {
             .map_or(false, |fs| fs == FileSystemType::Swap)
     }
 
-    pub fn path(&self) -> &Path {
-        &self.device_path
-    }
+    pub fn path(&self) -> &Path { &self.device_path }
 
     pub(crate) fn requires_changes(&self, other: &PartitionInfo) -> bool {
         self.sectors_differ_from(other) || self.filesystem != other.filesystem
@@ -257,9 +256,7 @@ impl PartitionInfo {
         self.is_source && other.is_source && self.number == other.number
     }
 
-    pub fn set_mount(&mut self, target: PathBuf) {
-        self.target = Some(target);
-    }
+    pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
         if self.target.is_none() || self.filesystem.is_none() {
@@ -273,15 +270,15 @@ impl PartitionInfo {
             if &uuid_entry.path().canonicalize().unwrap() == &self.device_path {
                 let fs = self.filesystem.unwrap();
                 return Some(BlockInfo {
-                    uuid: uuid_entry.file_name(),
-                    mount: self.target.clone().unwrap(),
-                    fs: match fs.into() {
+                    uuid:    uuid_entry.file_name(),
+                    mount:   self.target.clone().unwrap(),
+                    fs:      match fs.into() {
                         "fat16" | "fat32" => "vfat",
                         fs => fs,
                     },
                     options: fs.get_preferred_options().into(),
-                    dump: false,
-                    pass: false,
+                    dump:    false,
+                    pass:    false,
                 });
             }
         }

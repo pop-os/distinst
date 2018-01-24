@@ -3,8 +3,10 @@ extern crate distinst;
 extern crate pbr;
 
 use clap::{App, Arg};
-use distinst::{Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer,
-               PartitionBuilder, PartitionFlag, PartitionTable, PartitionType, Sector, Step};
+use distinst::{
+    Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
+    PartitionFlag, PartitionTable, PartitionType, Sector, Step,
+};
 use pbr::ProgressBar;
 
 use std::{io, process};
@@ -125,8 +127,8 @@ fn main() {
             Disks(vec![disk]),
             &Config {
                 squashfs: squashfs.to_string(),
-                lang: lang.to_string(),
-                remove: remove.to_string(),
+                lang:     lang.to_string(),
+                remove:   remove.to_string(),
             },
         )
     };
