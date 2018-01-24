@@ -246,6 +246,7 @@ impl Installer {
         Ok(())
     }
 
+    /// Mount all target paths defined within the provided `disks` configuration.
     fn mount(disks: &Disks, chroot: &str) -> io::Result<Vec<Mount>> {
         let targets = disks.as_ref().iter()
             .flat_map(|disk| disk.partitions.iter())
@@ -293,100 +294,76 @@ impl Installer {
         Ok(())
     }
 
-    fn configure<S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
-        disks: &mut Disks,
+    fn configure<P: AsRef<Path>, S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
+        mount_dir: P,
         bootloader: Bootloader,
         lang: &str,
         remove_pkgs: I,
         mut callback: F,
     ) -> io::Result<()> {
-        let ((_root_dev, root_part), efi_opt) = disks.get_base_partitions(bootloader);
-        let mount_dir = TempDir::new("distinst")?;
+        let mount_dir = mount_dir.as_ref();
 
         {
-            let root_dev = root_part.path();
-            let mut mount = Mount::new(&root_dev, mount_dir.path(), &[])?;
-
-            let mut efi_mount_opt = match efi_opt {
-                Some((_, efi)) => {
-                    let efi_path = mount_dir.path().join("boot").join("efi");
-                    fs::create_dir_all(&efi_path)?;
-                    let efi_dev = efi.path();
-                    Some(Mount::new(&efi_dev, &efi_path, &[])?)
-                }
-                None => None,
-            };
+            let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
 
             {
-                let configure_dir = TempDir::new_in(mount_dir.path().join("tmp"), "distinst")?;
+                let configure = configure_dir.path().join("configure.sh");
 
                 {
-                    let configure = configure_dir.path().join("configure.sh");
-
-                    {
-                        let mut file = fs::File::create(&configure)?;
-                        file.write_all(include_bytes!("configure.sh"))?;
-                        file.sync_all()?;
-                    }
-
-                    let mut chroot = Chroot::new(mount_dir.path())?;
-
-                    {
-                        let configure_chroot =
-                            configure.strip_prefix(mount_dir.path()).map_err(|err| {
-                                io::Error::new(
-                                    io::ErrorKind::Other,
-                                    format!("Path::strip_prefix failed: {}", err),
-                                )
-                            })?;
-
-                        let grub_pkg = match bootloader {
-                            Bootloader::Bios => "grub-pc",
-                            Bootloader::Efi => "grub-efi-amd64-signed",
-                        };
-
-                        let mut args = vec![
-                            // Clear existing environment
-                            "-i".to_string(),
-                            // Set language to config setting
-                            format!("LANG={}", lang),
-                            // Run configure script with bash
-                            "bash".to_string(),
-                            // Path to configure script in chroot
-                            configure_chroot.to_str().unwrap().to_string(),
-                            // Install appropriate grub package
-                            grub_pkg.to_string(),
-                        ];
-
-                        for pkg in remove_pkgs {
-                            // Remove installer packages
-                            args.push(format!("-{}", pkg.as_ref()));
-                        }
-
-                        let status = chroot.command("/usr/bin/env", args.iter())?;
-
-                        if !status.success() {
-                            return Err(io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("configure.sh failed with status: {}", status),
-                            ));
-                        }
-                    }
-
-                    chroot.unmount(false)?;
+                    let mut file = fs::File::create(&configure)?;
+                    file.write_all(include_bytes!("configure.sh"))?;
+                    file.sync_all()?;
                 }
 
-                configure_dir.close()?;
+                let mut chroot = Chroot::new(mount_dir)?;
+
+                {
+                    let configure_chroot =
+                        configure.strip_prefix(mount_dir).map_err(|err| {
+                            io::Error::new(
+                                io::ErrorKind::Other,
+                                format!("Path::strip_prefix failed: {}", err),
+                            )
+                        })?;
+
+                    let grub_pkg = match bootloader {
+                        Bootloader::Bios => "grub-pc",
+                        Bootloader::Efi => "grub-efi-amd64-signed",
+                    };
+
+                    let mut args = vec![
+                        // Clear existing environment
+                        "-i".to_string(),
+                        // Set language to config setting
+                        format!("LANG={}", lang),
+                        // Run configure script with bash
+                        "bash".to_string(),
+                        // Path to configure script in chroot
+                        configure_chroot.to_str().unwrap().to_string(),
+                        // Install appropriate grub package
+                        grub_pkg.to_string(),
+                    ];
+
+                    for pkg in remove_pkgs {
+                        // Remove installer packages
+                        args.push(format!("-{}", pkg.as_ref()));
+                    }
+
+                    let status = chroot.command("/usr/bin/env", args.iter())?;
+
+                    if !status.success() {
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("configure.sh failed with status: {}", status),
+                        ));
+                    }
+                }
+
+                chroot.unmount(false)?;
             }
 
-            if let Some(mut efi_mount) = efi_mount_opt.take() {
-                efi_mount.unmount(false)?;
-            }
-
-            mount.unmount(false)?;
+            configure_dir.close()?;
         }
-
-        mount_dir.close()?;
 
         callback(100);
 
@@ -535,7 +512,7 @@ impl Installer {
 
         // Configure the new install, using the extracted image as a base.
         if let Err(err) = Installer::configure(
-            &mut disks,
+            CHROOT_ROOT,
             bootloader,
             &config.lang,
             &remove_pkgs,
