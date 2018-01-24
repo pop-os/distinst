@@ -281,8 +281,10 @@ impl Disk {
             Sector::End => self.size - (MIB2 / self.sector_size),
             Sector::Megabyte(size) => (size * 1_000_000) / self.sector_size,
             Sector::Unit(size) => size,
-            Sector::Percent(value) => ((self.size * self.sector_size) / ::std::u16::MAX as u64)
-                * value as u64 / self.sector_size
+            Sector::Percent(value) => {
+                ((self.size * self.sector_size) / ::std::u16::MAX as u64) * value as u64
+                    / self.sector_size
+            }
         }
     }
 
@@ -653,7 +655,7 @@ impl Disk {
 pub struct Disks(pub Vec<Disk>);
 
 impl AsRef<[Disk]> for Disks {
-    fn as_ref(& self) -> &[Disk] {
+    fn as_ref(&self) -> &[Disk] {
         &self.0
     }
 }
@@ -731,10 +733,11 @@ impl Disks {
         ))?;
 
         if bootloader == Bootloader::Efi {
-            let efi = self.find_partition(Path::new("/boot/efi")).ok_or(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "EFI partition was not defined",
-            ))?;
+            let efi = self.find_partition(Path::new("/boot/efi"))
+                .ok_or(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "EFI partition was not defined",
+                ))?;
 
             if !efi.1.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
                 return Err(io::Error::new(
@@ -751,14 +754,15 @@ impl Disks {
     pub fn generate_fstab(&self) -> OsString {
         let mut fstab = OsString::with_capacity(1024);
 
-        let fs_entries = self.as_ref().iter()
+        let fs_entries = self.as_ref()
+            .iter()
             .flat_map(|disk| disk.partitions.iter())
             .filter_map(|part| part.get_block_info());
 
         // <file system>  <mount point>  <type>  <options>  <dump>  <pass>
         for entry in fs_entries {
             fstab.reserve_exact(entry.len() + 11);
-            fstab.push("UUID=")
+            fstab.push("UUID=");
             fstab.push(&entry.uuid);
             fstab.push(" ");
             fstab.push(&entry.mount);
@@ -787,7 +791,7 @@ impl IntoIterator for Disks {
 }
 
 impl FromIterator<Disk> for Disks {
-    fn from_iter<I: IntoIterator<Item=Disk>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = Disk>>(iter: I) -> Self {
         Disks(iter.into_iter().collect())
     }
 }

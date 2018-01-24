@@ -18,7 +18,11 @@ pub enum MountOption {
 }
 
 impl Mount {
-    pub fn new<P: AsRef<Path>, Q: AsRef<Path>>(source: P, dest: Q, options: &[MountOption]) -> Result<Mount> {
+    pub fn new<P: AsRef<Path>, Q: AsRef<Path>>(
+        source: P,
+        dest: Q,
+        options: &[MountOption],
+    ) -> Result<Mount> {
         let source = source.as_ref().canonicalize()?;
         let dest = dest.as_ref().canonicalize()?;
 
@@ -29,7 +33,7 @@ impl Mount {
             match option {
                 MountOption::Bind => {
                     command.arg("--bind");
-                },
+                }
                 MountOption::Synchronize => {
                     option_strings.push("sync");
                 }
@@ -38,7 +42,7 @@ impl Mount {
 
         option_strings.sort();
         option_strings.dedup();
-        if ! option_strings.is_empty() {
+        if !option_strings.is_empty() {
             command.arg("-o");
             command.arg(option_strings.join(","));
         }
@@ -58,7 +62,7 @@ impl Mount {
         } else {
             Err(Error::new(
                 ErrorKind::Other,
-                format!("mount failed with status: {}", status)
+                format!("mount failed with status: {}", status),
             ))
         }
     }
@@ -80,7 +84,7 @@ impl Mount {
             } else {
                 Err(Error::new(
                     ErrorKind::Other,
-                    format!("umount failed with status: {}", status)
+                    format!("umount failed with status: {}", status),
                 ))
             }
         } else {

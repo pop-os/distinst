@@ -24,7 +24,7 @@ impl FileSystemType {
     fn get_preferred_options(&self) -> &'static str {
         match *self {
             FileSystemType::Ext4 => "noatime,errors=remount-ro",
-            _ => "default"
+            _ => "default",
         }
     }
 }
@@ -185,22 +185,18 @@ pub struct PartitionInfo {
 
 /// Information that will be used to generate a fstab entry for the given partition.
 pub(crate) struct BlockInfo {
-   pub uuid: OsString,
-   pub mount: PathBuf,
-   pub fs: &'static str,
-   pub options: String,
-   pub dump: bool,
-   pub pass: bool 
+    pub uuid: OsString,
+    pub mount: PathBuf,
+    pub fs: &'static str,
+    pub options: String,
+    pub dump: bool,
+    pub pass: bool,
 }
 
 impl BlockInfo {
     /// The size of the data contained within.
     pub fn len(&self) -> usize {
-        self.uuid.len()
-            + self.mount.as_os_str().len()
-            + self.fs.len()
-            + self.options.len()
-            + 2
+        self.uuid.len() + self.mount.as_os_str().len() + self.fs.len() + self.options.len() + 2
     }
 }
 
@@ -270,8 +266,8 @@ impl PartitionInfo {
             return None;
         }
 
-        let uuid_dir = ::std::fs::read_dir("/dev/disk/by-uuid")
-            .expect("unable to find /dev/disk/by-uuid");
+        let uuid_dir =
+            ::std::fs::read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
 
         for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
             if &uuid_entry.path().canonicalize().unwrap() == &self.device_path {
@@ -283,11 +279,14 @@ impl PartitionInfo {
                     options: fs.get_preferred_options().into(),
                     dump: false,
                     pass: false,
-                })
+                });
             }
         }
 
-        error!("{}: no UUID associated with device", self.device_path.display());
+        error!(
+            "{}: no UUID associated with device",
+            self.device_path.display()
+        );
         None
     }
 }

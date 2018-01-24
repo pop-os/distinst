@@ -1,6 +1,6 @@
 extern crate libc;
 
-use self::libc::{size_t, uint64_t, uint8_t, uint16_t};
+use self::libc::{size_t, uint16_t, uint64_t, uint8_t};
 use std::ffi::{CStr, CString, OsStr};
 use std::io;
 use std::mem;

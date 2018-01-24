@@ -1,14 +1,12 @@
-use log::{Log, LogLevel, LogRecord, LogMetadata};
+use log::{Log, LogLevel, LogMetadata, LogRecord};
 
 pub struct Logger<F: Fn(LogLevel, &str) + Send + Sync> {
-    callback: F
+    callback: F,
 }
 
 impl<F: Fn(LogLevel, &str) + Send + Sync> Logger<F> {
     pub fn new(callback: F) -> Logger<F> {
-        Logger {
-            callback: callback
-        }
+        Logger { callback: callback }
     }
 }
 

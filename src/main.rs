@@ -3,8 +3,8 @@ extern crate distinst;
 extern crate pbr;
 
 use clap::{App, Arg};
-use distinst::{Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
-               PartitionFlag, PartitionTable, PartitionType, Sector, Step};
+use distinst::{Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer,
+               PartitionBuilder, PartitionFlag, PartitionTable, PartitionType, Sector, Step};
 use pbr::ProgressBar;
 
 use std::{io, process};

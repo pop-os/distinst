@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use partition::blockdev;
-pub use disk::{Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
-               PartitionInfo, PartitionTable, PartitionType, Sector};
+pub use disk::{Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder,
+               PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector};
 pub use chroot::Chroot;
 pub use mount::{Mount, MountOption};
 
@@ -95,7 +95,7 @@ pub struct Status {
 /// An installer object
 pub struct Installer {
     error_cb: Option<Box<FnMut(&Error)>>,
-    status_cb: Option<Box<FnMut(&Status)>>
+    status_cb: Option<Box<FnMut(&Status)>>,
 }
 
 impl Installer {
@@ -258,7 +258,9 @@ impl Installer {
 
     /// Mount all target paths defined within the provided `disks` configuration.
     fn mount(disks: &Disks, chroot: &str) -> io::Result<Vec<Mount>> {
-        let targets = disks.as_ref().iter()
+        let targets = disks
+            .as_ref()
+            .iter()
             .flat_map(|disk| disk.partitions.iter())
             .filter(|part| !part.target.is_none());
 
@@ -273,7 +275,13 @@ impl Installer {
             // NOTE: It is assumed that the target is an absolute path.
             let target_mount = [
                 chroot,
-                target.target.as_ref().unwrap().to_string_lossy().to_string().as_str()
+                target
+                    .target
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string()
+                    .as_str(),
             ].concat();
 
             mounts.push(Mount::new(&target.device_path, &target_mount, &[])?);
@@ -287,17 +295,14 @@ impl Installer {
         }
 
         Ok(mounts)
-    } 
+    }
 
     fn extract<P: AsRef<Path>, F: FnMut(i32)>(
         squashfs: P,
         mount_dir: &'static str,
         callback: F,
     ) -> io::Result<()> {
-        info!(
-            "distinst: Extracting {}",
-            squashfs.as_ref().display()
-        );
+        info!("distinst: Extracting {}", squashfs.as_ref().display());
 
         squashfs::extract(squashfs, mount_dir, callback)?;
 
@@ -335,13 +340,12 @@ impl Installer {
         {
             let mut chroot = Chroot::new(mount_dir)?;
 
-            let configure_chroot =
-                configure.strip_prefix(mount_dir).map_err(|err| {
-                    io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("Path::strip_prefix failed: {}", err),
-                    )
-                })?;
+            let configure_chroot = configure.strip_prefix(mount_dir).map_err(|err| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Path::strip_prefix failed: {}", err),
+                )
+            })?;
 
             let grub_pkg = match bootloader {
                 Bootloader::Bios => "grub-pc",
