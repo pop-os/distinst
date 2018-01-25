@@ -6,7 +6,10 @@ mod swaps;
 
 use self::mounts::Mounts;
 use self::operations::*;
-pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionSizeError, PartitionType};
+pub use self::partitions::{
+    check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionSizeError,
+    PartitionType,
+};
 use self::serial::get_serial_no;
 pub use self::swaps::Swaps;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
@@ -75,13 +78,15 @@ pub enum DiskError {
     },
     #[fail(display = "unable to resize partition")] PartitionResize,
     #[fail(display = "partition table not found on disk")] PartitionTableNotFound,
-    #[fail(display = "partition was too large (size: {}, max: {}", size, max)] PartitionTooLarge {
+    #[fail(display = "partition was too large (size: {}, max: {}", size, max)]
+    PartitionTooLarge {
         size: u64,
-        max: u64,
+        max:  u64,
     },
-    #[fail(display = "partition was too small (size: {}, min: {})", size, min)] PartitionTooSmall {
+    #[fail(display = "partition was too small (size: {}, min: {})", size, min)]
+    PartitionTooSmall {
         size: u64,
-        min: u64,
+        min:  u64,
     },
     #[fail(display = "too many primary partitions in MSDOS partition table")]
     PrimaryPartitionsExceeded,
@@ -216,7 +221,11 @@ impl Disk {
     fn new(device: &mut Device) -> Result<Disk, DiskError> {
         let model_name = device.model().into();
         let device_path = device.path().to_owned();
-        let serial = get_serial_no(&device_path).map_err(|why| DiskError::SerialGet { why })?;
+        let serial = match device.type_() {
+            // Encrypted devices do not have serial numbers
+            DeviceType::PED_DEVICE_DM => "".into(),
+            _ => get_serial_no(&device_path).map_err(|why| DiskError::SerialGet { why })?,
+        };
         let size = device.length();
         let sector_size = device.sector_size();
         let device_type = format!("{:?}", device.type_());
@@ -404,7 +413,7 @@ impl Disk {
         let fs = builder.filesystem;
         let partition = builder.build();
         check_partition_size(partition.sectors() * self.sector_size, fs)?;
-        
+
         self.partitions.push(partition);
 
         Ok(())
