@@ -186,6 +186,9 @@ pub struct Disk {
     pub table_type: Option<PartitionTable>,
     /// Whether the device is currently in a read-only state.
     pub read_only: bool,
+    /// Defines whether the device should be wiped or not. The `table_type`
+    /// field will be used to determine which table to write to the disk.
+    pub mklabel: bool,
     /// The partitions that are stored on the device.
     pub partitions: Vec<PartitionInfo>,
 }
@@ -224,6 +227,7 @@ impl Disk {
             device_type,
             read_only,
             table_type,
+            mklabel: false,
             partitions: if table_type.is_some() {
                 let mut partitions = Vec::new();
                 for part in disk.parts() {
@@ -330,26 +334,10 @@ impl Disk {
         self.unmount_all_partitions()
             .map_err(|why| DiskError::Unmount { why })?;
 
-        open_device(&self.device_path).and_then(|mut device| {
-            let kind = match kind {
-                PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
-                PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
-            };
-
-            PedDisk::new_fresh(&mut device, kind)
-                .map_err(|why| DiskError::DiskFresh { why })
-                .and_then(|mut disk| {
-                    commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
-                })
-        })?;
-
-        info!(
-            "distinst: overwrote partition table on {} with a {:?} table",
-            self.device_path.display(),
-            kind
-        );
-
-        self.reload()
+        self.partitions.clear();
+        self.mklabel = true;
+        self.table_type = Some(kind);
+        Ok(())
     }
 
     /// Adds a partition to the partition scheme.
@@ -550,13 +538,15 @@ impl Disk {
 
     /// Returns an error if the new disk does not contain the same source partitions.
     fn validate_layout(&self, new: &Disk) -> Result<(), DiskError> {
-        let mut new_parts = new.partitions.iter();
-        for source in &self.partitions {
-            match new_parts.next() {
-                Some(new) => if !source.is_same_partition_as(new) {
-                    return Err(DiskError::LayoutChanged);
-                },
-                None => return Err(DiskError::LayoutChanged),
+        if !new.mklabel {
+            let mut new_parts = new.partitions.iter();
+            for source in &self.partitions {
+                match new_parts.next() {
+                    Some(new) => if !source.is_same_partition_as(new) {
+                        return Err(DiskError::LayoutChanged);
+                    },
+                    None => return Err(DiskError::LayoutChanged),
+                }
             }
         }
 
@@ -568,6 +558,9 @@ impl Disk {
     /// An error can occur if the layout of the new disk conflicts with the source.
     fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
         self.validate_layout(new)?;
+
+        let mklabel =
+            if self.mklabel { self.table_type } else { None };
 
         let mut remove_partitions = Vec::new();
         let mut change_partitions = Vec::new();
@@ -583,43 +576,52 @@ impl Disk {
             flags.filter(|f| !source.contains(f)).collect()
         }
 
-        'outer: for source in &self.partitions {
-            loop {
-                let mut next_part = new_part.take().or_else(|| new_parts.next());
-                if let Some(new) = next_part {
-                    // Source partitions may be removed or changed.
-                    if new.is_source {
-                        if source.number != new.number {
-                            unreachable!("layout validation: wrong number");
-                        }
+        let mklabel = if new.mklabel {
+            self.table_type
+        } else {
+            'outer: for source in &self.partitions {
+                loop {
+                    let mut next_part = new_part.take().or_else(|| new_parts.next());
+                    if let Some(new) = next_part {
+                        // Source partitions may be removed or changed.
+                        if new.is_source {
+                            if source.number != new.number {
+                                unreachable!("layout validation: wrong number");
+                            }
 
-                        if new.remove {
-                            remove_partitions.push(new.number);
+                            if new.remove {
+                                remove_partitions.push(new.number);
+                                continue 'outer;
+                            }
+
+                            if source.requires_changes(new) {
+                                change_partitions.push(PartitionChange {
+                                    num:    source.number,
+                                    start:  new.start_sector,
+                                    end:    new.end_sector,
+                                    format: if new.format {
+                                        new.filesystem
+                                    } else {
+                                        None
+                                    },
+                                    flags:  flags_diff(
+                                        &source.flags,
+                                        new.flags.clone().into_iter(),
+                                    ),
+                                });
+                            }
+
                             continue 'outer;
+                        } else {
+                            // Non-source partitions should not be discovered at this stage.
+                            unreachable!("layout validation: less sources");
                         }
-
-                        if source.requires_changes(new) {
-                            change_partitions.push(PartitionChange {
-                                num:    source.number,
-                                start:  new.start_sector,
-                                end:    new.end_sector,
-                                format: if new.format {
-                                    new.filesystem
-                                } else {
-                                    None
-                                },
-                                flags:  flags_diff(&source.flags, new.flags.clone().into_iter()),
-                            });
-                        }
-
-                        continue 'outer;
-                    } else {
-                        // Non-source partitions should not be discovered at this stage.
-                        unreachable!("layout validation: less sources");
                     }
                 }
             }
-        }
+
+            None
+        };
 
         // Handle all of the non-source partitions, which are to be added to the disk.
         for partition in new_parts {
@@ -637,6 +639,7 @@ impl Disk {
         }
 
         Ok(DiskOps {
+            mklabel,
             device_path: &self.device_path,
             remove_partitions,
             change_partitions,

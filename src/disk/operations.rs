@@ -23,9 +23,28 @@ fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a
         })
 }
 
+/// Writes a new partition table to the disk, clobbering it in the process.
+fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), DiskError> {
+    open_device(&device_path).and_then(|mut device| {
+        let kind = match kind {
+            PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
+            PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
+        };
+
+        PedDisk::new_fresh(&mut device, kind)
+            .map_err(|why| DiskError::DiskFresh { why })
+            .and_then(|mut disk| {
+                commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
+            })
+    })?;
+
+    Ok(())
+}
+
 /// The first state of disk operations, which provides a method for removing partitions.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DiskOps<'a> {
+    pub(crate) mklabel:           Option<PartitionTable>,
     pub(crate) device_path:       &'a Path,
     pub(crate) remove_partitions: Vec<i32>,
     pub(crate) change_partitions: Vec<PartitionChange>,
@@ -34,6 +53,10 @@ pub(crate) struct DiskOps<'a> {
 
 impl<'a> DiskOps<'a> {
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
+        if let Some(table) = self.mklabel {
+            mklabel(self.device_path, table)?;
+        }
+
         let mut device = open_device(self.device_path)?;
 
         {
