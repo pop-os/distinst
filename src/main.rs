@@ -72,7 +72,7 @@ fn main() {
     let pb_opt: Rc<RefCell<Option<ProgressBar<io::Stdout>>>> = Rc::new(RefCell::new(None));
 
     let res = {
-        let mut installer = Installer::new();
+        let mut installer = Installer::default();
 
         {
             let pb_opt = pb_opt.clone();

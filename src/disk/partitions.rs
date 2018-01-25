@@ -222,7 +222,7 @@ impl PartitionInfo {
             mount_point: mounts.get_mount_point(&device_path),
             target: None,
             filesystem: partition.fs_type_name().and_then(FileSystemType::from),
-            flags: get_flags(&partition),
+            flags: get_flags(partition),
             number: partition.num(),
             name: if is_msdos {
                 None
@@ -268,7 +268,7 @@ impl PartitionInfo {
             ::std::fs::read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
 
         for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-            if &uuid_entry.path().canonicalize().unwrap() == &self.device_path {
+            if uuid_entry.path().canonicalize().unwrap() == self.device_path {
                 let fs = self.filesystem.unwrap();
                 return Some(BlockInfo {
                     uuid:    uuid_entry.file_name(),

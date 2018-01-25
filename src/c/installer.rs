@@ -74,7 +74,7 @@ pub struct DistinstInstaller;
 /// Create an installer object
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_new() -> *mut DistinstInstaller {
-    Box::into_raw(Box::new(Installer::new())) as *mut DistinstInstaller
+    Box::into_raw(Box::new(Installer::default())) as *mut DistinstInstaller
 }
 
 /// Send an installer status message

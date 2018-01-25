@@ -118,6 +118,7 @@ impl Mount {
         }
     }
 
+    /// Unmounts a mount, optionally unmounting with the DETACH flag.
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
         if self.mounted {
             unsafe {

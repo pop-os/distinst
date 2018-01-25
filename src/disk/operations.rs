@@ -212,15 +212,12 @@ impl<'a> CreatePartitions<'a> {
                     let fs_type = PedFileSystemType::get(partition.file_system.into()).unwrap();
 
                     let mut disk = open_disk(&mut device)?;
-                    let mut part =
-                        PedPartition::new(&mut disk, part_type, Some(&fs_type), start, end)
-                            .map_err(|why| DiskError::PartitionCreate { why })?;
+                    let mut part = PedPartition::new(&disk, part_type, Some(&fs_type), start, end)
+                        .map_err(|why| DiskError::PartitionCreate { why })?;
 
                     for &flag in &partition.flags {
-                        if part.is_flag_available(flag) {
-                            if let Err(_) = part.set_flag(flag, true) {
-                                error!("unable to set {:?}", flag);
-                            }
+                        if part.is_flag_available(flag) && part.set_flag(flag, true).is_err() {
+                            error!("unable to set {:?}", flag);
                         }
                     }
 

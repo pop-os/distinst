@@ -263,7 +263,7 @@ impl Disk {
     /// If no match is found, then `Err(DiskError::DeviceGet)` is returned.
     fn from_name_with_serial<P: AsRef<Path>>(name: P, serial: &str) -> Result<Disk, DiskError> {
         Disk::from_name(name).and_then(|source| {
-            if &source.serial == serial {
+            if source.serial == serial {
                 Ok(source)
             } else {
                 // Attempt to find the serial model on another disk.
@@ -271,7 +271,7 @@ impl Disk {
                     disks
                         .0
                         .into_iter()
-                        .find(|disk| &disk.serial == serial)
+                        .find(|disk| disk.serial == serial)
                         .ok_or(DiskError::InvalidSerial)
                 })
             }
@@ -305,7 +305,7 @@ impl Disk {
 
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
-        for partition in self.partitions.iter_mut() {
+        for partition in &mut self.partitions {
             eprintln!(
                 "checking if {} needs to be unmounted",
                 partition.device_path.display()
@@ -603,8 +603,8 @@ impl Disk {
         }
 
         'outer: for source in &self.partitions {
-            'inner: loop {
-                let mut next_part = new_part.take().or(new_parts.next());
+            loop {
+                let mut next_part = new_part.take().or_else(|| new_parts.next());
                 if let Some(new) = next_part {
                     // Source partitions may be removed or changed.
                     if new.is_source {
@@ -742,13 +742,10 @@ impl Disks {
     /// Obtains the paths to the device and partition block paths where the root and EFI
     /// partitions are installed. The paths for the EFI partition will not be collected if
     /// the provided boot loader was of the EFI variety.
-    pub fn get_base_partitions<'a>(
-        &'a self,
+    pub fn get_base_partitions(
+        &self,
         bootloader: Bootloader,
-    ) -> (
-        (&'a Path, &'a PartitionInfo),
-        Option<(&'a Path, &'a PartitionInfo)>,
-    ) {
+    ) -> ((&Path, &PartitionInfo), Option<(&Path, &PartitionInfo)>) {
         match bootloader {
             Bootloader::Bios => {
                 let root = self.find_partition(Path::new("/")).expect(
@@ -774,17 +771,17 @@ impl Disks {
     /// Ensures that EFI installs contain a `/boot/efi` and `/` partition, whereas MBR installs
     /// contain a `/` partition. Additionally, the EFI partition must have the ESP flag set.
     pub fn verify_partitions(&self, bootloader: Bootloader) -> io::Result<()> {
-        let _root = self.find_partition(Path::new("/")).ok_or(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "root partition was not defined",
-        ))?;
+        let _root = self.find_partition(Path::new("/")).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "root partition was not defined",
+            )
+        })?;
 
         if bootloader == Bootloader::Efi {
-            let efi = self.find_partition(Path::new("/boot/efi"))
-                .ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "EFI partition was not defined",
-                ))?;
+            let efi = self.find_partition(Path::new("/boot/efi")).ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "EFI partition was not defined")
+            })?;
 
             if !efi.1.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
                 return Err(io::Error::new(

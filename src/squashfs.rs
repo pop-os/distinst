@@ -30,11 +30,11 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
         "unsquashfs -f -d '{}' '{}'",
         directory
             .to_str()
-            .ok_or(Error::new(ErrorKind::InvalidData, "Invalid directory path"))?
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid directory path"))?
             .replace("'", "'\"'\"'"),
         squashfs
             .to_str()
-            .ok_or(Error::new(ErrorKind::InvalidData, "Invalid squashfs path"))?
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid squashfs path"))?
             .replace("'", "'\"'\"'")
     );
 
@@ -52,7 +52,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
 
     let mut last_progress = 0;
     loop {
-        let mut data = [0; 4096];
+        let mut data = [0; 0x1000];
         let count = input.read(&mut data)?;
         if count == 0 {
             break;

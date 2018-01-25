@@ -7,7 +7,7 @@ use std::io;
 use std::path::Path;
 use std::process::Command;
 
-const PATTERN: &'static str = "E: ID_SERIAL=";
+const PATTERN: &str = "E: ID_SERIAL=";
 
 /// Obtains the serial number of the given device by calling out to `udevadm`.
 ///
@@ -20,10 +20,7 @@ pub fn get_serial_no(path: &Path) -> io::Result<String> {
             String::from_utf8_lossy(&output.stdout)
                 .lines()
                 .find(|line| line.starts_with(PATTERN))
-                .ok_or(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "no serial field",
-                ))
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "no serial field"))
                 .map(|serial| serial.split_at(PATTERN.len()).1.into())
         })
 }

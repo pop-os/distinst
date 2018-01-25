@@ -16,6 +16,7 @@ pub struct Chroot {
 impl Chroot {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Chroot> {
         let path = path.as_ref().canonicalize()?;
+        // let dev_mount = Mount::mount_part("/dev", path.join("dev"), "none", mount::BIND, None)?;
         let dev_mount = Mount::new("/dev", path.join("dev"), &[MountOption::Bind])?;
         let pts_mount = Mount::new(
             "/dev/pts",

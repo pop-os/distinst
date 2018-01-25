@@ -17,7 +17,7 @@ impl Mounts {
             let device = fields.next().unwrap();
 
             // Skip devices which aren't tied to actual hardware.
-            if !device.contains("/") {
+            if !device.contains('/') {
                 continue;
             }
 
@@ -32,7 +32,7 @@ impl Mounts {
     pub fn get_mount_point(&self, path: &Path) -> Option<PathBuf> {
         self.0
             .iter()
-            .find(|mount| &mount.device == path)
+            .find(|mount| mount.device == path)
             .map(|mount| mount.mount_point.clone())
     }
 }

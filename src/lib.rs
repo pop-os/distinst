@@ -106,7 +106,7 @@ impl Installer {
     /// use distinst::Installer;
     /// let installer = Installer::new();
     /// ```
-    pub fn new() -> Installer {
+    pub fn default() -> Installer {
         Installer {
             error_cb:  None,
             status_cb: None,
@@ -228,7 +228,7 @@ impl Installer {
     }
 
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
-        for disk in disks.0.iter_mut() {
+        for disk in &mut disks.0 {
             info!("{}: Committing changes to disk", disk.path().display());
             disk.commit()
                 .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
@@ -417,7 +417,7 @@ impl Installer {
             let efi_path = [&boot_path, "/efi"].concat();
 
             // Also ensure that the /boot/efi directory is created.
-            if let Some(_) = efi_opt {
+            if efi_opt.is_some() {
                 fs::create_dir_all(&efi_path)?;
             }
 
@@ -427,14 +427,14 @@ impl Installer {
                 {
                     let mut args = vec![];
 
-                    args.push(format!("--recheck"));
+                    args.push("--recheck".into());
 
                     match bootloader {
                         Bootloader::Bios => {
-                            args.push(format!("--target=i386-pc"));
+                            args.push("--target=i386-pc".into());
                         }
                         Bootloader::Efi => {
-                            args.push(format!("--target=x86_64-efi"));
+                            args.push("--target=x86_64-efi".into());
                         }
                     }
 
@@ -471,7 +471,7 @@ impl Installer {
         };
         self.emit_status(&status);
 
-        let (squashfs, remove_pkgs) = match Installer::initialize(&mut disks, &config, |percent| {
+        let (squashfs, remove_pkgs) = match Installer::initialize(&mut disks, config, |percent| {
             status.percent = percent;
             self.emit_status(&status);
         }) {
@@ -510,7 +510,7 @@ impl Installer {
         self.emit_status(&status);
 
         // Mount the temporary directory, and all of our mount targets.
-        const CHROOT_ROOT: &'static str = "distinst";
+        const CHROOT_ROOT: &str = "distinst";
         info!(
             "distinst: mounting temporary chroot directory at {}",
             CHROOT_ROOT
