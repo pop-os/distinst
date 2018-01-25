@@ -559,9 +559,6 @@ impl Disk {
     fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
         self.validate_layout(new)?;
 
-        let mklabel =
-            if self.mklabel { self.table_type } else { None };
-
         let mut remove_partitions = Vec::new();
         let mut change_partitions = Vec::new();
         let mut create_partitions = Vec::new();
