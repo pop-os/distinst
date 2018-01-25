@@ -95,7 +95,9 @@ namespace Distinst {
         START,
         END,
         UNIT,
+        UNIT_FROM_END,
         MEGABYTE,
+        MEGABYTE_FROM_END,
         PERCENT
     }
 

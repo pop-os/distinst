@@ -11,12 +11,15 @@ pub struct DistinstSector {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
+#[allow(non_camel_case_types)]
 pub enum DISTINST_SECTOR_KIND {
-    START = 1,
-    END = 2,
-    UNIT = 3,
-    MEGABYTE = 4,
-    PERCENT = 5,
+    START,
+    END,
+    UNIT,
+    UNIT_FROM_END,
+    MEGABYTE,
+    MEGABYTE_FROM_END, 
+    PERCENT,
 }
 
 impl From<DistinstSector> for Sector {
@@ -25,7 +28,9 @@ impl From<DistinstSector> for Sector {
             DISTINST_SECTOR_KIND::START => Sector::Start,
             DISTINST_SECTOR_KIND::END => Sector::End,
             DISTINST_SECTOR_KIND::UNIT => Sector::Unit(sector.value as u64),
+            DISTINST_SECTOR_KIND::UNIT_FROM_END => Sector::UnitFromEnd(sector.value as u64),
             DISTINST_SECTOR_KIND::MEGABYTE => Sector::Megabyte(sector.value as u64),
+            DISTINST_SECTOR_KIND::MEGABYTE_FROM_END => Sector::MegabyteFromEnd(sector.value as u64),
             DISTINST_SECTOR_KIND::PERCENT => Sector::Percent(sector.value as u16),
         }
     }

@@ -180,12 +180,21 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
             )?;
 
             start = end;
-            end = disk.get_sector(Sector::End);
+            end = disk.get_sector(Sector::MegabyteFromEnd(0x1000));
+
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Ext4)
                     .partition_type(PartitionType::Primary)
                     .mount(Path::new("/").to_path_buf())
                     .name("Pop!_OS".into()),
+            )?;
+
+            start = end;
+            end = disk.get_sector(Sector::End);
+
+            disk.add_partition(
+                PartitionBuilder::new(start, end, FileSystemType::Swap)
+                    .partition_type(PartitionType::Primary)
             )?;
         }
     }
