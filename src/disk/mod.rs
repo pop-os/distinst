@@ -5,7 +5,7 @@ mod serial;
 
 use self::mounts::Mounts;
 use self::operations::*;
-pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
+pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionSizeError, PartitionType};
 use self::serial::get_serial_no;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 pub use libparted::PartitionFlag;
@@ -73,6 +73,14 @@ pub enum DiskError {
     },
     #[fail(display = "unable to resize partition")] PartitionResize,
     #[fail(display = "partition table not found on disk")] PartitionTableNotFound,
+    #[fail(display = "partition was too large (size: {}, max: {}", size, max)] PartitionTooLarge {
+        size: u64,
+        max: u64,
+    },
+    #[fail(display = "partition was too small (size: {}, min: {})", size, min)] PartitionTooSmall {
+        size: u64,
+        min: u64,
+    },
     #[fail(display = "too many primary partitions in MSDOS partition table")]
     PrimaryPartitionsExceeded,
     #[fail(display = "sector overlaps partition {}", id)] SectorOverlaps {
@@ -93,6 +101,15 @@ pub enum DiskError {
 impl From<DiskError> for io::Error {
     fn from(err: DiskError) -> io::Error {
         io::Error::new(io::ErrorKind::Other, format!("{}", err))
+    }
+}
+
+impl From<PartitionSizeError> for DiskError {
+    fn from(err: PartitionSizeError) -> DiskError {
+        match err {
+            PartitionSizeError::TooSmall(size, min) => DiskError::PartitionTooSmall { size, min },
+            PartitionSizeError::TooLarge(size, max) => DiskError::PartitionTooLarge { size, max },
+        }
     }
 }
 
@@ -376,7 +393,11 @@ impl Disk {
             None => return Err(DiskError::PartitionTableNotFound),
         }
 
-        self.partitions.push(builder.build());
+        let fs = builder.filesystem;
+        let partition = builder.build();
+        check_partition_size(partition.sectors() * self.sector_size, fs)?;
+        
+        self.partitions.push(partition);
 
         Ok(())
     }
@@ -485,13 +506,18 @@ impl Disk {
         partition: i32,
         fs: FileSystemType,
     ) -> Result<(), DiskError> {
+        let sector_size = self.sector_size;
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
-            .map(|partition| {
-                partition.format = true;
-                partition.filesystem = Some(fs);
-                partition.name = None;
-                ()
+            .and_then(|partition| {
+                check_partition_size(partition.sectors() * sector_size, fs)
+                    .map_err(DiskError::from)
+                    .map(|_| {
+                        partition.format = true;
+                        partition.filesystem = Some(fs);
+                        partition.name = None;
+                        ()
+                    })
             })
     }
 
