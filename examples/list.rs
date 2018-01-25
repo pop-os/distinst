@@ -16,7 +16,7 @@ fn list() -> Result<()> {
             println!(
                 "    {}: {} MB",
                 part.device_path.display(),
-                ((part.end_sector - part.start_sector) * disk.sector_size) / 1_000_000
+                ((part.end_sector + 1 - part.start_sector) * disk.sector_size) / 1_000_000
             );
         }
     }
