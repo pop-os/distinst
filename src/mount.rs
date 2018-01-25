@@ -8,6 +8,7 @@ use std::ptr;
 pub const BIND: c_ulong = MS_BIND;
 // pub const SYNC: c_ulong = MS_SYNCHRONOUS;
 
+/// Unmounts a swap partition.
 pub fn swapoff<P: AsRef<Path>>(dest: P) -> Result<()> {
     unsafe {
         let swap = CString::new(dest.as_ref().as_os_str().as_bytes().to_owned());
@@ -20,6 +21,7 @@ pub fn swapoff<P: AsRef<Path>>(dest: P) -> Result<()> {
     }
 }
 
+/// Umounts a regular partition.
 pub fn umount<P: AsRef<Path>>(dest: P, lazy: bool) -> Result<()> {
     unsafe {
         let mount = CString::new(dest.as_ref().as_os_str().as_bytes().to_owned());
@@ -34,6 +36,7 @@ pub fn umount<P: AsRef<Path>>(dest: P, lazy: bool) -> Result<()> {
     }
 }
 
+/// An abstraction that will ensure that mounts are dropped in reverse.
 pub struct Mounts(pub Vec<Mount>);
 
 impl Drop for Mounts {
@@ -51,13 +54,15 @@ pub struct Mount {
     mounted: bool,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum MountOption {
-    Bind,
-    Synchronize,
-}
-
 impl Mount {
+    /// Mounts the specified `src` device to the `target` path, using whatever optional flags
+    /// that have been specified.
+    ///
+    /// # Note
+    ///
+    /// The `fstype` should contain the file system that will be used, such as `"ext4"`,
+    /// or `"vfat"`. If a file system is not valid in the context which the mount is used,
+    /// then the value should be `"none"` (as in a binding).
     pub fn new<P: AsRef<Path>>(
         src: P,
         target: &Path,
@@ -97,7 +102,11 @@ impl Mount {
     /// Unmounts a mount, optionally unmounting with the DETACH flag.
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
         if self.mounted {
-            umount(&self.dest, lazy)
+            let result = umount(self.dest(), lazy);
+            if result.is_ok() {
+                self.mounted = false;
+            }
+            result
         } else {
             Ok(())
         }

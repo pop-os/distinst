@@ -22,7 +22,7 @@ pub use disk::{
     Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType, Sector,
 };
-pub use mount::{Mount, MountOption, Mounts};
+pub use mount::{Mount, Mounts};
 
 #[doc(hidden)]
 pub use c::*;

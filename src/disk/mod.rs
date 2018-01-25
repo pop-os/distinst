@@ -329,7 +329,8 @@ impl Disk {
         Ok(())
     }
 
-    /// Opens and formats the specified disk with the given partition table.
+    /// Drops all partitions in the in-memory disk representation, and marks that a new
+    /// partition table should be written to the disk during the disk operations phase.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
         self.unmount_all_partitions()
             .map_err(|why| DiskError::Unmount { why })?;
