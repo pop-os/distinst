@@ -1,8 +1,10 @@
 [package]
 name = "distinst"
-description = "Distribution Installer Backend"
 version = "0.3.0"
+description = "Distribution Installer Backend"
+repository = "https://github.com/pop-os/distinst"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
+license = "LGPL"
 build = "build.rs"
 
 [lib]
