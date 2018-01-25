@@ -2,11 +2,13 @@ mod mounts;
 mod operations;
 mod partitions;
 mod serial;
+mod swaps;
 
 use self::mounts::Mounts;
 use self::operations::*;
 pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionSizeError, PartitionType};
 use self::serial::get_serial_no;
+pub use self::swaps::Swaps;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 pub use libparted::PartitionFlag;
 use mount::{swapoff, umount};
@@ -327,21 +329,27 @@ impl Disk {
 
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
+        info!("unmount all partitions on {}", self.path().display());
+
         for partition in &mut self.partitions {
-            if partition.is_swap() {
-                info!("unswapping '{}'", partition.path().display(),);
-                swapoff(&partition.path())?;
-            } else if let Some(ref mount) = partition.mount_point {
+            if let Some(ref mount) = partition.mount_point {
                 info!(
                     "unmounting {}, which is mounted at {}",
                     partition.path().display(),
                     mount.display()
                 );
 
-                umount(&partition.path(), false)?;
+                umount(mount, false)?;
             }
 
             partition.mount_point = None;
+
+            if partition.swapped {
+                info!("unswapping '{}'", partition.path().display(),);
+                swapoff(&partition.path())?;
+            }
+
+            partition.swapped = false;
         }
 
         Ok(())
