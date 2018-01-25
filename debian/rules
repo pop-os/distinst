@@ -4,7 +4,7 @@
 	dh $@
 
 override_dh_auto_clean:
-	make clean
+	make distclean
 	make vendor
 
 override_dh_auto_install:
