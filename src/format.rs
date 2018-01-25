@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 
 pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
     let part = part.as_ref();
+    let mut _volume_group = 0;
 
     let (cmd, args): (&'static str, &'static [&'static str]) = match kind {
         FileSystemType::Btrfs => ("mkfs.btrfs", &["-f"]),
@@ -18,6 +19,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
         FileSystemType::Ntfs => ("mkfs.ntfs", &["-F", "-q"]),
         FileSystemType::Swap => ("mkswap", &["-f"]),
         FileSystemType::Xfs => ("mkfs.xfs", &["-f"]),
+        FileSystemType::Lvm(_gid) => unimplemented!()
     };
 
     let mut command = Command::new(cmd);
@@ -32,7 +34,6 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
 
     if status.success() {
         info!("{} formatted with {:?}", part.display(), kind);
-        drop(command);
         Ok(())
     } else {
         Err(Error::new(

@@ -1,6 +1,6 @@
 use super::Mounts;
 use libparted::{Partition, PartitionFlag};
-use std::ffi::OsString;
+use std::ffi::{OsString, OsStr};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -18,6 +18,7 @@ pub enum FileSystemType {
     Ntfs,
     Swap,
     Xfs,
+    Lvm(usize)
 }
 
 impl FileSystemType {
@@ -25,6 +26,7 @@ impl FileSystemType {
         match *self {
             FileSystemType::Fat16 | FileSystemType::Fat32 => "umask=0077",
             FileSystemType::Ext4 => "noatime,errors=remount-ro",
+            FileSystemType::Swap => "sw",
             _ => "default",
         }
     }
@@ -64,6 +66,7 @@ impl Into<&'static str> for FileSystemType {
             FileSystemType::Ntfs => "ntfs",
             FileSystemType::Swap => "linux-swap(v1)",
             FileSystemType::Xfs => "xfs",
+            FileSystemType::Lvm(_) => "lvm",
         }
     }
 }
@@ -188,7 +191,7 @@ pub struct PartitionInfo {
 /// Information that will be used to generate a fstab entry for the given partition.
 pub(crate) struct BlockInfo {
     pub uuid:    OsString,
-    pub mount:   PathBuf,
+    pub mount:   Option<PathBuf>,
     pub fs:      &'static str,
     pub options: String,
     pub dump:    bool,
@@ -196,9 +199,13 @@ pub(crate) struct BlockInfo {
 }
 
 impl BlockInfo {
+    pub fn mount(&self) -> &OsStr {
+        self.mount.as_ref().map_or(OsStr::new("none"), |path| path.as_os_str())
+    }
+
     /// The size of the data contained within.
     pub fn len(&self) -> usize {
-        self.uuid.len() + self.mount.as_os_str().len() + self.fs.len() + self.options.len() + 2
+        self.uuid.len() + self.mount().len() + self.fs.len() + self.options.len() + 2
     }
 }
 
@@ -260,7 +267,11 @@ impl PartitionInfo {
     pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
-        if self.target.is_none() || self.filesystem.is_none() {
+        let is_invalid = self.filesystem != Some(FileSystemType::Swap)
+            || self.target.is_none()
+            || self.filesystem.is_none();
+        
+        if is_invalid {
             return None;
         }
 
@@ -272,10 +283,15 @@ impl PartitionInfo {
                 let fs = self.filesystem.unwrap();
                 return Some(BlockInfo {
                     uuid:    uuid_entry.file_name(),
-                    mount:   self.target.clone().unwrap(),
-                    fs:      match fs.into() {
-                        "fat16" | "fat32" => "vfat",
-                        fs => fs,
+                    mount:   if fs == FileSystemType::Swap {
+                        None
+                    } else {
+                        Some(self.target.clone().unwrap())
+                    },
+                    fs:      match fs {
+                        FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
+                        FileSystemType::Swap => "swap",
+                        _ => fs.into()
                     },
                     options: fs.get_preferred_options().into(),
                     dump:    false,

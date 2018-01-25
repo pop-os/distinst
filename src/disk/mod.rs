@@ -607,6 +607,7 @@ impl Disk {
                                         &source.flags,
                                         new.flags.clone().into_iter(),
                                     ),
+                                    label:  new.name.clone(),
                                 });
                             }
 
@@ -634,6 +635,7 @@ impl Disk {
                 file_system:  partition.filesystem.unwrap(),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
+                label:        partition.name.clone(),
             });
         }
 
@@ -792,7 +794,7 @@ impl Disks {
             fstab.push("UUID=");
             fstab.push(&entry.uuid);
             fstab.push("  ");
-            fstab.push(&entry.mount);
+            fstab.push(entry.mount());
             fstab.push("  ");
             fstab.push(&entry.fs);
             fstab.push("  ");

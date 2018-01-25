@@ -303,6 +303,8 @@ pub(crate) struct PartitionChange {
     pub(crate) format: Option<FileSystemType>,
     /// Flags which should be set on the partition.
     pub(crate) flags: Vec<PartitionFlag>,
+    /// Defines the label to apply
+    pub(crate) label: Option<String>,
 }
 
 /// Defines a new partition to be created on the file system.
@@ -318,4 +320,6 @@ pub(crate) struct PartitionCreate {
     pub(crate) kind: PartitionType,
     /// Flags which should be set on the partition.
     pub(crate) flags: Vec<PartitionFlag>,
+    /// Defines the label to apply
+    pub(crate) label: Option<String>,
 }
