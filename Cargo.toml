@@ -22,5 +22,11 @@ libparted = "0.1"
 log = "0.3"
 pbr = "1.0"
 tempdir = "0.3"
-failure = "0.1.1"
-failure_derive = "0.1.1"
+
+[dependencies.failure]
+version = "0.1.1"
+default-features = false
+features = ["derive"]
+
+[dependencies.failure_derive]
+version = "0.1.1"
