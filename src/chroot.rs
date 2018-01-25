@@ -1,9 +1,8 @@
+use mount::{self, Mount, MountOption};
 use std::ffi::OsStr;
 use std::io::Result;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
-
-use mount::{Mount, MountOption};
 
 pub struct Chroot {
     path:       PathBuf,

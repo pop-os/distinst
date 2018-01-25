@@ -250,43 +250,52 @@ impl Installer {
             .as_ref()
             .iter()
             .flat_map(|disk| disk.partitions.iter())
-            .filter(|part| !part.target.is_none());
+            .filter(|part| !part.target.is_none() && !part.filesystem.is_none());
 
         let mut mounts = Vec::new();
 
         // The mount path will actually consist of the target concatenated with the root.
         // NOTE: It is assumed that the target is an absolute path.
-        let paths: BTreeMap<String, PathBuf> = targets
+        let paths: BTreeMap<PathBuf, (PathBuf, &'static str)> = targets
             .map(|target| {
                 let target_path = target.target.as_ref().unwrap();
                 let target_mount =
                     [chroot, target_path.to_string_lossy().to_string().as_str()].concat();
 
-                (target_mount, target.device_path.clone())
+                let fs = match target.filesystem.unwrap() {
+                    FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
+                    fs => fs.into(),
+                };
+
+                (
+                    PathBuf::from(target_mount),
+                    (target.device_path.clone(), fs),
+                )
             })
             .collect();
 
         // Each mount directory will be created and then mounted before progressing to the next
         // mount in the map. The BTreeMap that the mount targets were collected into
         // will ensure that mounts are created and mounted in the correct order.
-        for (target_mount, device_path) in paths {
+        for (target_mount, (device_path, filesystem)) in paths {
             if let Err(why) = fs::create_dir_all(&target_mount) {
-                error!("unable to create '{}': {}", why, target_mount);
+                error!("unable to create '{}': {}", why, target_mount.display());
             }
 
             info!(
-                "distinst: mounting {} to {}",
+                "distinst: mounting {} to {}, with {}",
                 device_path.display(),
-                target_mount
+                target_mount.display(),
+                filesystem
             );
 
-            mounts.push(Mount::new(&device_path, &target_mount, &[])?);
-
-            info!(
-                "distinst: mounted {} to {}",
-                device_path.display(),
-                target_mount
-            );
+            mounts.push(Mount::mount_part(
+                &device_path,
+                &target_mount,
+                filesystem,
+                0,
+                None,
+            )?);
         }
 
         Ok(Mounts(mounts))

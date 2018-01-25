@@ -1,18 +1,13 @@
+use libc::{c_ulong, c_void, mount, umount2, MNT_DETACH, MS_BIND, MS_SYNCHRONOUS};
+use std::ffi::CString;
 use std::io::{Error, ErrorKind, Result};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::ptr;
 
-// TODO: Maybe create an abstraction for `libc::{m,unm}ount`?
-// use libc::{mount, umount};
-// pub unsafe extern "C" fn mount(
-//     src: *const c_char,
-//     target: *const c_char,
-//     fstype: *const c_char,
-//     flags: c_ulong,
-//     data: *const c_void
-// ) -> c_int
-//
-// pub unsafe extern "C" fn umount(target: *const c_char) -> c_int
+pub const BIND: c_ulong = MS_BIND;
+pub const SYNC: c_ulong = MS_SYNCHRONOUS;
 
 pub struct Mounts(pub Vec<Mount>);
 
@@ -87,25 +82,54 @@ impl Mount {
         }
     }
 
+    pub fn mount_part<P: AsRef<Path>>(
+        src: P,
+        target: P,
+        fstype: &str,
+        flags: c_ulong,
+        options: Option<&str>,
+    ) -> Result<Mount> {
+        let c_src = CString::new(src.as_ref().as_os_str().as_bytes().to_owned());
+        let c_target = CString::new(target.as_ref().as_os_str().as_bytes().to_owned());
+        let c_fstype = CString::new(fstype.to_owned());
+        let c_options = options.and_then(|options| CString::new(options.to_owned()).ok());
+
+        let c_src = c_src
+            .as_ref()
+            .ok()
+            .map_or(ptr::null(), |cstr| cstr.as_ptr());
+        let c_target = c_target
+            .as_ref()
+            .ok()
+            .map_or(ptr::null(), |cstr| cstr.as_ptr());
+        let c_fstype = c_fstype
+            .as_ref()
+            .ok()
+            .map_or(ptr::null(), |cstr| cstr.as_ptr());
+        let c_options = c_options.as_ref().map_or(ptr::null(), |cstr| cstr.as_ptr());
+
+        match unsafe { mount(c_src, c_target, c_fstype, flags, c_options as *const c_void) } {
+            0 => Ok(Mount {
+                source:  src.as_ref().to_path_buf(),
+                dest:    target.as_ref().to_path_buf(),
+                mounted: true,
+            }),
+            _err => Err(Error::last_os_error()),
+        }
+    }
+
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
         if self.mounted {
-            let mut command = Command::new("umount");
-            if lazy {
-                command.arg("--lazy");
-            }
-            command.arg(&self.dest);
-
-            debug!("{:?}", command);
-
-            let status = command.status()?;
-            if status.success() {
-                self.mounted = false;
-                Ok(())
-            } else {
-                Err(Error::new(
-                    ErrorKind::Other,
-                    format!("umount failed with status: {}", status),
-                ))
+            unsafe {
+                let mount = CString::new(self.dest().as_os_str().as_bytes().to_owned());
+                let mount_ptr = mount
+                    .as_ref()
+                    .ok()
+                    .map_or(ptr::null(), |cstr| cstr.as_ptr());
+                match umount2(mount_ptr, if lazy { MNT_DETACH } else { 0 }) {
+                    0 => Ok(()),
+                    _err => Err(Error::last_os_error()),
+                }
             }
         } else {
             Ok(())
