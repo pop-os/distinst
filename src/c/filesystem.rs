@@ -54,6 +54,7 @@ impl From<FileSystemType> for DISTINST_FILE_SYSTEM_TYPE {
             FileSystemType::Ntfs => DISTINST_FILE_SYSTEM_TYPE::NTFS,
             FileSystemType::Swap => DISTINST_FILE_SYSTEM_TYPE::SWAP,
             FileSystemType::Xfs => DISTINST_FILE_SYSTEM_TYPE::XFS,
+            FileSystemType::Lvm(_) => unimplemented!(),
         }
     }
 }

@@ -109,6 +109,7 @@ impl<'a> ChangePartitions<'a> {
             let mut disk = open_disk(&mut device)?;
             let mut resize_required = false;
             let mut flags_changed = false;
+            let mut name_changed = false;
 
             {
                 // Obtain the partition that needs to be changed by its ID.
@@ -127,6 +128,13 @@ impl<'a> ChangePartitions<'a> {
                                 );
                             }
                         }
+                    }
+                }
+
+                if let Some(ref label) = change.label {
+                    name_changed = true;
+                    if part.set_name(label).is_err() {
+                        error!("unable to set partition name: {}", label);
                     }
                 }
 
@@ -166,10 +174,14 @@ impl<'a> ChangePartitions<'a> {
                 }
             }
 
-            if resize_required || flags_changed {
+            if resize_required || flags_changed || name_changed {
                 // Commit all the partition move/resizing operations.
                 if resize_required {
                     info!("resizing {} on {}", change.num, self.device_path.display());
+                }
+
+                if name_changed {
+                    info!("renaming {}", change.num)
                 }
 
                 commit(&mut disk)?;
@@ -244,6 +256,12 @@ impl<'a> CreatePartitions<'a> {
                         }
                     }
 
+                    if let Some(ref label) = partition.label {
+                        if part.set_name(label).is_err() {
+                            error!("unable to set partition name: {}", label);
+                        }
+                    }
+
                     // Add the partition, and commit the changes to the disk.
                     let constraint = geometry.exact().unwrap();
                     disk.add_partition(&mut part, &constraint)
@@ -303,6 +321,8 @@ pub(crate) struct PartitionChange {
     pub(crate) format: Option<FileSystemType>,
     /// Flags which should be set on the partition.
     pub(crate) flags: Vec<PartitionFlag>,
+    /// Defines the label to apply
+    pub(crate) label: Option<String>,
 }
 
 /// Defines a new partition to be created on the file system.
@@ -318,4 +338,6 @@ pub(crate) struct PartitionCreate {
     pub(crate) kind: PartitionType,
     /// Flags which should be set on the partition.
     pub(crate) flags: Vec<PartitionFlag>,
+    /// Defines the label to apply
+    pub(crate) label: Option<String>,
 }

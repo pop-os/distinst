@@ -175,7 +175,8 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
                 PartitionBuilder::new(start, end, FileSystemType::Fat32)
                     .partition_type(PartitionType::Primary)
                     .flag(PartitionFlag::PED_PARTITION_ESP)
-                    .mount(Path::new("/boot/efi").to_path_buf()),
+                    .mount(Path::new("/boot/efi").to_path_buf())
+                    .name("EFI".into()),
             )?;
 
             start = end;
@@ -183,7 +184,8 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Ext4)
                     .partition_type(PartitionType::Primary)
-                    .mount(Path::new("/").to_path_buf()),
+                    .mount(Path::new("/").to_path_buf())
+                    .name("Pop!_OS".into()),
             )?;
         }
     }

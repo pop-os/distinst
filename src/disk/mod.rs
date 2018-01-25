@@ -284,6 +284,7 @@ impl Disk {
         })
     }
 
+    #[allow(cast_lossless)]
     /// Calculates the requested sector from a given `Sector` variant.
     pub fn get_sector(&self, sector: Sector) -> u64 {
         const MIB2: u64 = 2 * 1024 * 1024;
@@ -483,6 +484,10 @@ impl Disk {
 
     /// Designates that the specified partition ID should be formatted with the given file
     /// system.
+    ///
+    /// # Note
+    ///
+    /// The partition name will cleared after calling this function.
     pub fn format_partition(
         &mut self,
         partition: i32,
@@ -493,6 +498,17 @@ impl Disk {
             .map(|partition| {
                 partition.format = true;
                 partition.filesystem = Some(fs);
+                partition.name = None;
+                ()
+            })
+    }
+
+    /// Specifies to set a new label on the partition.
+    pub fn set_name(&mut self, partition: i32, name: String) -> Result<(), DiskError> {
+        self.get_partition_mut(partition)
+            .ok_or(DiskError::PartitionNotFound { partition })
+            .map(|partition| {
+                partition.name = Some(name);
                 ()
             })
     }
@@ -614,6 +630,7 @@ impl Disk {
                                         &source.flags,
                                         new.flags.clone().into_iter(),
                                     ),
+                                    label:  new.name.clone(),
                                 });
                             }
 
@@ -641,6 +658,7 @@ impl Disk {
                 file_system:  partition.filesystem.unwrap(),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
+                label:        partition.name.clone(),
             });
         }
 
@@ -799,7 +817,7 @@ impl Disks {
             fstab.push("UUID=");
             fstab.push(&entry.uuid);
             fstab.push("  ");
-            fstab.push(&entry.mount);
+            fstab.push(entry.mount());
             fstab.push("  ");
             fstab.push(&entry.fs);
             fstab.push("  ");

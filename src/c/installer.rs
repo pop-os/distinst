@@ -150,7 +150,7 @@ pub unsafe extern "C" fn distinst_installer_install(
         *Box::from_raw(disks as *mut Disks)
     };
 
-    match (*config).into_config() {
+    match (*config).as_config() {
         Ok(config) => match (*(installer as *mut Installer)).install(disks, &config) {
             Ok(()) => 0,
             Err(err) => {

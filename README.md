@@ -38,7 +38,8 @@ disk.add_partition(
     PartitionBuilder::new(start, end, FileSystemType::Fat32)
         .partition_type(PartitionType::Primary)
         .flag(PartitionFlag::PED_PARTITION_ESP)
-        .set_mount(Path::new("/boot/efi").to_path_buf()),
+        .set_mount(Path::new("/boot/efi").to_path_buf())
+        .name("EFI".into()),
 )?;
 
 start = disk.get_sector(Sector::Megabyte(512));
@@ -47,7 +48,8 @@ end = disk.get_sector(Sector::End);
 disk.add_partition(
     PartitionBuilder::new(start, end, FileSystemType::Ext4)
         .partition_type(PartitionType::Primary)
-        .set_mount(Path::new("/").to_path_buf()),
+        .set_mount(Path::new("/").to_path_buf())
+        .name("Pop!_OS".into()),
 )?;
 
 installer.install(

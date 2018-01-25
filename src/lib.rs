@@ -1,5 +1,7 @@
 //! A crate for installing Ubuntu distributions from a live squashfs
 
+#![allow(unknown_lints)]
+
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;

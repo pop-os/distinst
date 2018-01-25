@@ -1,4 +1,6 @@
 /.cargo/
+/.vscode/
+/distinst/
 /debian/files
 /target/
 /vendor/
