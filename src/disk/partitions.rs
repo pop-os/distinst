@@ -71,6 +71,40 @@ impl Into<&'static str> for FileSystemType {
     }
 }
 
+pub enum PartitionSizeError {
+    TooSmall(u64, u64),
+    TooLarge(u64, u64)
+}
+
+const MIB: u64 = 1_000_000;
+const GIB: u64 = MIB * 1000;
+const TIB: u64 = GIB * 1000;
+
+const FAT32_MIN: u64 = 32 * MIB;
+const FAT32_MAX: u64 = 2 * TIB;
+const EXT4_MAX: u64 = 16 * TIB;
+const BTRFS_MIN: u64 = 250 * MIB;
+
+pub fn check_partition_size(size: u64, fs: FileSystemType) -> Result<(), PartitionSizeError> {
+    match fs {
+        FileSystemType::Btrfs if size < BTRFS_MIN => {
+            Err(PartitionSizeError::TooSmall(size, BTRFS_MIN))
+        }
+        FileSystemType::Fat32 if size < FAT32_MIN => {
+            Err(PartitionSizeError::TooSmall(size, FAT32_MIN))
+        }
+        FileSystemType::Fat32 if size > FAT32_MAX => {
+            Err(PartitionSizeError::TooLarge(size, FAT32_MAX))
+        }
+        FileSystemType::Ext4 if size > EXT4_MAX => {
+            Err(PartitionSizeError::TooLarge(size, EXT4_MAX))
+        }
+        _ => {
+            Ok(())
+        }
+    }
+}
+
 /// Defines whether the partition is a primary or logical partition.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum PartitionType {
@@ -250,6 +284,10 @@ impl PartitionInfo {
             start_sector: partition.geom_start() as u64,
             end_sector: partition.geom_end() as u64,
         }))
+    }
+
+    pub fn sectors(&self) -> u64 {
+        self.end_sector - self.start_sector
     }
 
     pub fn is_swap(&self) -> bool {
