@@ -23,3 +23,6 @@ pbr = "1.0"
 tempdir = "0.3"
 failure = "0.1.1"
 failure_derive = "0.1.1"
+
+[patch.crates-io]
+libparted-sys = { "git" = "https://github.com/pop-os/libparted-sys.git" }
