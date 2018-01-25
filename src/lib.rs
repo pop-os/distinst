@@ -17,6 +17,7 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 use tempdir::TempDir;
 
 pub use chroot::Chroot;
@@ -37,6 +38,9 @@ mod logger;
 mod mount;
 mod partition;
 mod squashfs;
+
+/// When set to true, this will stop the installation process.
+pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
 
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
 #
@@ -515,6 +519,10 @@ impl Installer {
             return Err(error.err);
         }
 
+        if KILL_SWITCH.load(Ordering::SeqCst) {
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
+        }
+
         status.step = Step::Extract;
         status.percent = 0;
         self.emit_status(&status);
@@ -542,6 +550,10 @@ impl Installer {
             return Err(error.err);
         }
 
+        if KILL_SWITCH.load(Ordering::SeqCst) {
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
+        }
+
         status.step = Step::Configure;
         status.percent = 0;
         self.emit_status(&status);
@@ -565,6 +577,10 @@ impl Installer {
             };
             self.emit_error(&error);
             return Err(error.err);
+        }
+
+        if KILL_SWITCH.load(Ordering::SeqCst) {
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
         }
 
         status.step = Step::Bootloader;
