@@ -1,4 +1,4 @@
-use libc::{c_ulong, c_void, mount, umount2, MNT_DETACH, MS_BIND, MS_SYNCHRONOUS};
+use libc::{c_ulong, c_void, mount, umount2, swapoff as c_swapoff, MNT_DETACH, MS_BIND, MS_SYNCHRONOUS};
 use std::ffi::CString;
 use std::io::{Error, ErrorKind, Result};
 use std::os::unix::ffi::OsStrExt;
@@ -8,6 +8,35 @@ use std::ptr;
 
 pub const BIND: c_ulong = MS_BIND;
 pub const SYNC: c_ulong = MS_SYNCHRONOUS;
+
+pub fn swapoff<P: AsRef<Path>>(dest: P) -> Result<()> {
+    unsafe {
+        let swap = CString::new(dest.as_ref().as_os_str().as_bytes().to_owned());
+        let swap_ptr = swap
+            .as_ref()
+            .ok()
+            .map_or(ptr::null(), |cstr| cstr.as_ptr());
+        
+        match c_swapoff(swap_ptr) {
+            0 => Ok(()),
+            _err => Err(Error::last_os_error())
+        }
+    }
+}
+
+pub fn umount<P: AsRef<Path>>(dest: P, lazy: bool) -> Result<()> {
+    unsafe {
+        let mount = CString::new(dest.as_ref().as_os_str().as_bytes().to_owned());
+        let mount_ptr = mount
+            .as_ref()
+            .ok()
+            .map_or(ptr::null(), |cstr| cstr.as_ptr());
+        match umount2(mount_ptr, if lazy { MNT_DETACH } else { 0 }) {
+            0 => Ok(()),
+            _err => Err(Error::last_os_error()),
+        }
+    }
+}
 
 pub struct Mounts(pub Vec<Mount>);
 
@@ -121,17 +150,7 @@ impl Mount {
     /// Unmounts a mount, optionally unmounting with the DETACH flag.
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
         if self.mounted {
-            unsafe {
-                let mount = CString::new(self.dest().as_os_str().as_bytes().to_owned());
-                let mount_ptr = mount
-                    .as_ref()
-                    .ok()
-                    .map_or(ptr::null(), |cstr| cstr.as_ptr());
-                match umount2(mount_ptr, if lazy { MNT_DETACH } else { 0 }) {
-                    0 => Ok(()),
-                    _err => Err(Error::last_os_error()),
-                }
-            }
+            umount(&self.dest, lazy)
         } else {
             Ok(())
         }
