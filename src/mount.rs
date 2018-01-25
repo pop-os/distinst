@@ -1,25 +1,21 @@
-use libc::{c_ulong, c_void, mount, umount2, swapoff as c_swapoff, MNT_DETACH, MS_BIND, MS_SYNCHRONOUS};
+use libc::{c_ulong, c_void, mount, swapoff as c_swapoff, umount2, MNT_DETACH, MS_BIND};
 use std::ffi::CString;
-use std::io::{Error, ErrorKind, Result};
+use std::io::{Error, Result};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::ptr;
 
 pub const BIND: c_ulong = MS_BIND;
-pub const SYNC: c_ulong = MS_SYNCHRONOUS;
+// pub const SYNC: c_ulong = MS_SYNCHRONOUS;
 
 pub fn swapoff<P: AsRef<Path>>(dest: P) -> Result<()> {
     unsafe {
         let swap = CString::new(dest.as_ref().as_os_str().as_bytes().to_owned());
-        let swap_ptr = swap
-            .as_ref()
-            .ok()
-            .map_or(ptr::null(), |cstr| cstr.as_ptr());
-        
+        let swap_ptr = swap.as_ref().ok().map_or(ptr::null(), |cstr| cstr.as_ptr());
+
         match c_swapoff(swap_ptr) {
             0 => Ok(()),
-            _err => Err(Error::last_os_error())
+            _err => Err(Error::last_os_error()),
         }
     }
 }
@@ -62,64 +58,15 @@ pub enum MountOption {
 }
 
 impl Mount {
-    pub fn new<P: AsRef<Path>, Q: AsRef<Path>>(
-        source: P,
-        dest: Q,
-        options: &[MountOption],
-    ) -> Result<Mount> {
-        let source = source.as_ref().canonicalize()?;
-        let dest = dest.as_ref().canonicalize()?;
-
-        let mut command = Command::new("mount");
-
-        let mut option_strings = Vec::new();
-        for &option in options.iter() {
-            match option {
-                MountOption::Bind => {
-                    command.arg("--bind");
-                }
-                MountOption::Synchronize => {
-                    option_strings.push("sync");
-                }
-            }
-        }
-
-        option_strings.sort();
-        option_strings.dedup();
-        if !option_strings.is_empty() {
-            command.arg("-o");
-            command.arg(option_strings.join(","));
-        }
-
-        command.arg(&source);
-        command.arg(&dest);
-
-        debug!("{:?}", command);
-
-        let status = command.status()?;
-        if status.success() {
-            Ok(Mount {
-                source:  source,
-                dest:    dest,
-                mounted: true,
-            })
-        } else {
-            Err(Error::new(
-                ErrorKind::Other,
-                format!("mount failed with status: {}", status),
-            ))
-        }
-    }
-
-    pub fn mount_part<P: AsRef<Path>>(
+    pub fn new<P: AsRef<Path>>(
         src: P,
-        target: P,
+        target: &Path,
         fstype: &str,
         flags: c_ulong,
         options: Option<&str>,
     ) -> Result<Mount> {
         let c_src = CString::new(src.as_ref().as_os_str().as_bytes().to_owned());
-        let c_target = CString::new(target.as_ref().as_os_str().as_bytes().to_owned());
+        let c_target = CString::new(target.as_os_str().as_bytes().to_owned());
         let c_fstype = CString::new(fstype.to_owned());
         let c_options = options.and_then(|options| CString::new(options.to_owned()).ok());
 
@@ -140,7 +87,7 @@ impl Mount {
         match unsafe { mount(c_src, c_target, c_fstype, flags, c_options as *const c_void) } {
             0 => Ok(Mount {
                 source:  src.as_ref().to_path_buf(),
-                dest:    target.as_ref().to_path_buf(),
+                dest:    target.to_path_buf(),
                 mounted: true,
             }),
             _err => Err(Error::last_os_error()),
