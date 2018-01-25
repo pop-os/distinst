@@ -9,11 +9,15 @@ fn list() -> Result<()> {
         println!(
             "{}: {} MB",
             disk.device_path.display(),
-            disk.size / 1_000_000
+            (disk.size * disk.sector_size) / 1_000_000
         );
 
         for part in disk.partitions {
-            println!("    {}: {} MB", part.device_path.display(), part.number);
+            println!(
+                "    {}: {} MB",
+                part.device_path.display(),
+                ((part.end_sector - part.start_sector) * disk.sector_size) / 1_000_000
+            );
         }
     }
 
