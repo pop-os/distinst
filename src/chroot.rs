@@ -4,6 +4,8 @@ use std::io::Result;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
+/// Defines the location where a `chroot` will be performed, as well as storing
+/// handles to all of the binding mounts that the chroot requires.
 pub struct Chroot {
     path:       PathBuf,
     dev_mount:  Mount,
@@ -14,6 +16,7 @@ pub struct Chroot {
 }
 
 impl Chroot {
+    /// Performs binding mounts of all required paths to ensure that a chroot is successful.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Chroot> {
         let path = path.as_ref().canonicalize()?;
         let dev_mount = Mount::new("/dev", &path.join("dev"), "none", mount::BIND, None)?;
@@ -37,6 +40,7 @@ impl Chroot {
         })
     }
 
+    /// Executes an external command with `chroot`.
     pub fn command<S: AsRef<OsStr>, T: AsRef<OsStr>, I: IntoIterator<Item = T>>(
         &mut self,
         cmd: S,

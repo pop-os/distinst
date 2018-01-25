@@ -128,6 +128,7 @@ pub enum Bootloader {
 }
 
 impl Bootloader {
+    /// Detects whether the system is running from EFI.
     pub fn detect() -> Bootloader {
         if Path::new("/sys/firmware/efi").is_dir() {
             Bootloader::Efi

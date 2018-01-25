@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
+/// A mount entry which contains information regarding how and where a device is mounted.
 pub struct MountInfo {
     pub source:  PathBuf,
     pub dest:    PathBuf,
