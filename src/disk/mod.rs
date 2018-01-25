@@ -282,6 +282,7 @@ impl Disk {
         })
     }
 
+    #[allow(cast_lossless)]
     /// Calculates the requested sector from a given `Sector` variant.
     pub fn get_sector(&self, sector: Sector) -> u64 {
         const MIB2: u64 = 2 * 1024 * 1024;

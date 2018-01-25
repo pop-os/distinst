@@ -15,7 +15,7 @@ pub struct DistinstConfig {
 }
 
 impl DistinstConfig {
-    pub unsafe fn into_config(&self) -> Result<Config, io::Error> {
+    pub unsafe fn as_config(&self) -> Result<Config, io::Error> {
         if self.squashfs.is_null() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
