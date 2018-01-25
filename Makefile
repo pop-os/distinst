@@ -10,6 +10,8 @@ datadir = $(datarootdir)
 
 BIN=distinst
 
+SRC=src/* src/*/*
+
 all: target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
 
 debug: target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
@@ -46,7 +48,7 @@ vendor: .cargo/config
 	touch vendor
 
 # Each lib crate type has to be built independently, else there will be a compiler error.
-target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub:
+target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub: $(SRC)
 	if [ -d vendor ]; \
 	then \
 	    cargo rustc --lib --release -- --crate-type=dylib; \
