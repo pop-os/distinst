@@ -1,4 +1,4 @@
-use super::Mounts;
+use super::{Mounts, Swaps};
 use libparted::{Partition, PartitionFlag};
 use std::ffi::OsString;
 use std::io;
@@ -136,6 +136,7 @@ impl PartitionBuilder {
             name:         self.name,
             device_path:  PathBuf::new(),
             mount_point:  None,
+            swapped:      false,
             target:       self.mount,
         }
     }
@@ -181,6 +182,8 @@ pub struct PartitionInfo {
     pub device_path: PathBuf,
     /// Where this partition is mounted in the file system, if at all.
     pub mount_point: Option<PathBuf>,
+    /// True if the partition is currently used for swap
+    pub swapped: bool,
     /// Where this partition will be mounted in the future
     pub target: Option<PathBuf>,
 }
@@ -209,6 +212,7 @@ impl PartitionInfo {
     ) -> io::Result<Option<PartitionInfo>> {
         let device_path = partition.get_path().unwrap().to_path_buf();
         let mounts = Mounts::new()?;
+        let swaps = Swaps::new()?;
 
         Ok(Some(PartitionInfo {
             is_source: true,
@@ -220,6 +224,7 @@ impl PartitionInfo {
                 _ => return Ok(None),
             },
             mount_point: mounts.get_mount_point(&device_path),
+            swapped: swaps.get_swapped(&device_path),
             target: None,
             filesystem: partition.fs_type_name().and_then(FileSystemType::from),
             flags: get_flags(partition),
