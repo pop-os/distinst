@@ -313,10 +313,9 @@ impl PartitionInfo {
     pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
-        let is_invalid = self.filesystem != Some(FileSystemType::Swap) || self.target.is_none()
-            || self.filesystem.is_none();
-
-        if is_invalid {
+        if self.filesystem != Some(FileSystemType::Swap)
+            && (self.target.is_none() || self.filesystem.is_none())
+        {
             return None;
         }
 
