@@ -1,4 +1,4 @@
-use mount::{self, Mount, MountOption};
+use mount::{self, Mount};
 use std::ffi::OsStr;
 use std::io::Result;
 use std::path::{Path, PathBuf};
@@ -16,16 +16,18 @@ pub struct Chroot {
 impl Chroot {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Chroot> {
         let path = path.as_ref().canonicalize()?;
-        // let dev_mount = Mount::mount_part("/dev", path.join("dev"), "none", mount::BIND, None)?;
-        let dev_mount = Mount::new("/dev", path.join("dev"), &[MountOption::Bind])?;
+        let dev_mount = Mount::new("/dev", path.join("dev").as_ref(), "none", mount::BIND, None)?;
+        // let dev_mount = Mount::new("/dev", path.join("dev"), &[MountOption::Bind])?;
         let pts_mount = Mount::new(
             "/dev/pts",
-            path.join("dev").join("pts"),
-            &[MountOption::Bind],
+            &path.join("dev").join("pts"),
+            "none",
+            mount::BIND,
+            None,
         )?;
-        let proc_mount = Mount::new("/proc", path.join("proc"), &[MountOption::Bind])?;
-        let run_mount = Mount::new("/run", path.join("run"), &[MountOption::Bind])?;
-        let sys_mount = Mount::new("/sys", path.join("sys"), &[MountOption::Bind])?;
+        let proc_mount = Mount::new("/proc", &path.join("proc"), "none", mount::BIND, None)?;
+        let run_mount = Mount::new("/run", &path.join("run"), "none", mount::BIND, None)?;
+        let sys_mount = Mount::new("/sys", &path.join("sys"), "none", mount::BIND, None)?;
         Ok(Chroot {
             path:       path,
             dev_mount:  dev_mount,

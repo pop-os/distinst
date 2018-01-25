@@ -9,12 +9,12 @@ pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionInfo, Part
 use self::serial::get_serial_no;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 pub use libparted::PartitionFlag;
+use mount::{swapoff, umount};
 use std::ffi::OsString;
 use std::io;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use std::str;
-use ::mount::{umount, swapoff};
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
@@ -306,10 +306,6 @@ impl Disk {
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
         for partition in &mut self.partitions {
-            eprintln!(
-                "checking if {} needs to be unmounted",
-                partition.device_path.display()
-            );
             if partition.is_swap() {
                 info!("unswapping '{}'", partition.path().display(),);
                 swapoff(&partition.path())?;

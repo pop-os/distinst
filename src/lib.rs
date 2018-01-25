@@ -289,7 +289,7 @@ impl Installer {
                 filesystem
             );
 
-            mounts.push(Mount::mount_part(
+            mounts.push(Mount::new(
                 &device_path,
                 &target_mount,
                 filesystem,
