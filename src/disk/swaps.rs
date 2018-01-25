@@ -48,26 +48,26 @@ impl Swaps {
 
         let source = parts
             .next()
-            .ok_or(Error::new(ErrorKind::Other, "Missing source"))?;
+            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing source"))?;
         let kind = parts
             .next()
-            .ok_or(Error::new(ErrorKind::Other, "Missing kind"))?;
+            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing kind"))?;
         let size = parts
             .next()
-            .ok_or(Error::new(ErrorKind::Other, "Missing size"))?;
+            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing size"))?;
         let used = parts
             .next()
-            .ok_or(Error::new(ErrorKind::Other, "Missing used"))?;
+            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing used"))?;
         let priority = parts
             .next()
-            .ok_or(Error::new(ErrorKind::Other, "Missing priority"))?;
+            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing priority"))?;
 
         Ok(SwapInfo {
-            source:   PathBuf::from(Self::parse_value(&source)?),
-            kind:     Self::parse_value(&kind)?,
-            size:     Self::parse_value(&size)?,
-            used:     Self::parse_value(&used)?,
-            priority: Self::parse_value(&priority)?,
+            source:   PathBuf::from(Self::parse_value(source)?),
+            kind:     Self::parse_value(kind)?,
+            size:     Self::parse_value(size)?,
+            used:     Self::parse_value(used)?,
+            priority: Self::parse_value(priority)?,
         })
     }
 
@@ -84,6 +84,6 @@ impl Swaps {
     }
 
     pub fn get_swapped(&self, path: &Path) -> bool {
-        self.0.iter().find(|mount| mount.source == path).is_some()
+        self.0.iter().any(|mount| mount.source == path)
     }
 }
