@@ -51,10 +51,10 @@ vendor: .cargo/config
 target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub: $(SRC)
 	if [ -d vendor ]; \
 	then \
-	    cargo rustc --lib --release -- --crate-type=dylib; \
-		cargo build --bin distinst --release; \
+		cargo rustc --frozen --lib --release -- --crate-type=dylib; \
+		cargo build --frozen --bin distinst --release; \
 	else \
-	    cargo rustc --lib --release -- --crate-type=dylib; \
+		cargo rustc --lib --release -- --crate-type=dylib; \
 		cargo build --bin distinst --release; \
 	fi
 
