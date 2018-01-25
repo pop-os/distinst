@@ -73,7 +73,7 @@ impl Into<&'static str> for FileSystemType {
 
 pub enum PartitionSizeError {
     TooSmall(u64, u64),
-    TooLarge(u64, u64)
+    TooLarge(u64, u64),
 }
 
 const MIB: u64 = 1_000_000;
@@ -99,9 +99,7 @@ pub fn check_partition_size(size: u64, fs: FileSystemType) -> Result<(), Partiti
         FileSystemType::Ext4 if size > EXT4_MAX => {
             Err(PartitionSizeError::TooLarge(size, EXT4_MAX))
         }
-        _ => {
-            Ok(())
-        }
+        _ => Ok(()),
     }
 }
 
@@ -286,9 +284,7 @@ impl PartitionInfo {
         }))
     }
 
-    pub fn sectors(&self) -> u64 {
-        self.end_sector - self.start_sector
-    }
+    pub fn sectors(&self) -> u64 { self.end_sector - self.start_sector }
 
     pub fn is_swap(&self) -> bool {
         self.filesystem

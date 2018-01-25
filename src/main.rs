@@ -38,12 +38,12 @@ fn main() {
             .takes_value(true)
             .multiple(true)
         )
-        // .arg(Arg::with_name("reuse")
-        //     .short("u")
-        //     .long("use")
-        //     .takes_value(true)
-        //     .multiple(true)
-        // )
+        .arg(Arg::with_name("reuse")
+            .short("u")
+            .long("use")
+            .takes_value(true)
+            .multiple(true)
+        )
         // .arg(Arg::with_name("delete")
         //     .short("d")
         //     .long("delete")
@@ -170,7 +170,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
             disk.mklabel(PartitionTable::Gpt)?;
 
             let mut start = disk.get_sector(Sector::Start);
-            let mut end = disk.get_sector(Sector::Megabyte(150));
+            let mut end = disk.get_sector(Sector::Megabyte(512));
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Fat32)
                     .partition_type(PartitionType::Primary)
