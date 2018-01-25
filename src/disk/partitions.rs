@@ -1,6 +1,6 @@
 use super::Mounts;
 use libparted::{Partition, PartitionFlag};
-use std::ffi::{OsString, OsStr};
+use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -18,7 +18,7 @@ pub enum FileSystemType {
     Ntfs,
     Swap,
     Xfs,
-    Lvm(usize)
+    Lvm(usize),
 }
 
 impl FileSystemType {
@@ -200,7 +200,9 @@ pub(crate) struct BlockInfo {
 
 impl BlockInfo {
     pub fn mount(&self) -> &OsStr {
-        self.mount.as_ref().map_or(OsStr::new("none"), |path| path.as_os_str())
+        self.mount
+            .as_ref()
+            .map_or(OsStr::new("none"), |path| path.as_os_str())
     }
 
     /// The size of the data contained within.
@@ -267,10 +269,9 @@ impl PartitionInfo {
     pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
-        let is_invalid = self.filesystem != Some(FileSystemType::Swap)
-            || self.target.is_none()
+        let is_invalid = self.filesystem != Some(FileSystemType::Swap) || self.target.is_none()
             || self.filesystem.is_none();
-        
+
         if is_invalid {
             return None;
         }
@@ -291,7 +292,7 @@ impl PartitionInfo {
                     fs:      match fs {
                         FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
                         FileSystemType::Swap => "swap",
-                        _ => fs.into()
+                        _ => fs.into(),
                     },
                     options: fs.get_preferred_options().into(),
                     dump:    false,

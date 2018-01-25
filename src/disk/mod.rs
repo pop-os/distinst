@@ -476,6 +476,10 @@ impl Disk {
 
     /// Designates that the specified partition ID should be formatted with the given file
     /// system.
+    ///
+    /// # Note
+    ///
+    /// The partition name will cleared after calling this function.
     pub fn format_partition(
         &mut self,
         partition: i32,
@@ -486,6 +490,17 @@ impl Disk {
             .map(|partition| {
                 partition.format = true;
                 partition.filesystem = Some(fs);
+                partition.name = None;
+                ()
+            })
+    }
+
+    /// Specifies to set a new label on the partition.
+    pub fn set_name(&mut self, partition: i32, name: String) -> Result<(), DiskError> {
+        self.get_partition_mut(partition)
+            .ok_or(DiskError::PartitionNotFound { partition })
+            .map(|partition| {
+                partition.name = Some(name);
                 ()
             })
     }

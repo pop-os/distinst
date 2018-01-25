@@ -109,6 +109,7 @@ impl<'a> ChangePartitions<'a> {
             let mut disk = open_disk(&mut device)?;
             let mut resize_required = false;
             let mut flags_changed = false;
+            let mut name_changed = false;
 
             {
                 // Obtain the partition that needs to be changed by its ID.
@@ -127,6 +128,13 @@ impl<'a> ChangePartitions<'a> {
                                 );
                             }
                         }
+                    }
+                }
+
+                if let Some(ref label) = change.label {
+                    name_changed = true;
+                    if part.set_name(label).is_err() {
+                        error!("unable to set partition name: {}", label);
                     }
                 }
 
@@ -166,10 +174,14 @@ impl<'a> ChangePartitions<'a> {
                 }
             }
 
-            if resize_required || flags_changed {
+            if resize_required || flags_changed || name_changed {
                 // Commit all the partition move/resizing operations.
                 if resize_required {
                     info!("resizing {} on {}", change.num, self.device_path.display());
+                }
+
+                if name_changed {
+                    info!("renaming {}", change.num)
                 }
 
                 commit(&mut disk)?;
@@ -241,6 +253,12 @@ impl<'a> CreatePartitions<'a> {
                     for &flag in &partition.flags {
                         if part.is_flag_available(flag) && part.set_flag(flag, true).is_err() {
                             error!("unable to set {:?}", flag);
+                        }
+                    }
+
+                    if let Some(ref label) = partition.label {
+                        if part.set_name(label).is_err() {
+                            error!("unable to set partition name: {}", label);
                         }
                     }
 

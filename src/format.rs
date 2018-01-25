@@ -19,7 +19,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
         FileSystemType::Ntfs => ("mkfs.ntfs", &["-F", "-q"]),
         FileSystemType::Swap => ("mkswap", &["-f"]),
         FileSystemType::Xfs => ("mkfs.xfs", &["-f"]),
-        FileSystemType::Lvm(_gid) => unimplemented!()
+        FileSystemType::Lvm(_gid) => unimplemented!(),
     };
 
     let mut command = Command::new(cmd);
