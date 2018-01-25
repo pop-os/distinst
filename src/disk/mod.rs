@@ -13,8 +13,8 @@ use std::ffi::OsString;
 use std::io;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::str;
+use ::mount::{umount, swapoff};
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
@@ -312,15 +312,7 @@ impl Disk {
             );
             if partition.is_swap() {
                 info!("unswapping '{}'", partition.path().display(),);
-
-                let status = Command::new("swapoff").arg(&partition.path()).status()?;
-                if !status.success() {
-                    error!("config.disk: failed to swapoff with status {}", status);
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("swapoff failed with status: {}", status),
-                    ));
-                }
+                swapoff(&partition.path())?;
             } else if let Some(ref mount) = partition.mount_point {
                 info!(
                     "unmounting {}, which is mounted at {}",
@@ -328,14 +320,7 @@ impl Disk {
                     mount.display()
                 );
 
-                let status = Command::new("umount").arg(&partition.path()).status()?;
-                if !status.success() {
-                    error!("config.disk: failed to umount with status {}", status);
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("umount failed with status: {}", status),
-                    ));
-                }
+                umount(&partition.path(), false)?;
             }
 
             partition.mount_point = None;
