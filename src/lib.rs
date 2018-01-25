@@ -229,6 +229,7 @@ impl Installer {
         Ok((squashfs, remove_pkgs))
     }
 
+    /// Apply all partitioning and formatting changes to the disks configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
         for disk in &mut disks.0 {
             info!("{}: Committing changes to disk", disk.path().display());
@@ -303,6 +304,7 @@ impl Installer {
         Ok(Mounts(mounts))
     }
 
+    /// Extracts the squashfs image into the new install
     fn extract<P: AsRef<Path>, F: FnMut(i32)>(
         squashfs: P,
         mount_dir: &'static str,
@@ -314,6 +316,7 @@ impl Installer {
         Ok(())
     }
 
+    /// Configures the new install after it has been extracted.
     fn configure<P: AsRef<Path>, S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
         disks: &Disks,
         mount_dir: P,
@@ -394,6 +397,7 @@ impl Installer {
         Ok(())
     }
 
+    /// Installs and configures the boot loader after it has been configured.
     fn bootloader<F: FnMut(i32)>(
         disks: &Disks,
         mount_dir: &'static str,
@@ -460,7 +464,11 @@ impl Installer {
         Ok(())
     }
 
-    /// Install the system with the specified bootloader
+    /// The user will use this method to hand off installation tasks to distinst.
+    ///
+    /// The `disks` field contains all of the disks configuration information that will be
+    /// applied before installation. The `config` field provides configuration details that
+    /// will be applied when configuring the new installation.
     pub fn install(&mut self, mut disks: Disks, config: &Config) -> io::Result<()> {
         let bootloader = Bootloader::detect();
         disks.verify_partitions(bootloader)?;

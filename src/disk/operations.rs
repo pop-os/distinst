@@ -52,6 +52,7 @@ pub(crate) struct DiskOps<'a> {
 }
 
 impl<'a> DiskOps<'a> {
+    /// The first stage of disk operations, where a new partition table may be generated
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
         if let Some(table) = self.mklabel {
             mklabel(self.device_path, table)?;
@@ -102,6 +103,7 @@ pub(crate) struct ChangePartitions<'a> {
 }
 
 impl<'a> ChangePartitions<'a> {
+    /// The second stage of disk operations, where existing partitions will be modified.
     pub(crate) fn change(self) -> Result<CreatePartitions<'a>, DiskError> {
         let mut device = open_device(self.device_path)?;
 

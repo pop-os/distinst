@@ -135,26 +135,31 @@ impl PartitionBuilder {
         }
     }
 
+    /// Defines a label for the new partition.
     pub fn name(mut self, name: String) -> PartitionBuilder {
         self.name = Some(name);
         self
     }
 
+    /// Defines whether the partition shall be a logical or primary partition.
     pub fn partition_type(mut self, part_type: PartitionType) -> PartitionBuilder {
         self.part_type = part_type;
         self
     }
 
+    /// Sets partition flags for the new partition.
     pub fn flag(mut self, flag: PartitionFlag) -> PartitionBuilder {
         self.flags.push(flag);
         self
     }
 
+    /// Specifies where the new partition should be mounted.
     pub fn mount(mut self, mount: PathBuf) -> PartitionBuilder {
         self.mount = Some(mount);
         self
     }
 
+    /// Builds a brand new Partition from the current state of the builder.
     pub fn build(self) -> PartitionInfo {
         PartitionInfo {
             is_source:    false,

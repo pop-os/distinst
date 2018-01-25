@@ -9,6 +9,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str;
 
+/// Extracts a squashfs image using the external `unsquashfs` command.
 pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
     squashfs: P,
     directory: Q,

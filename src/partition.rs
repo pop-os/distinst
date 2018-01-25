@@ -3,6 +3,7 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 use std::process::Command;
 
+/// Utilized for ensuring that block & partition information has synced with the OS.
 pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
     disk: P,
     args: I,

@@ -8,7 +8,7 @@ use std::ptr;
 pub const BIND: c_ulong = MS_BIND;
 // pub const SYNC: c_ulong = MS_SYNCHRONOUS;
 
-/// Unmounts a swap partition.
+/// Unmounts a swap partition using `libc::swapoff`
 pub fn swapoff<P: AsRef<Path>>(dest: P) -> Result<()> {
     unsafe {
         let swap = CString::new(dest.as_ref().as_os_str().as_bytes().to_owned());
@@ -21,7 +21,7 @@ pub fn swapoff<P: AsRef<Path>>(dest: P) -> Result<()> {
     }
 }
 
-/// Umounts a regular partition.
+/// Unmounts a regular partition, which may optionally be lazily-unmounted.
 pub fn umount<P: AsRef<Path>>(dest: P, lazy: bool) -> Result<()> {
     unsafe {
         let mount = CString::new(dest.as_ref().as_os_str().as_bytes().to_owned());
@@ -47,10 +47,14 @@ impl Drop for Mounts {
     }
 }
 
+/// Contains information about a device and where it may be mounted.
 #[derive(Debug)]
 pub struct Mount {
+    /// The device that may be mounted.
     source:  PathBuf,
+    /// The target path where the device may be mounted.
     dest:    PathBuf,
+    /// Whether the mount is mounted or not.
     mounted: bool,
 }
 

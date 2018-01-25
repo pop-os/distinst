@@ -3,6 +3,7 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+/// Formats the supplied `part` device with the file system specified.
 pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
     let part = part.as_ref();
     let mut _volume_group = 0;
