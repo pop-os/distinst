@@ -13,7 +13,7 @@ name = "distinst"
 crate-type = ["lib", "dylib"]
 
 [build-dependencies]
-cbindgen = "0.3"
+cbindgen = "0.4"
 
 [dependencies]
 clap = "=2.26.0"
