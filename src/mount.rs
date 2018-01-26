@@ -51,9 +51,9 @@ impl Drop for Mounts {
 #[derive(Debug)]
 pub struct Mount {
     /// The device that may be mounted.
-    source:  PathBuf,
+    source: PathBuf,
     /// The target path where the device may be mounted.
-    dest:    PathBuf,
+    dest: PathBuf,
     /// Whether the mount is mounted or not.
     mounted: bool,
 }

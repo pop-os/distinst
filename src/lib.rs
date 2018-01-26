@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use tempdir::TempDir;
 
 pub use chroot::Chroot;
@@ -350,6 +350,20 @@ impl Installer {
             file.sync_all()?;
         }
 
+        let root_entry = {
+            // Retrieve the root fstab entry
+            disks
+                .0
+                .iter()
+                .flat_map(|disk| disk.partitions.iter())
+                .filter_map(|part| part.get_block_info())
+                .find(|entry| entry.mount() == "/")
+                .ok_or(io::Error::new(
+                    io::ErrorKind::Other,
+                    "root partition not found",
+                ))?
+        };
+
         {
             let mut chroot = Chroot::new(&mount_dir)?;
             let configure_chroot = configure.strip_prefix(&mount_dir).map_err(|err| {
@@ -359,28 +373,41 @@ impl Installer {
                 )
             })?;
 
-            let grub_pkg = match bootloader {
-                Bootloader::Bios => "grub-pc",
-                Bootloader::Efi => "grub-efi-amd64-signed",
+            let install_pkgs: &[&str] = match bootloader {
+                Bootloader::Bios => &["grub-pc"],
+                Bootloader::Efi => &[],
             };
 
-            let mut args = vec![
-                // Clear existing environment
-                "-i".to_string(),
-                // Set language to config setting
-                format!("LANG={}", lang),
-                // Run configure script with bash
-                "bash".to_string(),
-                // Path to configure script in chroot
-                configure_chroot.to_str().unwrap().to_string(),
-                // Install appropriate grub package
-                grub_pkg.to_string(),
-            ];
+            let args = {
+                let mut args = Vec::new();
 
-            for pkg in remove_pkgs {
-                // Remove installer packages
-                args.push(format!("-{}", pkg.as_ref()));
-            }
+                // Clear existing environment
+                args.push("-i".to_string());
+
+                // Set language to config setting
+                args.push(format!("LANG={}", lang));
+
+                // Set root UUID
+                args.push(format!("ROOT_UUID={}", root_entry.uuid.to_str().unwrap()));
+
+                // Run configure script with bash
+                args.push("bash".to_string());
+
+                // Path to configure script in chroot
+                args.push(configure_chroot.to_str().unwrap().to_string());
+
+                for pkg in install_pkgs {
+                    // Install bootloader packages
+                    args.push(pkg.to_string());
+                }
+
+                for pkg in remove_pkgs {
+                    // Remove installer packages
+                    args.push(format!("-{}", pkg.as_ref()));
+                }
+
+                args
+            };
 
             let status = chroot.command("/usr/bin/env", args.iter())?;
 
@@ -434,29 +461,28 @@ impl Installer {
             {
                 let mut chroot = Chroot::new(mount_dir)?;
 
-                {
-                    let mut args = vec![];
+                match bootloader {
+                    Bootloader::Bios => {
+                        let mut args = vec![];
 
-                    args.push("--recheck".into());
+                        // Recreate device map
+                        args.push("--recheck".into());
 
-                    match bootloader {
-                        Bootloader::Bios => {
-                            args.push("--target=i386-pc".into());
-                        }
-                        Bootloader::Efi => {
-                            args.push("--target=x86_64-efi".into());
+                        // Install for BIOS
+                        args.push("--target=i386-pc".into());
+
+                        // Install to the bootloader_dev device
+                        args.push(bootloader_dev.to_str().unwrap().to_owned());
+
+                        let status = chroot.command("grub-install", args.iter())?;
+                        if !status.success() {
+                            return Err(io::Error::new(
+                                io::ErrorKind::Other,
+                                format!("grub-install failed with status: {}", status),
+                            ));
                         }
                     }
-
-                    args.push(bootloader_dev.to_str().unwrap().to_owned());
-
-                    let status = chroot.command("grub-install", args.iter())?;
-                    if !status.success() {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            format!("grub-install failed with status: {}", status),
-                        ));
-                    }
+                    Bootloader::Efi => {}
                 }
 
                 chroot.unmount(false)?;

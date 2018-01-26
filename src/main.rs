@@ -5,8 +5,8 @@ extern crate pbr;
 
 use clap::{App, Arg};
 use distinst::{
-    Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer, KILL_SWITCH,
-    PartitionBuilder, PartitionFlag, PartitionTable, PartitionType, Sector, Step,
+    Bootloader, Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
+    PartitionFlag, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH,
 };
 use pbr::ProgressBar;
 
@@ -129,12 +129,15 @@ fn main() {
         extern "C" fn handler(signal: i32) {
             match signal {
                 libc::SIGINT => KILL_SWITCH.store(true, Ordering::SeqCst),
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
 
         if unsafe { libc::signal(libc::SIGINT, handler as libc::sighandler_t) == libc::SIG_ERR } {
-            eprintln!("distinst: signal handling error: {}", io::Error::last_os_error());
+            eprintln!(
+                "distinst: signal handling error: {}",
+                io::Error::last_os_error()
+            );
             process::exit(1);
         }
 
@@ -209,7 +212,7 @@ fn configure_disk(path: &str) -> Result<Disk, DiskError> {
 
             disk.add_partition(
                 PartitionBuilder::new(start, end, FileSystemType::Swap)
-                    .partition_type(PartitionType::Primary)
+                    .partition_type(PartitionType::Primary),
             )?;
         }
     }
