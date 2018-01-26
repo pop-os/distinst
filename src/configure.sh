@@ -60,5 +60,3 @@ then
 else
     update-grub
 fi
-
-sync
