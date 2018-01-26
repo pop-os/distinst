@@ -463,7 +463,7 @@ impl Installer {
 
                 match bootloader {
                     Bootloader::Bios => {
-                        let mut args = vec![];
+                        let mut args = Vec::new();
 
                         // Recreate device map
                         args.push("--recheck".into());
@@ -482,7 +482,27 @@ impl Installer {
                             ));
                         }
                     }
-                    Bootloader::Efi => {}
+                    Bootloader::Efi => {
+                        let mut args = Vec::new();
+
+                        // Install systemd-boot
+                        args.push("install");
+
+                        // Provide path to ESP
+                        args.push("--path=/boot/efi");
+
+                        // Do not set EFI variables
+                        // TODO: Remove this option
+                        args.push("--no-variables");
+
+                        let status = chroot.command("bootctl", args.iter())?;
+                        if !status.success() {
+                            return Err(io::Error::new(
+                                io::ErrorKind::Other,
+                                format!("bootctl failed with status: {}", status),
+                            ));
+                        }
+                    }
                 }
 
                 chroot.unmount(false)?;

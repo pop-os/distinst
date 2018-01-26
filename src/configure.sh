@@ -57,8 +57,6 @@ then
        "/boot/efi/EFI/Linux/${ROOT_UUID}.efi"
 
     rm "${CMDLINE}"
-
-    bootctl install --path="/boot/efi" --no-variables
 else
     update-grub
 fi
