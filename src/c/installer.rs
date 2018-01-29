@@ -1,6 +1,7 @@
 use libc;
 
 use std::io;
+use super::gen_object_ptr;
 
 use {Disks, Error, Installer, Status, Step};
 use c::config::DistinstConfig;
@@ -74,7 +75,7 @@ pub struct DistinstInstaller;
 /// Create an installer object
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_new() -> *mut DistinstInstaller {
-    Box::into_raw(Box::new(Installer::default())) as *mut DistinstInstaller
+    gen_object_ptr(Installer::default()) as *mut DistinstInstaller
 }
 
 /// Send an installer status message

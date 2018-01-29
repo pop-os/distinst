@@ -1,6 +1,6 @@
 use libc;
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 
 use log;
 
@@ -11,12 +11,41 @@ pub use self::installer::*;
 pub use self::partition::*;
 pub use self::sector::*;
 
+use std::io;
+
 mod config;
 mod disk;
 mod filesystem;
 mod installer;
 mod partition;
 mod sector;
+
+/// In comes a stack-allocated struct, and out goes a heap-allocated object.
+pub fn gen_object_ptr<T>(obj: T) -> *mut T {
+    Box::into_raw(Box::new(obj)) as *mut T
+}
+
+pub fn null_check<T>(ptr: *const T, msg: &str) -> io::Result<*const T> {
+    if ptr.is_null() {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{}: null pointer", msg)
+        ))
+    } else {
+        Ok(ptr)
+    }
+}
+
+pub fn get_str<'a>(ptr: *const libc::c_char, msg: &str) -> io::Result<&'a str> {
+    null_check(ptr, msg).and_then(|ptr| {
+        unsafe { CStr::from_ptr(ptr) }.to_str().map_err(|err| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{}: invalid UTF-8: {}", msg, err)
+            )
+        })
+    })
+}
 
 /// Log level
 #[repr(C)]
