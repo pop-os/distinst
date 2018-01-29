@@ -26,6 +26,7 @@ Depends:
   dosfstools,
   e2fsprogs,
   grub2-common,
+  libparted-fs-resize0,
   locales,
   mount,
   parted,

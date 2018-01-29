@@ -1,3 +1,9 @@
+distinst (0.3.1-1) bionic; urgency=medium
+
+  * Add libparted-fs-resize0 as a dependency
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 29 Jan 2018 10:21:25 -0700
+
 distinst (0.3.1) bionic; urgency=medium
 
   * API expansion to allow for custom partitioning
