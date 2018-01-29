@@ -8,6 +8,7 @@ use {Disk, Disks, FileSystemType, PartitionBuilder, PartitionTable, Sector};
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use c::partition::{DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
 use c::sector::DistinstSector;
+use super::gen_object_ptr;
 
 #[repr(C)]
 pub struct DistinstDisk;
@@ -23,7 +24,7 @@ pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut Di
     let cstring = CStr::from_ptr(path);
     let ostring = OsStr::from_bytes(cstring.to_bytes());
     match Disk::from_name(ostring) {
-        Ok(disk) => Box::into_raw(Box::new(disk)) as *mut DistinstDisk,
+        Ok(disk) => gen_object_ptr(disk) as *mut DistinstDisk,
         Err(why) => {
             info!(
                 "unable to open device at {}: {}",
@@ -77,7 +78,7 @@ pub unsafe extern "C" fn distinst_disk_mklabel(
     let table = match table {
         DISTINST_PARTITION_TABLE::GPT => PartitionTable::Gpt,
         DISTINST_PARTITION_TABLE::MSDOS => PartitionTable::Msdos,
-        _ => return 1,
+        _ => return -1,
     };
 
     disk_action_mut(disk, |disk| {
@@ -87,7 +88,7 @@ pub unsafe extern "C" fn distinst_disk_mklabel(
                 disk.path().display(),
                 why
             );
-            1
+            -1
         } else {
             0
         }
@@ -102,7 +103,7 @@ pub unsafe extern "C" fn distinst_disk_add_partition(
     disk_action_mut(disk, |disk| {
         if let Err(why) = disk.add_partition(*Box::from_raw(partition as *mut PartitionBuilder)) {
             info!("unable to add partition: {}", why);
-            1
+            -1
         } else {
             0
         }
@@ -117,7 +118,7 @@ pub unsafe extern "C" fn distinst_disk_remove_partition(
     disk_action_mut(disk, |disk| {
         if let Err(why) = disk.remove_partition(partition) {
             info!("unable to remove partition: {}", why);
-            1
+            -1
         } else {
             0
         }
@@ -133,7 +134,7 @@ pub unsafe extern "C" fn distinst_disk_resize_partition(
     disk_action_mut(disk, |disk| {
         if let Err(why) = disk.resize_partition(partition, length) {
             info!("unable to resize partition: {}", why);
-            1
+            -1
         } else {
             0
         }
@@ -149,7 +150,7 @@ pub unsafe extern "C" fn distinst_disk_move_partition(
     disk_action_mut(disk, |disk| {
         if let Err(why) = disk.move_partition(partition, start) {
             info!("unable to remove partition: {}", why);
-            1
+            -1
         } else {
             0
         }
@@ -166,14 +167,14 @@ pub unsafe extern "C" fn distinst_disk_format_partition(
         Some(fs) => fs,
         None => {
             info!("file system type required");
-            return 1;
+            return -1;
         }
     };
 
     disk_action_mut(disk, |disk| {
         if let Err(why) = disk.format_partition(partition, fs) {
             info!("unable to remove partition: {}", why);
-            1
+            -1
         } else {
             0
         }
@@ -185,7 +186,7 @@ pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::
     disk_action_mut(disk, |disk| {
         if let Err(why) = disk.commit() {
             info!("unable to commit changes to disk: {}", why);
-            1
+            -1
         } else {
             0
         }
@@ -209,7 +210,7 @@ pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_probe() -> *mut DistinstDisks {
     match Disks::probe_devices() {
-        Ok(disks) => Box::into_raw(Box::new(disks)) as *mut DistinstDisks,
+        Ok(disks) => gen_object_ptr(disks) as *mut DistinstDisks,
         Err(why) => {
             info!("unable to probe devices: {}", why);
             ptr::null_mut()

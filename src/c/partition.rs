@@ -1,8 +1,8 @@
 use libc;
 
-use std::ffi::CStr;
 use std::path::PathBuf;
 use std::ptr;
+use super::{gen_object_ptr, get_str};
 
 use {Bootloader, PartitionBuilder, PartitionFlag, PartitionType};
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
@@ -143,11 +143,11 @@ pub unsafe extern "C" fn distinst_partition_builder_new(
         }
     };
 
-    Box::into_raw(Box::new(PartitionBuilder::new(
+    gen_object_ptr(PartitionBuilder::new(
         start_sector,
         end_sector,
         filesystem,
-    ))) as *mut DistinstPartitionBuilder
+    )) as *mut DistinstPartitionBuilder
 }
 
 #[no_mangle]
@@ -164,12 +164,11 @@ unsafe fn builder_action<F: FnOnce(PartitionBuilder) -> PartitionBuilder>(
     builder: *mut DistinstPartitionBuilder,
     action: F,
 ) -> *mut DistinstPartitionBuilder {
-    println!("builder_action {:p}", builder);
-    Box::into_raw(Box::new(action(if builder.is_null() {
+    gen_object_ptr(action(if builder.is_null() {
         panic!("builder_action: builder is null")
     } else {
         *Box::from_raw(builder as *mut PartitionBuilder)
-    }))) as *mut DistinstPartitionBuilder
+    })) as *mut DistinstPartitionBuilder
 }
 
 #[no_mangle]
@@ -177,12 +176,9 @@ pub unsafe extern "C" fn distinst_partition_builder_name(
     builder: *mut DistinstPartitionBuilder,
     name: *mut libc::c_char,
 ) -> *mut DistinstPartitionBuilder {
-    let name = match CStr::from_ptr(name).to_str() {
+    let name = match get_str(name, "distinst_partition_builder") {
         Ok(string) => string.to_string(),
-        Err(err) => {
-            error!("distinst_partition_builder_name: invalid UTF-8: {}", err);
-            return ptr::null_mut();
-        }
+        Err(why) => panic!("builder_action: failed: {}", why)
     };
 
     builder_action(builder, move |builder| builder.name(name))
@@ -193,12 +189,9 @@ pub unsafe extern "C" fn distinst_partition_builder_mount(
     builder: *mut DistinstPartitionBuilder,
     target: *mut libc::c_char,
 ) -> *mut DistinstPartitionBuilder {
-    let target = match CStr::from_ptr(target).to_str() {
+    let target = match get_str(target, "distinst_partition_builder_mount") {
         Ok(string) => PathBuf::from(string.to_string()),
-        Err(err) => {
-            error!("distinst_partition_builder_mount: invalid UTF-8: {}", err);
-            return ptr::null_mut();
-        }
+        Err(why) => panic!("builder_action: failed: {}", why)
     };
 
     builder_action(builder, move |builder| builder.mount(target))
