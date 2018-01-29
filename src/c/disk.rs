@@ -195,11 +195,19 @@ pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::
 #[repr(C)]
 pub struct DistinstDisks;
 
-/// Probes the disk for information about every disk in the device.
+/// Returns an empty disks array
 ///
 /// On error, a null pointer will be returned.
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
+    Box::into_raw(Box::new(Disks(Vec::new()))) as *mut DistinstDisks
+}
+
+/// Probes the disk for information about every disk in the device.
+///
+/// On error, a null pointer will be returned.
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_probe() -> *mut DistinstDisks {
     match Disks::probe_devices() {
         Ok(disks) => Box::into_raw(Box::new(disks)) as *mut DistinstDisks,
         Err(why) => {

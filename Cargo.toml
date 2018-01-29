@@ -1,6 +1,6 @@
 [package]
 name = "distinst"
-version = "0.3.1"
+version = "0.3.2"
 description = "Distribution Installer Backend"
 repository = "https://github.com/pop-os/distinst"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]

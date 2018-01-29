@@ -1,3 +1,9 @@
+distinst (0.3.2) bionic; urgency=medium
+
+  * Fix bug with C API disks constructor
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 29 Jan 2018 16:48:45 -0700
+
 distinst (0.3.1-1) bionic; urgency=medium
 
   * Add libparted-fs-resize0 as a dependency

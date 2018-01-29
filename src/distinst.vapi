@@ -122,6 +122,7 @@ namespace Distinst {
 
     [CCode (has_type_id = false, destroy_function = "distinst_disks_destroy", free_function = "", unref_function = "")]
     public class Disks {
+        public static Disks probe();
         public Disks ();
         public void push(Disk* disk);
     }
