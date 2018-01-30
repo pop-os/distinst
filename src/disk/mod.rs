@@ -646,6 +646,11 @@ impl Disk {
 
         let mklabel = if new.mklabel {
             new.table_type
+        } else if self.table_type == None {
+            match Bootloader::detect() {
+                Bootloader::Bios => PartitionTable::Msdos,
+                Bootloader::Efi => PartitionTable::Gpt
+            }
         } else {
             'outer: for source in &self.partitions {
                 loop {
