@@ -565,6 +565,8 @@ impl Installer {
             return Err(error.err);
         }
 
+        unsafe { libc::sync(); }
+
         if KILL_SWITCH.load(Ordering::SeqCst) {
             return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
         }
@@ -596,6 +598,8 @@ impl Installer {
             return Err(error.err);
         }
 
+        unsafe { libc::sync(); }
+
         if KILL_SWITCH.load(Ordering::SeqCst) {
             return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
         }
@@ -624,6 +628,8 @@ impl Installer {
             self.emit_error(&error);
             return Err(error.err);
         }
+
+        unsafe { libc::sync(); }
 
         if KILL_SWITCH.load(Ordering::SeqCst) {
             return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
