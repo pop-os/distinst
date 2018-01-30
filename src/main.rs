@@ -145,6 +145,7 @@ fn main() {
             Disks(vec![disk]),
             &Config {
                 squashfs: squashfs.to_string(),
+                keyboard: "us".to_string(),
                 lang:     lang.to_string(),
                 remove:   remove.to_string(),
             },

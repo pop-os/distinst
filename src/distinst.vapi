@@ -23,6 +23,7 @@ namespace Distinst {
 
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
+        string keyboard;
         string squashfs;
         string lang;
         string remove;

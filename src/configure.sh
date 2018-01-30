@@ -34,6 +34,10 @@ ln -sf "../run/resolvconf/resolv.conf" "/etc/resolv.conf"
 locale-gen --purge "${LANG}"
 update-locale --reset "LANG=${LANG}"
 
+# Set keyboard
+loadkeys "${KBD}"
+echo "KEYMAP=${KBD}" > "/etc/vconsole.conf"
+
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"
 apt-get autoremove -y --purge

@@ -11,6 +11,7 @@ use Config;
 pub struct DistinstConfig {
     squashfs: *const libc::c_char,
     lang:     *const libc::c_char,
+    keyboard: *const libc::c_char,
     remove:   *const libc::c_char,
 }
 
@@ -21,6 +22,7 @@ impl DistinstConfig {
         Ok(Config {
             squashfs: get_str(self.squashfs, "config.squashfs")?.to_string(),
             lang:     get_str(self.lang, "config.lang")?.to_string(),
+            keyboard: get_str(self.keyboard, "config.keyboard")?.to_string(),
             remove:   get_str(self.remove, "config.remove")?.to_string(),
         })
     }

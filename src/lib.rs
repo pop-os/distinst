@@ -82,6 +82,7 @@ pub enum Step {
 pub struct Config {
     pub squashfs: String,
     pub lang:     String,
+    pub keyboard: String,
     pub remove:   String,
 }
 
@@ -326,6 +327,7 @@ impl Installer {
         mount_dir: P,
         bootloader: Bootloader,
         lang: &str,
+        keyboard: &str,
         remove_pkgs: I,
         mut callback: F,
     ) -> io::Result<()> {
@@ -386,6 +388,9 @@ impl Installer {
 
                 // Set language to config setting
                 args.push(format!("LANG={}", lang));
+
+                // Set preferred keyboard layout
+                args.push(format!("KBD={}", keyboard));
 
                 // Set root UUID
                 args.push(format!("ROOT_UUID={}", root_entry.uuid.to_str().unwrap()));
@@ -597,6 +602,7 @@ impl Installer {
                 CHROOT_ROOT,
                 bootloader,
                 &config.lang,
+                &config.keyboard,
                 &remove_pkgs,
                 percent!(),
             )
