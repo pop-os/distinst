@@ -43,8 +43,7 @@ locale-gen --purge "${LANG}"
 update-locale --reset "LANG=${LANG}"
 
 # Set keyboard
-loadkeys "${KBD}"
-echo "KEYMAP=${KBD}" > "/etc/vconsole.conf"
+localectl set-keymap "${KBD}"
 
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"
