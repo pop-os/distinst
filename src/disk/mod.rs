@@ -648,8 +648,8 @@ impl Disk {
             new.table_type
         } else if self.table_type == None {
             match Bootloader::detect() {
-                Bootloader::Bios => PartitionTable::Msdos,
-                Bootloader::Efi => PartitionTable::Gpt
+                Bootloader::Bios => Some(PartitionTable::Msdos),
+                Bootloader::Efi => Some(PartitionTable::Gpt)
             }
         } else {
             'outer: for source in &self.partitions {
