@@ -23,10 +23,11 @@ namespace Distinst {
 
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
+        string hostname;
         string keyboard;
-        string squashfs;
         string lang;
         string remove;
+        string squashfs;
     }
 
     [CCode (cname = "DISTINST_PARTITION_TABLE", has_type_id = false)]
