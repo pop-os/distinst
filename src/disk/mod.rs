@@ -645,7 +645,7 @@ impl Disk {
         }
 
         let mklabel = if new.mklabel {
-            self.table_type
+            new.table_type
         } else {
             'outer: for source in &self.partitions {
                 loop {
