@@ -377,7 +377,7 @@ impl Installer {
 
             let install_pkgs: &[&str] = match bootloader {
                 Bootloader::Bios => &["grub-pc"],
-                Bootloader::Efi => &[],
+                Bootloader::Efi => &["kernelstub"],
             };
 
             let args = {

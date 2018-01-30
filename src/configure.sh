@@ -56,19 +56,14 @@ apt-get install -y "${INSTALL_PKGS[@]}"
 # Update bootloader configuration
 if [ -d "/boot/efi" ]
 then
-    CMDLINE="$(mktemp)"
-    echo "root=UUID=${ROOT_UUID} ro quiet splash" > "${CMDLINE}"
-
-    mkdir -p "/boot/efi/EFI/Linux"
-    objcopy \
-       --add-section .osrel="/etc/os-release" --change-section-vma .osrel=0x20000 \
-       --add-section .cmdline="${CMDLINE}" --change-section-vma .cmdline=0x30000 \
-       --add-section .linux="/vmlinuz" --change-section-vma .linux=0x40000 \
-       --add-section .initrd="/initrd.img" --change-section-vma .initrd=0x3000000 \
-       "/usr/lib/systemd/boot/efi/linuxx64.efi.stub" \
-       "/boot/efi/EFI/Linux/${ROOT_UUID}.efi"
-
-    rm "${CMDLINE}"
+    kernelstub \
+        --esp_path "/boot/efi" \
+        --kernel-path "/vmlinuz" \
+        --initrd-path "/initrd.img" \
+        --options "quiet splash" \
+        --loader \
+        --manage-only \
+        --verbose
 else
     update-grub
 fi
