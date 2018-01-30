@@ -179,7 +179,15 @@ fn open_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
 
 /// Opens a `libparted::Disk` from a `libparted::Device`.
 fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskError> {
-    PedDisk::new(device).map_err(|why| DiskError::DiskNew { why })
+    let device = device as *mut Device;
+    unsafe {
+        PedDisk::new(&mut *device)
+            .or(PedDisk::new_fresh(&mut *device, match Bootloader::detect() {
+                Bootloader::Bios => PedDiskType::get("msdos").unwrap(),
+                Bootloader::Efi => PedDiskType::get("gpt").unwrap(),
+            }))
+            .map_err(|why| DiskError::DiskNew { why })
+    }
 }
 
 /// Attempts to commit changes to the disk, return a `DiskError` on failure.
@@ -646,11 +654,6 @@ impl Disk {
 
         let mklabel = if new.mklabel {
             new.table_type
-        } else if self.table_type == None {
-            match Bootloader::detect() {
-                Bootloader::Bios => Some(PartitionTable::Msdos),
-                Bootloader::Efi => Some(PartitionTable::Gpt)
-            }
         } else {
             'outer: for source in &self.partitions {
                 loop {
