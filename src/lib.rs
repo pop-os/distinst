@@ -523,57 +523,60 @@ impl Installer {
         let bootloader = Bootloader::detect();
         disks.verify_partitions(bootloader)?;
 
-        info!("Installing {:?} with {:?}", config, bootloader);
-
         let mut status = Status {
-            step:    Step::Init,
-            percent: 0,
-        };
-        self.emit_status(&status);
-
-        let (squashfs, remove_pkgs) = match Installer::initialize(&mut disks, config, |percent| {
-            status.percent = percent;
-            self.emit_status(&status);
-        }) {
-            Ok(value) => value,
-            Err(err) => {
-                error!("initialize: {}", err);
-                let error = Error {
-                    step: status.step,
-                    err:  err,
-                };
-                self.emit_error(&error);
-                return Err(error.err);
-            }
+            step: Step::Init,
+            percent: 0
         };
 
-        status.step = Step::Partition;
-        status.percent = 0;
-        self.emit_status(&status);
+        macro_rules! apply_step {
+            ($step:expr, $msg:expr, $action:expr) => {{
+                unsafe { libc::sync(); }
 
-        // Create, manipulate, and format partitions provided by the user.
-        if let Err(err) = Installer::partition(&mut disks, |percent| {
-            status.percent = percent;
-            self.emit_status(&status);
-        }) {
-            error!("partition: {}", err);
-            let error = Error {
-                step: status.step,
-                err:  err,
+                if KILL_SWITCH.load(Ordering::SeqCst) {
+                    return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
+                }
+
+                status.step = $step;
+                status.percent = 0;
+                self.emit_status(&status);
+
+                apply_step!($msg, $action);
+            }};
+            ($msg:expr, $action:expr) => {{
+                match $action {
+                    Ok(value) => value,
+                    Err(err) => {
+                        error!("{} error: {}", $msg, err);
+                        let error = Error {
+                            step: status.step,
+                            err:  err,
+                        };
+                        self.emit_error(&error);
+                        return Err(error.err);
+                    }
+                }
+            }};
+        }
+
+        macro_rules! percent {
+            () => {
+                |percent| {
+                    status.percent = percent;
+                    self.emit_status(&status);
+                }
             };
-            self.emit_error(&error);
-            return Err(error.err);
         }
 
-        unsafe { libc::sync(); }
-
-        if KILL_SWITCH.load(Ordering::SeqCst) {
-            return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
-        }
-
-        status.step = Step::Extract;
-        status.percent = 0;
+        info!("Installing {:?} with {:?}", config, bootloader);
         self.emit_status(&status);
+
+        let (squashfs, remove_pkgs) = apply_step!("initializing", {
+            Installer::initialize(&mut disks, config, percent!())
+        });
+
+        apply_step!(Step::Partition, "partitioning", {
+            Installer::partition(&mut disks, percent!())
+        });
 
         // Mount the temporary directory, and all of our mount targets.
         const CHROOT_ROOT: &str = "distinst";
@@ -584,74 +587,24 @@ impl Installer {
         let mount_dir = TempDir::new(CHROOT_ROOT)?;
         let _mounts = Installer::mount(&disks, CHROOT_ROOT)?;
 
-        // Extract the Linux image into the new chroot path
-        if let Err(err) = Installer::extract(&squashfs, CHROOT_ROOT, |percent| {
-            status.percent = percent;
-            self.emit_status(&status);
-        }) {
-            error!("extract: {}", err);
-            let error = Error {
-                step: status.step,
-                err:  err,
-            };
-            self.emit_error(&error);
-            return Err(error.err);
-        }
+        apply_step!(Step::Extract, "extraction", {
+            Installer::extract(&squashfs, CHROOT_ROOT, percent!())
+        });
 
-        unsafe { libc::sync(); }
+        apply_step!(Step::Configure, "configuration", {
+            Installer::configure(
+                &disks,
+                CHROOT_ROOT,
+                bootloader,
+                &config.lang,
+                &remove_pkgs,
+                percent!(),
+            )
+        });
 
-        if KILL_SWITCH.load(Ordering::SeqCst) {
-            return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
-        }
-
-        status.step = Step::Configure;
-        status.percent = 0;
-        self.emit_status(&status);
-
-        // Configure the new install, using the extracted image as a base.
-        if let Err(err) = Installer::configure(
-            &disks,
-            CHROOT_ROOT,
-            bootloader,
-            &config.lang,
-            &remove_pkgs,
-            |percent| {
-                status.percent = percent;
-                self.emit_status(&status);
-            },
-        ) {
-            error!("configure: {}", err);
-            let error = Error {
-                step: status.step,
-                err:  err,
-            };
-            self.emit_error(&error);
-            return Err(error.err);
-        }
-
-        unsafe { libc::sync(); }
-
-        if KILL_SWITCH.load(Ordering::SeqCst) {
-            return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
-        }
-
-        status.step = Step::Bootloader;
-        status.percent = 0;
-        self.emit_status(&status);
-
-        // Configure and install the bootloader
-        if let Err(err) = Installer::bootloader(&disks, CHROOT_ROOT, bootloader, |percent| {
-            status.percent = percent;
-            self.emit_status(&status);
-        }) {
-            error!("bootloader: {}", err);
-            let error = Error {
-                step: status.step,
-                err:  err,
-            };
-            self.emit_error(&error);
-            return Err(error.err);
-        }
+        apply_step!(Step::Bootloader, "bootloader", {
+            Installer::bootloader(&disks, CHROOT_ROOT, bootloader, percent!())
+        });
 
         mount_dir.close()?;
         Ok(())
