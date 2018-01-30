@@ -80,10 +80,11 @@ pub enum Step {
 /// Installer configuration
 #[derive(Debug)]
 pub struct Config {
-    pub squashfs: String,
-    pub lang:     String,
+    pub hostname: String,
     pub keyboard: String,
+    pub lang:     String,
     pub remove:   String,
+    pub squashfs: String,
 }
 
 /// Installer error
@@ -326,8 +327,7 @@ impl Installer {
         disks: &Disks,
         mount_dir: P,
         bootloader: Bootloader,
-        lang: &str,
-        keyboard: &str,
+        config: &Config,
         remove_pkgs: I,
         mut callback: F,
     ) -> io::Result<()> {
@@ -386,11 +386,14 @@ impl Installer {
                 // Clear existing environment
                 args.push("-i".to_string());
 
+                // Set hostname to be set
+                args.push(format!("HOSTNAME={}", config.hostname));
+
                 // Set language to config setting
-                args.push(format!("LANG={}", lang));
+                args.push(format!("LANG={}", config.lang));
 
                 // Set preferred keyboard layout
-                args.push(format!("KBD={}", keyboard));
+                args.push(format!("KBD={}", config.keyboard));
 
                 // Set root UUID
                 args.push(format!("ROOT_UUID={}", root_entry.uuid.to_str().unwrap()));
@@ -534,6 +537,8 @@ impl Installer {
         };
 
         macro_rules! apply_step {
+            // When a step is provided, that step will be set. This branch will then invoke a
+            // second call to the macro, which will execute the branch below this one.
             ($step:expr, $msg:expr, $action:expr) => {{
                 unsafe { libc::sync(); }
 
@@ -547,6 +552,7 @@ impl Installer {
 
                 apply_step!($msg, $action);
             }};
+            // When a step is not provided, the program will simply 
             ($msg:expr, $action:expr) => {{
                 match $action {
                     Ok(value) => value,
@@ -601,8 +607,7 @@ impl Installer {
                 &disks,
                 CHROOT_ROOT,
                 bootloader,
-                &config.lang,
-                &config.keyboard,
+                &config,
                 &remove_pkgs,
                 percent!(),
             )

@@ -19,6 +19,8 @@ use std::sync::atomic::Ordering;
 fn main() {
     let matches = App::new("distinst")
         .arg(Arg::with_name("squashfs").required(true))
+        .arg(Arg::with_name("hostname").required(true))
+        .arg(Arg::with_name("keyboard").required(true))
         .arg(Arg::with_name("lang").required(true))
         .arg(Arg::with_name("remove").required(true))
         .arg(Arg::with_name("disk")
@@ -28,24 +30,24 @@ fn main() {
             .multiple(true)
             .required(true)
         )
-        .arg(Arg::with_name("table")
-            .short("t")
-            .long("new-table")
-            .takes_value(true)
-            .multiple(true)
-        )
-        .arg(Arg::with_name("new")
-            .short("n")
-            .long("new")
-            .takes_value(true)
-            .multiple(true)
-        )
-        .arg(Arg::with_name("reuse")
-            .short("u")
-            .long("use")
-            .takes_value(true)
-            .multiple(true)
-        )
+        // .arg(Arg::with_name("table")
+        //     .short("t")
+        //     .long("new-table")
+        //     .takes_value(true)
+        //     .multiple(true)
+        // )
+        // .arg(Arg::with_name("new")
+        //     .short("n")
+        //     .long("new")
+        //     .takes_value(true)
+        //     .multiple(true)
+        // )
+        // .arg(Arg::with_name("reuse")
+        //     .short("u")
+        //     .long("use")
+        //     .takes_value(true)
+        //     .multiple(true)
+        // )
         // .arg(Arg::with_name("delete")
         //     .short("d")
         //     .long("delete")
@@ -68,6 +70,8 @@ fn main() {
 
     let squashfs = matches.value_of("squashfs").unwrap();
     let disk = matches.value_of("disk").unwrap();
+    let hostname = matches.value_of("hostname").unwrap();
+    let keyboard = matches.value_of("keyboard").unwrap();
     let lang = matches.value_of("lang").unwrap();
     let remove = matches.value_of("remove").unwrap();
 
@@ -144,10 +148,11 @@ fn main() {
         installer.install(
             Disks(vec![disk]),
             &Config {
-                squashfs: squashfs.to_string(),
-                keyboard: "us".to_string(),
-                lang:     lang.to_string(),
-                remove:   remove.to_string(),
+                hostname: hostname.into(),
+                keyboard: keyboard.into(),
+                lang:     lang.into(),
+                remove:   remove.into(),
+                squashfs: squashfs.into(),
             },
         )
     };

@@ -24,6 +24,14 @@ do
     fi
 done
 
+# Set the hostname
+echo "${HOSTNAME}" > "/etc/hostname"
+
+# Set the host within the hosts file
+echo "127.0.0.1	localhost
+::1		localhost
+127.0.1.1	${HOSTNAME}.localdomain	${HOSTNAME}" > /etc/hosts
+
 # Generate a machine ID
 dbus-uuidgen > "/var/lib/dbus/machine-id"
 
