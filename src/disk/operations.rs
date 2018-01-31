@@ -214,15 +214,11 @@ impl<'a> ChangePartitions<'a> {
         sync(&mut device)?;
         drop(device);
 
-        // Format all the partitions that need to be formatted.
-        for (device_path, fs) in format_partitions {
-            mkfs(&device_path, fs).map_err(|why| DiskError::PartitionFormat { why })?;
-        }
-
         // Proceed to the next state in the machine.
         Ok(CreatePartitions {
             device_path:       self.device_path,
             create_partitions: self.create_partitions,
+            format_partitions: format_partitions
         })
     }
 }
@@ -231,11 +227,12 @@ impl<'a> ChangePartitions<'a> {
 pub(crate) struct CreatePartitions<'a> {
     device_path:       &'a Path,
     create_partitions: Vec<PartitionCreate>,
+    format_partitions: Vec<(PathBuf, FileSystemType)>,
 }
 
 impl<'a> CreatePartitions<'a> {
     /// If any new partitions were specified, they will be created here.
-    pub(crate) fn create(self) -> Result<(), DiskError> {
+    pub(crate) fn create(mut self) -> Result<FormatPartitions, DiskError> {
         for partition in &self.create_partitions {
             {
                 let mut device = open_device(self.device_path)?;
@@ -301,10 +298,21 @@ impl<'a> CreatePartitions<'a> {
                 })
             })?;
 
-            // Finally, partition the newly-created partition.
-            mkfs(&path, partition.file_system).map_err(|why| DiskError::PartitionFormat { why })?;
+            self.format_partitions.push((path, partition.file_system));
         }
 
+        Ok(FormatPartitions(self.format_partitions))
+    }
+}
+
+pub struct FormatPartitions(Vec<(PathBuf, FileSystemType)>);
+
+impl FormatPartitions {
+    // Finally, format all of the modified and created partitions.
+    pub fn format(self) -> Result<(), DiskError> {
+        for (part, fs) in self.0 {
+            mkfs(&part, fs).map_err(|why| DiskError::PartitionFormat { why })?;
+        }
         Ok(())
     }
 }
