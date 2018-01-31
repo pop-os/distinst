@@ -3,6 +3,7 @@ use libparted::{Partition, PartitionFlag};
 use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 /// Specifies which file system format to use.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
@@ -32,8 +33,9 @@ impl FileSystemType {
     }
 }
 
-impl FileSystemType {
-    fn from(string: &str) -> Option<FileSystemType> {
+impl FromStr for FileSystemType {
+    type Err = &'static str;
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
         let type_ = match string {
             "btrfs" => FileSystemType::Btrfs,
             "exfat" => FileSystemType::Exfat,
@@ -43,12 +45,12 @@ impl FileSystemType {
             "f2fs" => FileSystemType::F2fs,
             "fat16" => FileSystemType::Fat16,
             "fat32" => FileSystemType::Fat32,
-            "linux-swap(v1)" => FileSystemType::Swap,
+            "swap" | "linux-swap(v1)" => FileSystemType::Swap,
             "ntfs" => FileSystemType::Ntfs,
             "xfs" => FileSystemType::Xfs,
-            _ => return None,
+            _ => return Err("invalid file system name"),
         };
-        Some(type_)
+        Ok(type_)
     }
 }
 
@@ -272,7 +274,8 @@ impl PartitionInfo {
             mount_point: mounts.get_mount_point(&device_path),
             swapped: swaps.get_swapped(&device_path),
             target: None,
-            filesystem: partition.fs_type_name().and_then(FileSystemType::from),
+            filesystem: partition.fs_type_name()
+                .and_then(|name| FileSystemType::from_str(name).ok()),
             flags: get_flags(partition),
             number: partition.num(),
             name: if is_msdos {
