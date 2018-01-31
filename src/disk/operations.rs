@@ -1,4 +1,5 @@
 use super::*;
+use ::blockdev;
 use format::mkfs;
 use libparted::{
     Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry, Partition as PedPartition,
@@ -300,6 +301,9 @@ impl<'a> CreatePartitions<'a> {
 
             self.format_partitions.push((path, partition.file_system));
         }
+
+        blockdev(self.device_path, &["--flushbufs", "--rereadpt"])
+            .map_err(|why| DiskError::DiskSync { why })?;
 
         Ok(FormatPartitions(self.format_partitions))
     }
