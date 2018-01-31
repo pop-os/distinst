@@ -592,6 +592,20 @@ impl Disk {
             })
     }
 
+    /// Rewrites the partition flags on the given partition with the specified flags.
+    pub fn add_flags(
+        &mut self,
+        partition: i32,
+        flags: Vec<PartitionFlag>
+    ) -> Result<(), DiskError> {
+        self.get_partition_mut(partition)
+            .ok_or(DiskError::PartitionNotFound { partition })
+            .map(|partition| {
+                partition.flags = flags;
+                ()
+            })
+    }
+
     /// Specifies to set a new label on the partition.
     pub fn set_name(&mut self, partition: i32, name: String) -> Result<(), DiskError> {
         self.get_partition_mut(partition)

@@ -302,8 +302,16 @@ impl<'a> CreatePartitions<'a> {
             self.format_partitions.push((path, partition.file_system));
         }
 
-        blockdev(self.device_path, &["--flushbufs", "--rereadpt"])
-            .map_err(|why| DiskError::DiskSync { why })?;
+        // Attempt to sync three times before returning an error.
+        for attempt in 0..3 {
+            ::std::thread::sleep(::std::time::Duration::from_secs(1));
+            let result = blockdev(self.device_path, &["--flushbufs", "--rereadpt"]);
+            if result.is_err() && attempt == 2 {
+                result.map_err(|why| DiskError::DiskSync { why })?
+            } else {
+                break
+            }
+        }
 
         Ok(FormatPartitions(self.format_partitions))
     }

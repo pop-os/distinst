@@ -315,6 +315,12 @@ impl PartitionInfo {
 
     pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
+    pub fn format_with(&mut self, fs: FileSystemType) {
+        self.format = true;
+        self.filesystem = Some(fs);
+        self.name = None;
+    }
+
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
         if self.filesystem != Some(FileSystemType::Swap)
             && (self.target.is_none() || self.filesystem.is_none())
