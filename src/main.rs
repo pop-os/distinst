@@ -21,7 +21,7 @@ fn main() {
     let matches = App::new("distinst")
         .arg(Arg::with_name("squashfs")
             .short("s")
-            .long("--squashfs")
+            .long("squashfs")
             .help("define the squashfs image which will be installed")
             .takes_value(true)
             .required(true)
@@ -315,50 +315,4 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     }
 
     Ok(disks)
-    // let mut disk = Disk::from_name(path)?;
-    // match Bootloader::detect() {
-    //     Bootloader::Bios => {
-    //         disk.mklabel(PartitionTable::Msdos)?;
-
-    //         let start = disk.get_sector(Sector::Start);
-    //         let end = disk.get_sector(Sector::End);
-    //         disk.add_partition(
-    //             PartitionBuilder::new(start, end, FileSystemType::Ext4)
-    //                 .partition_type(PartitionType::Primary)
-    //                 .flag(PartitionFlag::PED_PARTITION_BOOT)
-    //                 .mount(Path::new("/").to_path_buf()),
-    //         )?;
-    //     }
-    //     Bootloader::Efi => {
-    //         disk.mklabel(PartitionTable::Gpt)?;
-
-    //         let mut start = disk.get_sector(Sector::Start);
-    //         let mut end = disk.get_sector(Sector::Megabyte(512));
-    //         disk.add_partition(
-    //             PartitionBuilder::new(start, end, FileSystemType::Fat32)
-    //                 .partition_type(PartitionType::Primary)
-    //                 .flag(PartitionFlag::PED_PARTITION_ESP)
-    //                 .mount(Path::new("/boot/efi").to_path_buf())
-    //                 .name("EFI".into()),
-    //         )?;
-
-    //         start = end;
-    //         end = disk.get_sector(Sector::MegabyteFromEnd(0x1000));
-
-    //         disk.add_partition(
-    //             PartitionBuilder::new(start, end, FileSystemType::Ext4)
-    //                 .partition_type(PartitionType::Primary)
-    //                 .mount(Path::new("/").to_path_buf())
-    //                 .name("Pop!_OS".into()),
-    //         )?;
-
-    //         start = end;
-    //         end = disk.get_sector(Sector::End);
-
-    //         disk.add_partition(
-    //             PartitionBuilder::new(start, end, FileSystemType::Swap)
-    //                 .partition_type(PartitionType::Primary),
-    //         )?;
-    //     }
-    // }
 }
