@@ -107,6 +107,7 @@ impl<'a> ChangePartitions<'a> {
     pub(crate) fn change(self) -> Result<CreatePartitions<'a>, DiskError> {
         let mut device = open_device(self.device_path)?;
 
+        let mut format_partitions = Vec::new();
         for change in &self.change_partitions {
             let mut disk = open_disk(&mut device)?;
             let mut resize_required = false;
@@ -174,6 +175,13 @@ impl<'a> ChangePartitions<'a> {
                     fs.resize(&new_geom, None)
                         .map_err(|_| DiskError::PartitionResize)?;
                 }
+
+                if let Some(fs) = change.format {
+                    format_partitions.push((
+                        part.get_path().unwrap().to_path_buf(),
+                        fs
+                    ));
+                }
             }
 
             if resize_required || flags_changed || name_changed {
@@ -202,11 +210,8 @@ impl<'a> ChangePartitions<'a> {
         drop(device);
 
         // Format all the partitions that need to be formatted.
-        for change in &self.change_partitions {
-            let device_path = format!("{}{}", self.device_path.display(), change.num);
-            if let Some(fs) = change.format {
-                mkfs(&device_path, fs).map_err(|why| DiskError::PartitionFormat { why })?;
-            }
+        for (device_path, fs) in format_partitions {
+            mkfs(&device_path, fs).map_err(|why| DiskError::PartitionFormat { why })?;
         }
 
         // Proceed to the next state in the machine.
@@ -283,16 +288,15 @@ impl<'a> CreatePartitions<'a> {
             }
 
             // Open a second instance of the disk which we need to get the new partition ID.
-            let num = get_device(self.device_path).and_then(|mut device| {
+            let path = get_device(self.device_path).and_then(|mut device| {
                 open_disk(&mut device).and_then(|disk| {
                     disk.get_partition_by_sector(partition.start_sector as i64)
-                        .map(|part| part.num())
+                        .map(|part| part.get_path().unwrap().to_path_buf())
                         .ok_or(DiskError::NewPartNotFound)
                 })
             })?;
 
             // Finally, partition the newly-created partition.
-            let path = format!("{}{}", self.device_path.display(), num);
             mkfs(&path, partition.file_system).map_err(|why| DiskError::PartitionFormat { why })?;
         }
 
