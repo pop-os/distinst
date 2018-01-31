@@ -552,7 +552,7 @@ impl Installer {
 
                 apply_step!($msg, $action);
             }};
-            // When a step is not provided, the program will simply 
+            // When a step is not provided, the program will simply
             ($msg:expr, $action:expr) => {{
                 match $action {
                     Ok(value) => value,
@@ -595,29 +595,38 @@ impl Installer {
             "distinst: mounting temporary chroot directory at {}",
             CHROOT_ROOT
         );
-        let mount_dir = TempDir::new(CHROOT_ROOT)?;
-        let _mounts = Installer::mount(&disks, CHROOT_ROOT)?;
 
-        apply_step!(Step::Extract, "extraction", {
-            Installer::extract(&squashfs, CHROOT_ROOT, percent!())
-        });
+        {
+            let mount_dir = TempDir::new(CHROOT_ROOT)?;
 
-        apply_step!(Step::Configure, "configuration", {
-            Installer::configure(
-                &disks,
-                CHROOT_ROOT,
-                bootloader,
-                &config,
-                &remove_pkgs,
-                percent!(),
-            )
-        });
+            {
+                let mut mounts = Installer::mount(&disks, CHROOT_ROOT)?;
 
-        apply_step!(Step::Bootloader, "bootloader", {
-            Installer::bootloader(&disks, CHROOT_ROOT, bootloader, percent!())
-        });
+                apply_step!(Step::Extract, "extraction", {
+                    Installer::extract(&squashfs, CHROOT_ROOT, percent!())
+                });
 
-        mount_dir.close()?;
+                apply_step!(Step::Configure, "configuration", {
+                    Installer::configure(
+                        &disks,
+                        CHROOT_ROOT,
+                        bootloader,
+                        &config,
+                        &remove_pkgs,
+                        percent!(),
+                    )
+                });
+
+                apply_step!(Step::Bootloader, "bootloader", {
+                    Installer::bootloader(&disks, CHROOT_ROOT, bootloader, percent!())
+                });
+
+                mounts.unmount(false)?;
+            }
+
+            mount_dir.close()?;
+        }
+
         Ok(())
     }
 

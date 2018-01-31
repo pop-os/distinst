@@ -39,6 +39,16 @@ pub fn umount<P: AsRef<Path>>(dest: P, lazy: bool) -> Result<()> {
 /// An abstraction that will ensure that mounts are dropped in reverse.
 pub struct Mounts(pub Vec<Mount>);
 
+impl Mounts {
+    pub fn unmount(&mut self, lazy: bool) -> Result<()> {
+        for mount in self.0.iter_mut().rev() {
+            mount.unmount(lazy)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl Drop for Mounts {
     fn drop(&mut self) {
         for mount in self.0.drain(..).rev() {
