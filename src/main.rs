@@ -20,7 +20,7 @@ fn main() {
     let matches = App::new("distinst")
         .arg(Arg::with_name("squashfs")
             .short("s")
-            .long("--squashfs")
+            .long("squashfs")
             .takes_value(true)
             .required(true)
         )
