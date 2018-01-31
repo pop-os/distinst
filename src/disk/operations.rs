@@ -55,6 +55,11 @@ impl<'a> DiskOps<'a> {
     /// The first stage of disk operations, where a new partition table may be generated
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
         if let Some(table) = self.mklabel {
+            info!(
+                "making label {:?} on {}",
+                table,
+                self.device_path.display()
+            );
             mklabel(self.device_path, table)?;
         }
 
