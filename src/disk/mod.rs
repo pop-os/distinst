@@ -19,7 +19,7 @@ use std::ffi::OsString;
 use std::io;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
-use std::str;
+use std::str::{self, FromStr};
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[derive(Debug, Fail)]
@@ -165,6 +165,41 @@ pub enum Sector {
     /// The percent can be represented by specifying a value between 0 and
     /// u16::MAX, where u16::MAX is 100%.
     Percent(u16),
+}
+
+// TODO: Write tests for this.
+
+impl FromStr for Sector {
+    type Err = &'static str;
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        if input.ends_with("M") {
+            if input.starts_with("-") {
+                if let Ok(value) = input[1..input.len()-1].parse::<u64>() {
+                    return Ok(Sector::MegabyteFromEnd(value));
+                }
+            } else if let Ok(value) = input[..input.len()-1].parse::<u64>() {
+                return Ok(Sector::Megabyte(value));
+            }
+        } else if input.ends_with("%") {
+            if let Ok(value) = input[..input.len()-1].parse::<u16>() {
+                if value <= 100 {
+                    return Ok(Sector::Percent(value));
+                }
+            }
+        } else if input == "start" {
+            return Ok(Sector::Start)
+        } else if input == "end" {
+            return Ok(Sector::End)
+        } else if input.starts_with("-") {
+            if let Ok(value) = input[1..input.len()].parse::<u64>() {
+                return Ok(Sector::UnitFromEnd(value));
+            }
+        } else if let Ok(value) = input[..input.len()].parse::<u64>() {
+            return Ok(Sector::Unit(value));
+        }
+
+        Err("invalid sector value")
+    }
 }
 
 /// Gets a `libparted::Device` from the given name.
@@ -783,6 +818,16 @@ impl Disks {
         }
 
         Ok(Disks(output))
+    }
+
+    /// Returns an immutable reference to the disk specified by its path, if it exists.
+    pub fn find_disk<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
+        self.0.iter().find(|disk| &disk.device_path == path.as_ref())
+    }
+
+    /// Returns a mutable reference to the disk specified by its path, if it exists.
+    pub fn find_disk_mut<P: AsRef<Path>>(&mut self, path: P) -> Option<&mut Disk> {
+        self.0.iter_mut().find(|disk| &disk.device_path == path.as_ref())
     }
 
     /// Finds the partition block path and associated partition information that is associated with
