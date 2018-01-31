@@ -767,6 +767,7 @@ impl Disk {
                 ops.remove()
                     .and_then(|ops| ops.change())
                     .and_then(|ops| ops.create())
+                    .and_then(|ops| ops.format())
             })
         })?;
 

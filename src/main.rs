@@ -235,6 +235,16 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
 
     for part in matches.values_of("new").unwrap() {
         let values: Vec<&str> = part.split(":").collect();
+        if values.len() < 5 {
+            eprintln!("distinst: five to seven colon-delimited values need to be supplied to a new \
+                partition.\n\t-n USAGE: \
+                'block:part_type:start_sector:end_sector:fs[:mount:flags,...]'");
+            exit(1);
+        } else if values.len() > 7 {
+            eprintln!("distinst: too many values were supplied to the new partition flag");
+            exit(1);
+        }
+
         let (kind, start, end, fs, mount, flags) = (
             match values[1] {
                 "primary" => PartitionType::Primary,
