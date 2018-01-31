@@ -94,7 +94,7 @@ namespace Distinst {
 
     [CCode (has_type_id = false, unref_function = "")]
     public class Partition {
-        public void set_flags(PartitionFlag[] flags);
+        public void set_flags(PartitionFlag *flags, size_t len);
         public void set_mount(string target);
         public int format_with(FileSystemType fs);
     }
