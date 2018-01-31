@@ -6,8 +6,9 @@ use std::ptr;
 
 use {Disk, Disks, FileSystemType, PartitionBuilder, PartitionTable, Sector};
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
-use c::partition::{DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
+use c::partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
 use c::sector::DistinstSector;
+use c::ffi::{AsMutPtr, AsPtr};
 use super::gen_object_ptr;
 
 #[repr(C)]
@@ -60,6 +61,26 @@ unsafe fn disk_action_mut<T, F: Fn(&mut Disk) -> T>(disk: *mut DistinstDisk, act
     } else {
         &mut *(disk as *mut Disk)
     })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_partition_mut(
+    disk: *mut DistinstDisk,
+    partition: libc::int32_t,
+) -> *mut DistinstPartition {
+    let disk = &mut *(disk as *mut Disk);
+    disk.get_partition_mut(partition as i32)
+        .as_mut_ptr() as *mut DistinstPartition
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_partition(
+    disk: *mut DistinstDisk,
+    partition: libc::int32_t,
+) -> *const DistinstPartition {
+    let disk = &mut *(disk as *mut Disk);
+    disk.get_partition(partition as i32)
+        .as_ptr() as *const DistinstPartition
 }
 
 #[no_mangle]

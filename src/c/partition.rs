@@ -3,6 +3,7 @@ use libc;
 use std::path::PathBuf;
 use std::ptr;
 use super::{gen_object_ptr, get_str};
+use ::PartitionInfo;
 
 use {Bootloader, PartitionBuilder, PartitionFlag, PartitionType};
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
@@ -174,7 +175,7 @@ unsafe fn builder_action<F: FnOnce(PartitionBuilder) -> PartitionBuilder>(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_builder_name(
     builder: *mut DistinstPartitionBuilder,
-    name: *mut libc::c_char,
+    name: *const libc::c_char,
 ) -> *mut DistinstPartitionBuilder {
     let name = match get_str(name, "distinst_partition_builder") {
         Ok(string) => string.to_string(),
@@ -187,7 +188,7 @@ pub unsafe extern "C" fn distinst_partition_builder_name(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_builder_mount(
     builder: *mut DistinstPartitionBuilder,
-    target: *mut libc::c_char,
+    target: *const libc::c_char,
 ) -> *mut DistinstPartitionBuilder {
     let target = match get_str(target, "distinst_partition_builder_mount") {
         Ok(string) => PathBuf::from(string.to_string()),
@@ -215,3 +216,45 @@ pub unsafe extern "C" fn distinst_partition_builder_flag(
 
 #[repr(C)]
 pub struct DistinstPartition;
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_set_mount(
+    partition: *mut DistinstPartition,
+    target: *const libc::c_char,
+) {
+    let target = match get_str(target, "distinst_partition_set_mount") {
+        Ok(string) => PathBuf::from(string.to_string()),
+        Err(why) => panic!("partition action: failed: {}", why)
+    };
+
+    let part = &mut *(partition as *mut PartitionInfo);
+    part.set_mount(target);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_set_flags(
+    partition: *mut DistinstPartition,
+    ptr: *const DISTINST_PARTITION_FLAG,
+    len: libc::size_t
+) {
+    let targets = ::std::slice::from_raw_parts(ptr, len as usize)
+        .iter()
+        .map(|flag| PartitionFlag::from(*flag))
+        .collect::<Vec<PartitionFlag>>();
+    
+    let part = &mut *(partition as *mut PartitionInfo);
+    part.flags = targets;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_format_with(
+    partition: *mut DistinstPartition,
+    fs: DISTINST_FILE_SYSTEM_TYPE,
+) -> libc::c_int {
+    let part = &mut *(partition as *mut PartitionInfo);
+    part.format_with(match fs.into() {
+        Some(fs) => fs,
+        None => return -1
+    });
+    0
+}

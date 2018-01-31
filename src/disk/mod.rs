@@ -500,6 +500,13 @@ impl Disk {
         Ok(())
     }
 
+    /// Obtains an immutable reference to a partition within the partition scheme.
+    pub fn get_partition(&self, partition: i32) -> Option<&PartitionInfo> {
+        self.partitions
+            .iter()
+            .find(|part| part.number == partition)
+    }
+
     /// Obtains a mutable reference to a partition within the partition scheme.
     pub fn get_partition_mut(&mut self, partition: i32) -> Option<&mut PartitionInfo> {
         self.partitions
@@ -584,9 +591,7 @@ impl Disk {
                 check_partition_size(partition.sectors() * sector_size, fs)
                     .map_err(DiskError::from)
                     .map(|_| {
-                        partition.format = true;
-                        partition.filesystem = Some(fs);
-                        partition.name = None;
+                        partition.format_with(fs);
                         ()
                     })
             })

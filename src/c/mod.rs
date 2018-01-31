@@ -15,6 +15,7 @@ use std::io;
 
 mod config;
 mod disk;
+mod ffi;
 mod filesystem;
 mod installer;
 mod partition;

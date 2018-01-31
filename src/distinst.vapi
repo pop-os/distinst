@@ -92,6 +92,13 @@ namespace Distinst {
         public PartitionBuilder flag(PartitionFlag flag);
     }
 
+    [CCode (has_type_id = false, unref_function = "")]
+    public class Partition {
+        public void set_flags(PartitionFlag[] flags);
+        public void set_mount(string target);
+        public int format_with(FileSystemType fs);
+    }
+
     [CCode (has_type_id = false)]
     public enum SectorKind {
         START,
@@ -112,6 +119,8 @@ namespace Distinst {
     [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
     public class Disk {
         public Disk (string path);
+        public *const Partition get_partition(int partition);
+        public *Partition get_partition_mut(int partition);
         public int add_partition (PartitionBuilder partition);
         public int format_partition (int partition, FileSystemType fs);
         public uint64 get_sector (Sector sector);
