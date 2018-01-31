@@ -202,7 +202,7 @@ fn main() {
 }
 
 fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
-    let mut disks = Disks(Vec::new());  
+    let mut disks = Disks(Vec::new());
 
     for block in matches.values_of("disk").unwrap() {
         disks.0.push(Disk::from_name(block)?);
@@ -218,7 +218,7 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
 
         match disks.find_disk_mut(values[0]) {
             Some(mut disk) => match values[1] {
-                "gpt" => disk.mklabel(PartitionTable::Msdos)?,
+                "gpt" => disk.mklabel(PartitionTable::Gpt)?,
                 "msdos" => disk.mklabel(PartitionTable::Msdos)?,
                 _ => {
                     eprintln!("distinst: '{}' is not valid. \
