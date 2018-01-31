@@ -59,7 +59,7 @@ then
         --esp_path "/boot/efi" \
         --kernel-path "/vmlinuz" \
         --initrd-path "/initrd.img" \
-        --options "quiet splash" \
+        --options "quiet loglevel=0 vga=current" \
         --loader \
         --manage-only \
         --verbose
