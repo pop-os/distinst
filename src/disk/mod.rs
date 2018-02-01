@@ -542,29 +542,32 @@ impl Disk {
             .find(|part| part.number == partition)
     }
 
-    /// Designates that the provided partition number should be resized to a specified length,
-    /// and calculates whether it will be possible to do that.
-    pub fn resize_partition(&mut self, partition: i32, length: u64) -> Result<(), DiskError> {
+    /// Designates that the provided partition number should be resized so that the end sector
+    /// will be located at the provided `end` value, and checks whether or not that this will
+    /// be possible to do.
+    pub fn resize_partition(&mut self, partition: i32, end: u64) -> Result<(), DiskError> {
         info!(
             "libdistinst: specifying to resize partition {} on {} to a new length of {}",
             partition,
             self.path().display(),
-            length
+            end
         );
-        let sector_size = self.sector_size;
-        if length <= ((10 * 1024 * 1024) / sector_size) {
-            return Err(DiskError::ResizeTooSmall);
-        }
 
-        let (backup, num, start, end);
+        let sector_size = self.sector_size;
+        let (backup, num, start);
         {
             let partition = self.get_partition_mut(partition)
                 .ok_or(DiskError::PartitionNotFound { partition })?;
 
+            if end < partition.start_sector
+                || end - partition.start_sector <= (10 * 1024 * 1024) / sector_size
+            {
+                return Err(DiskError::ResizeTooSmall);
+            }
+
             backup = partition.end_sector;
             num = partition.number;
             start = partition.start_sector;
-            end = start + length;
             partition.end_sector = end;
         }
 

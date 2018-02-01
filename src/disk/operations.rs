@@ -89,12 +89,12 @@ impl<'a> DiskOps<'a> {
 
             if changes_required {
                 info!(
-                    "attempting to remove partitions from {}",
+                    "libdistinst: attempting to remove partitions from {}",
                     self.device_path.display()
                 );
                 commit(&mut disk)?;
                 info!(
-                    "successfully removed partitions from {}",
+                    "libdistinst: successfully removed partitions from {}",
                     self.device_path.display()
                 );
             }
@@ -165,6 +165,7 @@ impl<'a> ChangePartitions<'a> {
 
                 // If the partition needs to be resized/moved, this will execute.
                 if end != change.end || start != change.start {
+                    info!("libdistinst: getting geometry coordinates for filesystem");
                     resize_required = true;
 
                     // Grab the geometry, duplicate it, set the new values, and open the FS.
@@ -173,12 +174,14 @@ impl<'a> ChangePartitions<'a> {
 
                     // libparted will automatically set the length after manually setting the
                     // start and end sector values.
+                    info!("libdistinst: setting geometry for resize operation");
                     new_geom
                         .set_start(change.start as i64)
                         .and_then(|_| new_geom.set_end(change.end as i64))
                         .map_err(|_| DiskError::GeometrySet)?;
 
                     // Open the FS located at the original geometry coordinates.
+                    info!("libdistinst: opening file system at original geometry coordinates");
                     let mut fs = geom.open_fs().ok_or(DiskError::NoFilesystem)?;
 
                     // Resize the file system with the new geometry's data.

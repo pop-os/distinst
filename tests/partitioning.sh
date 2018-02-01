@@ -2,6 +2,7 @@
 
 FS="tests/filesystem.squashfs"
 REMOVE="tests/filesystem.manifest-remove"
+RUNS=3
 
 if ! test -e "target/debug/distinst"; then
     cargo build --bin distinst
@@ -17,7 +18,7 @@ done
 set -x
 
 echo 'Running new partitioning tests'
-index=0; while test $index -ne 3; do
+index=0; while test ${index} -ne ${RUNS}; do
     sudo target/debug/distinst --test \
         -s "${FS}" \
         -r "${REMOVE}" \
@@ -33,7 +34,7 @@ index=0; while test $index -ne 3; do
 done
 
 echo 'Running re-use partition tests'
-index=0; while test $index -ne 3; do
+index=0; while test ${index} -ne ${RUNS}; do
     sudo target/debug/distinst --test \
         -s "${FS}" \
         -r "${REMOVE}" \
@@ -48,7 +49,7 @@ index=0; while test $index -ne 3; do
 done
 
 echo 'Running partition removal tests'
-index=0; while test $index -ne 3; do
+index=0; while test ${index} -ne ${RUNS}; do
     sudo target/debug/distinst --test \
         -s "${FS}" \
         -r "${REMOVE}" \
@@ -60,5 +61,21 @@ index=0; while test $index -ne 3; do
         -u "$1:2:reuse:/" \
         -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
         -n "$1:primary:-512M:end:swap"
+    index=$((index + 1))
+done
+
+echo 'Running partition move & resize tests'
+index=0; while test ${index} -ne ${RUNS}; do
+    sudo target/debug/distinst --test \
+        -s "${FS}" \
+        -r "${REMOVE}" \
+        -h "pop-testing" \
+        -k "us" \
+        -l "en_US.UTF-8" \
+        -b "$1" \
+        -d "$1:2" \
+        -u "$1:1:reuse:/boot/efi:esp" \
+        -n "$1:primary:512M:-4096M:ext4:/" \
+        -m "$1:3:-4096M:end"
     index=$((index + 1))
 done

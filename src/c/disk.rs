@@ -166,10 +166,10 @@ pub unsafe extern "C" fn distinst_disk_remove_partition(
 pub unsafe extern "C" fn distinst_disk_resize_partition(
     disk: *mut DistinstDisk,
     partition: libc::c_int,
-    length: libc::uint64_t,
+    end: libc::uint64_t,
 ) -> libc::c_int {
     disk_action_mut(disk, |disk| {
-        if let Err(why) = disk.resize_partition(partition, length) {
+        if let Err(why) = disk.resize_partition(partition, end) {
             info!("unable to resize partition: {}", why);
             -1
         } else {

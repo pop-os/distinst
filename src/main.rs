@@ -109,17 +109,10 @@ fn main() {
                 .multiple(true),
         )
         .arg(
-            Arg::with_name("resize")
-                .long("resize")
-                .help("defines to resize an existing partition")
-                .takes_value(true)
-                .multiple(true),
-        )
-        .arg(
             Arg::with_name("move")
                 .short("m")
                 .long("move")
-                .help("defines to move an existing partition")
+                .help("defines to move and/or resize an existing partition")
                 .takes_value(true)
                 .multiple(true),
         )
@@ -385,7 +378,52 @@ fn configure_removed(disks: &mut Disks, ops: Option<Values>) -> Result<(), DiskE
     Ok(())
 }
 
-fn configure_reuse(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
+fn configure_moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
+    if let Some(parts) = parts {
+        for part in parts {
+            let values: Vec<&str> = part.split(":").collect();
+            if values.len() != 4 {
+                eprintln!("distinst: four arguments must be supplied to move operations\n \
+                    \t-m USAGE: 'block:part_id:start:end");
+                exit(1);
+            }
+
+            let (block, partition, start, end) = (
+                values[0],
+                match values[1].parse::<u32>() {
+                    Ok(id) => id as i32,
+                    Err(_) => {
+                        eprintln!("distinst: partition value must be a number");
+                        exit(1);
+                    }
+                },
+                match values[2] {
+                    "none" => None,
+                    value => Some(parse_sector(value))
+                },
+                match values[3] {
+                    "none" => None,
+                    value => Some(parse_sector(value))
+                }
+            );
+
+            let mut disk = find_disk_mut(disks, block);
+            if let Some(start) = start {
+                let start = disk.get_sector(start);
+                disk.move_partition(partition, start)?;
+            }
+
+            if let Some(end) = end {
+                let end = disk.get_sector(end);
+                disk.resize_partition(partition, end)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
     if let Some(parts) = parts {
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
@@ -482,18 +520,9 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
             disk.add_partition(builder)?;
         }
     }
+
     Ok(())
 }
-
-// fn configure_resize(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
-
-//     Ok(())
-// }
-
-// fn configure_move(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
-
-//     Ok(())
-// }
 
 fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     let mut disks = Disks(Vec::new());
@@ -504,7 +533,8 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
 
     configure_tables(&mut disks, matches.values_of("table"))?;
     configure_removed(&mut disks, matches.values_of("delete"))?;
-    configure_reuse(&mut disks, matches.values_of("use"))?;
+    configure_moved(&mut disks, matches.values_of("move"))?;
+    configure_reused(&mut disks, matches.values_of("use"))?;
     configure_new(&mut disks, matches.values_of("new"))?;
 
     Ok(disks)

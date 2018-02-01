@@ -131,7 +131,7 @@ namespace Distinst {
         public int mklabel (PartitionTable table);
         public int move_partition (int partition, uint64 start);
         public int remove_partition (int partition);
-        public int resize_partition (int partition, uint64 length);
+        public int resize_partition (int partition, uint64 end);
         public int commit();
     }
 
