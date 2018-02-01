@@ -6,7 +6,7 @@ extern crate pbr;
 use clap::{App, Arg, ArgMatches};
 use distinst::{
     Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
-    PartitionFlag, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH,
+    PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH,
     PARTITIONING_TEST
 };
 use pbr::ProgressBar;
@@ -86,12 +86,12 @@ fn main() {
             .multiple(true)
         )
         .arg(Arg::with_name("test").long("test"))
-        // .arg(Arg::with_name("delete")
-        //     .short("d")
-        //     .long("delete")
-        //     .takes_value(true)
-        //     .multiple(true)
-        // )
+        .arg(Arg::with_name("delete")
+            .short("d")
+            .long("delete")
+            .takes_value(true)
+            .multiple(true)
+        )
         // .arg(Arg::with_name("move")
         //     .short("m")
         //     .long("move")
@@ -283,6 +283,16 @@ fn find_disk_mut<'a>(disks: &'a mut Disks, block: &str) -> &'a mut Disk {
     }
 }
 
+fn find_partition_mut<'a>(disk: &'a mut Disk, part_id: i32) -> &'a mut PartitionInfo {
+    match disk.get_partition_mut(part_id) {
+        Some(partition) => partition,
+        None => {
+            eprintln!("distinst: partition '{}' was not found", part_id);
+            exit(1);
+        }
+    }
+}
+
 fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     let mut disks = Disks(Vec::new());
 
@@ -317,6 +327,33 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
         }
     }
 
+    if let Some(ops) = matches.values_of("delete") {
+        for op in ops {
+            let mut args = op.split(":");
+            let block_dev = match args.next() {
+                Some(disk) => disk,
+                None => {
+                    eprintln!("distinst: no block argument provided");
+                    exit(1);
+                }
+            };
+
+            for part in args {
+                let part_id = match part.parse::<u32>() {
+                    Ok(value) => value,
+                    Err(_) => {
+                        eprintln!("distinst: argument is not a valid number");
+                        exit(1);
+                    }
+                };
+
+                let disk = find_disk_mut(&mut disks, block_dev);
+                let mut partition = find_partition_mut(disk, part_id as i32);
+                partition.remove();
+            }
+        }
+    }
+
     if let Some(parts) = matches.values_of("use") {
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
@@ -331,8 +368,8 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
 
             let (block_dev, part_id, fs, mount, flags) = (
                 values[0],
-                match values[1].parse::<i32>() {
-                    Ok(id) => id,
+                match values[1].parse::<u32>() {
+                    Ok(id) => id as i32,
                     Err(_) => {
                         eprintln!("distinst: partition value must be a number");
                         exit(1);
@@ -346,14 +383,8 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
                 values.get(4).map(|&flags| parse_flags(flags))
             );
 
-            let mut disk = find_disk_mut(&mut disks, block_dev);
-            let partition = match disk.get_partition_mut(part_id) {
-                Some(partition) => partition,
-                None => {
-                    eprintln!("distinst: partition '{}' was not found on '{}'", part_id, block_dev);
-                    exit(1);
-                }
-            };
+            let disk = find_disk_mut(&mut disks, block_dev);
+            let mut partition = find_partition_mut(disk, part_id);
 
             if let Some(mount) = mount {
                 partition.set_mount(Path::new(mount).to_path_buf());

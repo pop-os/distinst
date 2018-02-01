@@ -324,6 +324,8 @@ impl PartitionInfo {
         self.name = None;
     }
 
+    pub fn remove(&mut self) { self.remove = true; }
+
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
         info!(
             "libdistinst: getting block information for partition at {}",

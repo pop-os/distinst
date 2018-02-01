@@ -46,3 +46,19 @@ index=0; while test $index -ne 3; do
         -u "$1:3:swap"
     index=$((index + 1))
 done
+
+echo 'Running partition removal tests'
+index=0; while test $index -ne 3; do
+    sudo target/debug/distinst --test \
+        -s "${FS}" \
+        -r "${REMOVE}" \
+        -h "pop-testing" \
+        -k "us" \
+        -l "en_US.UTF-8" \
+        -b "$1" \
+        -d "$1:1:3" \
+        -u "$1:2:reuse:/" \
+        -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
+        -n "$1:primary:-512M:end:swap"
+    index=$((index + 1))
+done
