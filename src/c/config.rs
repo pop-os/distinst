@@ -1,7 +1,7 @@
 use libc;
 
-use std::io;
 use super::get_str;
+use std::io;
 
 use Config;
 
@@ -15,8 +15,6 @@ pub struct DistinstConfig {
     remove:   *const libc::c_char,
     squashfs: *const libc::c_char,
 }
-
-
 
 impl DistinstConfig {
     pub unsafe fn as_config(&self) -> Result<Config, io::Error> {

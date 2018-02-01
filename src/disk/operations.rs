@@ -1,5 +1,5 @@
 use super::*;
-use ::blockdev;
+use blockdev;
 use format::mkfs;
 use libparted::{
     Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry, Partition as PedPartition,
@@ -23,11 +23,9 @@ fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError>
 
 /// Obtains a partition from the disk by its ID.
 fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a>, DiskError> {
-    info!(
-        "libdistinst: getting partition {} on {}",
-        part,
-        unsafe { disk.get_device().path().display() }
-    );
+    info!("libdistinst: getting partition {} on {}", part, unsafe {
+        disk.get_device().path().display()
+    });
     disk.get_partition(part)
         .ok_or(DiskError::PartitionNotFound {
             partition: part as i32,
@@ -36,7 +34,11 @@ fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a
 
 /// Writes a new partition table to the disk, clobbering it in the process.
 fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), DiskError> {
-    info!("libdistinst: writing {:?} table on {}", kind, device_path.as_ref().display());
+    info!(
+        "libdistinst: writing {:?} table on {}",
+        kind,
+        device_path.as_ref().display()
+    );
     open_device(&device_path).and_then(|mut device| {
         let kind = match kind {
             PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
@@ -194,10 +196,7 @@ impl<'a> ChangePartitions<'a> {
                 }
 
                 if let Some(fs) = change.format {
-                    format_partitions.push((
-                        part.get_path().unwrap().to_path_buf(),
-                        fs
-                    ));
+                    format_partitions.push((part.get_path().unwrap().to_path_buf(), fs));
                 }
             }
 
@@ -230,7 +229,7 @@ impl<'a> ChangePartitions<'a> {
         Ok(CreatePartitions {
             device_path:       self.device_path,
             create_partitions: self.create_partitions,
-            format_partitions: format_partitions
+            format_partitions: format_partitions,
         })
     }
 }
@@ -330,7 +329,7 @@ impl<'a> CreatePartitions<'a> {
             if result.is_err() && attempt == 2 {
                 result.map_err(|why| DiskError::DiskSync { why })?
             } else {
-                break
+                break;
             }
         }
 

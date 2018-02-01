@@ -5,9 +5,8 @@ extern crate pbr;
 
 use clap::{App, Arg, ArgMatches, Values};
 use distinst::{
-    Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
-    PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH,
-    PARTITIONING_TEST
+    Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder, PartitionFlag,
+    PartitionInfo, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH, PARTITIONING_TEST,
 };
 use pbr::ProgressBar;
 
@@ -20,94 +19,109 @@ use std::sync::atomic::Ordering;
 
 fn main() {
     let matches = App::new("distinst")
-        .arg(Arg::with_name("squashfs")
-            .short("s")
-            .long("squashfs")
-            .help("define the squashfs image which will be installed")
-            .takes_value(true)
-            .required(true)
+        .arg(
+            Arg::with_name("squashfs")
+                .short("s")
+                .long("squashfs")
+                .help("define the squashfs image which will be installed")
+                .takes_value(true)
+                .required(true),
         )
-        .arg(Arg::with_name("hostname")
-            .short("h")
-            .long("hostname")
-            .help("define the hostname that the new system will have")
-            .takes_value(true)
-            .required(true)
+        .arg(
+            Arg::with_name("hostname")
+                .short("h")
+                .long("hostname")
+                .help("define the hostname that the new system will have")
+                .takes_value(true)
+                .required(true),
         )
-        .arg(Arg::with_name("keyboard")
-            .short("k")
-            .long("keyboard")
-            .help("define the keyboard configuration to use")
-            .takes_value(true)
-            .required(true)
+        .arg(
+            Arg::with_name("keyboard")
+                .short("k")
+                .long("keyboard")
+                .help("define the keyboard configuration to use")
+                .takes_value(true)
+                .required(true),
         )
-        .arg(Arg::with_name("lang")
-            .short("l")
-            .long("lang")
-            .help("define the locale that the new system will use")
-            .takes_value(true)
-            .required(true)
+        .arg(
+            Arg::with_name("lang")
+                .short("l")
+                .long("lang")
+                .help("define the locale that the new system will use")
+                .takes_value(true)
+                .required(true),
         )
-        .arg(Arg::with_name("remove")
-            .short("r")
-            .long("remove")
-            .help("defines the manifest file that contains the packages to remove post-install")
-            .takes_value(true)
-            .required(true)
+        .arg(
+            Arg::with_name("remove")
+                .short("r")
+                .long("remove")
+                .help("defines the manifest file that contains the packages to remove post-install")
+                .takes_value(true)
+                .required(true),
         )
-        .arg(Arg::with_name("disk")
-            .short("b")
-            .long("block")
-            .help("defines a disk that will be manipulated in the installation process")
-            .takes_value(true)
-            .multiple(true)
-            .required(true)
+        .arg(
+            Arg::with_name("disk")
+                .short("b")
+                .long("block")
+                .help("defines a disk that will be manipulated in the installation process")
+                .takes_value(true)
+                .multiple(true)
+                .required(true),
         )
-        .arg(Arg::with_name("table")
-            .short("t")
-            .long("new-table")
-            .help("defines a new partition table to apply to the disk, \
-                clobbering it in the process")
-            .multiple(true)
-            .takes_value(true)
+        .arg(
+            Arg::with_name("table")
+                .short("t")
+                .long("new-table")
+                .help(
+                    "defines a new partition table to apply to the disk, clobbering it in the \
+                     process",
+                )
+                .multiple(true)
+                .takes_value(true),
         )
-        .arg(Arg::with_name("new")
-            .short("n")
-            .long("new")
-            .help("defines a new partition that will be created on the disk")
-            .multiple(true)
-            .takes_value(true)
+        .arg(
+            Arg::with_name("new")
+                .short("n")
+                .long("new")
+                .help("defines a new partition that will be created on the disk")
+                .multiple(true)
+                .takes_value(true),
         )
-        .arg(Arg::with_name("use")
-            .short("u")
-            .long("use")
-            .help("defines to reuse an existing partition on the disk")
-            .takes_value(true)
-            .multiple(true)
+        .arg(
+            Arg::with_name("use")
+                .short("u")
+                .long("use")
+                .help("defines to reuse an existing partition on the disk")
+                .takes_value(true)
+                .multiple(true),
         )
-        .arg(Arg::with_name("test")
-            .long("test")
-            .help("simply test whether the provided arguments pass the partitioning stage")
+        .arg(
+            Arg::with_name("test")
+                .long("test")
+                .help("simply test whether the provided arguments pass the partitioning stage"),
         )
-        .arg(Arg::with_name("delete")
-            .short("d")
-            .long("delete")
-            .help("defines to delete the specified partitions")
-            .takes_value(true)
-            .multiple(true)
+        .arg(
+            Arg::with_name("delete")
+                .short("d")
+                .long("delete")
+                .help("defines to delete the specified partitions")
+                .takes_value(true)
+                .multiple(true),
         )
-        .arg(Arg::with_name("resize")
-            .long("resize")
-            .help("defines to resize an existing partition")
-            .takes_value(true)
-            .multiple(true)
+        .arg(
+            Arg::with_name("resize")
+                .long("resize")
+                .help("defines to resize an existing partition")
+                .takes_value(true)
+                .multiple(true),
         )
-        .arg(Arg::with_name("move")
-            .short("m")
-            .long("move")
-            .help("defines to move an existing partition")
-            .takes_value(true)
-            .multiple(true)
+        .arg(
+            Arg::with_name("move")
+                .short("m")
+                .long("move")
+                .help("defines to move an existing partition")
+                .takes_value(true)
+                .multiple(true),
         )
         .get_matches();
 
@@ -262,26 +276,29 @@ fn parse_sector(sector: &str) -> Sector {
 
 fn parse_flags(flags: &str) -> Vec<PartitionFlag> {
     // TODO: implement FromStr for PartitionFlag
-    flags.split(',').filter_map(|flag| match flag {
-        "esp" => Some(PartitionFlag::PED_PARTITION_ESP),
-        "boot" => Some(PartitionFlag::PED_PARTITION_BOOT),
-        "root" => Some(PartitionFlag::PED_PARTITION_ROOT),
-        "swap" => Some(PartitionFlag::PED_PARTITION_SWAP),
-        "hidden" => Some(PartitionFlag::PED_PARTITION_HIDDEN),
-        "raid" => Some(PartitionFlag::PED_PARTITION_RAID),
-        "lvm" => Some(PartitionFlag::PED_PARTITION_LVM),
-        "lba" => Some(PartitionFlag::PED_PARTITION_LBA),
-        "hpservice" => Some(PartitionFlag::PED_PARTITION_HPSERVICE),
-        "palo" => Some(PartitionFlag::PED_PARTITION_PALO),
-        "prep" => Some(PartitionFlag::PED_PARTITION_PREP),
-        "msft_reserved" => Some(PartitionFlag::PED_PARTITION_MSFT_RESERVED),
-        "apple_tv_recovery" => Some(PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY),
-        "diag" => Some(PartitionFlag::PED_PARTITION_DIAG),
-        "legacy_boot" => Some(PartitionFlag::PED_PARTITION_LEGACY_BOOT),
-        "msft_data" => Some(PartitionFlag::PED_PARTITION_MSFT_DATA),
-        "irst" => Some(PartitionFlag::PED_PARTITION_IRST),
-        _ => None
-    }).collect::<Vec<_>>()
+    flags
+        .split(',')
+        .filter_map(|flag| match flag {
+            "esp" => Some(PartitionFlag::PED_PARTITION_ESP),
+            "boot" => Some(PartitionFlag::PED_PARTITION_BOOT),
+            "root" => Some(PartitionFlag::PED_PARTITION_ROOT),
+            "swap" => Some(PartitionFlag::PED_PARTITION_SWAP),
+            "hidden" => Some(PartitionFlag::PED_PARTITION_HIDDEN),
+            "raid" => Some(PartitionFlag::PED_PARTITION_RAID),
+            "lvm" => Some(PartitionFlag::PED_PARTITION_LVM),
+            "lba" => Some(PartitionFlag::PED_PARTITION_LBA),
+            "hpservice" => Some(PartitionFlag::PED_PARTITION_HPSERVICE),
+            "palo" => Some(PartitionFlag::PED_PARTITION_PALO),
+            "prep" => Some(PartitionFlag::PED_PARTITION_PREP),
+            "msft_reserved" => Some(PartitionFlag::PED_PARTITION_MSFT_RESERVED),
+            "apple_tv_recovery" => Some(PartitionFlag::PED_PARTITION_APPLE_TV_RECOVERY),
+            "diag" => Some(PartitionFlag::PED_PARTITION_DIAG),
+            "legacy_boot" => Some(PartitionFlag::PED_PARTITION_LEGACY_BOOT),
+            "msft_data" => Some(PartitionFlag::PED_PARTITION_MSFT_DATA),
+            "irst" => Some(PartitionFlag::PED_PARTITION_IRST),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
 }
 
 fn find_disk_mut<'a>(disks: &'a mut Disks, block: &str) -> &'a mut Disk {
@@ -319,11 +336,13 @@ fn configure_tables(disks: &mut Disks, tables: Option<Values>) -> Result<(), Dis
                     "gpt" => disk.mklabel(PartitionTable::Gpt)?,
                     "msdos" => disk.mklabel(PartitionTable::Msdos)?,
                     _ => {
-                        eprintln!("distinst: '{}' is not valid. \
-                            Value must be either 'gpt' or 'msdos'.", values[1]);
+                        eprintln!(
+                            "distinst: '{}' is not valid. Value must be either 'gpt' or 'msdos'.",
+                            values[1]
+                        );
                         exit(1);
                     }
-                }
+                },
                 None => {
                     eprintln!("distinst: '{}' could not be found", values[0]);
                     exit(1);
@@ -371,8 +390,10 @@ fn configure_reuse(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskE
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
             if values.len() < 3 {
-                eprintln!("distinst: three to five colon-delimited values need to be supplied to \
-                --use\n\t-u USAGE: 'part_block:fs-or-reuse:mount[:flags,...]'");
+                eprintln!(
+                    "distinst: three to five colon-delimited values need to be supplied to \
+                     --use\n\t-u USAGE: 'part_block:fs-or-reuse:mount[:flags,...]'"
+                );
                 exit(1);
             } else if values.len() > 5 {
                 eprintln!("distinst: too many values were supplied to the use partition flag.");
@@ -393,7 +414,7 @@ fn configure_reuse(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskE
                     fs => Some(parse_fs(fs)),
                 },
                 values.get(3),
-                values.get(4).map(|&flags| parse_flags(flags))
+                values.get(4).map(|&flags| parse_flags(flags)),
             );
 
             let disk = find_disk_mut(disks, block_dev);
@@ -414,16 +435,18 @@ fn configure_reuse(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskE
     }
 
     Ok(())
-} 
+}
 
 fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
     if let Some(parts) = parts {
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
             if values.len() < 5 {
-                eprintln!("distinst: five to seven colon-delimited values need to be supplied \
-                    to a new partition.\n\t-n USAGE: \
-                    'block:part_type:start_sector:end_sector:fs[:mount:flags,...]'");
+                eprintln!(
+                    "distinst: five to seven colon-delimited values need to be supplied to a new \
+                     partition.\n\t-n USAGE: \
+                     'block:part_type:start_sector:end_sector:fs[:mount:flags,...]'"
+                );
                 exit(1);
             } else if values.len() > 7 {
                 eprintln!("distinst: too many values were supplied to the new partition flag");
@@ -465,12 +488,12 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
 // fn configure_resize(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
 
 //     Ok(())
-// } 
+// }
 
 // fn configure_move(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
 
 //     Ok(())
-// } 
+// }
 
 fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     let mut disks = Disks(Vec::new());

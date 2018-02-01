@@ -1,7 +1,7 @@
 use libc;
 
-use std::io;
 use super::gen_object_ptr;
+use std::io;
 
 use {Disks, Error, Installer, Status, Step};
 use c::config::DistinstConfig;

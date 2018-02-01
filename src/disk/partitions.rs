@@ -259,7 +259,10 @@ impl PartitionInfo {
         is_msdos: bool,
     ) -> io::Result<Option<PartitionInfo>> {
         let device_path = partition.get_path().unwrap().to_path_buf();
-        info!("libdistinst: obtaining partition information from {}", device_path.display());
+        info!(
+            "libdistinst: obtaining partition information from {}",
+            device_path.display()
+        );
         let mounts = Mounts::new()?;
         let swaps = Swaps::new()?;
 
@@ -275,7 +278,8 @@ impl PartitionInfo {
             mount_point: mounts.get_mount_point(&device_path),
             swapped: swaps.get_swapped(&device_path),
             target: None,
-            filesystem: partition.fs_type_name()
+            filesystem: partition
+                .fs_type_name()
                 .and_then(|name| FileSystemType::from_str(name).ok()),
             flags: get_flags(partition),
             number: partition.num(),
@@ -303,9 +307,7 @@ impl PartitionInfo {
     pub fn path(&self) -> &Path { &self.device_path }
 
     pub(crate) fn requires_changes(&self, other: &PartitionInfo) -> bool {
-        self.sectors_differ_from(other)
-            || self.filesystem != other.filesystem
-            || other.format
+        self.sectors_differ_from(other) || self.filesystem != other.filesystem || other.format
     }
 
     pub(crate) fn sectors_differ_from(&self, other: &PartitionInfo) -> bool {

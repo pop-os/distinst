@@ -1,9 +1,9 @@
 use libc;
 
+use super::{gen_object_ptr, get_str};
+use PartitionInfo;
 use std::path::PathBuf;
 use std::ptr;
-use super::{gen_object_ptr, get_str};
-use ::PartitionInfo;
 
 use {Bootloader, PartitionBuilder, PartitionFlag, PartitionType};
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
@@ -144,11 +144,8 @@ pub unsafe extern "C" fn distinst_partition_builder_new(
         }
     };
 
-    gen_object_ptr(PartitionBuilder::new(
-        start_sector,
-        end_sector,
-        filesystem,
-    )) as *mut DistinstPartitionBuilder
+    gen_object_ptr(PartitionBuilder::new(start_sector, end_sector, filesystem))
+        as *mut DistinstPartitionBuilder
 }
 
 #[no_mangle]
@@ -179,7 +176,7 @@ pub unsafe extern "C" fn distinst_partition_builder_name(
 ) -> *mut DistinstPartitionBuilder {
     let name = match get_str(name, "distinst_partition_builder") {
         Ok(string) => string.to_string(),
-        Err(why) => panic!("builder_action: failed: {}", why)
+        Err(why) => panic!("builder_action: failed: {}", why),
     };
 
     builder_action(builder, move |builder| builder.name(name))
@@ -192,7 +189,7 @@ pub unsafe extern "C" fn distinst_partition_builder_mount(
 ) -> *mut DistinstPartitionBuilder {
     let target = match get_str(target, "distinst_partition_builder_mount") {
         Ok(string) => PathBuf::from(string.to_string()),
-        Err(why) => panic!("builder_action: failed: {}", why)
+        Err(why) => panic!("builder_action: failed: {}", why),
     };
 
     builder_action(builder, move |builder| builder.mount(target))
@@ -240,7 +237,7 @@ pub unsafe extern "C" fn distinst_partition_set_mount(
 ) {
     let target = match get_str(target, "distinst_partition_set_mount") {
         Ok(string) => PathBuf::from(string.to_string()),
-        Err(why) => panic!("partition action: failed: {}", why)
+        Err(why) => panic!("partition action: failed: {}", why),
     };
 
     let part = &mut *(partition as *mut PartitionInfo);
@@ -251,13 +248,13 @@ pub unsafe extern "C" fn distinst_partition_set_mount(
 pub unsafe extern "C" fn distinst_partition_set_flags(
     partition: *mut DistinstPartition,
     ptr: *const DISTINST_PARTITION_FLAG,
-    len: libc::size_t
+    len: libc::size_t,
 ) {
     let targets = ::std::slice::from_raw_parts(ptr, len as usize)
         .iter()
         .map(|flag| PartitionFlag::from(*flag))
         .collect::<Vec<PartitionFlag>>();
-    
+
     let part = &mut *(partition as *mut PartitionInfo);
     part.flags = targets;
 }
@@ -270,7 +267,7 @@ pub unsafe extern "C" fn distinst_partition_format_with(
     let part = &mut *(partition as *mut PartitionInfo);
     part.format_with(match fs.into() {
         Some(fs) => fs,
-        None => return -1
+        None => return -1,
     });
     0
 }

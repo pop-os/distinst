@@ -242,7 +242,10 @@ impl Installer {
     /// Apply all partitioning and formatting changes to the disks configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
         for disk in &mut disks.0 {
-            info!("libdistinst: {}: Committing changes to disk", disk.path().display());
+            info!(
+                "libdistinst: {}: Committing changes to disk",
+                disk.path().display()
+            );
             disk.commit()
                 .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
             callback(100);
@@ -371,7 +374,10 @@ impl Installer {
         };
 
         {
-            info!("libdistinst: chrooting into target on {}", mount_dir.display());
+            info!(
+                "libdistinst: chrooting into target on {}",
+                mount_dir.display()
+            );
             let mut chroot = Chroot::new(&mount_dir)?;
             let configure_chroot = configure.strip_prefix(&mount_dir).map_err(|err| {
                 io::Error::new(
@@ -385,7 +391,10 @@ impl Installer {
                 Bootloader::Efi => &["kernelstub"],
             };
 
-            info!("libdistinst: will install {:?} bootloader packages", install_pkgs);
+            info!(
+                "libdistinst: will install {:?} bootloader packages",
+                install_pkgs
+            );
 
             let args = {
                 let mut args = Vec::new();
@@ -539,8 +548,8 @@ impl Installer {
         disks.verify_partitions(bootloader)?;
 
         let mut status = Status {
-            step: Step::Init,
-            percent: 0
+            step:    Step::Init,
+            percent: 0,
         };
 
         macro_rules! apply_step {

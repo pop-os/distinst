@@ -174,22 +174,22 @@ impl FromStr for Sector {
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         if input.ends_with("M") {
             if input.starts_with("-") {
-                if let Ok(value) = input[1..input.len()-1].parse::<u64>() {
+                if let Ok(value) = input[1..input.len() - 1].parse::<u64>() {
                     return Ok(Sector::MegabyteFromEnd(value));
                 }
-            } else if let Ok(value) = input[..input.len()-1].parse::<u64>() {
+            } else if let Ok(value) = input[..input.len() - 1].parse::<u64>() {
                 return Ok(Sector::Megabyte(value));
             }
         } else if input.ends_with("%") {
-            if let Ok(value) = input[..input.len()-1].parse::<u16>() {
+            if let Ok(value) = input[..input.len() - 1].parse::<u16>() {
                 if value <= 100 {
                     return Ok(Sector::Percent(value));
                 }
             }
         } else if input == "start" {
-            return Ok(Sector::Start)
+            return Ok(Sector::Start);
         } else if input == "end" {
-            return Ok(Sector::End)
+            return Ok(Sector::End);
         } else if input.starts_with("-") {
             if let Ok(value) = input[1..input.len()].parse::<u64>() {
                 return Ok(Sector::UnitFromEnd(value));
@@ -223,10 +223,13 @@ fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskError> {
             Ok(disk) => Ok(disk),
             Err(_) => {
                 info!("libdistinst: unable to open disk; creating new table on it");
-                PedDisk::new_fresh(&mut *device, match Bootloader::detect() {
-                    Bootloader::Bios => PedDiskType::get("msdos").unwrap(),
-                    Bootloader::Efi => PedDiskType::get("gpt").unwrap(),
-                }).map_err(|why| DiskError::DiskNew { why })
+                PedDisk::new_fresh(
+                    &mut *device,
+                    match Bootloader::detect() {
+                        Bootloader::Bios => PedDiskType::get("msdos").unwrap(),
+                        Bootloader::Efi => PedDiskType::get("gpt").unwrap(),
+                    },
+                ).map_err(|why| DiskError::DiskNew { why })
             }
         }
     }
@@ -278,7 +281,10 @@ pub struct Disk {
 
 impl Disk {
     fn new(device: &mut Device) -> Result<Disk, DiskError> {
-        info!("libdistinst: obtaining disk information from {}", device.path().display());
+        info!(
+            "libdistinst: obtaining disk information from {}",
+            device.path().display()
+        );
         let model_name = device.model().into();
         let device_path = device.path().to_owned();
         let serial = match device.type_() {
@@ -404,7 +410,10 @@ impl Disk {
 
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
-        info!("libdistinst: unmount all partitions on {}", self.path().display());
+        info!(
+            "libdistinst: unmount all partitions on {}",
+            self.path().display()
+        );
 
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
@@ -433,7 +442,10 @@ impl Disk {
     /// Drops all partitions in the in-memory disk representation, and marks that a new
     /// partition table should be written to the disk during the disk operations phase.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
-        info!("libdistinst: specifying to write new table on {}", self.path().display());
+        info!(
+            "libdistinst: specifying to write new table on {}",
+            self.path().display()
+        );
         self.unmount_all_partitions()
             .map_err(|why| DiskError::Unmount { why })?;
 
@@ -520,9 +532,7 @@ impl Disk {
 
     /// Obtains an immutable reference to a partition within the partition scheme.
     pub fn get_partition(&self, partition: i32) -> Option<&PartitionInfo> {
-        self.partitions
-            .iter()
-            .find(|part| part.number == partition)
+        self.partitions.iter().find(|part| part.number == partition)
     }
 
     /// Obtains a mutable reference to a partition within the partition scheme.
@@ -637,7 +647,7 @@ impl Disk {
     pub fn add_flags(
         &mut self,
         partition: i32,
-        flags: Vec<PartitionFlag>
+        flags: Vec<PartitionFlag>,
     ) -> Result<(), DiskError> {
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
@@ -726,7 +736,10 @@ impl Disk {
     ///
     /// An error can occur if the layout of the new disk conflicts with the source.
     fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
-        info!("libdistinst: generating diff of disk at {}", self.path().display());
+        info!(
+            "libdistinst: generating diff of disk at {}",
+            self.path().display()
+        );
         self.validate_layout(new)?;
 
         let mut remove_partitions = Vec::new();
@@ -818,7 +831,10 @@ impl Disk {
 
     /// Attempts to commit all changes that have been made to the disk.
     pub fn commit(&mut self) -> Result<(), DiskError> {
-        info!("libdistinst: committing changes to {}", self.path().display());
+        info!(
+            "libdistinst: committing changes to {}",
+            self.path().display()
+        );
         Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
             source.diff(self).and_then(|ops| {
                 ops.remove()
@@ -833,7 +849,10 @@ impl Disk {
 
     /// Reloads the disk information from the disk into our in-memory representation.
     pub fn reload(&mut self) -> Result<(), DiskError> {
-        info!("libdistinst: reloading disk information for {}", self.path().display());
+        info!(
+            "libdistinst: reloading disk information for {}",
+            self.path().display()
+        );
         let mounts: Vec<(u64, PathBuf)> = self.partitions
             .iter()
             .filter_map(|p| match p.target {
@@ -881,12 +900,16 @@ impl Disks {
 
     /// Returns an immutable reference to the disk specified by its path, if it exists.
     pub fn find_disk<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
-        self.0.iter().find(|disk| &disk.device_path == path.as_ref())
+        self.0
+            .iter()
+            .find(|disk| &disk.device_path == path.as_ref())
     }
 
     /// Returns a mutable reference to the disk specified by its path, if it exists.
     pub fn find_disk_mut<P: AsRef<Path>>(&mut self, path: P) -> Option<&mut Disk> {
-        self.0.iter_mut().find(|disk| &disk.device_path == path.as_ref())
+        self.0
+            .iter_mut()
+            .find(|disk| &disk.device_path == path.as_ref())
     }
 
     /// Finds the partition block path and associated partition information that is associated with

@@ -4,12 +4,12 @@ use std::ffi::{CStr, OsStr};
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
 
+use super::gen_object_ptr;
 use {Disk, Disks, FileSystemType, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
+use c::ffi::AsMutPtr;
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use c::partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
 use c::sector::DistinstSector;
-use c::ffi::AsMutPtr;
-use super::gen_object_ptr;
 
 #[repr(C)]
 pub struct DistinstDisk;
@@ -69,8 +69,7 @@ pub unsafe extern "C" fn distinst_disk_get_partition(
     partition: libc::int32_t,
 ) -> *mut DistinstPartition {
     let disk = &mut *(disk as *mut Disk);
-    disk.get_partition_mut(partition as i32)
-        .as_mut_ptr() as *mut DistinstPartition
+    disk.get_partition_mut(partition as i32).as_mut_ptr() as *mut DistinstPartition
 }
 
 #[no_mangle]
@@ -91,12 +90,11 @@ pub unsafe extern "C" fn distinst_disk_partitions(
     len
 }
 
-
 #[no_mangle]
 /// This is to be used with vectors returned from `distinst_disk_partitions`.
 pub unsafe extern "C" fn distinst_partitions_destroy(
     partitions: *mut DistinstPartition,
-    length: libc::size_t
+    length: libc::size_t,
 ) {
     drop(Vec::from_raw_parts(partitions, length, length))
 }
