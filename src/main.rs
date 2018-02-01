@@ -3,7 +3,7 @@ extern crate distinst;
 extern crate libc;
 extern crate pbr;
 
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches, Values};
 use distinst::{
     Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
     PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH,
@@ -85,19 +85,30 @@ fn main() {
             .takes_value(true)
             .multiple(true)
         )
-        .arg(Arg::with_name("test").long("test"))
+        .arg(Arg::with_name("test")
+            .long("test")
+            .help("simply test whether the provided arguments pass the partitioning stage")
+        )
         .arg(Arg::with_name("delete")
             .short("d")
             .long("delete")
+            .help("defines to delete the specified partitions")
             .takes_value(true)
             .multiple(true)
         )
-        // .arg(Arg::with_name("move")
-        //     .short("m")
-        //     .long("move")
-        //     .takes_value(true)
-        //     .multiple(true)
-        // )
+        .arg(Arg::with_name("resize")
+            .long("resize")
+            .help("defines to resize an existing partition")
+            .takes_value(true)
+            .multiple(true)
+        )
+        .arg(Arg::with_name("move")
+            .short("m")
+            .long("move")
+            .help("defines to move an existing partition")
+            .takes_value(true)
+            .multiple(true)
+        )
         .get_matches();
 
     if let Err(err) = distinst::log(|_level, message| {
@@ -293,14 +304,8 @@ fn find_partition_mut<'a>(disk: &'a mut Disk, part_id: i32) -> &'a mut Partition
     }
 }
 
-fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
-    let mut disks = Disks(Vec::new());
-
-    for block in matches.values_of("disk").unwrap() {
-        disks.0.push(Disk::from_name(block)?);
-    }
-
-    if let Some(tables) = matches.values_of("table") {
+fn configure_tables(disks: &mut Disks, tables: Option<Values>) -> Result<(), DiskError> {
+    if let Some(tables) = tables {
         for table in tables {
             let values: Vec<&str> = table.split(":").collect();
             eprintln!("table values: {:?}", values);
@@ -327,7 +332,11 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
         }
     }
 
-    if let Some(ops) = matches.values_of("delete") {
+    Ok(())
+}
+
+fn configure_removed(disks: &mut Disks, ops: Option<Values>) -> Result<(), DiskError> {
+    if let Some(ops) = ops {
         for op in ops {
             let mut args = op.split(":");
             let block_dev = match args.next() {
@@ -347,14 +356,18 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
                     }
                 };
 
-                let disk = find_disk_mut(&mut disks, block_dev);
+                let disk = find_disk_mut(disks, block_dev);
                 let mut partition = find_partition_mut(disk, part_id as i32);
                 partition.remove();
             }
         }
     }
 
-    if let Some(parts) = matches.values_of("use") {
+    Ok(())
+}
+
+fn configure_reuse(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
+    if let Some(parts) = parts {
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
             if values.len() < 3 {
@@ -383,7 +396,7 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
                 values.get(4).map(|&flags| parse_flags(flags))
             );
 
-            let disk = find_disk_mut(&mut disks, block_dev);
+            let disk = find_disk_mut(disks, block_dev);
             let mut partition = find_partition_mut(disk, part_id);
 
             if let Some(mount) = mount {
@@ -400,7 +413,11 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
         }
     }
 
-    if let Some(parts) = matches.values_of("new") {
+    Ok(())
+} 
+
+fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
+    if let Some(parts) = parts {
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
             if values.len() < 5 {
@@ -423,7 +440,7 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
                 values.get(6).map(|&flags| parse_flags(flags)),
             );
 
-            let mut disk = find_disk_mut(&mut disks, block);
+            let mut disk = find_disk_mut(disks, block);
 
             let start = disk.get_sector(start);
             let end = disk.get_sector(end);
@@ -442,6 +459,30 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
             disk.add_partition(builder)?;
         }
     }
+    Ok(())
+}
+
+// fn configure_resize(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
+
+//     Ok(())
+// } 
+
+// fn configure_move(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
+
+//     Ok(())
+// } 
+
+fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
+    let mut disks = Disks(Vec::new());
+
+    for block in matches.values_of("disk").unwrap() {
+        disks.0.push(Disk::from_name(block)?);
+    }
+
+    configure_tables(&mut disks, matches.values_of("table"))?;
+    configure_removed(&mut disks, matches.values_of("delete"))?;
+    configure_reuse(&mut disks, matches.values_of("use"))?;
+    configure_new(&mut disks, matches.values_of("new"))?;
 
     Ok(disks)
 }
