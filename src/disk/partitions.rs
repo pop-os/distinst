@@ -259,6 +259,7 @@ impl PartitionInfo {
         is_msdos: bool,
     ) -> io::Result<Option<PartitionInfo>> {
         let device_path = partition.get_path().unwrap().to_path_buf();
+        info!("libdistinst: obtaining partition information from {}", device_path.display());
         let mounts = Mounts::new()?;
         let swaps = Swaps::new()?;
 
@@ -322,6 +323,10 @@ impl PartitionInfo {
     }
 
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
+        info!(
+            "libdistinst: getting block information for partition at {}",
+            self.device_path.display()
+        );
         if self.filesystem != Some(FileSystemType::Swap)
             && (self.target.is_none() || self.filesystem.is_none())
         {

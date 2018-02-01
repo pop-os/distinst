@@ -34,7 +34,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Result<()> {
     let status = command.stdout(Stdio::null()).status()?;
 
     if status.success() {
-        info!("{} formatted with {:?}", part.display(), kind);
+        info!("libdistinst: {} formatted with {:?}", part.display(), kind);
         Ok(())
     } else {
         Err(Error::new(

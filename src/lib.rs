@@ -242,7 +242,7 @@ impl Installer {
     /// Apply all partitioning and formatting changes to the disks configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
         for disk in &mut disks.0 {
-            info!("{}: Committing changes to disk", disk.path().display());
+            info!("libdistinst: {}: Committing changes to disk", disk.path().display());
             disk.commit()
                 .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
             callback(100);
@@ -296,7 +296,7 @@ impl Installer {
             }
 
             info!(
-                "distinst: mounting {} to {}, with {}",
+                "libdistinst: mounting {} to {}, with {}",
                 device_path.display(),
                 target_mount.display(),
                 filesystem
@@ -320,7 +320,7 @@ impl Installer {
         mount_dir: &'static str,
         callback: F,
     ) -> io::Result<()> {
-        info!("distinst: Extracting {}", squashfs.as_ref().display());
+        info!("libdistinst: Extracting {}", squashfs.as_ref().display());
         squashfs::extract(squashfs, mount_dir, callback)?;
 
         Ok(())
@@ -336,19 +336,19 @@ impl Installer {
         mut callback: F,
     ) -> io::Result<()> {
         let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
-        info!("distinst: Configuring on {}", mount_dir.display());
+        info!("libdistinst: Configuring on {}", mount_dir.display());
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
         let configure = configure_dir.path().join("configure.sh");
 
         {
-            // Write our configuration file to `/tmp/configure.sh`.
+            info!("libdistinst: writing /tmp/configure.sh");
             let mut file = fs::File::create(&configure)?;
             file.write_all(include_bytes!("configure.sh"))?;
             file.sync_all()?;
         }
 
         {
-            // Write the /etc/fstab file using the target mounts defined in `disks`.
+            info!("libdistinst: writing /etc/fstab");
             let fstab = mount_dir.join("etc/fstab");
             let mut file = fs::File::create(&fstab)?;
             file.write_all(FSTAB_HEADER)?;
@@ -357,7 +357,7 @@ impl Installer {
         }
 
         let root_entry = {
-            // Retrieve the root fstab entry
+            info!("libdistinst: retrieving root partition");
             disks
                 .0
                 .iter()
@@ -371,6 +371,7 @@ impl Installer {
         };
 
         {
+            info!("libdistinst: chrooting into target on {}", mount_dir.display());
             let mut chroot = Chroot::new(&mount_dir)?;
             let configure_chroot = configure.strip_prefix(&mount_dir).map_err(|err| {
                 io::Error::new(
@@ -383,6 +384,8 @@ impl Installer {
                 Bootloader::Bios => &["grub-pc"],
                 Bootloader::Efi => &["kernelstub"],
             };
+
+            info!("libdistinst: will install {:?} bootloader packages", install_pkgs);
 
             let args = {
                 let mut args = Vec::new();
@@ -583,7 +586,7 @@ impl Installer {
             };
         }
 
-        info!("Installing {:?} with {:?}", config, bootloader);
+        info!("libdistinst: installing {:?} with {:?}", config, bootloader);
         self.emit_status(&status);
 
         let (squashfs, remove_pkgs) = apply_step!("initializing", {
@@ -597,7 +600,7 @@ impl Installer {
         // Mount the temporary directory, and all of our mount targets.
         const CHROOT_ROOT: &str = "distinst";
         info!(
-            "distinst: mounting temporary chroot directory at {}",
+            "libdistinst: mounting temporary chroot directory at {}",
             CHROOT_ROOT
         );
 
@@ -648,6 +651,7 @@ impl Installer {
     /// let disks = installer.disks().unwrap();
     /// ```
     pub fn disks(&self) -> io::Result<Disks> {
+        info!("libdistinst: probing disks on system");
         Disks::probe_devices()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }

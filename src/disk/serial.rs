@@ -9,10 +9,11 @@ use std::process::Command;
 
 const PATTERN: &str = "E: ID_SERIAL=";
 
-/// Obtains the serial number of the given device by calling out to `udevadm`.
+/// Obtains the serial of the given device by calling out to `udevadm`.
 ///
 /// The `path` should be a value like `/dev/sda`.
-pub fn get_serial_no(path: &Path) -> io::Result<String> {
+pub fn get_serial(path: &Path) -> io::Result<String> {
+    info!("libdistinst: obtaining serial model from {}", path.display());
     Command::new("udevadm")
         .args(&["info", "--query=all", &format!("--name={}", path.display())])
         .output()

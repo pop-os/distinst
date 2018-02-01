@@ -10,7 +10,7 @@ pub use self::partitions::{
     check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionSizeError,
     PartitionType,
 };
-use self::serial::get_serial_no;
+use self::serial::get_serial;
 pub use self::swaps::Swaps;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 pub use libparted::PartitionFlag;
@@ -204,34 +204,45 @@ impl FromStr for Sector {
 
 /// Gets a `libparted::Device` from the given name.
 fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
+    info!("libdistinst: getting device at {}", name.as_ref().display());
     Device::get(name).map_err(|why| DiskError::DeviceGet { why })
 }
 
 /// Gets and opens a `libparted::Device` from the given name.
 fn open_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
+    info!("libdistinst: opening device at {}", name.as_ref().display());
     Device::new(name).map_err(|why| DiskError::DeviceGet { why })
 }
 
 /// Opens a `libparted::Disk` from a `libparted::Device`.
 fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskError> {
+    info!("libdistinst: opening disk at {}", device.path().display());
     let device = device as *mut Device;
     unsafe {
-        PedDisk::new(&mut *device)
-            .or(PedDisk::new_fresh(&mut *device, match Bootloader::detect() {
-                Bootloader::Bios => PedDiskType::get("msdos").unwrap(),
-                Bootloader::Efi => PedDiskType::get("gpt").unwrap(),
-            }))
-            .map_err(|why| DiskError::DiskNew { why })
+        match PedDisk::new(&mut *device) {
+            Ok(disk) => Ok(disk),
+            Err(_) => {
+                info!("libdistinst: unable to open disk; creating new table on it");
+                PedDisk::new_fresh(&mut *device, match Bootloader::detect() {
+                    Bootloader::Bios => PedDiskType::get("msdos").unwrap(),
+                    Bootloader::Efi => PedDiskType::get("gpt").unwrap(),
+                }).map_err(|why| DiskError::DiskNew { why })
+            }
+        }
     }
 }
 
 /// Attempts to commit changes to the disk, return a `DiskError` on failure.
 fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
+    info!("libdistinst: commiting changes to {}", unsafe {
+        disk.get_device().path().display()
+    });
     disk.commit().map_err(|why| DiskError::DiskCommit { why })
 }
 
 /// Flushes the OS cache, return a `DiskError` on failure.
 fn sync(device: &mut Device) -> Result<(), DiskError> {
+    info!("libdistinst: syncing device at {}", device.path().display());
     device.sync().map_err(|why| DiskError::DiskSync { why })
 }
 
@@ -267,12 +278,13 @@ pub struct Disk {
 
 impl Disk {
     fn new(device: &mut Device) -> Result<Disk, DiskError> {
+        info!("libdistinst: obtaining disk information from {}", device.path().display());
         let model_name = device.model().into();
         let device_path = device.path().to_owned();
         let serial = match device.type_() {
-            // Encrypted devices do not have serial numbers
+            // Encrypted devices do not have serials
             DeviceType::PED_DEVICE_DM => "".into(),
-            _ => get_serial_no(&device_path).map_err(|why| DiskError::SerialGet { why })?,
+            _ => get_serial(&device_path).map_err(|why| DiskError::SerialGet { why })?,
         };
         let size = device.length();
         let sector_size = device.sector_size();
@@ -392,12 +404,12 @@ impl Disk {
 
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
-        info!("unmount all partitions on {}", self.path().display());
+        info!("libdistinst: unmount all partitions on {}", self.path().display());
 
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
                 info!(
-                    "unmounting {}, which is mounted at {}",
+                    "libdistinst: unmounting {}, which is mounted at {}",
                     partition.path().display(),
                     mount.display()
                 );
@@ -408,7 +420,7 @@ impl Disk {
             partition.mount_point = None;
 
             if partition.swapped {
-                info!("unswapping '{}'", partition.path().display(),);
+                info!("libdistinst: unswapping '{}'", partition.path().display(),);
                 swapoff(&partition.path())?;
             }
 
@@ -421,6 +433,7 @@ impl Disk {
     /// Drops all partitions in the in-memory disk representation, and marks that a new
     /// partition table should be written to the disk during the disk operations phase.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
+        info!("libdistinst: specifying to write new table on {}", self.path().display());
         self.unmount_all_partitions()
             .map_err(|why| DiskError::Unmount { why })?;
 
@@ -435,7 +448,7 @@ impl Disk {
     /// An error can occur if the partition will not fit onto the disk.
     pub fn add_partition(&mut self, builder: PartitionBuilder) -> Result<(), DiskError> {
         info!(
-            "checking if {}:{} overlaps",
+            "libdistinst: checking if {}:{} overlaps",
             builder.start_sector, builder.end_sector
         );
         // Ensure that the values aren't already contained within an existing partition.
@@ -479,6 +492,11 @@ impl Disk {
     /// field set to `true`, whereas all other theoretical partitions will simply be removed
     /// from the partition vector.
     pub fn remove_partition(&mut self, partition: i32) -> Result<(), DiskError> {
+        info!(
+            "libdistinst: specifying to remove partition {} on {}",
+            partition,
+            self.path().display()
+        );
         let id = self.partitions
             .iter_mut()
             .enumerate()
@@ -517,6 +535,12 @@ impl Disk {
     /// Designates that the provided partition number should be resized to a specified length,
     /// and calculates whether it will be possible to do that.
     pub fn resize_partition(&mut self, partition: i32, length: u64) -> Result<(), DiskError> {
+        info!(
+            "libdistinst: specifying to resize partition {} on {} to a new length of {}",
+            partition,
+            self.path().display(),
+            length
+        );
         let sector_size = self.sector_size;
         if length <= ((10 * 1024 * 1024) / sector_size) {
             return Err(DiskError::ResizeTooSmall);
@@ -547,6 +571,12 @@ impl Disk {
     /// Designates that the provided partition number should be moved to a specified sector,
     /// and calculates whether it will be possible to do that.
     pub fn move_partition(&mut self, partition: i32, start: u64) -> Result<(), DiskError> {
+        info!(
+            "libdistinst: specifying to move partition {} on {} to sector {}",
+            partition,
+            self.path().display(),
+            start
+        );
         let end = {
             let partition = self.get_partition_mut(partition)
                 .ok_or(DiskError::PartitionNotFound { partition })?;
@@ -584,6 +614,12 @@ impl Disk {
         partition: i32,
         fs: FileSystemType,
     ) -> Result<(), DiskError> {
+        info!(
+            "libdistinst: specifying to format partition {} on {} with {:?}",
+            partition,
+            self.path().display(),
+            fs,
+        );
         let sector_size = self.sector_size;
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
@@ -690,6 +726,7 @@ impl Disk {
     ///
     /// An error can occur if the layout of the new disk conflicts with the source.
     fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
+        info!("libdistinst: generating diff of disk at {}", self.path().display());
         self.validate_layout(new)?;
 
         let mut remove_partitions = Vec::new();
@@ -781,6 +818,7 @@ impl Disk {
 
     /// Attempts to commit all changes that have been made to the disk.
     pub fn commit(&mut self) -> Result<(), DiskError> {
+        info!("libdistinst: committing changes to {}", self.path().display());
         Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
             source.diff(self).and_then(|ops| {
                 ops.remove()
@@ -795,6 +833,7 @@ impl Disk {
 
     /// Reloads the disk information from the disk into our in-memory representation.
     pub fn reload(&mut self) -> Result<(), DiskError> {
+        info!("libdistinst: reloading disk information for {}", self.path().display());
         let mounts: Vec<(u64, PathBuf)> = self.partitions
             .iter()
             .filter_map(|p| match p.target {
@@ -923,6 +962,7 @@ impl Disks {
 
     /// Generates fstab entries in memory
     pub fn generate_fstab(&self) -> OsString {
+        info!("libdistinst: generating fstab in memory");
         let mut fstab = OsString::with_capacity(1024);
 
         let fs_entries = self.as_ref()
@@ -947,6 +987,11 @@ impl Disks {
             fstab.push(if entry.pass { "1" } else { "0" });
             fstab.push("\n");
         }
+
+        info!(
+            "libdistinst: generated the following fstab data:\n\n{}\n\n",
+            fstab.to_string_lossy(),
+        );
 
         fstab.shrink_to_fit();
         fstab

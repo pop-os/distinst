@@ -15,16 +15,3 @@ impl<'a, T> AsMutPtr<T> for Option<&'a mut T> {
         }
     }
 }
-
-pub trait AsPtr<T> {
-    fn as_ptr(&self) -> *const T;
-}
-
-impl<'a, T> AsPtr<T> for Option<&'a T> {
-    fn as_ptr(&self) -> *const T {
-        match *self {
-            Some(ref val) => unsafe { ptr::read(val) as *const _ },
-            None => ptr::null(),
-        }
-    }
-}

@@ -9,6 +9,11 @@ use std::path::Path;
 
 /// Removes a partition by its ID from the disk.
 fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError> {
+    info!(
+        "libdistinst: removing partition {} on {}",
+        partition,
+        unsafe { disk.get_device().path().display() }
+    );
     disk.remove_partition(partition)
         .map_err(|why| DiskError::PartitionRemove {
             partition: partition as i32,
@@ -18,6 +23,11 @@ fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError>
 
 /// Obtains a partition from the disk by its ID.
 fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a>, DiskError> {
+    info!(
+        "libdistinst: getting partition {} on {}",
+        part,
+        unsafe { disk.get_device().path().display() }
+    );
     disk.get_partition(part)
         .ok_or(DiskError::PartitionNotFound {
             partition: part as i32,
@@ -26,6 +36,7 @@ fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a
 
 /// Writes a new partition table to the disk, clobbering it in the process.
 fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), DiskError> {
+    info!("libdistinst: writing {:?} table on {}", kind, device_path.as_ref().display());
     open_device(&device_path).and_then(|mut device| {
         let kind = match kind {
             PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
@@ -55,12 +66,12 @@ pub(crate) struct DiskOps<'a> {
 impl<'a> DiskOps<'a> {
     /// The first stage of disk operations, where a new partition table may be generated
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
+        info!(
+            "libdistinst: {}: executing remove operations",
+            self.device_path.display(),
+        );
+
         if let Some(table) = self.mklabel {
-            info!(
-                "making label {:?} on {}",
-                table,
-                self.device_path.display()
-            );
             mklabel(self.device_path, table)?;
         }
 
@@ -70,11 +81,6 @@ impl<'a> DiskOps<'a> {
             let mut disk = open_disk(&mut device)?;
             let mut changes_required = false;
             for partition in self.remove_partitions {
-                info!(
-                    "adding partition {} from {} for removal",
-                    partition,
-                    self.device_path.display()
-                );
                 remove_partition(&mut disk, partition as u32)?;
                 changes_required = true;
             }
@@ -111,6 +117,11 @@ pub(crate) struct ChangePartitions<'a> {
 impl<'a> ChangePartitions<'a> {
     /// The second stage of disk operations, where existing partitions will be modified.
     pub(crate) fn change(self) -> Result<CreatePartitions<'a>, DiskError> {
+        info!(
+            "libdistinst: {}: executing change operations",
+            self.device_path.display(),
+        );
+
         let mut device = open_device(self.device_path)?;
 
         let mut format_partitions = Vec::new();
@@ -170,7 +181,7 @@ impl<'a> ChangePartitions<'a> {
 
                     // Resize the file system with the new geometry's data.
                     info!(
-                        "will partition {} on {} from {}:{} to {}:{}",
+                        "libdistinst: resizing partition {} on {} from {}:{} to {}:{}",
                         change.num,
                         self.device_path.display(),
                         start,
@@ -234,7 +245,17 @@ pub(crate) struct CreatePartitions<'a> {
 impl<'a> CreatePartitions<'a> {
     /// If any new partitions were specified, they will be created here.
     pub(crate) fn create(mut self) -> Result<FormatPartitions, DiskError> {
+        info!(
+            "libdistinst: {}: executing creation operations",
+            self.device_path.display(),
+        );
+
         for partition in &self.create_partitions {
+            info!(
+                "libdistinst: creating partition ({:?}) on {}",
+                partition,
+                self.device_path.display()
+            );
             {
                 let mut device = open_device(self.device_path)?;
 
@@ -279,7 +300,7 @@ impl<'a> CreatePartitions<'a> {
 
                     // Attempt to write the new partition to the disk.
                     info!(
-                        "creating new partition ({}:{}) on {}",
+                        "libdistinst: committing new partition ({}:{}) on {}",
                         start,
                         end,
                         self.device_path.display()
@@ -322,7 +343,9 @@ pub struct FormatPartitions(Vec<(PathBuf, FileSystemType)>);
 impl FormatPartitions {
     // Finally, format all of the modified and created partitions.
     pub fn format(self) -> Result<(), DiskError> {
+        info!("libdistinst: executing format operations");
         for (part, fs) in self.0 {
+            info!("libdistinst: formatting {} with {:?}", part.display(), fs);
             mkfs(&part, fs).map_err(|why| DiskError::PartitionFormat { why })?;
         }
         Ok(())
