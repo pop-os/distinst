@@ -123,8 +123,8 @@ namespace Distinst {
     [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
     public class Disk {
         public Disk (string path);
-        public Partition *const get_partition(int partition);
-        public Partition *get_partition_mut(int partition);
+        [CCode (name = "distinst_disk_get_partition_mut")]
+        public Partition get_partition(int partition);
         public size_t partitions(out Partition *partitions);
         public int add_partition (PartitionBuilder partition);
         public int format_partition (int partition, FileSystemType fs);
