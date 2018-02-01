@@ -8,3 +8,5 @@
 /examples/c/install-debug
 /examples/c/list
 /examples/c/list-debug
+/tests/filesystem.squashfs
+/tests/filesystem.manifest-remove
