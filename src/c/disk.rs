@@ -4,7 +4,7 @@ use std::ffi::{CStr, OsStr};
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
 
-use {Disk, Disks, FileSystemType, PartitionBuilder, PartitionTable, Sector};
+use {Disk, Disks, FileSystemType, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use c::partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
 use c::sector::DistinstSector;
@@ -75,12 +75,40 @@ pub unsafe extern "C" fn distinst_disk_get_partition_mut(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_partition(
-    disk: *mut DistinstDisk,
+    disk: *const DistinstDisk,
     partition: libc::int32_t,
 ) -> *const DistinstPartition {
-    let disk = &mut *(disk as *mut Disk);
+    let disk = &*(disk as *const Disk);
     disk.get_partition(partition as i32)
         .as_ptr() as *const DistinstPartition
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_partitions(
+    disk: *mut DistinstDisk,
+    partitions: *mut *mut DistinstPartition,
+) -> libc::size_t {
+    let disk = &mut *(disk as *mut Disk);
+
+    let mut output: Vec<*mut DistinstPartition> = Vec::new();
+    for partition in disk.partitions.iter_mut() {
+        output.push(partition as *mut PartitionInfo as *mut DistinstPartition);
+    }
+    output.push(ptr::null_mut());
+    let len = output.len() as libc::size_t;
+    *partitions = Box::into_raw(output.into_boxed_slice()) as *mut DistinstPartition;
+
+    len
+}
+
+
+#[no_mangle]
+/// This is to be used with vectors returned from `distinst_disk_partitions`.
+pub unsafe extern "C" fn distinst_partitions_destroy(
+    partitions: *mut DistinstPartition,
+    length: libc::size_t
+) {
+    drop(Vec::from_raw_parts(partitions, length, length))
 }
 
 #[no_mangle]

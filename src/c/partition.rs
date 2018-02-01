@@ -218,6 +218,22 @@ pub unsafe extern "C" fn distinst_partition_builder_flag(
 pub struct DistinstPartition;
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_get_start_sector(
+    partition: *const DistinstPartition,
+) -> libc::uint64_t {
+    let part = &*(partition as *const PartitionInfo);
+    part.start_sector
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_get_end_sector(
+    partition: *const DistinstPartition,
+) -> libc::uint64_t {
+    let part = &*(partition as *const PartitionInfo);
+    part.end_sector
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_set_mount(
     partition: *mut DistinstPartition,
     target: *const libc::c_char,
