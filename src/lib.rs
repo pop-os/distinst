@@ -42,6 +42,10 @@ mod squashfs;
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
 
+/// Exits before the unsquashfs step
+pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
+
+/// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
 #
 # Use 'blkid' to print the universally unique identifier for a
@@ -554,6 +558,7 @@ impl Installer {
             }};
             // When a step is not provided, the program will simply
             ($msg:expr, $action:expr) => {{
+                info!("libdistinst: starting {} step", $msg);
                 match $action {
                     Ok(value) => value,
                     Err(err) => {
@@ -601,6 +606,11 @@ impl Installer {
 
             {
                 let mut mounts = Installer::mount(&disks, CHROOT_ROOT)?;
+
+                if PARTITIONING_TEST.load(Ordering::SeqCst) {
+                    info!("libdistinst: PARTITION_TEST enabled: exiting before unsquashing");
+                    return Ok(());
+                }
 
                 apply_step!(Step::Extract, "extraction", {
                     Installer::extract(&squashfs, CHROOT_ROOT, percent!())

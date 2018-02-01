@@ -7,6 +7,7 @@ use clap::{App, Arg, ArgMatches};
 use distinst::{
     Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder,
     PartitionFlag, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH,
+    PARTITIONING_TEST
 };
 use pbr::ProgressBar;
 
@@ -84,6 +85,7 @@ fn main() {
             .takes_value(true)
             .multiple(true)
         )
+        .arg(Arg::with_name("test").long("test"))
         // .arg(Arg::with_name("delete")
         //     .short("d")
         //     .long("delete")
@@ -164,20 +166,9 @@ fn main() {
             }
         };
 
-        // Set up signal handling before starting the installation process.
-        extern "C" fn handler(signal: i32) {
-            match signal {
-                libc::SIGINT => KILL_SWITCH.store(true, Ordering::SeqCst),
-                _ => unreachable!(),
-            }
-        }
-
-        if unsafe { libc::signal(libc::SIGINT, handler as libc::sighandler_t) == libc::SIG_ERR } {
-            eprintln!(
-                "distinst: signal handling error: {}",
-                io::Error::last_os_error()
-            );
-            process::exit(1);
+        configure_signal_handling();
+        if matches.occurrences_of("test") != 0 {
+            PARTITIONING_TEST.store(true, Ordering::SeqCst);
         }
 
         installer.install(
@@ -208,6 +199,23 @@ fn main() {
     };
 
     process::exit(status);
+}
+
+fn configure_signal_handling() {
+    extern "C" fn handler(signal: i32) {
+        match signal {
+            libc::SIGINT => KILL_SWITCH.store(true, Ordering::SeqCst),
+            _ => unreachable!(),
+        }
+    }
+
+    if unsafe { libc::signal(libc::SIGINT, handler as libc::sighandler_t) == libc::SIG_ERR } {
+        eprintln!(
+            "distinst: signal handling error: {}",
+            io::Error::last_os_error()
+        );
+        process::exit(1);
+    }
 }
 
 fn parse_part_type(table: &str) -> PartitionType {
