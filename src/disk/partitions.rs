@@ -303,7 +303,9 @@ impl PartitionInfo {
     pub fn path(&self) -> &Path { &self.device_path }
 
     pub(crate) fn requires_changes(&self, other: &PartitionInfo) -> bool {
-        self.sectors_differ_from(other) || self.filesystem != other.filesystem
+        self.sectors_differ_from(other)
+            || self.filesystem != other.filesystem
+            || other.format
     }
 
     pub(crate) fn sectors_differ_from(&self, other: &PartitionInfo) -> bool {
