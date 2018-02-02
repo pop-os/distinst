@@ -56,7 +56,7 @@ apt-get install -y "${INSTALL_PKGS[@]}"
 if [ -d "/boot/efi" ]
 then
     kernelstub \
-        --esp_path "/boot/efi" \
+        --esp-path "/boot/efi" \
         --kernel-path "/vmlinuz" \
         --initrd-path "/initrd.img" \
         --options "quiet loglevel=0 vga=current" \
