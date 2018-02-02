@@ -383,8 +383,10 @@ fn configure_moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskE
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
             if values.len() != 4 {
-                eprintln!("distinst: four arguments must be supplied to move operations\n \
-                    \t-m USAGE: 'block:part_id:start:end");
+                eprintln!(
+                    "distinst: four arguments must be supplied to move operations\n \t-m USAGE: \
+                     'block:part_id:start:end"
+                );
                 exit(1);
             }
 
@@ -399,12 +401,12 @@ fn configure_moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskE
                 },
                 match values[2] {
                     "none" => None,
-                    value => Some(parse_sector(value))
+                    value => Some(parse_sector(value)),
                 },
                 match values[3] {
                     "none" => None,
-                    value => Some(parse_sector(value))
-                }
+                    value => Some(parse_sector(value)),
+                },
             );
 
             let mut disk = find_disk_mut(disks, block);

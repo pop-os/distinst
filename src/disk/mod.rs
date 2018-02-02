@@ -1,6 +1,7 @@
 mod mounts;
 mod operations;
 mod partitions;
+mod resize;
 mod serial;
 mod swaps;
 
@@ -749,6 +750,7 @@ impl Disk {
         let mut change_partitions = Vec::new();
         let mut create_partitions = Vec::new();
 
+        let sector_size = new.sector_size;
         let mut new_parts = new.partitions.iter();
         let mut new_part = None;
 
@@ -778,21 +780,36 @@ impl Disk {
                             }
 
                             if source.requires_changes(new) {
-                                change_partitions.push(PartitionChange {
-                                    num:    source.number,
-                                    start:  new.start_sector,
-                                    end:    new.end_sector,
-                                    format: if new.format {
-                                        new.filesystem
-                                    } else {
-                                        None
-                                    },
-                                    flags:  flags_diff(
-                                        &source.flags,
-                                        new.flags.clone().into_iter(),
-                                    ),
-                                    label:  new.name.clone(),
-                                });
+                                if source.filesystem == Some(FileSystemType::Swap) {
+                                    remove_partitions.push(new.number);
+                                    create_partitions.push(PartitionCreate {
+                                        path:         self.device_path.clone(),
+                                        start_sector: new.start_sector,
+                                        end_sector:   new.end_sector,
+                                        file_system:  Some(new.filesystem.unwrap()),
+                                        kind:         new.part_type,
+                                        flags:        new.flags.clone(),
+                                        label:        new.name.clone(),
+                                    });
+                                } else {
+                                    change_partitions.push(PartitionChange {
+                                        path: new.device_path.clone(),
+                                        num: source.number,
+                                        start: new.start_sector,
+                                        end: new.end_sector,
+                                        sector_size,
+                                        format: if new.format {
+                                            new.filesystem
+                                        } else {
+                                            None
+                                        },
+                                        flags: flags_diff(
+                                            &source.flags,
+                                            new.flags.clone().into_iter(),
+                                        ),
+                                        label: new.name.clone(),
+                                    });
+                                }
                             }
 
                             continue 'outer;
@@ -814,9 +831,10 @@ impl Disk {
             }
 
             create_partitions.push(PartitionCreate {
+                path:         self.device_path.clone(),
                 start_sector: partition.start_sector,
                 end_sector:   partition.end_sector,
-                file_system:  partition.filesystem.unwrap(),
+                file_system:  Some(partition.filesystem.unwrap()),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
                 label:        partition.name.clone(),
