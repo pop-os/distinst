@@ -140,7 +140,7 @@ where
     let (cmd, args, unit): (&str, &[&'static str], ResizeUnit) = match change.filesystem {
         // Some(Btrfs) => ("btrfs", &["filesystem", "resize"], false),
         Some(Ext2) | Some(Ext3) | Some(Ext4) => {
-            ("resize2fs", &["-f"], ResizeUnit::AbsoluteMegabyte)
+            ("resize2fs", &[], ResizeUnit::AbsoluteMegabyte)
         }
         // Some(Exfat) => (),
         // Some(F2fs) => ("resize.f2fs"),
@@ -152,21 +152,6 @@ where
     };
 
     // TODO: Should we not worry about data if we are going to reformat the partition?
-
-    let new_start = resize.new.start;
-    let new_end = resize.new.end;
-
-    macro_rules! recreate {
-        () => {
-            if !moving {
-                create(new_start, new_end, change.filesystem, &change.flags)?;
-                false
-            } else {
-                true
-            }
-        };
-    }
-
     let size = match unit {
         ResizeUnit::AbsoluteMebibyte => format!("{}M", resize.as_absolute_mebibyte()),
         ResizeUnit::AbsoluteMegabyte => format!("{}M", resize.as_absolute_megabyte()),
@@ -174,27 +159,15 @@ where
         ResizeUnit::RelativeMegabyte => format!("{}M", resize.as_relative_megabyte()),
     };
 
-    // Record whether the partition was deleted & not recreated.
-    // If shrinking, resize before deleting; otherwise, delete before resizing.
-    let recreated = if shrinking {
-        resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
-        delete(change.num as u32)?;
-        recreate!()
-    } else if growing {
-        delete(change.num as u32)?;
-        resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
-        recreate!()
-    } else {
-        false
-    };
+    if shrinking || (growing && !moving) {
+        resize_(cmd, args, &size, &change.path)
+            .map_err(|why| DiskError::PartitionResize { why })?;
+    }
 
     // If the partition is to be moved, then we will ensure that it has been deleted,
     // and then dd will be used to move the partition before recreating it in the table.
     if moving {
-        if !recreated {
-            delete(change.num as u32)?;
-        }
-
+        delete(change.num as u32)?;
         dd(change.device_path, resize.offset(), change.sector_size)
             .map_err(|why| DiskError::PartitionMove { why })?;
 
@@ -204,6 +177,11 @@ where
             change.filesystem,
             &change.flags,
         )?;
+        
+        if growing {
+            resize_(cmd, args, &size, &change.path)
+                .map_err(|why| DiskError::PartitionResize { why })?;
+        }
     }
 
     Ok(())
@@ -224,7 +202,6 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
             coords.length
         );
 
-        info!("libdistinst: opening disk as a file");
         let mut disk = OpenOptions::new().read(true).write(true).open(&path)?;
         let mut buffer = vec![0; bs as usize];
 
@@ -232,25 +209,11 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
             let input = bs * coords.skip + index;
             let offset = bs * ((coords.skip as i64 + offset) + index as i64) as u64;
 
-            info!(
-                "libdistinst: reading {} bytes from input sector {} on {}",
-                bs as usize,
-                input,
-                path.as_ref().display()
-            );
-
             disk.seek(SeekFrom::Start(input))?;
             disk.read_exact(&mut buffer[..bs as usize])?;
 
-            info!(
-                "libdistinst: writing {} bytes to offset sector {} on {}",
-                bs as usize,
-                offset,
-                path.as_ref().display()
-            );
-
             disk.seek(SeekFrom::Start(offset))?;
-            disk.write_all(&mut buffer[..bs as usize])?;
+            disk.write(&mut buffer[..bs as usize])?;
         }
 
         disk.sync_all()
@@ -281,18 +244,33 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
 
     eprintln!("{:?}", resize_cmd);
 
-    let status = resize_cmd.stdout(Stdio::null()).status()?;
+    fsck(&path).and_then(|_| {
+        let status = resize_cmd.stdout(Stdio::null()).status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "resize for {:?} failed with status: {}",
+                    path.as_ref().display(),
+                    status
+                ),
+            ))
+        }
+    })
+}
 
+fn fsck<P: AsRef<Path>>(part: P) -> io::Result<()> {
+    let part = part.as_ref();
+    let status = Command::new("fsck").arg("-fy").arg(part).stdout(Stdio::null()).status()?;
     if status.success() {
+        info!("libdistinst: performed fsck on {}", part.display());
         Ok(())
     } else {
         Err(io::Error::new(
             io::ErrorKind::Other,
-            format!(
-                "resize for {:?} failed with status: {}",
-                path.as_ref().display(),
-                status
-            ),
+            format!("fsck on {} failed with status: {}", part.display(), status),
         ))
     }
 }

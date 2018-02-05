@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// Utilized for ensuring that block & partition information has synced with the OS.
 pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
@@ -15,7 +15,7 @@ pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
 
     debug!("{:?}", command);
 
-    let status = command.status()?;
+    let status = command.stdout(Stdio::null()).stderr(Stdio::null()).status()?;
     if status.success() {
         Ok(())
     } else {
