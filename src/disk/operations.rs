@@ -385,6 +385,8 @@ impl FormatPartitions {
 /// Resize operations should always be performed before move operations.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PartitionChange {
+    /// The location of the device where the partition resides.
+    pub(crate) device_path: PathBuf,
     /// The location of the partition in the system.
     pub(crate) path: PathBuf,
     /// The partition ID that will be changed.

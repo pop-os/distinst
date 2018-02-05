@@ -1,6 +1,6 @@
 use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag};
 use super::FileSystemType::*;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -195,7 +195,7 @@ where
             delete(change.num as u32)?;
         }
 
-        dd(change.path, resize.offset(), change.sector_size)
+        dd(change.device_path, resize.offset(), change.sector_size)
             .map_err(|why| DiskError::PartitionMove { why })?;
 
         create(
@@ -224,19 +224,36 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
             coords.length
         );
 
-        let mut in_file = File::open(&path)?;
-        let mut out_file = File::open(&path)?;
-
+        info!("libdistinst: opening disk as a file");
+        let mut disk = OpenOptions::new().read(true).write(true).open(&path)?;
         let mut buffer = vec![0; bs as usize];
-        in_file.seek(SeekFrom::Start(bs * coords.skip))?;
-        out_file.seek(SeekFrom::Start(bs * (coords.skip as i64 + offset) as u64))?;
 
-        for _ in 0..coords.length {
-            in_file.read_exact(&mut buffer[..bs as usize])?;
-            out_file.write(&mut buffer[..bs as usize])?;
+        for index in 0..coords.length {
+            let input = bs * coords.skip + index;
+            let offset = bs * ((coords.skip as i64 + offset) + index as i64) as u64;
+
+            info!(
+                "libdistinst: reading {} bytes from input sector {} on {}",
+                bs as usize,
+                input,
+                path.as_ref().display()
+            );
+
+            disk.seek(SeekFrom::Start(input))?;
+            disk.read_exact(&mut buffer[..bs as usize])?;
+
+            info!(
+                "libdistinst: writing {} bytes to offset sector {} on {}",
+                bs as usize,
+                offset,
+                path.as_ref().display()
+            );
+
+            disk.seek(SeekFrom::Start(offset))?;
+            disk.write_all(&mut buffer[..bs as usize])?;
         }
 
-        out_file.sync_all()
+        disk.sync_all()
     }
 
     if let Some(excess) = offset.overlap {

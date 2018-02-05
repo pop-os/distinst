@@ -297,7 +297,7 @@ impl Disk {
         let device_path = device.path().to_owned();
         let serial = match device.type_() {
             // Encrypted devices do not have serials
-            DeviceType::PED_DEVICE_DM => "".into(),
+            DeviceType::PED_DEVICE_DM | DeviceType::PED_DEVICE_LOOP => "".into(),
             _ => get_serial(&device_path).map_err(|why| DiskError::SerialGet { why })?,
         };
         let size = device.length();
@@ -759,6 +759,7 @@ impl Disk {
         let mut create_partitions = Vec::new();
 
         let sector_size = new.sector_size;
+        let device_path = new.device_path.clone();
         let mut new_parts = new.partitions.iter();
         let mut new_part = None;
 
@@ -801,6 +802,7 @@ impl Disk {
                                     });
                                 } else {
                                     change_partitions.push(PartitionChange {
+                                        device_path: device_path.clone(),
                                         path: new.device_path.clone(),
                                         num: source.number,
                                         start: new.start_sector,

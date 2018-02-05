@@ -236,6 +236,8 @@ impl Installer {
             }
         }
 
+        callback(100);
+
         Ok((squashfs, remove_pkgs))
     }
 
