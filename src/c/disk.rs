@@ -170,7 +170,7 @@ pub unsafe extern "C" fn distinst_disk_resize_partition(
 ) -> libc::c_int {
     disk_action_mut(disk, |disk| {
         if let Err(why) = disk.resize_partition(partition, end) {
-            info!("unable to resize partition: {}", why);
+            info!("libdistinst: unable to resize partition: {}", why);
             -1
         } else {
             0

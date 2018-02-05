@@ -298,7 +298,7 @@ fn find_disk_mut<'a>(disks: &'a mut Disks, block: &str) -> &'a mut Disk {
     match disks.find_disk_mut(block) {
         Some(disk) => disk,
         None => {
-            eprintln!("distinst: '{}' could not be found", block);
+            eprintln!("distinst: disk '{}' could not be found", block);
             exit(1);
         }
     }
@@ -428,6 +428,7 @@ fn configure_moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskE
 fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
     if let Some(parts) = parts {
         for part in parts {
+            eprintln!("DEBUG-PART: {}", part);
             let values: Vec<&str> = part.split(":").collect();
             if values.len() < 3 {
                 eprintln!(
@@ -456,6 +457,8 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
                 values.get(3),
                 values.get(4).map(|&flags| parse_flags(flags)),
             );
+
+            eprintln!("DEBUG: {}", block_dev);
 
             let disk = find_disk_mut(disks, block_dev);
             let mut partition = find_partition_mut(disk, part_id);
@@ -535,9 +538,13 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
 
     configure_tables(&mut disks, matches.values_of("table"))?;
     configure_removed(&mut disks, matches.values_of("delete"))?;
+    eprintln!("distinst: configuring moved partitions");
     configure_moved(&mut disks, matches.values_of("move"))?;
+    eprintln!("distinst: configuring reused partitions");
     configure_reused(&mut disks, matches.values_of("use"))?;
+    eprintln!("distinst: configuring new partitions");
     configure_new(&mut disks, matches.values_of("new"))?;
+    eprintln!("distisnt: disks configured");
 
     Ok(disks)
 }

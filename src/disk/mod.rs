@@ -77,7 +77,14 @@ pub enum DiskError {
         partition: i32,
         why:       io::Error,
     },
-    #[fail(display = "unable to resize partition")] PartitionResize,
+    #[fail(display = "unable to move partition: {}", why)]
+    PartitionMove {
+        why: io::Error,
+    },
+    #[fail(display = "unable to resize partition: {}", why)]
+    PartitionResize {
+        why: io::Error,
+    },
     #[fail(display = "partition table not found on disk")] PartitionTableNotFound,
     #[fail(display = "partition was too large (size: {}, max: {}", size, max)]
     PartitionTooLarge {
@@ -547,8 +554,9 @@ impl Disk {
     /// will be located at the provided `end` value, and checks whether or not that this will
     /// be possible to do.
     pub fn resize_partition(&mut self, partition: i32, end: u64) -> Result<(), DiskError> {
+        let end = end - 1;
         info!(
-            "libdistinst: specifying to resize partition {} on {} to a new length of {}",
+            "libdistinst: specifying to resize partition {} on {} to sector {}",
             partition,
             self.path().display(),
             end
@@ -780,7 +788,7 @@ impl Disk {
                             }
 
                             if source.requires_changes(new) {
-                                if source.filesystem == Some(FileSystemType::Swap) {
+                                if new.format || source.filesystem == Some(FileSystemType::Swap) {
                                     remove_partitions.push(new.number);
                                     create_partitions.push(PartitionCreate {
                                         path:         self.device_path.clone(),
@@ -798,11 +806,7 @@ impl Disk {
                                         start: new.start_sector,
                                         end: new.end_sector,
                                         sector_size,
-                                        format: if new.format {
-                                            new.filesystem
-                                        } else {
-                                            None
-                                        },
+                                        filesystem: source.filesystem,
                                         flags: flags_diff(
                                             &source.flags,
                                             new.flags.clone().into_iter(),

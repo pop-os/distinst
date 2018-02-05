@@ -177,7 +177,7 @@ impl<'a> ChangePartitions<'a> {
                     ));
                 }
 
-                if let Some(fs) = change.format {
+                if let Some(fs) = change.filesystem {
                     format_partitions.push((part.get_path().unwrap().to_path_buf(), fs));
                 }
             }
@@ -395,8 +395,8 @@ pub(crate) struct PartitionChange {
     pub(crate) end: u64,
     /// Required information if the partition will be moved.
     pub(crate) sector_size: u64,
-    /// Whether the partition should be reformatted, and if so, to what format.
-    pub(crate) format: Option<FileSystemType>,
+    /// The file system that is currently on the partition.
+    pub(crate) filesystem: Option<FileSystemType>,
     /// Flags which should be set on the partition.
     pub(crate) flags: Vec<PartitionFlag>,
     /// Defines the label to apply

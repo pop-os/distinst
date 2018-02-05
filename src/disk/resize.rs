@@ -22,13 +22,13 @@ pub struct ResizeOperation {
 }
 
 struct Offset {
+    offset:  i64,
     inner:   OffsetCoordinates,
     overlap: Option<OffsetCoordinates>,
 }
 
 struct OffsetCoordinates {
     skip:   u64,
-    offset: i64,
     length: u64,
 }
 
@@ -63,24 +63,23 @@ impl ResizeOperation {
     /// Note that the `end` field in the coordinates are actually length values.
     fn offset(&self) -> Offset {
         let offset = self.new.start as i64 - self.old.start as i64;
-        if self.old.end > self.new.start {
+        if self.new.start > self.old.start {
             Offset {
-                inner:   OffsetCoordinates {
-                    skip: self.old.start,
-                    offset,
-                    length: self.new.start - self.old.start,
+                offset,
+                inner: OffsetCoordinates {
+                    skip:   self.old.start,
+                    length: offset as u64,
                 },
                 overlap: Some(OffsetCoordinates {
-                    skip: self.new.start,
-                    offset,
-                    length: self.new.start - self.old.start,
+                    skip:   self.new.start,
+                    length: self.old.start - self.new.start,
                 }),
             }
         } else {
             Offset {
-                inner:   OffsetCoordinates {
-                    skip: self.old.start,
-                    offset,
+                offset,
+                inner: OffsetCoordinates {
+                    skip:   self.old.start,
                     length: self.old.end - self.old.start,
                 },
                 overlap: None,
@@ -94,13 +93,25 @@ impl ResizeOperation {
 
     fn is_moving(&self) -> bool { self.old.start != self.new.start }
 
-    fn resize_as_megabyte(&self) -> i64 {
-        (self.resize_to * self.sector_size as i64) / MEGABYTE as i64
-    }
+    fn absolute_sectors(&self) -> u64 { (self.new.end - self.new.start) * self.sector_size }
 
-    fn resize_as_mebibyte(&self) -> i64 {
-        (self.resize_to * self.sector_size as i64) / MEBIBYTE as i64
-    }
+    fn relative_sectors(&self) -> i64 { self.resize_to * self.sector_size as i64 }
+
+    fn as_absolute_mebibyte(&self) -> u64 { self.absolute_sectors() / MEBIBYTE }
+
+    fn as_absolute_megabyte(&self) -> u64 { self.absolute_sectors() / MEGABYTE }
+
+    fn as_relative_megabyte(&self) -> i64 { self.relative_sectors() / MEGABYTE as i64 }
+
+    fn as_relative_mebibyte(&self) -> i64 { self.relative_sectors() / MEBIBYTE as i64 }
+}
+
+#[allow(dead_code)]
+enum ResizeUnit {
+    AbsoluteMebibyte,
+    AbsoluteMegabyte,
+    RelativeMebibyte,
+    RelativeMegabyte,
 }
 
 // TODO: Write tests for this function.
@@ -115,36 +126,40 @@ where
     DELETE: FnMut(u32) -> Result<(), DiskError>,
     CREATE: FnMut(u64, u64, Option<FileSystemType>, &[PartitionFlag]) -> Result<(), DiskError>,
 {
-    // Due to different tools using different standards, this workaround is needed.
-    let megabyte = format!("{}M", resize.resize_as_megabyte());
-    let megabyte = megabyte.as_str();
-    let mebibyte = format!("{}M", resize.resize_as_mebibyte());
-    let mebibyte = mebibyte.as_str();
-
     let moving = resize.is_moving();
     let shrinking = resize.is_shrinking();
     let growing = resize.is_growing();
 
+    info!(
+        "libdistinst: performing move and/or resize operation on {}",
+        change.path.display()
+    );
+
     // Create the command and its arguments based on the file system to apply.
     // TODO: Handle the unimplemented file systems.
-    let (cmd, args, uses_megabyte): (&str, &[&'static str], bool) = match change.format {
-        Some(Btrfs) => ("btrfs", &["filesystem", "resize"], false),
-        Some(Ext2) | Some(Ext3) | Some(Ext4) => ("resize2fs", &["-f"], false),
+    let (cmd, args, unit): (&str, &[&'static str], ResizeUnit) = match change.filesystem {
+        // Some(Btrfs) => ("btrfs", &["filesystem", "resize"], false),
+        Some(Ext2) | Some(Ext3) | Some(Ext4) => {
+            ("resize2fs", &["-f"], ResizeUnit::AbsoluteMegabyte)
+        }
         // Some(Exfat) => (),
         // Some(F2fs) => ("resize.f2fs"),
-        Some(Fat16) | Some(Fat32) => ("fatresize", &["-s"], true),
+        // Some(Fat16) | Some(Fat32) => ("fatresize", &["-s"], true),
         // Some(Ntfs) => ("ntfsresize", &["-s"], true),
         Some(Swap) => unreachable!("Disk::diff() handles this"),
         // Some(Xfs) => ("xfs_growfs"),
-        _ => unimplemented!(),
+        fs => unimplemented!("{:?} handling", fs),
     };
 
     // TODO: Should we not worry about data if we are going to reformat the partition?
 
+    let new_start = resize.new.start;
+    let new_end = resize.new.end;
+
     macro_rules! recreate {
         () => {
             if !moving {
-                create(resize.new.start, resize.new.end, change.format, &change.flags)?;
+                create(new_start, new_end, change.filesystem, &change.flags)?;
                 false
             } else {
                 true
@@ -152,25 +167,22 @@ where
         };
     }
 
+    let size = match unit {
+        ResizeUnit::AbsoluteMebibyte => format!("{}M", resize.as_absolute_mebibyte()),
+        ResizeUnit::AbsoluteMegabyte => format!("{}M", resize.as_absolute_megabyte()),
+        ResizeUnit::RelativeMebibyte => format!("{}M", resize.as_relative_mebibyte()),
+        ResizeUnit::RelativeMegabyte => format!("{}M", resize.as_relative_megabyte()),
+    };
+
     // Record whether the partition was deleted & not recreated.
     // If shrinking, resize before deleting; otherwise, delete before resizing.
     let recreated = if shrinking {
-        resize_(
-            cmd,
-            args,
-            if uses_megabyte { &megabyte } else { &mebibyte },
-            &change.path,
-        ).map_err(|_| DiskError::PartitionResize)?;
+        resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
         delete(change.num as u32)?;
         recreate!()
     } else if growing {
         delete(change.num as u32)?;
-        resize_(
-            cmd,
-            args,
-            if uses_megabyte { &megabyte } else { &mebibyte },
-            &change.path,
-        ).map_err(|_| DiskError::PartitionResize)?;
+        resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
         recreate!()
     } else {
         false
@@ -184,12 +196,12 @@ where
         }
 
         dd(change.path, resize.offset(), change.sector_size)
-            .map_err(|_| DiskError::PartitionResize)?;
+            .map_err(|why| DiskError::PartitionMove { why })?;
 
         create(
             resize.new.start,
             resize.new.end,
-            change.format,
+            change.filesystem,
             &change.flags,
         )?;
     }
@@ -198,12 +210,17 @@ where
 }
 
 fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
-    fn dd_op<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -> io::Result<()> {
+    fn dd_op<P: AsRef<Path>>(
+        path: P,
+        offset: i64,
+        coords: OffsetCoordinates,
+        bs: u64,
+    ) -> io::Result<()> {
         info!(
             "libdistinst: moving partition on {} (skip: {}; offset: {}; length: {})",
             path.as_ref().display(),
             coords.skip,
-            coords.offset,
+            offset,
             coords.length
         );
 
@@ -212,9 +229,7 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
 
         let mut buffer = vec![0; bs as usize];
         in_file.seek(SeekFrom::Start(bs * coords.skip))?;
-        out_file.seek(SeekFrom::Start(
-            bs * (coords.skip as i64 + coords.offset) as u64,
-        ))?;
+        out_file.seek(SeekFrom::Start(bs * (coords.skip as i64 + offset) as u64))?;
 
         for _ in 0..coords.length {
             in_file.read_exact(&mut buffer[..bs as usize])?;
@@ -225,10 +240,10 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
     }
 
     if let Some(excess) = offset.overlap {
-        dd_op(&path, excess, bs)?;
+        dd_op(&path, offset.offset, excess, bs)?;
     }
 
-    dd_op(path, offset.inner, bs)?;
+    dd_op(path, offset.offset, offset.inner, bs)?;
 
     Ok(())
 }
@@ -244,8 +259,8 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
     if !args.is_empty() {
         resize_cmd.args(args);
     }
-    resize_cmd.arg(size);
     resize_cmd.arg(path.as_ref());
+    resize_cmd.arg(size);
 
     eprintln!("{:?}", resize_cmd);
 
