@@ -12,6 +12,15 @@ pub struct Coordinates {
 
 impl Coordinates {
     pub fn new(start: u64, end: u64) -> Coordinates { Coordinates { start, end } }
+    pub fn len(&self) -> u64 { self.end - self.start }
+    pub fn resize_to(&mut self, new_len: u64) {
+        let offset = (self.end - self.start) as i64 - new_len as i64;
+        if offset < 0 {
+            self.end += offset.abs() as u64;
+        } else {
+            self.end -= offset as u64;
+        }
+    }
 }
 
 pub struct ResizeOperation {
@@ -126,7 +135,7 @@ enum ResizeUnit {
 
 pub(crate) fn resize<DELETE, CREATE>(
     mut change: Change,
-    resize: ResizeOperation,
+    mut resize: ResizeOperation,
     mut delete: DELETE,
     mut create: CREATE,
 ) -> Result<(), DiskError>
@@ -188,10 +197,12 @@ where
     if moving {
         info!("libdistinst: moving {}", change.path.display());
         delete(change.num as u32)?;
+        let abs_sectors = resize.absolute_sectors();
+        resize.old.resize_to(abs_sectors); // TODO: NLL
+
         dd(&change.device_path, resize.offset(), change.sector_size)
             .map_err(|why| DiskError::PartitionMove { why })?;
 
-        // NOTE: This should return a new change.path path.
         create(
             resize.new.start,
             resize.new.end,
