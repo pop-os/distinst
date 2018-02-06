@@ -45,6 +45,13 @@ impl ResizeOperation {
 
     /// Note that the `end` field in the coordinates are actually length values.
     fn offset(&self) -> Offset {
+        info!("libdistinst: calculating offsets: {} - {} -> {} - {}",
+            self.old.start, self.old.end, self.new.start, self.new.end);
+        assert!(
+            self.old.end - self.old.start == self.new.end - self.new.start,
+            "offsets were not adjusted before or after resize operations"
+        );
+
         let offset = self.new.start as i64 - self.old.start as i64;
         if self.new.start > self.old.start {
             Offset {
@@ -55,7 +62,7 @@ impl ResizeOperation {
                 },
                 overlap: Some(OffsetCoordinates {
                     skip:   self.new.start,
-                    length: self.old.start - self.new.start,
+                    length: self.new.start.max(self.old.start) - self.new.start.min(self.old.start),
                 }),
             }
         } else {

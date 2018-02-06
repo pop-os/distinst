@@ -770,7 +770,7 @@ impl Disk {
             while let Some(partition) = partition_iter.next() {
                 if let Some(old_part) = old_iter.next() {
                     if partition.number != -1 {
-                        if let Some(old_part) = source.get((partition.number + 1) as usize) {
+                        if let Some(old_part) = source.iter().find(|part| part.number == partition.number + 1) {
                             if old_part.number != -1 && partition.end_sector > old_part.start_sector
                             {
                                 new_sorted.push(partition_iter.next().unwrap());
@@ -783,6 +783,9 @@ impl Disk {
                 new_sorted.push(partition);
             }
 
+            // Ensure that the new vectors are the same size as the unsorted ones.
+            debug_assert!(new_sorted.len() == new.len() && old_sorted.len() == source.len());
+
             (new_sorted, old_sorted)
         }
 
@@ -794,6 +797,20 @@ impl Disk {
         let device_path = new.device_path.clone();
 
         let (new_sorted, old_sorted) = sort_partitions(&self.partitions, &new.partitions);
+        info!("libdistinst: proposed layout:{}", {
+            let mut output = String::new();
+            for partition in &new_sorted {
+                output.push_str(
+                    &format!(
+                        "\n\t{}: {} - {}",
+                        partition.number,
+                        partition.start_sector,
+                        partition.end_sector
+                    )
+                );
+            }
+            output
+        });
         let mut new_parts = new_sorted.iter();
         let mut new_part = None;
 

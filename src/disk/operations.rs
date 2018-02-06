@@ -166,6 +166,7 @@ impl<'a> ChangePartitions<'a> {
 
                 // If the partition needs to be resized/moved, this will execute.
                 if end != change.end || start != change.start {
+                    info!("libdistinst: {} will be resized", change.path.display());
                     resize_partitions.push((
                         change.clone(),
                         ResizeOperation::new(
@@ -174,6 +175,7 @@ impl<'a> ChangePartitions<'a> {
                             Coordinates::new(change.start, change.end),
                         ),
                     ));
+                    continue
                 }
             }
 
@@ -286,10 +288,6 @@ impl<'a> CreatePartitions<'a> {
 fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<(), DiskError> {
     // Create a new geometry from the start sector and length of the new partition.
     let length = partition.end_sector - partition.start_sector;
-    info!(
-        "libdistinst: creating new partition with {} sectors",
-        length
-    );
     let geometry = Geometry::new(&device, partition.start_sector as i64, length as i64)
         .map_err(|why| DiskError::GeometryCreate { why })?;
 
@@ -301,6 +299,11 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
 
     // Open the disk, create the new partition, and add it to the disk.
     let (start, end) = (geometry.start(), geometry.start() + geometry.length());
+
+    info!(
+        "libdistinst: creating new partition with {} sectors: {} - {}",
+        length, start, end
+    );
 
     let fs_type = partition
         .file_system
