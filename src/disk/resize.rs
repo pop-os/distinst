@@ -131,6 +131,11 @@ where
     let shrinking = resize.is_shrinking();
     let growing = resize.is_growing();
 
+    info!(
+        "libdistinst: resize operations: {{ moving: {}, shrinking: {}, growing: {} }}",
+        moving, shrinking, growing
+    );
+
     // Create the command and its arguments based on the file system to apply.
     // TODO: Handle the unimplemented file systems.
     let (cmd, args, unit): (&str, &[&'static str], ResizeUnit) = match change.filesystem {

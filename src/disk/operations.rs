@@ -198,8 +198,7 @@ impl<'a> ChangePartitions<'a> {
                 // This is the delete function.
                 |partition| {
                     open_disk(unsafe { &mut (*device) }).and_then(|mut disk| {
-                        remove_partition(&mut disk, partition)
-                            .and_then(|_| commit(&mut disk))
+                        remove_partition(&mut disk, partition).and_then(|_| commit(&mut disk))
                     })
                 },
                 // And this is the partition-creation function

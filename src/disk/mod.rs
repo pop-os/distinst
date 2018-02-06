@@ -754,34 +754,48 @@ impl Disk {
         );
         self.validate_layout(new)?;
 
+        /// This function is only safe to use within the diff method. The purpose of
+        /// this function is to sort the source partitions within the source and new
+        /// partitions so that operations are committed in the correct order.
+        fn sort_partitions<'a>(
+            source: &'a [PartitionInfo],
+            new: &'a [PartitionInfo],
+        ) -> (Vec<&'a PartitionInfo>, Vec<&'a PartitionInfo>) {
+            let mut new_sorted: Vec<&PartitionInfo> = Vec::new();
+            let mut old_sorted: Vec<&PartitionInfo> = Vec::new();
+
+            let mut partition_iter = new.iter();
+            let mut old_iter = source.iter();
+
+            while let Some(partition) = partition_iter.next() {
+                if let Some(old_part) = old_iter.next() {
+                    if partition.number != -1 {
+                        if let Some(old_part) = source.get((partition.number + 1) as usize) {
+                            if old_part.number != -1 && partition.end_sector > old_part.start_sector
+                            {
+                                new_sorted.push(partition_iter.next().unwrap());
+                                old_sorted.push(old_iter.next().unwrap());
+                            }
+                        }
+                    }
+                    old_sorted.push(old_part);
+                }
+                new_sorted.push(partition);
+            }
+
+            (new_sorted, old_sorted)
+        }
+
         let mut remove_partitions = Vec::new();
         let mut change_partitions = Vec::new();
         let mut create_partitions = Vec::new();
 
         let sector_size = new.sector_size;
         let device_path = new.device_path.clone();
-        let mut new_parts = new.partitions.iter();
+
+        let (new_sorted, old_sorted) = sort_partitions(&self.partitions, &new.partitions);
+        let mut new_parts = new_sorted.iter();
         let mut new_part = None;
-
-        fn sort_partitions<'a> (source: &'a [PartitionInfo], new: &'a [PartitionInfo])
-            -> Vec<&'a PartitionInfo>
-        {
-            let mut sorted: Vec<&PartitionInfo> = Vec::new();
-            let mut partition_iter = new.iter();
-
-            while let Some(partition) = partition_iter.next() {
-                if partition.number != -1 {
-                    if let Some(old_part) = source.get((partition.number + 1) as usize) {
-                        if old_part.number != -1 && partition.end_sector > old_part.start_sector {
-                            sorted.push(partition_iter.next().unwrap());
-                        }
-                    }
-                }
-                sorted.push(partition);
-            }
-            
-            sorted
-        }
 
         fn flags_diff<I: Iterator<Item = PartitionFlag>>(
             source: &[PartitionFlag],
@@ -793,14 +807,17 @@ impl Disk {
         let mklabel = if new.mklabel {
             new.table_type
         } else {
-            'outer: for source in &sort_partitions(&self.partitions, &new.partitions) {
+            'outer: for source in &old_sorted {
                 loop {
                     let mut next_part = new_part.take().or_else(|| new_parts.next());
                     if let Some(new) = next_part {
                         // Source partitions may be removed or changed.
                         if new.is_source {
                             if source.number != new.number {
-                                unreachable!("layout validation: wrong number");
+                                unreachable!(
+                                    "layout validation: wrong number: {} != {}",
+                                    new.number, source.number
+                                );
                             }
 
                             if new.remove {
