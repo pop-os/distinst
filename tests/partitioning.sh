@@ -17,7 +17,7 @@ if ! test -b "${1}"; then
     exit 1
 fi
 
-for file in $FS $REMOVE; do
+for file in "$FS" "$REMOVE"; do
     if ! test -e "${file}"; then
         echo "failed to find ${file}"
         exit 1
