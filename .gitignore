@@ -10,3 +10,4 @@
 /examples/c/list-debug
 /tests/filesystem.squashfs
 /tests/filesystem.manifest-remove
+/tests/loopback.bin
