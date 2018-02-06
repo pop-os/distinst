@@ -54,9 +54,16 @@ index=0; while test ${index} -ne ${RUNS}; do
         -u "$1:1:reuse:/boot/efi:esp" \
         -u "$1:2:reuse:/"
 
-    fsck -n "${1}1"
-    fsck -n "${1}2"
-    fsck -n "${1}3"
+    # If the disk path ends with a number, add a p.
+    if test "${1:-1}" -eq "${1:-1}"; then
+        DISK="${1}p"
+    else
+        DISK="${1}"
+    fi
+
+    sudo fsck -n "${DISK}1"
+    sudo fsck -n "${DISK}2"
+    sudo fsck -n "${DISK}3"
 
     index=$((index + 1))
 done
