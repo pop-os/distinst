@@ -325,31 +325,19 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
 
     eprintln!("{:?}", resize_cmd);
 
-    // for attempt in 0..3 {
-    //     ::std::thread::sleep(::std::time::Duration::from_secs(1));
-    //     let result = blockdev(&path, &["--flushbufs", "--rereadpt"]);
-    //     if result.is_err() && attempt == 2 {
-    //         result.map_err(|why| DiskError::DiskSync { why })?
-    //     } else {
-    //         break;
-    //     }
-    // }
-
-    fsck(&path).and_then(|_| {
-        let status = resize_cmd.stdout(Stdio::null()).status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "resize for {:?} failed with status: {}",
-                    path.as_ref().display(),
-                    status
-                ),
-            ))
-        }
-    })
+    let status = resize_cmd.stdout(Stdio::null()).status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!(
+                "resize for {:?} failed with status: {}",
+                path.as_ref().display(),
+                status
+            ),
+        ))
+    }
 }
 
 fn fsck<P: AsRef<Path>>(part: P) -> io::Result<()> {

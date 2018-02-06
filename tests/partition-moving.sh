@@ -53,6 +53,10 @@ index=0; while test ${index} -ne ${RUNS}; do
         -m "$1:4:-1024M:end" \
         -u "$1:1:reuse:/boot/efi:esp" \
         -u "$1:2:reuse:/"
+    
+    fsck -n "${1}1"
+    fsck -n "${1}2"
+    fsck -n "${1}3"
 
     index=$((index + 1))
 done
