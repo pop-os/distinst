@@ -763,6 +763,26 @@ impl Disk {
         let mut new_parts = new.partitions.iter();
         let mut new_part = None;
 
+        fn sort_partitions<'a> (source: &'a [PartitionInfo], new: &'a [PartitionInfo])
+            -> Vec<&'a PartitionInfo>
+        {
+            let mut sorted: Vec<&PartitionInfo> = Vec::new();
+            let mut partition_iter = new.iter();
+
+            while let Some(partition) = partition_iter.next() {
+                if partition.number != -1 {
+                    if let Some(old_part) = source.get((partition.number + 1) as usize) {
+                        if old_part.number != -1 && partition.end_sector > old_part.start_sector {
+                            sorted.push(partition_iter.next().unwrap());
+                        }
+                    }
+                }
+                sorted.push(partition);
+            }
+            
+            sorted
+        }
+
         fn flags_diff<I: Iterator<Item = PartitionFlag>>(
             source: &[PartitionFlag],
             flags: I,
@@ -773,7 +793,7 @@ impl Disk {
         let mklabel = if new.mklabel {
             new.table_type
         } else {
-            'outer: for source in &self.partitions {
+            'outer: for source in &sort_partitions(&self.partitions, &new.partitions) {
                 loop {
                     let mut next_part = new_part.take().or_else(|| new_parts.next());
                     if let Some(new) = next_part {
@@ -893,6 +913,7 @@ impl Disk {
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
 
         for (sector, mount) in mounts {
+            info!("libdistinst: checking for mount target at {}", sector);
             let mut part = self.get_partition_at(sector)
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
