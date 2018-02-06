@@ -181,32 +181,21 @@ where
         info!("libdistinst: shrinking {}", change.path.display());
         resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
     } else if growing {
+        delete(change.num as u32)?;
         if resize.new.start < resize.old.start {
             info!(
                 "libdistinst: moving before growing {}",
                 change.path.display()
             );
-            delete(change.num as u32)?;
             let abs_sectors = resize.absolute_sectors();
             resize.old.resize_to(abs_sectors); // TODO: NLL
 
             dd(&change.device_path, resize.offset(), change.sector_size)
                 .map_err(|why| DiskError::PartitionMove { why })?;
 
-            let (num, path) = create(
-                resize.new.start,
-                resize.new.end,
-                change.filesystem,
-                &change.flags,
-            )?;
-
-            change.num = num;
-            change.path = path;
             moving = false;
         }
 
-        info!("libdistinst: growing {}", change.path.display());
-        delete(change.num as u32)?;
         let (num, path) = create(
             resize.new.start,
             resize.new.end,
@@ -216,6 +205,8 @@ where
 
         change.num = num;
         change.path = path;
+
+        info!("libdistinst: growing {}", change.path.display());
         resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
     }
 
