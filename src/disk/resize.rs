@@ -233,9 +233,18 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
         let mut disk = OpenOptions::new().read(true).write(true).open(&path)?;
         let mut buffer = vec![0; bs as usize];
 
+        // let mut original_superblock = [0; 8 * 1024];
+        // disk.seek(SeekFrom::Start(bs * coords.skip))?;
+        // disk.read_exact(&mut original_superblock)?;
+
+        let source_skip = coords.skip;
+        let offset_skip = (source_skip as i64 + offset) as u64;
+
+        info!("libdistinst: source sector: {}; offset sector: {}", source_skip, offset_skip);
+
         for index in 0..coords.length {
-            let input = bs * coords.skip + index;
-            let offset = (input as i64 + (bs as i64 * offset)) as u64;
+            let input = (source_skip + index) * bs;
+            let offset = (offset_skip + index) * bs;
 
             disk.seek(SeekFrom::Start(input))?;
             disk.read_exact(&mut buffer[..bs as usize])?;
@@ -243,6 +252,9 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
             disk.seek(SeekFrom::Start(offset))?;
             disk.write(&mut buffer[..bs as usize])?;
         }
+
+        // let mut new_superblock = [0; 8 * 1024];
+        // disk.seek(SeekFrom::Start())
 
         disk.sync_all()
     }

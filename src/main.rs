@@ -258,9 +258,17 @@ fn parse_fs(fs: &str) -> FileSystemType {
 }
 
 fn parse_sector(sector: &str) -> Sector {
-    match sector.parse::<Sector>() {
-        Ok(sector) => sector,
-        Err(_) => {
+    let result = if sector.ends_with("MiB") {
+        sector[..sector.len()-3].parse::<i64>().ok().and_then(|mebibytes| {
+            format!("{}M",  (mebibytes * 1_048_576) / 1_000_000).parse::<Sector>().ok()
+        })
+    } else {
+        sector.parse::<Sector>().ok()
+    };
+
+    match result {
+        Some(sector) => sector,
+        None => {
             eprintln!("distinst: provided sector unit, '{}', was invalid", sector);
             exit(1);
         }
@@ -428,7 +436,6 @@ fn configure_moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskE
 fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskError> {
     if let Some(parts) = parts {
         for part in parts {
-            eprintln!("DEBUG-PART: {}", part);
             let values: Vec<&str> = part.split(":").collect();
             if values.len() < 3 {
                 eprintln!(
@@ -457,8 +464,6 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
                 values.get(3),
                 values.get(4).map(|&flags| parse_flags(flags)),
             );
-
-            eprintln!("DEBUG: {}", block_dev);
 
             let disk = find_disk_mut(disks, block_dev);
             let mut partition = find_partition_mut(disk, part_id);
