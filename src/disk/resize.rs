@@ -118,14 +118,14 @@ enum ResizeUnit {
 // TODO: Write tests for this function.
 
 pub(crate) fn resize<DELETE, CREATE>(
-    change: Change,
+    mut change: Change,
     resize: ResizeOperation,
     mut delete: DELETE,
     mut create: CREATE,
 ) -> Result<(), DiskError>
 where
     DELETE: FnMut(u32) -> Result<(), DiskError>,
-    CREATE: FnMut(u64, u64, Option<FileSystemType>, &[PartitionFlag]) -> Result<PathBuf, DiskError>,
+    CREATE: FnMut(u64, u64, Option<FileSystemType>, &[PartitionFlag]) -> Result<(i32, PathBuf), DiskError>,
 {
     let moving = resize.is_moving();
     let shrinking = resize.is_shrinking();
@@ -154,35 +154,32 @@ where
         ResizeUnit::RelativeSectors => format!("{}", resize.relative_sectors()),
     };
 
-    // TODO: If the partition is going to be reformatted, distinst should just delete & recreate.
-    // TODO: Grow file system in partition table before attempting to resize it.
-    // TODO: If growing & moving, move the partition first.
-
-    let mut partition = change.path;
-
     if shrinking {
-        info!("libdistinst: shrinking {}", partition.display());
-        resize_(cmd, args, &size, &partition).map_err(|why| DiskError::PartitionResize { why })?;
+        info!("libdistinst: shrinking {}", change.path.display());
+        resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
     } else if growing {
-        info!("libdistinst: growing {}", partition.display());
+        info!("libdistinst: growing {}", change.path.display());
         delete(change.num as u32)?;
-        partition = create(
+        let (num, path) = create(
             resize.new.start,
             resize.new.end,
             change.filesystem,
             &change.flags,
         )?;
-        resize_(cmd, args, &size, &partition).map_err(|why| DiskError::PartitionResize { why })?;
+        change.num = num;
+        change.path = path;
+        resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
     }
 
     // If the partition is to be moved, then we will ensure that it has been deleted,
     // and then dd will be used to move the partition before recreating it in the table.
     if moving {
+        info!("libdistinst: moving {}", change.path.display());
         delete(change.num as u32)?;
         dd(&change.device_path, resize.offset(), change.sector_size)
             .map_err(|why| DiskError::PartitionMove { why })?;
 
-        // NOTE: This should return a new partition path.
+        // NOTE: This should return a new change.path path.
         create(
             resize.new.start,
             resize.new.end,

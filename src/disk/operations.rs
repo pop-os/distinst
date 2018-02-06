@@ -193,7 +193,7 @@ impl<'a> ChangePartitions<'a> {
 
         // Flush the OS cache and drop the device before proceeding to formatting.
         sync(&mut device)?;
-        
+
         let device = &mut device as *mut Device;
 
         for (change, resize_op) in resize_partitions {
@@ -211,18 +211,21 @@ impl<'a> ChangePartitions<'a> {
                 // TODO: label & partition kind support
                 |start, end, fs, flags| {
                     let device = unsafe { &mut (*device) };
-                    create_partition(device, &PartitionCreate {
-                        path:         self.device_path.to_path_buf(),
-                        start_sector: start,
-                        end_sector:   end,
-                        format:       false,
-                        file_system:  fs,
-                        kind:         PartitionType::Primary,
-                        flags:        Vec::from(flags),
-                        label:        None,
-                    })?;
+                    create_partition(
+                        device,
+                        &PartitionCreate {
+                            path:         self.device_path.to_path_buf(),
+                            start_sector: start,
+                            end_sector:   end,
+                            format:       false,
+                            file_system:  fs,
+                            kind:         PartitionType::Primary,
+                            flags:        Vec::from(flags),
+                            label:        None,
+                        },
+                    )?;
 
-                    get_partition_id(self.device_path, start as i64)
+                    get_partition_id_and_path(self.device_path, start as i64)
                 },
             )?;
         }
@@ -288,7 +291,10 @@ impl<'a> CreatePartitions<'a> {
 fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<(), DiskError> {
     // Create a new geometry from the start sector and length of the new partition.
     let length = partition.end_sector - partition.start_sector;
-    info!("libdistinst: creating new partition with {} sectors", length);
+    info!(
+        "libdistinst: creating new partition with {} sectors",
+        length
+    );
     let geometry = Geometry::new(&device, partition.start_sector as i64, length as i64)
         .map_err(|why| DiskError::GeometryCreate { why })?;
 
@@ -337,13 +343,29 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
     commit(&mut disk)
 }
 
-fn get_partition_id(path: &Path, start_sector: i64) -> Result<PathBuf, DiskError> {
+fn get_partition_and<T, F: FnOnce(PedPartition) -> T>(
+    path: &Path,
+    start_sector: i64,
+    action: F,
+) -> Result<T, DiskError> {
     get_device(path).and_then(|mut device| {
         open_disk(&mut device).and_then(|disk| {
             disk.get_partition_by_sector(start_sector)
-                .map(|part| part.get_path().unwrap().to_path_buf())
+                .map(action)
                 .ok_or(DiskError::NewPartNotFound)
         })
+    })
+}
+
+fn get_partition_id(path: &Path, start_sector: i64) -> Result<PathBuf, DiskError> {
+    get_partition_and(path, start_sector, |part| {
+        part.get_path().unwrap().to_path_buf()
+    })
+}
+
+fn get_partition_id_and_path(path: &Path, start_sector: i64) -> Result<(i32, PathBuf), DiskError> {
+    get_partition_and(path, start_sector, |part| {
+        (part.num(), part.get_path().unwrap().to_path_buf())
     })
 }
 
