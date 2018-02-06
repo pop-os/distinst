@@ -175,7 +175,7 @@ impl<'a> ChangePartitions<'a> {
                             Coordinates::new(change.start, change.end),
                         ),
                     ));
-                    continue
+                    continue;
                 }
             }
 

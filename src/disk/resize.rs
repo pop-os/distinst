@@ -54,8 +54,10 @@ impl ResizeOperation {
 
     /// Note that the `end` field in the coordinates are actually length values.
     fn offset(&self) -> Offset {
-        info!("libdistinst: calculating offsets: {} - {} -> {} - {}",
-            self.old.start, self.old.end, self.new.start, self.new.end);
+        info!(
+            "libdistinst: calculating offsets: {} - {} -> {} - {}",
+            self.old.start, self.old.end, self.new.start, self.new.end
+        );
         assert!(
             self.old.end - self.old.start == self.new.end - self.new.start,
             "offsets were not adjusted before or after resize operations"
@@ -143,7 +145,7 @@ where
     DELETE: FnMut(u32) -> Result<(), DiskError>,
     CREATE: FnMut(u64, u64, Option<FileSystemType>, &[PartitionFlag]) -> Result<(i32, PathBuf), DiskError>,
 {
-    let moving = resize.is_moving();
+    let mut moving = resize.is_moving();
     let shrinking = resize.is_shrinking();
     let growing = resize.is_growing();
 
@@ -179,6 +181,30 @@ where
         info!("libdistinst: shrinking {}", change.path.display());
         resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
     } else if growing {
+        if resize.new.start < resize.old.start {
+            info!(
+                "libdistinst: moving before growing {}",
+                change.path.display()
+            );
+            delete(change.num as u32)?;
+            let abs_sectors = resize.absolute_sectors();
+            resize.old.resize_to(abs_sectors); // TODO: NLL
+
+            dd(&change.device_path, resize.offset(), change.sector_size)
+                .map_err(|why| DiskError::PartitionMove { why })?;
+
+            let (num, path) = create(
+                resize.new.start,
+                resize.new.end,
+                change.filesystem,
+                &change.flags,
+            )?;
+
+            change.num = num;
+            change.path = path;
+            moving = false;
+        }
+
         info!("libdistinst: growing {}", change.path.display());
         delete(change.num as u32)?;
         let (num, path) = create(
@@ -187,6 +213,7 @@ where
             change.filesystem,
             &change.flags,
         )?;
+
         change.num = num;
         change.path = path;
         resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
@@ -233,14 +260,17 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
         let mut disk = OpenOptions::new().read(true).write(true).open(&path)?;
         let mut buffer = vec![0; bs as usize];
 
-        // let mut original_superblock = [0; 8 * 1024];
-        // disk.seek(SeekFrom::Start(bs * coords.skip))?;
-        // disk.read_exact(&mut original_superblock)?;
-
         let source_skip = coords.skip;
         let offset_skip = (source_skip as i64 + offset) as u64;
 
-        info!("libdistinst: source sector: {}; offset sector: {}", source_skip, offset_skip);
+        let mut original_superblock = [0; 8 * 1024];
+        disk.seek(SeekFrom::Start(source_skip * bs))?;
+        disk.read_exact(&mut original_superblock)?;
+
+        info!(
+            "libdistinst: source sector: {}; offset sector: {}",
+            source_skip, offset_skip
+        );
 
         for index in 0..coords.length {
             let input = (source_skip + index) * bs;
@@ -253,10 +283,21 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
             disk.write(&mut buffer[..bs as usize])?;
         }
 
-        // let mut new_superblock = [0; 8 * 1024];
-        // disk.seek(SeekFrom::Start())
+        disk.sync_all()?;
 
-        disk.sync_all()
+        let mut new_superblock = [0; 8 * 1024];
+        disk.seek(SeekFrom::Start(offset_skip * bs))?;
+        disk.read_exact(&mut new_superblock)?;
+
+        // Check if the data was correctly moved or not.
+        if &original_superblock[..] != &new_superblock[..] {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "new partition is corrupted",
+            ));
+        }
+
+        Ok(())
     }
 
     if let Some(excess) = offset.overlap {

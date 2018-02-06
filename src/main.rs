@@ -259,9 +259,14 @@ fn parse_fs(fs: &str) -> FileSystemType {
 
 fn parse_sector(sector: &str) -> Sector {
     let result = if sector.ends_with("MiB") {
-        sector[..sector.len()-3].parse::<i64>().ok().and_then(|mebibytes| {
-            format!("{}M",  (mebibytes * 1_048_576) / 1_000_000).parse::<Sector>().ok()
-        })
+        sector[..sector.len() - 3]
+            .parse::<i64>()
+            .ok()
+            .and_then(|mebibytes| {
+                format!("{}M", (mebibytes * 1_048_576) / 1_000_000)
+                    .parse::<Sector>()
+                    .ok()
+            })
     } else {
         sector.parse::<Sector>().ok()
     };
