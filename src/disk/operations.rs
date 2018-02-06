@@ -126,7 +126,6 @@ impl<'a> ChangePartitions<'a> {
         );
 
         let mut device = open_device(self.device_path)?;
-        let mut format_partitions = Vec::new();
         let mut resize_partitions = Vec::new();
 
         for change in &self.change_partitions {
@@ -176,15 +175,11 @@ impl<'a> ChangePartitions<'a> {
                         ),
                     ));
                 }
-
-                if let Some(fs) = change.filesystem {
-                    format_partitions.push((part.get_path().unwrap().to_path_buf(), fs));
-                }
             }
 
             if flags_changed || name_changed {
                 if name_changed {
-                    info!("renaming {}", change.num)
+                    info!("libdistinst: renaming {}", change.num);
                 }
 
                 commit(&mut disk)?;
@@ -194,25 +189,24 @@ impl<'a> ChangePartitions<'a> {
         // Flush the OS cache and drop the device before proceeding to formatting.
         sync(&mut device)?;
 
+        // TODO: Maybe not require a raw pointer here?
         let device = &mut device as *mut Device;
-
         for (change, resize_op) in resize_partitions {
             resize(
                 change,
                 resize_op,
-                // This is the delete function
+                // This is the delete function.
                 |partition| {
-                    let device = unsafe { &mut (*device) };
-                    let mut disk = open_disk(device)?;
-                    remove_partition(&mut disk, partition)?;
-                    commit(&mut disk)
+                    open_disk(unsafe { &mut (*device) }).and_then(|mut disk| {
+                        remove_partition(&mut disk, partition)
+                            .and_then(|_| commit(&mut disk))
+                    })
                 },
                 // And this is the partition-creation function
                 // TODO: label & partition kind support
                 |start, end, fs, flags| {
-                    let device = unsafe { &mut (*device) };
                     create_partition(
-                        device,
+                        unsafe { &mut (*device) },
                         &PartitionCreate {
                             path:         self.device_path.to_path_buf(),
                             start_sector: start,
@@ -234,7 +228,7 @@ impl<'a> ChangePartitions<'a> {
         Ok(CreatePartitions {
             device_path:       self.device_path,
             create_partitions: self.create_partitions,
-            format_partitions: format_partitions,
+            format_partitions: Vec::new(),
         })
     }
 }
@@ -288,6 +282,8 @@ impl<'a> CreatePartitions<'a> {
     }
 }
 
+/// Creates a new partition on the device using the info in the `partition` parameter.
+/// The partition table should reflect the changes before this function exits.
 fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<(), DiskError> {
     // Create a new geometry from the start sector and length of the new partition.
     let length = partition.end_sector - partition.start_sector;
