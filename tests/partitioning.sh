@@ -73,8 +73,38 @@ index=0; while test ${index} -ne ${RUNS}; do
     index=$((index + 1))
 done
 
-# NOTE: Currently working on this functionality at the moment.
-# echo 'Running partition move & resize tests'
+echo 'Running resize tests'
+index=0; while test ${index} -ne ${RUNS}; do
+    sudo target/debug/distinst --test \
+        -s "${FS}" \
+        -r "${REMOVE}" \
+        -h "pop-testing" \
+        -k "us" \
+        -l "en_US.UTF-8" \
+        -b "$1" \
+        -t "$1:gpt" \
+        -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
+        -n "$1:primary:1024M:1536M:ext4:/" \
+        -n "$1:primary:2048M:4096M:ext4" \
+        -n "$1:primary:-512M:end:swap"
+
+    sudo target/debug/distinst --test \
+        -s "${FS}" \
+        -r "${REMOVE}" \
+        -h "pop-testing" \
+        -k "us" \
+        -l "en_US.UTF-8" \
+        -b "$1" \
+        -m "$1:2:1024M:2048M" \
+        -m "$1:3:2048M:3584M" \
+        -m "$1:4:-1024M:end" \
+        -u "$1:1:reuse:/boot/efi:esp" \
+        -u "$1:2:reuse:/"
+
+    index=$((index + 1))
+done
+
+# echo 'Running move tests'
 # index=0; while test ${index} -ne ${RUNS}; do
 #     sudo target/debug/distinst --test \
 #         -s "${FS}" \
@@ -85,7 +115,7 @@ done
 #         -b "$1" \
 #         -t "$1:gpt" \
 #         -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
-#         -n "$1:primary:1024M:-512M:ext4:/" \
+#         -n "$1:primary:1024M:2048M:ext4:/" \
 #         -n "$1:primary:-512M:end:swap"
 
 #     sudo target/debug/distinst --test \
@@ -95,10 +125,10 @@ done
 #         -k "us" \
 #         -l "en_US.UTF-8" \
 #         -b "$1" \
-#         -m "$1:2:-512M:-4096M" \
-#         -m "$1:3:-4096M:end" \
+#         -m "$1:2:512M:1056M" \
+#         -m "$1:3:-1024M:end" \
 #         -u "$1:1:reuse:/boot/efi:esp" \
-#         -u "$2:2:reuse:/"
+#         -u "$1:2:reuse:/"
 
 #     index=$((index + 1))
 # done

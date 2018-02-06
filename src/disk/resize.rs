@@ -2,7 +2,7 @@ use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag}
 use super::FileSystemType::*;
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 pub struct Coordinates {
@@ -18,7 +18,6 @@ pub struct ResizeOperation {
     sector_size: u64,
     old:         Coordinates,
     new:         Coordinates,
-    resize_to:   i64,
 }
 
 struct Offset {
@@ -37,26 +36,10 @@ const MEGABYTE: u64 = 1_000_000;
 
 impl ResizeOperation {
     pub fn new(sector_size: u64, old: Coordinates, new: Coordinates) -> ResizeOperation {
-        // Obtain the differences between the start and end sectors.
-        let diff_start = new.start as i64 - old.start as i64;
-        let diff_end = new.end as i64 - old.end as i64;
-
         ResizeOperation {
             sector_size,
             old,
             new,
-            resize_to: {
-                // If the start position has not changed (diff is 0), then we are only resizing.
-                // If the diff between the start & end sectors are the same, we are only moving.
-                // Otherwise, the difference between the differences yields the new length.
-                if diff_start == 0 {
-                    diff_end
-                } else if diff_start == diff_end {
-                    0
-                } else {
-                    diff_end - diff_start
-                }
-            },
         }
     }
 
@@ -87,31 +70,49 @@ impl ResizeOperation {
         }
     }
 
-    fn is_shrinking(&self) -> bool { self.resize_to < 0 }
+    fn is_shrinking(&self) -> bool { self.relative_sectors() < 0 }
 
-    fn is_growing(&self) -> bool { self.resize_to > 0 }
+    fn is_growing(&self) -> bool { self.relative_sectors() > 0 }
 
     fn is_moving(&self) -> bool { self.old.start != self.new.start }
 
-    fn absolute_sectors(&self) -> u64 { (self.new.end - self.new.start) * self.sector_size }
+    fn absolute_sectors(&self) -> u64 { (self.new.end - self.new.start) }
 
-    fn relative_sectors(&self) -> i64 { self.resize_to * self.sector_size as i64 }
+    fn relative_sectors(&self) -> i64 {
+        // Obtain the differences between the start and end sectors.
+        let diff_start = self.new.start as i64 - self.old.start as i64;
+        let diff_end = self.new.end as i64 - self.old.end as i64;
 
-    fn as_absolute_mebibyte(&self) -> u64 { self.absolute_sectors() / MEBIBYTE }
+        if diff_start == 0 {
+            diff_end
+        } else if diff_start == diff_end {
+            0
+        } else {
+            diff_end - diff_start
+        }
+    }
 
-    fn as_absolute_megabyte(&self) -> u64 { self.absolute_sectors() / MEGABYTE }
+    fn as_absolute_mebibyte(&self) -> u64 { self.absolute_sectors() * self.sector_size / MEBIBYTE }
 
-    fn as_relative_megabyte(&self) -> i64 { self.relative_sectors() / MEGABYTE as i64 }
+    fn as_absolute_megabyte(&self) -> u64 { self.absolute_sectors() * self.sector_size / MEGABYTE }
 
-    fn as_relative_mebibyte(&self) -> i64 { self.relative_sectors() / MEBIBYTE as i64 }
+    fn as_relative_megabyte(&self) -> i64 {
+        self.relative_sectors() * self.sector_size as i64 / MEGABYTE as i64
+    }
+
+    fn as_relative_mebibyte(&self) -> i64 {
+        self.relative_sectors() * self.sector_size as i64 / MEBIBYTE as i64
+    }
 }
 
 #[allow(dead_code)]
 enum ResizeUnit {
     AbsoluteMebibyte,
     AbsoluteMegabyte,
+    AbsoluteSectors,
     RelativeMebibyte,
     RelativeMegabyte,
+    RelativeSectors,
 }
 
 // TODO: Write tests for this function.
@@ -124,24 +125,17 @@ pub(crate) fn resize<DELETE, CREATE>(
 ) -> Result<(), DiskError>
 where
     DELETE: FnMut(u32) -> Result<(), DiskError>,
-    CREATE: FnMut(u64, u64, Option<FileSystemType>, &[PartitionFlag]) -> Result<(), DiskError>,
+    CREATE: FnMut(u64, u64, Option<FileSystemType>, &[PartitionFlag]) -> Result<PathBuf, DiskError>,
 {
     let moving = resize.is_moving();
     let shrinking = resize.is_shrinking();
     let growing = resize.is_growing();
 
-    info!(
-        "libdistinst: performing move and/or resize operation on {}",
-        change.path.display()
-    );
-
     // Create the command and its arguments based on the file system to apply.
     // TODO: Handle the unimplemented file systems.
     let (cmd, args, unit): (&str, &[&'static str], ResizeUnit) = match change.filesystem {
         // Some(Btrfs) => ("btrfs", &["filesystem", "resize"], false),
-        Some(Ext2) | Some(Ext3) | Some(Ext4) => {
-            ("resize2fs", &[], ResizeUnit::AbsoluteMegabyte)
-        }
+        Some(Ext2) | Some(Ext3) | Some(Ext4) => ("resize2fs", &[], ResizeUnit::AbsoluteMebibyte),
         // Some(Exfat) => (),
         // Some(F2fs) => ("resize.f2fs"),
         // Some(Fat16) | Some(Fat32) => ("fatresize", &["-s"], true),
@@ -151,39 +145,51 @@ where
         fs => unimplemented!("{:?} handling", fs),
     };
 
-    // TODO: Should we not worry about data if we are going to reformat the partition?
     let size = match unit {
         ResizeUnit::AbsoluteMebibyte => format!("{}M", resize.as_absolute_mebibyte()),
         ResizeUnit::AbsoluteMegabyte => format!("{}M", resize.as_absolute_megabyte()),
+        ResizeUnit::AbsoluteSectors => format!("{}", resize.absolute_sectors()),
         ResizeUnit::RelativeMebibyte => format!("{}M", resize.as_relative_mebibyte()),
         ResizeUnit::RelativeMegabyte => format!("{}M", resize.as_relative_megabyte()),
+        ResizeUnit::RelativeSectors => format!("{}", resize.relative_sectors()),
     };
 
-    if shrinking || (growing && !moving) {
-        resize_(cmd, args, &size, &change.path)
-            .map_err(|why| DiskError::PartitionResize { why })?;
+    // TODO: If the partition is going to be reformatted, distinst should just delete & recreate.
+    // TODO: Grow file system in partition table before attempting to resize it.
+    // TODO: If growing & moving, move the partition first.
+
+    let mut partition = change.path;
+
+    if shrinking {
+        info!("libdistinst: shrinking {}", partition.display());
+        resize_(cmd, args, &size, &partition).map_err(|why| DiskError::PartitionResize { why })?;
+    } else if growing {
+        info!("libdistinst: growing {}", partition.display());
+        delete(change.num as u32)?;
+        partition = create(
+            resize.new.start,
+            resize.new.end,
+            change.filesystem,
+            &change.flags,
+        )?;
+        resize_(cmd, args, &size, &partition).map_err(|why| DiskError::PartitionResize { why })?;
     }
 
     // If the partition is to be moved, then we will ensure that it has been deleted,
     // and then dd will be used to move the partition before recreating it in the table.
     if moving {
         delete(change.num as u32)?;
-        dd(change.device_path, resize.offset(), change.sector_size)
+        dd(&change.device_path, resize.offset(), change.sector_size)
             .map_err(|why| DiskError::PartitionMove { why })?;
 
+        // NOTE: This should return a new partition path.
         create(
             resize.new.start,
             resize.new.end,
             change.filesystem,
             &change.flags,
         )?;
-        
-        if growing {
-            resize_(cmd, args, &size, &change.path)
-                .map_err(|why| DiskError::PartitionResize { why })?;
-        }
     }
-
     Ok(())
 }
 
@@ -195,8 +201,10 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
         bs: u64,
     ) -> io::Result<()> {
         info!(
-            "libdistinst: moving partition on {} (skip: {}; offset: {}; length: {})",
+            "libdistinst: moving partition on {} with {} block size: {{ skip: {}; offset: {}; \
+             length: {} }}",
             path.as_ref().display(),
+            bs as usize,
             coords.skip,
             offset,
             coords.length
@@ -207,7 +215,7 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
 
         for index in 0..coords.length {
             let input = bs * coords.skip + index;
-            let offset = bs * ((coords.skip as i64 + offset) + index as i64) as u64;
+            let offset = (input as i64 + (bs as i64 * offset)) as u64;
 
             disk.seek(SeekFrom::Start(input))?;
             disk.read_exact(&mut buffer[..bs as usize])?;
@@ -244,6 +252,16 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
 
     eprintln!("{:?}", resize_cmd);
 
+    // for attempt in 0..3 {
+    //     ::std::thread::sleep(::std::time::Duration::from_secs(1));
+    //     let result = blockdev(&path, &["--flushbufs", "--rereadpt"]);
+    //     if result.is_err() && attempt == 2 {
+    //         result.map_err(|why| DiskError::DiskSync { why })?
+    //     } else {
+    //         break;
+    //     }
+    // }
+
     fsck(&path).and_then(|_| {
         let status = resize_cmd.stdout(Stdio::null()).status()?;
         if status.success() {
@@ -263,7 +281,11 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
 
 fn fsck<P: AsRef<Path>>(part: P) -> io::Result<()> {
     let part = part.as_ref();
-    let status = Command::new("fsck").arg("-fy").arg(part).stdout(Stdio::null()).status()?;
+    let status = Command::new("fsck")
+        .arg("-fy")
+        .arg(part)
+        .stdout(Stdio::null())
+        .status()?;
     if status.success() {
         info!("libdistinst: performed fsck on {}", part.display());
         Ok(())

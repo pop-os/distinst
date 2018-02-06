@@ -15,7 +15,10 @@ pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
 
     debug!("{:?}", command);
 
-    let status = command.stdout(Stdio::null()).stderr(Stdio::null()).status()?;
+    let status = command
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
     if status.success() {
         Ok(())
     } else {
