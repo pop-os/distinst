@@ -29,25 +29,17 @@ impl Coordinates {
 }
 
 /// Contains the source and target coordinates for a partition, as well as the size in
-/// bytes of each sector. An `Offset` will be calculated from this data structure.
+/// bytes of each sector. An `OffsetCoordinates` will be calculated from this data structure.
 pub struct ResizeOperation {
     sector_size: u64,
     old:         Coordinates,
     new:         Coordinates,
 }
 
-/// Contains the source coordinates for a partition, as well as it's offset
-/// in sectors to where it will be moved, and an optional overlap which
-/// must be accounted for.
-struct Offset {
-    offset:  i64,
-    inner:   OffsetCoordinates,
-    overlap: Option<OffsetCoordinates>,
-}
-
 /// Defines how many sectors to skip, and how the partition is.
 struct OffsetCoordinates {
     skip:   u64,
+    offset: i64,
     length: u64,
 }
 
@@ -63,9 +55,10 @@ impl ResizeOperation {
         }
     }
 
-    /// Calculates the offsets between two coordinates, and whether or not an overlap exists
-    /// which must be accounted for.
-    fn offset(&self) -> Offset {
+    /// Calculates the offsets between two coordinates.
+    ///
+    /// A negative offset means that the partition is moving backwards.
+    fn offset(&self) -> OffsetCoordinates {
         info!(
             "libdistinst: calculating offsets: {} - {} -> {} - {}",
             self.old.start, self.old.end, self.new.start, self.new.end
@@ -75,28 +68,10 @@ impl ResizeOperation {
             "offsets were not adjusted before or after resize operations"
         );
 
-        let offset = self.new.start as i64 - self.old.start as i64;
-        if self.new.start > self.old.start {
-            Offset {
-                offset,
-                inner: OffsetCoordinates {
-                    skip:   self.old.start,
-                    length: offset as u64,
-                },
-                overlap: Some(OffsetCoordinates {
-                    skip:   self.new.start,
-                    length: self.new.start.max(self.old.start) - self.new.start.min(self.old.start),
-                }),
-            }
-        } else {
-            Offset {
-                offset,
-                inner: OffsetCoordinates {
-                    skip:   self.old.start,
-                    length: self.old.end - self.old.start,
-                },
-                overlap: None,
-            }
+        OffsetCoordinates {
+            offset: self.new.start as i64 - self.old.start as i64,
+            skip:   self.old.start,
+            length: self.old.end - self.old.start,
         }
     }
 
@@ -254,79 +229,51 @@ where
 /// Performs direct reads & writes on the disk to shift a partition either to the left or right,
 /// using the supplied offset coordinates to determine where the partition is, and where it
 /// should be.
-fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
-    /// An internal operation which may be called twice to move a partition.
-    fn dd_op<P: AsRef<Path>>(
-        path: P,
-        offset: i64,
-        coords: OffsetCoordinates,
-        bs: u64,
-    ) -> io::Result<()> {
-        info!(
-            "libdistinst: moving partition on {} with {} sector size: {{ skip: {}; offset: {}; \
-             length: {} }}",
-            path.as_ref().display(),
-            bs as usize,
-            coords.skip,
-            offset,
-            coords.length
-        );
+/// An internal operation which may be called twice to move a partition.
+fn dd<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -> io::Result<()> {
+    info!(
+        "libdistinst: moving partition on {} with {} sector size: {{ skip: {}; offset: {}; \
+         length: {} }}",
+        path.as_ref().display(),
+        bs as usize,
+        coords.skip,
+        coords.offset,
+        coords.length
+    );
 
-        let mut disk = OpenOptions::new().read(true).write(true).open(&path)?;
-        let mut buffer = vec![0; bs as usize];
+    let mut disk = OpenOptions::new().read(true).write(true).open(&path)?;
 
-        let source_skip = coords.skip;
-        let offset_skip = (source_skip as i64 + offset) as u64;
+    let source_skip = coords.skip;
+    let offset_skip = (source_skip as i64 + coords.offset) as u64;
 
-        // Make a copy of the first 8K bytes that we will store, for a later comparison.
-        let mut original_superblock = [0; 8 * 1024];
-        disk.seek(SeekFrom::Start(source_skip * bs))?;
-        disk.read_exact(&mut original_superblock)?;
+    info!(
+        "libdistinst: source sector: {}; offset sector: {}",
+        source_skip, offset_skip
+    );
 
-        info!(
-            "libdistinst: source sector: {}; offset sector: {}",
-            source_skip, offset_skip
-        );
+    // TODO: Rather than writing one sector at a time, use a significantly larger
+    // buffer size to improve the performance of partition moves.
+    let mut buffer = vec![0; bs as usize];
 
-        // Performs the reads & subsequent writes by seeking to a specific point based
-        // on the offset, the current sector, and the size of the sector.
-        for index in 0..coords.length {
-            let input = (source_skip + index) * bs;
-            let offset = (offset_skip + index) * bs;
+    // Some dynamic dispatching, based on whether we need to move forward or backwards.
+    let range: Box<Iterator<Item = u64>> = if coords.offset > 0 {
+        Box::new((0..coords.length).rev())
+    } else {
+        Box::new(0..coords.length)
+    };
 
-            disk.seek(SeekFrom::Start(input))?;
-            disk.read_exact(&mut buffer[..bs as usize])?;
+    // Write one sector at a time, until all sectors have been moved.
+    for sector in range {
+        let input = source_skip + sector;
+        disk.seek(SeekFrom::Start(input * bs))?;
+        disk.read_exact(&mut buffer[..bs as usize])?;
 
-            disk.seek(SeekFrom::Start(offset))?;
-            disk.write(&mut buffer[..bs as usize])?;
-        }
-
-        disk.sync_all()?;
-
-        // Check if the data was correctly moved or not.
-        let mut new_superblock = [0; 8 * 1024];
-        disk.seek(SeekFrom::Start(offset_skip * bs))?;
-        disk.read_exact(&mut new_superblock)?;
-
-        if &original_superblock[..] != &new_superblock[..] {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "new partition is corrupted",
-            ));
-        }
-
-        Ok(())
+        let offset = offset_skip + sector;
+        disk.seek(SeekFrom::Start(offset * bs))?;
+        disk.write_all(&mut buffer[..bs as usize])?;
     }
 
-    // If an overlap exists (when moving a partition forward), the overlapping
-    // space will be the first to be moved forward.
-    if let Some(excess) = offset.overlap {
-        dd_op(&path, offset.offset, excess, bs)?;
-    }
-
-    dd_op(path, offset.offset, offset.inner, bs)?;
-
-    Ok(())
+    disk.sync_all()
 }
 
 /// Resizes a given partition to a specified size using an external command specific
@@ -358,21 +305,24 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
         }
     }
 
-    let status = resize_cmd.stdout(Stdio::null()).status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "resize for {:?} failed with status: {}",
-                path.as_ref().display(),
-                status
-            ),
-        ))
-    }
+    fsck(&path).and_then(|_| {
+        let status = resize_cmd.stdout(Stdio::null()).status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "resize for {:?} failed with status: {}",
+                    path.as_ref().display(),
+                    status
+                ),
+            ))
+        }
+    })
 }
 
+/// Checks & corrects errors with partitions that have been moved / resized.
 fn fsck<P: AsRef<Path>>(part: P) -> io::Result<()> {
     let part = part.as_ref();
     let status = Command::new("fsck")

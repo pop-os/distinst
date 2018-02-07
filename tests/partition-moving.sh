@@ -3,6 +3,8 @@ FS="tests/filesystem.squashfs"
 REMOVE="tests/filesystem.manifest-remove"
 RUNS=3
 
+mkdir temp -p
+
 if ! test -e "target/debug/distinst"; then
     cargo build --bin distinst
 fi
@@ -26,6 +28,13 @@ done
 
 set -x
 
+# If the disk path ends with a number, add a p.
+if test "${1:-1}" -eq "${1:-1}"; then
+    DISK="${1}p"
+else
+    DISK="${1}"
+fi
+
 echo 'Running resize tests'
 index=0; while test ${index} -ne ${RUNS}; do
     sudo target/debug/distinst --test \
@@ -41,6 +50,13 @@ index=0; while test ${index} -ne ${RUNS}; do
         -n "$1:primary:1536M:4096M:ext4" \
         -n "$1:primary:-512M:end:swap"
 
+    sudo mount "${DISK}2" temp
+    sudo sh -c "echo some data > temp/some_file"
+    sudo umount temp
+    sudo mount "${DISK}3" temp
+    sudo sh -c "echo more data > temp/another_file"
+    sudo umount temp
+
     sudo target/debug/distinst --test \
         -s "${FS}" \
         -r "${REMOVE}" \
@@ -54,12 +70,13 @@ index=0; while test ${index} -ne ${RUNS}; do
         -u "$1:1:reuse:/boot/efi:esp" \
         -u "$1:2:reuse:/"
 
-    # If the disk path ends with a number, add a p.
-    if test "${1:-1}" -eq "${1:-1}"; then
-        DISK="${1}p"
-    else
-        DISK="${1}"
-    fi
+    sudo mount "${DISK}2" temp
+    sudo sh -c "cat temp/some_file"
+    sudo umount temp
+
+    sudo mount "${DISK}3" temp
+    sudo sh -c "cat temp/another_file"
+    sudo umount temp
 
     sudo fsck -n "${DISK}1"
     sudo fsck -n "${DISK}2"
@@ -67,3 +84,5 @@ index=0; while test ${index} -ne ${RUNS}; do
 
     index=$((index + 1))
 done
+
+rmdir temp
