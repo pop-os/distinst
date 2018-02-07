@@ -1,10 +1,12 @@
 use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag};
 use super::FileSystemType::*;
+use partition::blockdev;
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+/// Defines the start and end sectors of a partition on the disk.
 pub struct Coordinates {
     start: u64,
     end:   u64,
@@ -12,7 +14,10 @@ pub struct Coordinates {
 
 impl Coordinates {
     pub fn new(start: u64, end: u64) -> Coordinates { Coordinates { start, end } }
-    pub fn len(&self) -> u64 { self.end - self.start }
+
+    /// Modifies the coordinates based on the new length that is supplied. Coordinates
+    /// will be adjusted automatically based on whether the partition is shrinking or
+    /// growing.
     pub fn resize_to(&mut self, new_len: u64) {
         let offset = (self.end - self.start) as i64 - new_len as i64;
         if offset < 0 {
@@ -23,18 +28,24 @@ impl Coordinates {
     }
 }
 
+/// Contains the source and target coordinates for a partition, as well as the size in
+/// bytes of each sector. An `Offset` will be calculated from this data structure.
 pub struct ResizeOperation {
     sector_size: u64,
     old:         Coordinates,
     new:         Coordinates,
 }
 
+/// Contains the source coordinates for a partition, as well as it's offset
+/// in sectors to where it will be moved, and an optional overlap which
+/// must be accounted for.
 struct Offset {
     offset:  i64,
     inner:   OffsetCoordinates,
     overlap: Option<OffsetCoordinates>,
 }
 
+/// Defines how many sectors to skip, and how the partition is.
 struct OffsetCoordinates {
     skip:   u64,
     length: u64,
@@ -52,7 +63,8 @@ impl ResizeOperation {
         }
     }
 
-    /// Note that the `end` field in the coordinates are actually length values.
+    /// Calculates the offsets between two coordinates, and whether or not an overlap exists
+    /// which must be accounted for.
     fn offset(&self) -> Offset {
         info!(
             "libdistinst: calculating offsets: {} - {} -> {} - {}",
@@ -135,6 +147,7 @@ enum ResizeUnit {
 
 // TODO: Write tests for this function.
 
+/// Performs all move & resize operations for a given partition.
 pub(crate) fn resize<DELETE, CREATE>(
     mut change: Change,
     mut resize: ResizeOperation,
@@ -168,6 +181,8 @@ where
         fs => unimplemented!("{:?} handling", fs),
     };
 
+    // Each file system uses different units for specifying the size, and these units
+    // are sometimes written in non-standard and conflicting ways.
     let size = match unit {
         ResizeUnit::AbsoluteMebibyte => format!("{}M", resize.as_absolute_mebibyte()),
         ResizeUnit::AbsoluteMegabyte => format!("{}M", resize.as_absolute_megabyte()),
@@ -177,12 +192,17 @@ where
         ResizeUnit::RelativeSectors => format!("{}", resize.relative_sectors()),
     };
 
+    // If the partition is shrinking, we will want to shrink before we move.
+    // If the partition is growing and moving, we will want to move first, then resize.
+    //
+    // In addition, the partition in the partition table must be deleted before moving,
+    // and recreated with the new size before attempting to grow.
     if shrinking {
         info!("libdistinst: shrinking {}", change.path.display());
         resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
     } else if growing {
         delete(change.num as u32)?;
-        if resize.new.start < resize.old.start {
+        if resize.new.start != resize.old.start {
             info!(
                 "libdistinst: moving before growing {}",
                 change.path.display()
@@ -231,7 +251,11 @@ where
     Ok(())
 }
 
+/// Performs direct reads & writes on the disk to shift a partition either to the left or right,
+/// using the supplied offset coordinates to determine where the partition is, and where it
+/// should be.
 fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
+    /// An internal operation which may be called twice to move a partition.
     fn dd_op<P: AsRef<Path>>(
         path: P,
         offset: i64,
@@ -239,7 +263,7 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
         bs: u64,
     ) -> io::Result<()> {
         info!(
-            "libdistinst: moving partition on {} with {} block size: {{ skip: {}; offset: {}; \
+            "libdistinst: moving partition on {} with {} sector size: {{ skip: {}; offset: {}; \
              length: {} }}",
             path.as_ref().display(),
             bs as usize,
@@ -254,6 +278,7 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
         let source_skip = coords.skip;
         let offset_skip = (source_skip as i64 + offset) as u64;
 
+        // Make a copy of the first 8K bytes that we will store, for a later comparison.
         let mut original_superblock = [0; 8 * 1024];
         disk.seek(SeekFrom::Start(source_skip * bs))?;
         disk.read_exact(&mut original_superblock)?;
@@ -263,6 +288,8 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
             source_skip, offset_skip
         );
 
+        // Performs the reads & subsequent writes by seeking to a specific point based
+        // on the offset, the current sector, and the size of the sector.
         for index in 0..coords.length {
             let input = (source_skip + index) * bs;
             let offset = (offset_skip + index) * bs;
@@ -276,11 +303,11 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
 
         disk.sync_all()?;
 
+        // Check if the data was correctly moved or not.
         let mut new_superblock = [0; 8 * 1024];
         disk.seek(SeekFrom::Start(offset_skip * bs))?;
         disk.read_exact(&mut new_superblock)?;
 
-        // Check if the data was correctly moved or not.
         if &original_superblock[..] != &new_superblock[..] {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -291,6 +318,8 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
         Ok(())
     }
 
+    // If an overlap exists (when moving a partition forward), the overlapping
+    // space will be the first to be moved forward.
     if let Some(excess) = offset.overlap {
         dd_op(&path, offset.offset, excess, bs)?;
     }
@@ -300,6 +329,8 @@ fn dd<P: AsRef<Path>>(path: P, offset: Offset, bs: u64) -> io::Result<()> {
     Ok(())
 }
 
+/// Resizes a given partition to a specified size using an external command specific
+/// to that file system.
 fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io::Result<()> {
     info!(
         "libdistinst: resizing {} to {}",
@@ -315,6 +346,17 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
     resize_cmd.arg(size);
 
     eprintln!("{:?}", resize_cmd);
+
+    // Attempt to sync three times before returning an error.
+    for attempt in 0..3 {
+        ::std::thread::sleep(::std::time::Duration::from_secs(1));
+        let result = blockdev(&path, &["--flushbufs", "--rereadpt"]);
+        if result.is_err() && attempt == 2 {
+            result.map_err(|why| DiskError::DiskSync { why })?
+        } else {
+            break;
+        }
+    }
 
     let status = resize_cmd.stdout(Stdio::null()).status()?;
     if status.success() {
