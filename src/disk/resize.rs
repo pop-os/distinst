@@ -165,7 +165,7 @@ where
             ResizeUnit::AbsoluteMegabyte,
             SIZE_BEFORE_PATH,
         ),
-        // Some(Ntfs) => ("ntfsresize", &["-s"], true),
+        Some(Ntfs) => ("ntfsresize", &["--force", "--force", "-s"], ResizeUnit::AbsoluteMegabyte, SIZE_BEFORE_PATH),
         Some(Swap) => unreachable!("Disk::diff() handles this"),
         // Some(Xfs) => ("xfs_growfs"),
         fs => unimplemented!("{:?} handling", fs),
@@ -369,7 +369,7 @@ fn resize_partition<P: AsRef<Path>>(
             resize_cmd.arg(&npath);
             resize_cmd.arg(size);
         }
-        
+
         eprintln!("{:?}", resize_cmd);
         let status = resize_cmd.stdout(Stdio::null()).status()?;
         if status.success() {
