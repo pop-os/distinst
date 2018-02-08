@@ -1,4 +1,4 @@
-use mount::{self, Mount};
+use disk::mount::{Mount, BIND};
 use std::ffi::OsStr;
 use std::io::Result;
 use std::path::{Path, PathBuf};
@@ -19,17 +19,17 @@ impl Chroot {
     /// Performs binding mounts of all required paths to ensure that a chroot is successful.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Chroot> {
         let path = path.as_ref().canonicalize()?;
-        let dev_mount = Mount::new("/dev", &path.join("dev"), "none", mount::BIND, None)?;
+        let dev_mount = Mount::new("/dev", &path.join("dev"), "none", BIND, None)?;
         let pts_mount = Mount::new(
             "/dev/pts",
             &path.join("dev").join("pts"),
             "none",
-            mount::BIND,
+            BIND,
             None,
         )?;
-        let proc_mount = Mount::new("/proc", &path.join("proc"), "none", mount::BIND, None)?;
-        let run_mount = Mount::new("/run", &path.join("run"), "none", mount::BIND, None)?;
-        let sys_mount = Mount::new("/sys", &path.join("sys"), "none", mount::BIND, None)?;
+        let proc_mount = Mount::new("/proc", &path.join("proc"), "none", BIND, None)?;
+        let run_mount = Mount::new("/run", &path.join("run"), "none", BIND, None)?;
+        let sys_mount = Mount::new("/sys", &path.join("sys"), "none", BIND, None)?;
         Ok(Chroot {
             path:       path,
             dev_mount:  dev_mount,

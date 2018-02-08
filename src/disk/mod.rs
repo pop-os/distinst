@@ -1,4 +1,5 @@
 pub(crate) mod external;
+pub mod mount;
 mod mounts;
 mod operations;
 mod partitions;
@@ -6,6 +7,7 @@ mod resize;
 mod serial;
 mod swaps;
 
+use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
 use self::operations::*;
 pub use self::partitions::{
@@ -16,7 +18,6 @@ use self::serial::get_serial;
 pub use self::swaps::Swaps;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 pub use libparted::PartitionFlag;
-use mount::{swapoff, umount};
 use std::ffi::OsString;
 use std::io;
 use std::iter::FromIterator;

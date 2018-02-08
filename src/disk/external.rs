@@ -7,10 +7,10 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 /// Checks & corrects errors with partitions that have been moved / resized.
-pub(crate) fn fsck<P: AsRef<Path>>(part: P) -> io::Result<()> {
+pub(crate) fn fsck<P: AsRef<Path>>(part: P, cmd: Option<(&str, &str)>) -> io::Result<()> {
     let part = part.as_ref();
-    let status = Command::new("fsck")
-        .arg("-fy")
+    let status = Command::new(cmd.map_or("fsck", |(cmd, _)| cmd))
+        .arg(cmd.map_or("-fy", |(_, args)| args))
         .arg(part)
         .stdout(Stdio::null())
         .status()?;

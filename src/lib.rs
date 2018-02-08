@@ -25,7 +25,7 @@ pub use disk::{
     Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType, Sector,
 };
-pub use mount::{Mount, Mounts};
+pub use disk::mount::{Mount, Mounts};
 
 #[doc(hidden)]
 pub use c::*;
@@ -34,7 +34,6 @@ mod c;
 mod chroot;
 mod disk;
 mod logger;
-mod mount;
 mod squashfs;
 
 /// When set to true, this will stop the installation process.

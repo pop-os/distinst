@@ -1,6 +1,6 @@
 use super::*;
 use super::external::mkfs;
-use super::resize::{resize, Coordinates, ResizeOperation};
+use super::resize::{transform, Coordinates, ResizeOperation};
 use blockdev;
 use libparted::{
     Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry, Partition as PedPartition,
@@ -194,7 +194,7 @@ impl<'a> ChangePartitions<'a> {
         // TODO: Maybe not require a raw pointer here?
         let device = &mut device as *mut Device;
         for (change, resize_op) in resize_partitions {
-            resize(
+            transform(
                 change,
                 resize_op,
                 // This is the delete function.

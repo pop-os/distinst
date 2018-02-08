@@ -1,10 +1,12 @@
 use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag};
 use super::FileSystemType::*;
 use super::external::{blockdev, fsck};
+use super::mount::Mount;
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use tempdir::TempDir;
 
 /// Defines the start and end sectors of a partition on the disk.
 pub struct Coordinates {
@@ -120,10 +122,13 @@ enum ResizeUnit {
     RelativeSectors,
 }
 
+const SIZE_BEFORE_PATH: u8 = 0b1;
+const BTRFS: u8 = 0b10;
+
 // TODO: Write tests for this function.
 
 /// Performs all move & resize operations for a given partition.
-pub(crate) fn resize<DELETE, CREATE>(
+pub(crate) fn transform<DELETE, CREATE>(
     mut change: Change,
     mut resize: ResizeOperation,
     mut delete: DELETE,
@@ -144,20 +149,33 @@ where
 
     // Create the command and its arguments based on the file system to apply.
     // TODO: Handle the unimplemented file systems.
-    let (cmd, args, unit, size_before_path): (&str, &[&'static str], ResizeUnit, bool) =
-        match change.filesystem {
-            // Some(Btrfs) => ("btrfs", &["filesystem", "resize"], false),
-            Some(Ext2) | Some(Ext3) | Some(Ext4) => {
-                ("resize2fs", &[], ResizeUnit::AbsoluteMebibyte, false)
-            }
-            // Some(Exfat) => (),
-            // Some(F2fs) => ("resize.f2fs"),
-            Some(Fat16) | Some(Fat32) => ("fatresize", &["-s"], ResizeUnit::AbsoluteMegabyte, true),
-            // Some(Ntfs) => ("ntfsresize", &["-s"], true),
-            Some(Swap) => unreachable!("Disk::diff() handles this"),
-            // Some(Xfs) => ("xfs_growfs"),
-            fs => unimplemented!("{:?} handling", fs),
-        };
+    let (cmd, args, unit, opts): (&str, &[&'static str], ResizeUnit, u8) = match change.filesystem {
+        Some(Btrfs) => (
+            "btrfs",
+            &["filesystem", "resize"],
+            ResizeUnit::AbsoluteMebibyte,
+            BTRFS | SIZE_BEFORE_PATH,
+        ),
+        Some(Ext2) | Some(Ext3) | Some(Ext4) => ("resize2fs", &[], ResizeUnit::AbsoluteMebibyte, 0),
+        // Some(Exfat) => (),
+        // Some(F2fs) => ("resize.f2fs"),
+        Some(Fat16) | Some(Fat32) => (
+            "fatresize",
+            &["-s"],
+            ResizeUnit::AbsoluteMegabyte,
+            SIZE_BEFORE_PATH,
+        ),
+        // Some(Ntfs) => ("ntfsresize", &["-s"], true),
+        Some(Swap) => unreachable!("Disk::diff() handles this"),
+        // Some(Xfs) => ("xfs_growfs"),
+        fs => unimplemented!("{:?} handling", fs),
+    };
+
+    let fs = match change.filesystem {
+        Some(Fat16) | Some(Fat32) => "vfat",
+        Some(fs) => fs.into(),
+        None => "none",
+    };
 
     // Each file system uses different units for specifying the size, and these units
     // are sometimes written in non-standard and conflicting ways.
@@ -177,7 +195,7 @@ where
     // and recreated with the new size before attempting to grow.
     if shrinking {
         info!("libdistinst: shrinking {}", change.path.display());
-        resize_(cmd, args, &size, &change.path, size_before_path)
+        resize_partition(cmd, args, &size, &change.path, fs, opts)
             .map_err(|why| DiskError::PartitionResize { why })?;
         delete(change.num as u32)?;
         let (num, path) = create(
@@ -199,7 +217,7 @@ where
             let abs_sectors = resize.absolute_sectors();
             resize.old.resize_to(abs_sectors); // TODO: NLL
 
-            dd(&change.device_path, resize.offset(), change.sector_size)
+            move_partition(&change.device_path, resize.offset(), change.sector_size)
                 .map_err(|why| DiskError::PartitionMove { why })?;
 
             moving = false;
@@ -216,7 +234,7 @@ where
         change.path = path;
 
         info!("libdistinst: growing {}", change.path.display());
-        resize_(cmd, args, &size, &change.path, size_before_path)
+        resize_partition(cmd, args, &size, &change.path, fs, opts)
             .map_err(|why| DiskError::PartitionResize { why })?;
     }
 
@@ -228,7 +246,7 @@ where
         let abs_sectors = resize.absolute_sectors();
         resize.old.resize_to(abs_sectors); // TODO: NLL
 
-        dd(&change.device_path, resize.offset(), change.sector_size)
+        move_partition(&change.device_path, resize.offset(), change.sector_size)
             .map_err(|why| DiskError::PartitionMove { why })?;
 
         create(
@@ -244,8 +262,7 @@ where
 /// Performs direct reads & writes on the disk to shift a partition either to the left or right,
 /// using the supplied offset coordinates to determine where the partition is, and where it
 /// should be.
-/// An internal operation which may be called twice to move a partition.
-fn dd<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -> io::Result<()> {
+fn move_partition<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -> io::Result<()> {
     info!(
         "libdistinst: moving partition on {} with {} sector size: {{ skip: {}; offset: {}; \
          length: {} }}",
@@ -293,12 +310,13 @@ fn dd<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -> io::Result
 
 /// Resizes a given partition to a specified size using an external command specific
 /// to that file system.
-fn resize_<P: AsRef<Path>>(
+fn resize_partition<P: AsRef<Path>>(
     cmd: &str,
     args: &[&str],
     size: &str,
     path: P,
-    size_before_path: bool,
+    fs: &str,
+    options: u8,
 ) -> io::Result<()> {
     info!(
         "libdistinst: resizing {} to {}",
@@ -310,16 +328,6 @@ fn resize_<P: AsRef<Path>>(
     if !args.is_empty() {
         resize_cmd.args(args);
     }
-    
-    if size_before_path {
-        resize_cmd.arg(size);
-        resize_cmd.arg(path.as_ref());
-    } else {
-        resize_cmd.arg(path.as_ref());
-        resize_cmd.arg(size);
-    }
-
-    eprintln!("{:?}", resize_cmd);
 
     // Attempt to sync three times before returning an error.
     for attempt in 0..3 {
@@ -332,7 +340,37 @@ fn resize_<P: AsRef<Path>>(
         }
     }
 
-    fsck(&path).and_then(|_| {
+    fsck(
+        path.as_ref(),
+        if options & BTRFS != 0 {
+            Some(("btrfsck", "--repair"))
+        } else {
+            None
+        },
+    ).and_then(|_| {
+        // Btrfs is a strange case that needs resize operations to be performed while it is mounted.
+        let (npath, _mount) = if options & BTRFS != 0 {
+            let temp = TempDir::new("distinst")?;
+            info!(
+                "libdistinst: temporarily mounting {} to {}",
+                path.as_ref().display(),
+                temp.path().display()
+            );
+            let mount = Mount::new(path.as_ref(), temp.path(), fs, 0, None)?;
+            (temp.path().to_path_buf(), Some((mount, temp)))
+        } else {
+            (path.as_ref().to_path_buf(), None)
+        };
+
+        if options & SIZE_BEFORE_PATH != 0 {
+            resize_cmd.arg(size);
+            resize_cmd.arg(&npath);
+        } else {
+            resize_cmd.arg(&npath);
+            resize_cmd.arg(size);
+        }
+        
+        eprintln!("{:?}", resize_cmd);
         let status = resize_cmd.stdout(Stdio::null()).status()?;
         if status.success() {
             Ok(())
