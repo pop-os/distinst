@@ -840,6 +840,7 @@ impl Disk {
                                         device_path: device_path.clone(),
                                         path: new.device_path.clone(),
                                         num: source.number,
+                                        kind: new.part_type,
                                         start: new.start_sector,
                                         end: new.end_sector,
                                         sector_size,

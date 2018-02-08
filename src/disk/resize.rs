@@ -1,4 +1,4 @@
-use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag};
+use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag, PartitionType};
 use super::FileSystemType::*;
 use super::external::{blockdev, fsck};
 use super::mount::Mount;
@@ -138,7 +138,14 @@ pub(crate) fn transform<DELETE, CREATE>(
 ) -> Result<(), DiskError>
 where
     DELETE: FnMut(u32) -> Result<(), DiskError>,
-    CREATE: FnMut(u64, u64, Option<FileSystemType>, &[PartitionFlag]) -> Result<(i32, PathBuf), DiskError>,
+    CREATE: FnMut(
+        u64,
+        u64,
+        Option<FileSystemType>,
+        Vec<PartitionFlag>,
+        Option<String>,
+        PartitionType,
+    ) -> Result<(i32, PathBuf), DiskError>,
 {
     let mut moving = resize.is_moving();
     let shrinking = resize.is_shrinking();
@@ -210,7 +217,9 @@ where
             resize.new.start,
             resize.new.end,
             change.filesystem,
-            &change.flags,
+            change.new_flags.clone(),
+            change.label.clone(),
+            change.kind
         )?;
 
         change.num = num;
@@ -235,7 +244,9 @@ where
             resize.new.start,
             resize.new.end,
             change.filesystem,
-            &change.new_flags,
+            change.new_flags.clone(),
+            change.label.clone(),
+            change.kind,
         )?;
 
         change.num = num;
@@ -261,7 +272,9 @@ where
             resize.new.start,
             resize.new.end,
             change.filesystem,
-            &change.new_flags,
+            change.new_flags,
+            change.label,
+            change.kind,
         )?;
     }
     Ok(())

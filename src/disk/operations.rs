@@ -204,8 +204,7 @@ impl<'a> ChangePartitions<'a> {
                     })
                 },
                 // And this is the partition-creation function
-                // TODO: label & partition kind support
-                |start, end, fs, flags| {
+                |start, end, fs, flags, label, kind| {
                     create_partition(
                         unsafe { &mut (*device) },
                         &PartitionCreate {
@@ -214,9 +213,9 @@ impl<'a> ChangePartitions<'a> {
                             end_sector:   end,
                             format:       false,
                             file_system:  fs,
-                            kind:         PartitionType::Primary,
-                            flags:        Vec::from(flags),
-                            label:        None,
+                            kind,
+                            flags,
+                            label,
                         },
                     )?;
 
@@ -400,6 +399,8 @@ pub(crate) struct PartitionChange {
     pub(crate) path: PathBuf,
     /// The partition ID that will be changed.
     pub(crate) num: i32,
+    /// Defines whether this is a Primary or Logical partition.
+    pub(crate) kind: PartitionType,
     /// The start sector that the partition will have.
     pub(crate) start: u64,
     /// The end sector that the partition will have.
