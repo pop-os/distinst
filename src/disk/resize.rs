@@ -175,6 +175,16 @@ where
     if shrinking {
         info!("libdistinst: shrinking {}", change.path.display());
         resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
+        delete(change.num as u32)?;
+        let (num, path) = create(
+            resize.new.start,
+            resize.new.end,
+            change.filesystem,
+            &change.flags,
+        )?;
+
+        change.num = num;
+        change.path = path;
     } else if growing {
         delete(change.num as u32)?;
         if resize.new.start != resize.old.start {
