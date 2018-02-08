@@ -22,16 +22,22 @@ Package: libdistinst
 Architecture: amd64
 Depends:
   apt,
+  btrfs-progs,
   coreutils,
   dosfstools,
   e2fsprogs,
+  exfat-utils,
+  f2fs-tools,
+  fatresize
   grub2-common,
   libparted-fs-resize0,
   locales,
   mount,
+  ntfs-3g,
   parted,
   squashfs-tools,
   util-linux,
+  xfsprogs,
   ${misc:Depends},
   ${shlib:Depends}
 Description: Distribution Installer Library
