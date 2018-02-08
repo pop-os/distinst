@@ -1,3 +1,4 @@
+pub(crate) mod external;
 mod mounts;
 mod operations;
 mod partitions;

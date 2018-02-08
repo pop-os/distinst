@@ -11,7 +11,7 @@ extern crate libparted;
 extern crate log;
 extern crate tempdir;
 
-use self::partition::blockdev;
+use disk::external::blockdev;
 use std::{fs, io};
 use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
@@ -33,10 +33,8 @@ pub use c::*;
 mod c;
 mod chroot;
 mod disk;
-mod format;
 mod logger;
 mod mount;
-mod partition;
 mod squashfs;
 
 /// When set to true, this will stop the installation process.

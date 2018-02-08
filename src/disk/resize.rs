@@ -1,6 +1,6 @@
 use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag};
 use super::FileSystemType::*;
-use partition::blockdev;
+use super::external::{blockdev, fsck};
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -144,17 +144,20 @@ where
 
     // Create the command and its arguments based on the file system to apply.
     // TODO: Handle the unimplemented file systems.
-    let (cmd, args, unit): (&str, &[&'static str], ResizeUnit) = match change.filesystem {
-        // Some(Btrfs) => ("btrfs", &["filesystem", "resize"], false),
-        Some(Ext2) | Some(Ext3) | Some(Ext4) => ("resize2fs", &[], ResizeUnit::AbsoluteMebibyte),
-        // Some(Exfat) => (),
-        // Some(F2fs) => ("resize.f2fs"),
-        // Some(Fat16) | Some(Fat32) => ("fatresize", &["-s"], true),
-        // Some(Ntfs) => ("ntfsresize", &["-s"], true),
-        Some(Swap) => unreachable!("Disk::diff() handles this"),
-        // Some(Xfs) => ("xfs_growfs"),
-        fs => unimplemented!("{:?} handling", fs),
-    };
+    let (cmd, args, unit, size_before_path): (&str, &[&'static str], ResizeUnit, bool) =
+        match change.filesystem {
+            // Some(Btrfs) => ("btrfs", &["filesystem", "resize"], false),
+            Some(Ext2) | Some(Ext3) | Some(Ext4) => {
+                ("resize2fs", &[], ResizeUnit::AbsoluteMebibyte, false)
+            }
+            // Some(Exfat) => (),
+            // Some(F2fs) => ("resize.f2fs"),
+            Some(Fat16) | Some(Fat32) => ("fatresize", &["-s"], ResizeUnit::AbsoluteMegabyte, true),
+            // Some(Ntfs) => ("ntfsresize", &["-s"], true),
+            Some(Swap) => unreachable!("Disk::diff() handles this"),
+            // Some(Xfs) => ("xfs_growfs"),
+            fs => unimplemented!("{:?} handling", fs),
+        };
 
     // Each file system uses different units for specifying the size, and these units
     // are sometimes written in non-standard and conflicting ways.
@@ -174,7 +177,8 @@ where
     // and recreated with the new size before attempting to grow.
     if shrinking {
         info!("libdistinst: shrinking {}", change.path.display());
-        resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
+        resize_(cmd, args, &size, &change.path, size_before_path)
+            .map_err(|why| DiskError::PartitionResize { why })?;
         delete(change.num as u32)?;
         let (num, path) = create(
             resize.new.start,
@@ -212,7 +216,8 @@ where
         change.path = path;
 
         info!("libdistinst: growing {}", change.path.display());
-        resize_(cmd, args, &size, &change.path).map_err(|why| DiskError::PartitionResize { why })?;
+        resize_(cmd, args, &size, &change.path, size_before_path)
+            .map_err(|why| DiskError::PartitionResize { why })?;
     }
 
     // If the partition is to be moved, then we will ensure that it has been deleted,
@@ -288,7 +293,13 @@ fn dd<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -> io::Result
 
 /// Resizes a given partition to a specified size using an external command specific
 /// to that file system.
-fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io::Result<()> {
+fn resize_<P: AsRef<Path>>(
+    cmd: &str,
+    args: &[&str],
+    size: &str,
+    path: P,
+    size_before_path: bool,
+) -> io::Result<()> {
     info!(
         "libdistinst: resizing {} to {}",
         path.as_ref().display(),
@@ -299,8 +310,14 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
     if !args.is_empty() {
         resize_cmd.args(args);
     }
-    resize_cmd.arg(path.as_ref());
-    resize_cmd.arg(size);
+    
+    if size_before_path {
+        resize_cmd.arg(size);
+        resize_cmd.arg(path.as_ref());
+    } else {
+        resize_cmd.arg(path.as_ref());
+        resize_cmd.arg(size);
+    }
 
     eprintln!("{:?}", resize_cmd);
 
@@ -330,23 +347,4 @@ fn resize_<P: AsRef<Path>>(cmd: &str, args: &[&str], size: &str, path: P) -> io:
             ))
         }
     })
-}
-
-/// Checks & corrects errors with partitions that have been moved / resized.
-fn fsck<P: AsRef<Path>>(part: P) -> io::Result<()> {
-    let part = part.as_ref();
-    let status = Command::new("fsck")
-        .arg("-fy")
-        .arg(part)
-        .stdout(Stdio::null())
-        .status()?;
-    if status.success() {
-        info!("libdistinst: performed fsck on {}", part.display());
-        Ok(())
-    } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("fsck on {} failed with status: {}", part.display(), status),
-        ))
-    }
 }

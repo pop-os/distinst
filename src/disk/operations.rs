@@ -1,7 +1,7 @@
 use super::*;
+use super::external::mkfs;
 use super::resize::{resize, Coordinates, ResizeOperation};
 use blockdev;
-use format::mkfs;
 use libparted::{
     Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry, Partition as PedPartition,
     PartitionFlag, PartitionType as PedPartitionType,
