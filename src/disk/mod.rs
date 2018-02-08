@@ -25,94 +25,73 @@ use std::path::{Path, PathBuf};
 use std::str::{self, FromStr};
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
+#[cfg_attr(rustfmt, rustfmt_skip)]
 #[derive(Debug, Fail)]
 pub enum DiskError {
-    #[fail(display = "unable to get device: {}", why)] DeviceGet {
-        why: io::Error,
-    },
-    #[fail(display = "unable to probe for devices")] DeviceProbe,
+    #[fail(display = "unable to get device: {}", why)]
+    DeviceGet { why: io::Error },
+    #[fail(display = "unable to probe for devices")]
+    DeviceProbe,
     #[fail(display = "unable to commit changes to disk: {}", why)]
-    DiskCommit {
-        why: io::Error,
-    },
+    DiskCommit { why: io::Error },
     #[fail(display = "unable to format partition table: {}", why)]
-    DiskFresh {
-        why: io::Error,
-    },
-    #[fail(display = "unable to find disk")] DiskGet,
-    #[fail(display = "unable to open disk: {}", why)] DiskNew {
-        why: io::Error,
-    },
+    DiskFresh { why: io::Error },
+    #[fail(display = "unable to find disk")]
+    DiskGet,
+    #[fail(display = "unable to open disk: {}", why)]
+    DiskNew { why: io::Error },
     #[fail(display = "unable to sync disk changes with OS: {}", why)]
-    DiskSync {
-        why: io::Error,
-    },
-    #[fail(display = "serial model does not match")] InvalidSerial,
+    DiskSync { why: io::Error },
+    #[fail(display = "serial model does not match")]
+    InvalidSerial,
     #[fail(display = "failed to create partition geometry: {}", why)]
-    GeometryCreate {
-        why: io::Error,
-    },
-    #[fail(display = "failed to duplicate partition geometry")] GeometryDuplicate,
-    #[fail(display = "failed to set values on partition geometry")] GeometrySet,
-    #[fail(display = "partition layout on disk has changed")] LayoutChanged,
+    GeometryCreate { why: io::Error },
+    #[fail(display = "failed to duplicate partition geometry")]
+    GeometryDuplicate,
+    #[fail(display = "failed to set values on partition geometry")]
+    GeometrySet,
+    #[fail(display = "partition layout on disk has changed")]
+    LayoutChanged,
     #[fail(display = "unable to get mount points: {}", why)]
-    MountsObtain {
-        why: io::Error,
-    },
-    #[fail(display = "new partition could not be found")] NewPartNotFound,
-    #[fail(display = "no file system was found on the partition")] NoFilesystem,
+    MountsObtain { why: io::Error },
+    #[fail(display = "new partition could not be found")]
+    NewPartNotFound,
+    #[fail(display = "no file system was found on the partition")]
+    NoFilesystem,
     #[fail(display = "unable to create partition: {}", why)]
-    PartitionCreate {
-        why: io::Error,
-    },
+    PartitionCreate { why: io::Error },
     #[fail(display = "unable to format partition: {}", why)]
-    PartitionFormat {
-        why: io::Error,
-    },
+    PartitionFormat { why: io::Error },
     #[fail(display = "partition {} not be found on disk", partition)]
-    PartitionNotFound {
-        partition: i32,
-    },
-    #[fail(display = "partition overlaps other partitions")] PartitionOverlaps,
+    PartitionNotFound { partition: i32 },
+    #[fail(display = "partition overlaps other partitions")]
+    PartitionOverlaps,
     #[fail(display = "unable to remove partition {}: {}", partition, why)]
-    PartitionRemove {
-        partition: i32,
-        why:       io::Error,
-    },
+    PartitionRemove { partition: i32, why: io::Error },
     #[fail(display = "unable to move partition: {}", why)]
-    PartitionMove {
-        why: io::Error,
-    },
+    PartitionMove { why: io::Error },
     #[fail(display = "unable to resize partition: {}", why)]
-    PartitionResize {
-        why: io::Error,
-    },
-    #[fail(display = "partition table not found on disk")] PartitionTableNotFound,
+    PartitionResize { why: io::Error },
+    #[fail(display = "partition table not found on disk")]
+    PartitionTableNotFound,
     #[fail(display = "partition was too large (size: {}, max: {}", size, max)]
-    PartitionTooLarge {
-        size: u64,
-        max:  u64,
-    },
+    PartitionTooLarge { size: u64, max:  u64 },
     #[fail(display = "partition was too small (size: {}, min: {})", size, min)]
-    PartitionTooSmall {
-        size: u64,
-        min:  u64,
-    },
+    PartitionTooSmall { size: u64, min:  u64 },
     #[fail(display = "too many primary partitions in MSDOS partition table")]
     PrimaryPartitionsExceeded,
-    #[fail(display = "sector overlaps partition {}", id)] SectorOverlaps {
-        id: i32,
-    },
+    #[fail(display = "sector overlaps partition {}", id)]
+    SectorOverlaps { id: i32 },
     #[fail(display = "unable to get serial model of device: {}", why)]
-    SerialGet {
-        why: io::Error,
-    },
-    #[fail(display = "partition exceeds size of disk")] PartitionOOB,
-    #[fail(display = "partition resize value is too small")] ResizeTooSmall,
+    SerialGet { why: io::Error },
+    #[fail(display = "partition exceeds size of disk")]
+    PartitionOOB,
+    #[fail(display = "partition resize value is too small")]
+    ResizeTooSmall,
     #[fail(display = "unable to unmount partition(s): {}", why)]
-    Unmount {
-        why: io::Error,
-    },
+    Unmount { why: io::Error },
+    #[fail(display = "shrinking not supported for this file system")]
+    UnsupportedShrinking,
 }
 
 impl From<DiskError> for io::Error {

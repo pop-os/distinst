@@ -123,7 +123,9 @@ enum ResizeUnit {
 }
 
 const SIZE_BEFORE_PATH: u8 = 0b1;
-const BTRFS: u8 = 0b10;
+const NO_SIZE: u8 = 0b10;
+const BTRFS: u8 = 0b100;
+const XFS: u8 = 0b1000;
 
 // TODO: Write tests for this function.
 
@@ -167,7 +169,13 @@ where
         ),
         Some(Ntfs) => ("ntfsresize", &["--force", "--force", "-s"], ResizeUnit::AbsoluteMegabyte, SIZE_BEFORE_PATH),
         Some(Swap) => unreachable!("Disk::diff() handles this"),
-        // Some(Xfs) => ("xfs_growfs"),
+        Some(Xfs) => {
+            if shrinking {
+                return Err(DiskError::UnsupportedShrinking);
+            }
+
+            ("xfs_growfs", &["-d"], ResizeUnit::AbsoluteMegabyte, NO_SIZE | XFS)
+        },
         fs => unimplemented!("{:?} handling", fs),
     };
 
@@ -344,12 +352,14 @@ fn resize_partition<P: AsRef<Path>>(
         path.as_ref(),
         if options & BTRFS != 0 {
             Some(("btrfsck", "--repair"))
+        } else if options & XFS != 0 {
+            Some(("xfs_repair", "-v"))
         } else {
             None
         },
     ).and_then(|_| {
         // Btrfs is a strange case that needs resize operations to be performed while it is mounted.
-        let (npath, _mount) = if options & BTRFS != 0 {
+        let (npath, _mount) = if options & (BTRFS | XFS) != 0 {
             let temp = TempDir::new("distinst")?;
             info!(
                 "libdistinst: temporarily mounting {} to {}",
@@ -362,7 +372,9 @@ fn resize_partition<P: AsRef<Path>>(
             (path.as_ref().to_path_buf(), None)
         };
 
-        if options & SIZE_BEFORE_PATH != 0 {
+        if options & NO_SIZE != 0 {
+            resize_cmd.arg(&npath);
+        } else if options & SIZE_BEFORE_PATH != 0 {
             resize_cmd.arg(size);
             resize_cmd.arg(&npath);
         } else {
