@@ -408,8 +408,10 @@ pub(crate) struct PartitionChange {
     pub(crate) sector_size: u64,
     /// The file system that is currently on the partition.
     pub(crate) filesystem: Option<FileSystemType>,
-    /// Flags which should be set on the partition.
+    /// A diff of flags which should be set on the partition.
     pub(crate) flags: Vec<PartitionFlag>,
+    /// All of the flags that are set on the new disk.
+    pub(crate) new_flags: Vec<PartitionFlag>,
     /// Defines the label to apply
     pub(crate) label: Option<String>,
 }

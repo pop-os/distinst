@@ -848,6 +848,7 @@ impl Disk {
                                             &source.flags,
                                             new.flags.clone().into_iter(),
                                         ),
+                                        new_flags: new.flags.clone(),
                                         label: new.name.clone(),
                                     });
                                 }

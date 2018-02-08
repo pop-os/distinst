@@ -235,7 +235,7 @@ where
             resize.new.start,
             resize.new.end,
             change.filesystem,
-            &change.flags,
+            &change.new_flags,
         )?;
 
         change.num = num;
@@ -261,7 +261,7 @@ where
             resize.new.start,
             resize.new.end,
             change.filesystem,
-            &change.flags,
+            &change.new_flags,
         )?;
     }
     Ok(())
