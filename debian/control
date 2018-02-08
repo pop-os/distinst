@@ -28,7 +28,7 @@ Depends:
   e2fsprogs,
   exfat-utils,
   f2fs-tools,
-  fatresize
+  fatresize,
   grub2-common,
   libparted-fs-resize0,
   locales,
