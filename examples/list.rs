@@ -1,22 +1,28 @@
 extern crate distinst;
 
+use distinst::Disks;
 use std::io::Result;
 use std::process;
 
 fn list() -> Result<()> {
-    let installer = distinst::Installer::default();
-    for disk in installer.disks()? {
+    for disk in Disks::probe_devices()? {
         println!(
-            "{}: {} MB",
+            "{}: {{ {}: {} MB ({} sectors) }}",
             disk.device_path.display(),
-            (disk.size * disk.sector_size) / 1_000_000
+            disk.device_type,
+            (disk.size * disk.sector_size) / 1_000_000,
+            disk.size
         );
 
         for part in disk.partitions {
             println!(
-                "    {}: {} MB",
+                "  {}:\n    start: {}\n    end:   {}\n    size:  {} MB ({} MiB)\n    fs:    {:?}",
                 part.device_path.display(),
-                ((part.end_sector + 1 - part.start_sector) * disk.sector_size) / 1_000_000
+                part.start_sector,
+                part.end_sector,
+                ((part.end_sector + 1 - part.start_sector) * disk.sector_size) / 1_000_000,
+                ((part.end_sector + 1 - part.start_sector) * disk.sector_size) / 1_048_576,
+                part.filesystem
             );
         }
     }

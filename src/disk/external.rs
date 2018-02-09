@@ -54,7 +54,6 @@ pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
 /// Formats the supplied `part` device with the file system specified.
 pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
     let part = part.as_ref();
-    let mut _volume_group = 0;
 
     let (cmd, args): (&'static str, &'static [&'static str]) = match kind {
         FileSystemType::Btrfs => ("mkfs.btrfs", &["-f"]),
@@ -68,7 +67,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
         FileSystemType::Ntfs => ("mkfs.ntfs", &["-F", "-q"]),
         FileSystemType::Swap => ("mkswap", &["-f"]),
         FileSystemType::Xfs => ("mkfs.xfs", &["-f"]),
-        FileSystemType::Lvm(_gid) => unimplemented!(),
+        FileSystemType::Lvm(..) => unimplemented!(),
     };
 
     let mut command = Command::new(cmd);
@@ -90,4 +89,14 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
             format!("mkfs for {:?} failed with status: {}", kind, status),
         ))
     }
+}
+
+pub fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(group: &str, devices: I) -> io::Result<()> {
+
+    Ok(())
+}
+
+pub fn lvcreate(group: &str, name: &str, size: u64) -> io::Result<()> {
+    
+    Ok(())
 }

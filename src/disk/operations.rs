@@ -208,11 +208,11 @@ impl<'a> ChangePartitions<'a> {
                     create_partition(
                         unsafe { &mut (*device) },
                         &PartitionCreate {
-                            path:         self.device_path.to_path_buf(),
+                            path: self.device_path.to_path_buf(),
                             start_sector: start,
-                            end_sector:   end,
-                            format:       false,
-                            file_system:  fs,
+                            end_sector: end,
+                            format: false,
+                            file_system: fs,
                             kind,
                             flags,
                             label,
@@ -264,7 +264,7 @@ impl<'a> CreatePartitions<'a> {
             // Open a second instance of the disk which we need to get the new partition ID.
             let path = get_partition_id(self.device_path, partition.start_sector as i64)?;
             self.format_partitions
-                .push((path, partition.file_system.unwrap()));
+                .push((path, partition.file_system.clone().unwrap()));
         }
 
         // Attempt to sync three times before returning an error.
@@ -306,6 +306,7 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
 
     let fs_type = partition
         .file_system
+        .clone()
         .map(|fs| PedFileSystemType::get(fs.into()).unwrap());
 
     let mut disk = open_disk(device)?;

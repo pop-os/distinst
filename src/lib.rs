@@ -22,7 +22,7 @@ use tempdir::TempDir;
 
 pub use chroot::Chroot;
 pub use disk::{
-    Bootloader, Disk, DiskError, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
+    Bootloader, Disk, DiskError, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 pub use disk::mount::{Mount, Mounts};
@@ -203,7 +203,8 @@ impl Installer {
 
         callback(20);
 
-        for disk in &mut disks.0 {
+        // TODO: Handle LVM too
+        for disk in disks.get_physical_devices_mut() {
             if let Err(why) = disk.unmount_all_partitions() {
                 error!("unable to unmount partitions");
                 return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
@@ -240,7 +241,7 @@ impl Installer {
 
     /// Apply all partitioning and formatting changes to the disks configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
-        for disk in &mut disks.0 {
+        for disk in disks.get_physical_devices_mut() {
             info!(
                 "libdistinst: {}: Committing changes to disk",
                 disk.path().display()
@@ -252,9 +253,11 @@ impl Installer {
 
         // This is to ensure that everything's been written and the OS is ready to proceed.
         ::std::thread::sleep(::std::time::Duration::from_secs(1));
-        for disk in &disks.0 {
+        for disk in disks.get_physical_devices() {
             blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
         }
+
+        // TODO: Handle LVM devices too
 
         Ok(())
     }
@@ -262,10 +265,12 @@ impl Installer {
     /// Mount all target paths defined within the provided `disks` configuration.
     fn mount(disks: &Disks, chroot: &str) -> io::Result<Mounts> {
         let targets = disks
-            .as_ref()
+            .get_physical_devices()
             .iter()
             .flat_map(|disk| disk.partitions.iter())
             .filter(|part| !part.target.is_none() && !part.filesystem.is_none());
+
+        // TODO: Handle LVM devices too
 
         let mut mounts = Vec::new();
 
@@ -277,7 +282,7 @@ impl Installer {
                 let target_mount =
                     [chroot, target_path.to_string_lossy().to_string().as_str()].concat();
 
-                let fs = match target.filesystem.unwrap() {
+                let fs = match target.filesystem.clone().unwrap() {
                     FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
                     fs => fs.into(),
                 };
@@ -358,10 +363,11 @@ impl Installer {
             file.sync_all()?;
         }
 
+        // TODO: Handle LVM devices too
         let root_entry = {
             info!("libdistinst: retrieving root partition");
             disks
-                .0
+                .get_physical_devices()
                 .iter()
                 .flat_map(|disk| disk.partitions.iter())
                 .filter_map(|part| part.get_block_info())

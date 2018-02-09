@@ -5,7 +5,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::ptr;
 
 use super::gen_object_ptr;
-use {Disk, Disks, FileSystemType, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
+use {Disk, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
 use c::ffi::AsMutPtr;
 use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use c::partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
@@ -209,7 +209,7 @@ pub unsafe extern "C" fn distinst_disk_format_partition(
     };
 
     disk_action_mut(disk, |disk| {
-        if let Err(why) = disk.format_partition(partition, fs) {
+        if let Err(why) = disk.format_partition(partition, fs.clone()) {
             info!("unable to remove partition: {}", why);
             -1
         } else {
@@ -238,7 +238,7 @@ pub struct DistinstDisks;
 /// On error, a null pointer will be returned.
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
-    Box::into_raw(Box::new(Disks(Vec::new()))) as *mut DistinstDisks
+    Box::into_raw(Box::new(Disks::new())) as *mut DistinstDisks
 }
 
 /// Probes the disk for information about every disk in the device.
@@ -257,9 +257,7 @@ pub unsafe extern "C" fn distinst_disks_probe() -> *mut DistinstDisks {
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *mut DistinstDisk) {
-    (&mut *(disks as *mut Disks))
-        .0
-        .push(*Box::from_raw(disk as *mut Disk))
+    (&mut *(disks as *mut Disks)).add(*Box::from_raw(disk as *mut Disk))
 }
 
 /// The deconstructor for a `DistinstDisks`.

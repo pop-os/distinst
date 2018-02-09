@@ -1,5 +1,8 @@
 pub(crate) mod external;
 pub mod mount;
+
+mod disk;
+mod lvm;
 mod mounts;
 mod operations;
 mod partitions;
@@ -7,6 +10,9 @@ mod resize;
 mod serial;
 mod swaps;
 
+use self::external::{lvcreate, vgcreate};
+pub use self::disk::DiskExt;
+pub use self::lvm::{LvmDevice, LvmEncryption};
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
 use self::operations::*;
@@ -18,6 +24,7 @@ use self::serial::get_serial;
 pub use self::swaps::Swaps;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 pub use libparted::PartitionFlag;
+
 use std::ffi::OsString;
 use std::io;
 use std::iter::FromIterator;
@@ -52,6 +59,8 @@ pub enum DiskError {
     GeometrySet,
     #[fail(display = "partition layout on disk has changed")]
     LayoutChanged,
+    #[fail(display = "unable to create logical volume: {}", why)]
+    LogicalVolumeCreate { why: io::Error },
     #[fail(display = "unable to get mount points: {}", why)]
     MountsObtain { why: io::Error },
     #[fail(display = "new partition could not be found")]
@@ -92,6 +101,10 @@ pub enum DiskError {
     Unmount { why: io::Error },
     #[fail(display = "shrinking not supported for this file system")]
     UnsupportedShrinking,
+    #[fail(display = "unable to create volume group: {}", why)]
+    VolumeGroupCreate { why: io::Error },
+    #[fail(display = "volume partition lacks a label")]
+    VolumePartitionLacksLabel,
 }
 
 impl From<DiskError> for io::Error {
@@ -246,26 +259,57 @@ fn sync(device: &mut Device) -> Result<(), DiskError> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Disk {
     /// The model name of the device, assigned by the manufacturer.
-    pub model_name: String,
+    pub(crate) model_name: String,
     /// A unique identifier to this disk.
-    pub serial: String,
+    pub(crate) serial: String,
     /// The location in the file system where the block device is located.
-    pub device_path: PathBuf,
+    pub(crate) device_path: PathBuf,
     /// The size of the disk in sectors.
-    pub size: u64,
+    pub(crate) size: u64,
     /// The size of sectors on the disk.
-    pub sector_size: u64,
+    pub(crate) sector_size: u64,
     /// The type of the device, such as SCSI.
-    pub device_type: String,
+    pub(crate) device_type: String,
     /// The partition table may be either **MSDOS** or **GPT**.
-    pub table_type: Option<PartitionTable>,
+    pub(crate) table_type: Option<PartitionTable>,
     /// Whether the device is currently in a read-only state.
-    pub read_only: bool,
+    pub(crate) read_only: bool,
     /// Defines whether the device should be wiped or not. The `table_type`
     /// field will be used to determine which table to write to the disk.
-    pub mklabel: bool,
+    pub(crate) mklabel: bool,
     /// The partitions that are stored on the device.
-    pub partitions: Vec<PartitionInfo>,
+    pub(crate) partitions: Vec<PartitionInfo>,
+}
+
+impl DiskExt for Disk {
+    fn get_table_type(&self) -> Option<PartitionTable> { self.table_type }
+
+    fn get_sectors(&self) -> u64 { self.size }
+
+    fn get_sector_size(&self) -> u64 { self.sector_size }
+
+    fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
+
+    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError> {
+        match self.table_type {
+            Some(PartitionTable::Gpt) => (),
+            Some(PartitionTable::Msdos) => {
+                let (primary, logical) = self.get_partition_type_count();
+                if part_type == PartitionType::Primary {
+                    if primary == 4 || (primary == 3 && logical != 0) {
+                        return Err(DiskError::PrimaryPartitionsExceeded);
+                    }
+                } else if primary == 4 {
+                    return Err(DiskError::PrimaryPartitionsExceeded);
+                }
+            }
+            None => return Err(DiskError::PartitionTableNotFound),
+        }
+
+        Ok(())
+    }
+
+    fn push_partition(&mut self, partition: PartitionInfo) { self.partitions.push(partition); }
 }
 
 impl Disk {
@@ -356,7 +400,7 @@ impl Disk {
                 // Attempt to find the serial model on another disk.
                 Disks::probe_devices().and_then(|disks| {
                     disks
-                        .0
+                        .physical
                         .into_iter()
                         .find(|disk| disk.serial == serial)
                         .ok_or(DiskError::InvalidSerial)
@@ -441,49 +485,6 @@ impl Disk {
         self.partitions.clear();
         self.mklabel = true;
         self.table_type = Some(kind);
-        Ok(())
-    }
-
-    /// Adds a partition to the partition scheme.
-    ///
-    /// An error can occur if the partition will not fit onto the disk.
-    pub fn add_partition(&mut self, builder: PartitionBuilder) -> Result<(), DiskError> {
-        info!(
-            "libdistinst: checking if {}:{} overlaps",
-            builder.start_sector, builder.end_sector
-        );
-        // Ensure that the values aren't already contained within an existing partition.
-        if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
-            return Err(DiskError::SectorOverlaps { id });
-        }
-
-        // And that the end can fit onto the disk.
-        if self.size < builder.end_sector as u64 {
-            return Err(DiskError::PartitionOOB);
-        }
-
-        // Perform partition table & MSDOS restriction tests.
-        match self.table_type {
-            Some(PartitionTable::Gpt) => (),
-            Some(PartitionTable::Msdos) => {
-                let (primary, logical) = self.get_partition_type_count();
-                if builder.part_type == PartitionType::Primary {
-                    if primary == 4 || (primary == 3 && logical != 0) {
-                        return Err(DiskError::PrimaryPartitionsExceeded);
-                    }
-                } else if primary == 4 {
-                    return Err(DiskError::PrimaryPartitionsExceeded);
-                }
-            }
-            None => return Err(DiskError::PartitionTableNotFound),
-        }
-
-        let fs = builder.filesystem;
-        let partition = builder.build();
-        check_partition_size(partition.sectors() * self.sector_size, fs)?;
-
-        self.partitions.push(partition);
-
         Ok(())
     }
 
@@ -627,7 +628,7 @@ impl Disk {
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
             .and_then(|partition| {
-                check_partition_size(partition.sectors() * sector_size, fs)
+                check_partition_size(partition.sectors() * sector_size, fs.clone())
                     .map_err(DiskError::from)
                     .map(|_| {
                         partition.format_with(fs);
@@ -667,23 +668,6 @@ impl Disk {
             .filter(|part| !part.remove)
             // Return upon the first partition where the sector is within the partition.
             .find(|part| sector >= part.start_sector && sector <= part.end_sector)
-            // If found, return the partition number.
-            .map(|part| part.number)
-    }
-
-    /// If a given start and end range overlaps a pre-existing partition, that
-    /// partition's number will be returned to indicate a potential conflict.
-    fn overlaps_region(&self, start: u64, end: u64) -> Option<i32> {
-        self.partitions.iter()
-            // Only consider partitions which are not set to be removed.
-            .filter(|part| !part.remove)
-            // Return upon the first partition where the sector is within the partition.
-            .find(|part|
-                !(
-                    (start < part.start_sector && end < part.start_sector)
-                    || (start > part.end_sector && end > part.end_sector)
-                )
-            )
             // If found, return the partition number.
             .map(|part| part.number)
     }
@@ -830,7 +814,7 @@ impl Disk {
                                         start_sector: new.start_sector,
                                         end_sector:   new.end_sector,
                                         format:       true,
-                                        file_system:  Some(new.filesystem.unwrap()),
+                                        file_system:  Some(new.filesystem.clone().unwrap()),
                                         kind:         new.part_type,
                                         flags:        new.flags.clone(),
                                         label:        new.name.clone(),
@@ -844,7 +828,7 @@ impl Disk {
                                         start: new.start_sector,
                                         end: new.end_sector,
                                         sector_size,
-                                        filesystem: source.filesystem,
+                                        filesystem: source.filesystem.clone(),
                                         flags: flags_diff(
                                             &source.flags,
                                             new.flags.clone().into_iter(),
@@ -878,7 +862,7 @@ impl Disk {
                 start_sector: partition.start_sector,
                 end_sector:   partition.end_sector,
                 format:       true,
-                file_system:  Some(partition.filesystem.unwrap()),
+                file_system:  Some(partition.filesystem.clone().unwrap()),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
                 label:        partition.name.clone(),
@@ -942,46 +926,81 @@ impl Disk {
     pub fn path(&self) -> &Path { &self.device_path }
 }
 
-pub struct Disks(pub Vec<Disk>);
-
-impl AsRef<[Disk]> for Disks {
-    fn as_ref(&self) -> &[Disk] { &self.0 }
+/// A configuration of disks, both physical and logical.
+pub struct Disks {
+    physical: Vec<Disk>,
+    logical:  Vec<LvmDevice>,
 }
 
 impl Disks {
+    pub fn new() -> Disks {
+        Disks {
+            physical: Vec::new(),
+            logical:  Vec::new(),
+        }
+    }
+
+    /// Adds a disk to the disks configuration.
+    pub fn add(&mut self, disk: Disk) { self.physical.push(disk); }
+
+    /// Returns a slice of physical disks stored within the configuration.
+    pub fn get_physical_devices(&self) -> &[Disk] { &self.physical }
+
+    /// Returns a mutable slice of physical disks stored within the configuration.
+    pub fn get_physical_devices_mut(&mut self) -> &mut [Disk] { &mut self.physical }
+
+    pub fn get_logical_devices(&self) -> &[LvmDevice] { &self.logical }
+
+    pub fn get_logical_devices_mut(&mut self) -> &mut [LvmDevice] { &mut self.logical }
+
     /// Probes for and returns disk information for every disk in the system.
     pub fn probe_devices() -> Result<Disks, DiskError> {
-        let mut output: Vec<Disk> = Vec::new();
+        let mut disks = Disks::new();
         for mut device in Device::devices(true) {
             match device.type_() {
                 DeviceType::PED_DEVICE_UNKNOWN
                 | DeviceType::PED_DEVICE_LOOP
                 | DeviceType::PED_DEVICE_FILE => continue,
-                _ => output.push(Disk::new(&mut device)?),
+                _ => disks.add(Disk::new(&mut device)?),
             }
         }
 
-        Ok(Disks(output))
+        // TODO: Also collect LVM devices
+        Ok(disks)
     }
 
     /// Returns an immutable reference to the disk specified by its path, if it exists.
     pub fn find_disk<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
-        self.0
+        self.physical
             .iter()
             .find(|disk| &disk.device_path == path.as_ref())
     }
 
     /// Returns a mutable reference to the disk specified by its path, if it exists.
     pub fn find_disk_mut<P: AsRef<Path>>(&mut self, path: P) -> Option<&mut Disk> {
-        self.0
+        self.physical
             .iter_mut()
             .find(|disk| &disk.device_path == path.as_ref())
+    }
+
+    /// Returns an immutable reference to the disk specified by its path, if it exists.
+    pub fn find_logical_disk(&self, group: &str) -> Option<&LvmDevice> {
+        self.logical
+            .iter()
+            .find(|device| &device.volume_group == group)
+    }
+
+    /// Returns a mutable reference to the disk specified by its path, if it exists.
+    pub fn find_logical_disk_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
+        self.logical
+            .iter_mut()
+            .find(|device| &device.volume_group == group)
     }
 
     /// Finds the partition block path and associated partition information that is associated with
     /// the given target mount point.
     pub fn find_partition<'a>(&'a self, target: &Path) -> Option<(&'a Path, &'a PartitionInfo)> {
-        for disk in self.as_ref() {
+        for disk in &self.physical {
             for partition in &disk.partitions {
                 if let Some(ref ptarget) = partition.target {
                     if ptarget == target {
@@ -990,6 +1009,8 @@ impl Disks {
                 }
             }
         }
+
+        // TODO: Also search LVM partitions.
 
         None
     }
@@ -1054,7 +1075,8 @@ impl Disks {
         info!("libdistinst: generating fstab in memory");
         let mut fstab = OsString::with_capacity(1024);
 
-        let fs_entries = self.as_ref()
+        // TODO: Handle LVM & crypttab
+        let fs_entries = self.physical
             .iter()
             .flat_map(|disk| disk.partitions.iter())
             .filter_map(|part| part.get_block_info());
@@ -1085,18 +1107,86 @@ impl Disks {
         fstab.shrink_to_fit();
         fstab
     }
+
+    /// Generates intial LVM devices with a clean slate, using partition information.
+    /// TODO: This should consume `Disks` and return a locked state.
+    pub fn initialize_volume_groups(&mut self) {
+        let logical = &mut self.logical;
+        let physical = &self.physical;
+        logical.clear();
+
+        for disk in physical {
+            let sector_size = disk.get_sector_size();
+            for partition in disk.get_partitions() {
+                if let Some(ref lvm) = partition.volume_group {
+                    // TODO: NLL
+                    let push = match logical.iter_mut().find(|d| &d.volume_group == lvm) {
+                        Some(device) => {
+                            device.add_sectors(partition.sectors());
+                            false
+                        }
+                        None => true,
+                    };
+
+                    if push {
+                        logical.push(LvmDevice::new(
+                            lvm.clone(),
+                            partition.sectors(),
+                            sector_size,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn commit_logical_partitions(&mut self) -> Result<(), DiskError> {
+        for device in &self.logical {
+            device.validate()?;
+        }
+
+        for device in &self.logical {
+            vgcreate(
+                &device.volume_group,
+                self.physical.iter().flat_map(|disk| {
+                    disk.get_partitions()
+                        .iter()
+                        .filter(|part| part.volume_group.as_ref() == Some(&device.volume_group))
+                        .map(|part| part.path())
+                }),
+            ).map_err(|why| DiskError::VolumeGroupCreate { why })?;
+
+            for partition in &device.partitions {
+                lvcreate(
+                    &device.volume_group,
+                    &partition.name.clone().unwrap(),
+                    (partition.end_sector - partition.start_sector) * device.sector_size
+                ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
+            }
+
+            // mkfs
+
+            // encrypt
+        }
+
+        Ok(())
+    }
 }
 
 impl IntoIterator for Disks {
     type Item = Disk;
     type IntoIter = ::std::vec::IntoIter<Disk>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+    fn into_iter(self) -> Self::IntoIter { self.physical.into_iter() }
 }
 
 impl FromIterator<Disk> for Disks {
     fn from_iter<I: IntoIterator<Item = Disk>>(iter: I) -> Self {
-        Disks(iter.into_iter().collect())
+        // TODO: Also collect LVM Devices
+        Disks {
+            physical: iter.into_iter().collect(),
+            logical:  Vec::new(),
+        }
     }
 }
 

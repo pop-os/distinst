@@ -138,14 +138,8 @@ pub(crate) fn transform<DELETE, CREATE>(
 ) -> Result<(), DiskError>
 where
     DELETE: FnMut(u32) -> Result<(), DiskError>,
-    CREATE: FnMut(
-        u64,
-        u64,
-        Option<FileSystemType>,
-        Vec<PartitionFlag>,
-        Option<String>,
-        PartitionType,
-    ) -> Result<(i32, PathBuf), DiskError>,
+    CREATE: FnMut(u64, u64, Option<FileSystemType>, Vec<PartitionFlag>, Option<String>, PartitionType)
+        -> Result<(i32, PathBuf), DiskError>,
 {
     let mut moving = resize.is_moving();
     let shrinking = resize.is_shrinking();
@@ -174,19 +168,29 @@ where
             ResizeUnit::AbsoluteMegabyte,
             SIZE_BEFORE_PATH,
         ),
-        Some(Ntfs) => ("ntfsresize", &["--force", "--force", "-s"], ResizeUnit::AbsoluteMegabyte, SIZE_BEFORE_PATH),
+        Some(Ntfs) => (
+            "ntfsresize",
+            &["--force", "--force", "-s"],
+            ResizeUnit::AbsoluteMegabyte,
+            SIZE_BEFORE_PATH,
+        ),
         Some(Swap) => unreachable!("Disk::diff() handles this"),
         Some(Xfs) => {
             if shrinking {
                 return Err(DiskError::UnsupportedShrinking);
             }
 
-            ("xfs_growfs", &["-d"], ResizeUnit::AbsoluteMegabyte, NO_SIZE | XFS)
-        },
+            (
+                "xfs_growfs",
+                &["-d"],
+                ResizeUnit::AbsoluteMegabyte,
+                NO_SIZE | XFS,
+            )
+        }
         fs => unimplemented!("{:?} handling", fs),
     };
 
-    let fs = match change.filesystem {
+    let fs = match change.filesystem.clone() {
         Some(Fat16) | Some(Fat32) => "vfat",
         Some(fs) => fs.into(),
         None => "none",
@@ -216,10 +220,10 @@ where
         let (num, path) = create(
             resize.new.start,
             resize.new.end,
-            change.filesystem,
+            change.filesystem.clone(),
             change.new_flags.clone(),
             change.label.clone(),
-            change.kind
+            change.kind,
         )?;
 
         change.num = num;
@@ -243,7 +247,7 @@ where
         let (num, path) = create(
             resize.new.start,
             resize.new.end,
-            change.filesystem,
+            change.filesystem.clone(),
             change.new_flags.clone(),
             change.label.clone(),
             change.kind,
@@ -271,7 +275,7 @@ where
         create(
             resize.new.start,
             resize.new.end,
-            change.filesystem,
+            change.filesystem.clone(),
             change.new_flags,
             change.label,
             change.kind,

@@ -5,8 +5,9 @@ extern crate pbr;
 
 use clap::{App, Arg, ArgMatches, Values};
 use distinst::{
-    Config, Disk, DiskError, Disks, FileSystemType, Installer, PartitionBuilder, PartitionFlag,
-    PartitionInfo, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH, PARTITIONING_TEST,
+    Config, Disk, DiskError, DiskExt, Disks, FileSystemType, Installer, PartitionBuilder,
+    PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH,
+    PARTITIONING_TEST,
 };
 use pbr::ProgressBar;
 
@@ -540,10 +541,10 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
 }
 
 fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
-    let mut disks = Disks(Vec::new());
+    let mut disks = Disks::new();
 
     for block in matches.values_of("disk").unwrap() {
-        disks.0.push(Disk::from_name(block)?);
+        disks.add(Disk::from_name(block)?);
     }
 
     configure_tables(&mut disks, matches.values_of("table"))?;

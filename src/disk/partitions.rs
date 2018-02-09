@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 /// Specifies which file system format to use.
-#[derive(Debug, PartialEq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Clone, Hash)]
 pub enum FileSystemType {
     Btrfs,
     Exfat,
@@ -19,7 +19,7 @@ pub enum FileSystemType {
     Ntfs,
     Swap,
     Xfs,
-    Lvm(usize),
+    Lvm(String),
 }
 
 impl FileSystemType {
@@ -68,7 +68,7 @@ impl Into<&'static str> for FileSystemType {
             FileSystemType::Ntfs => "ntfs",
             FileSystemType::Swap => "linux-swap(v1)",
             FileSystemType::Xfs => "xfs",
-            FileSystemType::Lvm(_) => "lvm",
+            FileSystemType::Lvm(..) => "lvm",
         }
     }
 }
@@ -121,6 +121,7 @@ pub struct PartitionBuilder {
     pub(crate) name:         Option<String>,
     pub(crate) flags:        Vec<PartitionFlag>,
     pub(crate) mount:        Option<PathBuf>,
+    pub(crate) volume_group: Option<String>,
 }
 
 impl PartitionBuilder {
@@ -134,6 +135,7 @@ impl PartitionBuilder {
             name:         None,
             flags:        Vec::new(),
             mount:        None,
+            volume_group: None,
         }
     }
 
@@ -161,6 +163,12 @@ impl PartitionBuilder {
         self
     }
 
+    /// Assigns the new partition to a LVM volume group.
+    pub fn volume_group(mut self, volume_group: String) -> PartitionBuilder {
+        self.volume_group = Some(volume_group);
+        self
+    }
+
     /// Builds a brand new Partition from the current state of the builder.
     pub fn build(self) -> PartitionInfo {
         PartitionInfo {
@@ -180,6 +188,7 @@ impl PartitionBuilder {
             mount_point:  None,
             swapped:      false,
             target:       self.mount,
+            volume_group: self.volume_group.clone(),
         }
     }
 }
@@ -228,6 +237,8 @@ pub struct PartitionInfo {
     pub swapped: bool,
     /// Where this partition will be mounted in the future
     pub target: Option<PathBuf>,
+    /// The volume group associated with this device.
+    pub volume_group: Option<String>,
 }
 
 /// Information that will be used to generate a fstab entry for the given partition.
@@ -294,6 +305,9 @@ impl PartitionInfo {
             busy: partition.is_busy(),
             start_sector: partition.geom_start() as u64,
             end_sector: partition.geom_end() as u64,
+            // TODO: detect if this is assigned to a volume group:
+            //       pvdisplay $PATH
+            volume_group: None,
         }))
     }
 
@@ -301,6 +315,7 @@ impl PartitionInfo {
 
     pub fn is_swap(&self) -> bool {
         self.filesystem
+            .clone()
             .map_or(false, |fs| fs == FileSystemType::Swap)
     }
 
@@ -344,7 +359,7 @@ impl PartitionInfo {
 
         for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
             if uuid_entry.path().canonicalize().unwrap() == self.device_path {
-                let fs = self.filesystem.unwrap();
+                let fs = self.filesystem.clone().unwrap();
                 return Some(BlockInfo {
                     uuid:    uuid_entry.file_name(),
                     mount:   if fs == FileSystemType::Swap {
@@ -355,7 +370,7 @@ impl PartitionInfo {
                     fs:      match fs {
                         FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
                         FileSystemType::Swap => "swap",
-                        _ => fs.into(),
+                        _ => fs.clone().into(),
                     },
                     options: fs.get_preferred_options().into(),
                     dump:    false,
