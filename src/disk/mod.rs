@@ -10,8 +10,8 @@ mod resize;
 mod serial;
 mod swaps;
 
-use self::external::{lvcreate, vgcreate};
 pub use self::disk::DiskExt;
+use self::external::{lvcreate, vgcreate};
 pub use self::lvm::{LvmDevice, LvmEncryption};
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
@@ -1160,7 +1160,7 @@ impl Disks {
                 lvcreate(
                     &device.volume_group,
                     &partition.name.clone().unwrap(),
-                    (partition.end_sector - partition.start_sector) * device.sector_size
+                    (partition.end_sector - partition.start_sector) * device.sector_size,
                 ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
             }
 

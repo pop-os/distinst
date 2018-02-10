@@ -92,11 +92,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
 }
 
 pub fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(group: &str, devices: I) -> io::Result<()> {
-
     Ok(())
 }
 
-pub fn lvcreate(group: &str, name: &str, size: u64) -> io::Result<()> {
-    
-    Ok(())
-}
+pub fn lvcreate(group: &str, name: &str, size: u64) -> io::Result<()> { Ok(()) }
