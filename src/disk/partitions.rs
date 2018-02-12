@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 /// Specifies which file system format to use.
-#[derive(Debug, PartialEq, Clone, Hash)]
+#[derive(Debug, PartialEq, Copy, Clone, Hash)]
 pub enum FileSystemType {
     Btrfs,
     Exfat,
@@ -19,7 +19,7 @@ pub enum FileSystemType {
     Ntfs,
     Swap,
     Xfs,
-    Lvm(String),
+    Lvm,
 }
 
 impl FileSystemType {
@@ -48,6 +48,7 @@ impl FromStr for FileSystemType {
             "swap" | "linux-swap(v1)" => FileSystemType::Swap,
             "ntfs" => FileSystemType::Ntfs,
             "xfs" => FileSystemType::Xfs,
+            "lvm" => FileSystemType::Lvm,
             _ => return Err("invalid file system name"),
         };
         Ok(type_)
@@ -68,7 +69,7 @@ impl Into<&'static str> for FileSystemType {
             FileSystemType::Ntfs => "ntfs",
             FileSystemType::Swap => "linux-swap(v1)",
             FileSystemType::Xfs => "xfs",
-            FileSystemType::Lvm(..) => "lvm",
+            FileSystemType::Lvm => "lvm",
         }
     }
 }
@@ -181,7 +182,11 @@ impl PartitionBuilder {
             start_sector: self.start_sector,
             end_sector:   self.end_sector,
             part_type:    self.part_type,
-            filesystem:   Some(self.filesystem),
+            filesystem:   if self.volume_group.is_some() {
+                Some(FileSystemType::Lvm)
+            } else {
+                Some(self.filesystem)
+            },
             flags:        self.flags,
             name:         self.name,
             device_path:  PathBuf::new(),

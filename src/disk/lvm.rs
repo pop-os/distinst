@@ -1,8 +1,12 @@
 use super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
+use super::external::{lvcreate, mkfs, vgcreate};
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LvmDevice {
     pub(crate) volume_group: String,
+    pub(crate) device_path:  PathBuf,
     pub(crate) sectors:      u64,
     pub(crate) sector_size:  u64,
     pub(crate) partitions:   Vec<PartitionInfo>,
@@ -18,6 +22,8 @@ impl DiskExt for LvmDevice {
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
 
+    fn get_device_path(&self) -> &Path { &self.device_path }
+
     fn validate_partition_table(&self, _part_type: PartitionType) -> Result<(), DiskError> {
         Ok(())
     }
@@ -27,8 +33,10 @@ impl DiskExt for LvmDevice {
 
 impl LvmDevice {
     pub(crate) fn new(volume_group: String, sectors: u64, sector_size: u64) -> LvmDevice {
+        let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group));
         LvmDevice {
             volume_group,
+            device_path,
             sectors,
             sector_size,
             partitions: Vec::new(),
@@ -60,6 +68,71 @@ impl LvmDevice {
             }
         }
 
+        Ok(())
+    }
+
+    pub(crate) fn create_group<I, S>(&self, blocks: I) -> Result<(), DiskError>
+    where
+        I: Iterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        vgcreate(&self.volume_group, blocks).map_err(|why| DiskError::VolumeGroupCreate { why })
+    }
+
+    pub(crate) fn create_partitions(&mut self) -> Result<(), DiskError> {
+        let nparts = self.partitions.len();
+        let volume_group = &self.volume_group;
+        for (id, partition) in self.partitions.iter_mut().enumerate() {
+            let label = partition.name.as_ref().unwrap();
+
+            // Create the new logical volume on the volume group.
+            lvcreate(
+                &self.volume_group,
+                &label,
+                if id == nparts {
+                    None
+                } else {
+                    Some((partition.end_sector - partition.start_sector) * self.sector_size)
+                },
+            ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
+
+            // Set the device path of the newly-created partition.
+            partition.device_path =
+                PathBuf::from(format!("/dev/mapper/{}-{}", volume_group, label));
+
+            // Then format the newly-created logical volume
+            if let Some(fs) = partition.filesystem.as_ref() {
+                mkfs(&partition.device_path, fs.clone())
+                    .map_err(|why| DiskError::PartitionFormat { why })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn encrypt(&self) -> Result<(), DiskError> {
+        if let Some(encryption) = self.encryption.as_ref() {
+            if let Some(password) = encryption.password.as_ref() {
+                unimplemented!();
+            }
+
+            if let Some(keyfile) = encryption.keyfile.as_ref() {
+                unimplemented!();
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn open(&self) -> Result<(), DiskError> {
+        if let Some(enc) = self.encryption.as_ref() {
+            match (enc.password.as_ref(), enc.keyfile.as_ref()) {
+                (Some(password), None) => unimplemented!(),
+                (Some(password), Some(keyfile)) => unimplemented!(),
+                (None, Some(keyfile)) => unimplemented!(),
+                (None, None) => unimplemented!(),
+            }
+        }
         Ok(())
     }
 }

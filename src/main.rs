@@ -555,6 +555,10 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     configure_reused(&mut disks, matches.values_of("use"))?;
     eprintln!("distinst: configuring new partitions");
     configure_new(&mut disks, matches.values_of("new"))?;
+    eprintln!("distinst: initializing LVM groups");
+    disks.initialize_volume_groups();
+    // TODO: Configure LVM partitions.
+    // TODO: Encrypt Volume Groups
     eprintln!("distisnt: disks configured");
 
     Ok(disks)

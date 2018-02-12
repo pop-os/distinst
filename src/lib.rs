@@ -257,20 +257,26 @@ impl Installer {
             blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
         }
 
-        // TODO: Handle LVM devices too
-
-        Ok(())
+        disks
+            .commit_logical_partitions()
+            .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
     }
 
     /// Mount all target paths defined within the provided `disks` configuration.
     fn mount(disks: &Disks, chroot: &str) -> io::Result<Mounts> {
-        let targets = disks
+        let physical_targets = disks
             .get_physical_devices()
             .iter()
             .flat_map(|disk| disk.partitions.iter())
             .filter(|part| !part.target.is_none() && !part.filesystem.is_none());
 
-        // TODO: Handle LVM devices too
+        let logical_targets = disks
+            .get_logical_devices()
+            .iter()
+            .flat_map(|disk| disk.partitions.iter())
+            .filter(|part| !part.target.is_none() && !part.filesystem.is_none());
+
+        let targets = physical_targets.chain(logical_targets);
 
         let mut mounts = Vec::new();
 
@@ -363,7 +369,8 @@ impl Installer {
             file.sync_all()?;
         }
 
-        // TODO: Handle LVM devices too
+        // TODO: /etc/crypttab
+
         let root_entry = {
             info!("libdistinst: retrieving root partition");
             disks
@@ -372,6 +379,12 @@ impl Installer {
                 .flat_map(|disk| disk.partitions.iter())
                 .filter_map(|part| part.get_block_info())
                 .find(|entry| entry.mount() == "/")
+                .or(disks
+                    .get_logical_devices()
+                    .iter()
+                    .flat_map(|disk| disk.partitions.iter())
+                    .filter_map(|part| part.get_block_info())
+                    .find(|entry| entry.mount() == "/"))
                 .ok_or(io::Error::new(
                     io::ErrorKind::Other,
                     "root partition not found",

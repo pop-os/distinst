@@ -11,7 +11,7 @@ mod serial;
 mod swaps;
 
 pub use self::disk::DiskExt;
-use self::external::{lvcreate, vgcreate};
+use self::external::{lvcreate, mkfs, vgcreate};
 pub use self::lvm::{LvmDevice, LvmEncryption};
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
@@ -289,6 +289,8 @@ impl DiskExt for Disk {
     fn get_sector_size(&self) -> u64 { self.sector_size }
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
+
+    fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError> {
         match self.table_type {
@@ -1001,16 +1003,24 @@ impl Disks {
     /// the given target mount point.
     pub fn find_partition<'a>(&'a self, target: &Path) -> Option<(&'a Path, &'a PartitionInfo)> {
         for disk in &self.physical {
-            for partition in &disk.partitions {
+            for partition in disk.get_partitions() {
                 if let Some(ref ptarget) = partition.target {
                     if ptarget == target {
-                        return Some((&disk.device_path, partition));
+                        return Some((disk.get_device_path(), partition));
                     }
                 }
             }
         }
 
-        // TODO: Also search LVM partitions.
+        for disk in &self.logical {
+            for partition in disk.get_partitions() {
+                if let Some(ref ptarget) = partition.target {
+                    if ptarget == target {
+                        return Some((disk.get_device_path(), partition));
+                    }
+                }
+            }
+        }
 
         None
     }
@@ -1075,14 +1085,18 @@ impl Disks {
         info!("libdistinst: generating fstab in memory");
         let mut fstab = OsString::with_capacity(1024);
 
-        // TODO: Handle LVM & crypttab
         let fs_entries = self.physical
             .iter()
             .flat_map(|disk| disk.partitions.iter())
             .filter_map(|part| part.get_block_info());
 
+        let logical_entries = self.logical
+            .iter()
+            .flat_map(|disk| disk.partitions.iter())
+            .filter_map(|part| part.get_block_info());
+
         // <file system>  <mount point>  <type>  <options>  <dump>  <pass>
-        for entry in fs_entries {
+        for entry in fs_entries.chain(logical_entries) {
             fstab.reserve_exact(entry.len() + 16);
             fstab.push("UUID=");
             fstab.push(&entry.uuid);
@@ -1145,28 +1159,18 @@ impl Disks {
             device.validate()?;
         }
 
-        for device in &self.logical {
-            vgcreate(
-                &device.volume_group,
-                self.physical.iter().flat_map(|disk| {
-                    disk.get_partitions()
-                        .iter()
-                        .filter(|part| part.volume_group.as_ref() == Some(&device.volume_group))
-                        .map(|part| part.path())
-                }),
-            ).map_err(|why| DiskError::VolumeGroupCreate { why })?;
+        for device in &mut self.logical {
+            device.create_group(self.physical.iter().flat_map(|disk| {
+                disk.get_partitions()
+                    .iter()
+                    .filter(|part| part.volume_group.as_ref() == Some(&device.volume_group))
+                    .map(|part| part.path())
+            }))?;
 
-            for partition in &device.partitions {
-                lvcreate(
-                    &device.volume_group,
-                    &partition.name.clone().unwrap(),
-                    (partition.end_sector - partition.start_sector) * device.sector_size,
-                ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
-            }
-
-            // mkfs
-
-            // encrypt
+            device
+                .create_partitions()
+                .and_then(|_| device.encrypt())
+                .and_then(|_| device.open())?;
         }
 
         Ok(())

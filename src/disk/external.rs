@@ -59,7 +59,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
         FileSystemType::Ntfs => ("mkfs.ntfs", &["-F", "-q"]),
         FileSystemType::Swap => ("mkswap", &["-f"]),
         FileSystemType::Xfs => ("mkfs.xfs", &["-f"]),
-        FileSystemType::Lvm(..) => unimplemented!(),
+        FileSystemType::Lvm => return Ok(()),
     };
 
     exec(cmd, &{
@@ -70,7 +70,36 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
 }
 
 pub fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(group: &str, devices: I) -> io::Result<()> {
-    Ok(())
+    exec("vgcreate", &{
+        let mut args = Vec::with_capacity(16);
+        args.push(group.into());
+        args.extend(devices.map(|x| x.as_ref().into()));
+        args
+    })
 }
 
-pub fn lvcreate(group: &str, name: &str, size: u64) -> io::Result<()> { Ok(()) }
+pub fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result<()> {
+    exec(
+        "lvcreate",
+        &size.map_or(
+            [
+                "-l".into(),
+                "100%FREE".into(),
+                group.into(),
+                "-n".into(),
+                name.into(),
+            ],
+            |size| {
+                [
+                    "-L".into(),
+                    mebibytes(size).into(),
+                    group.into(),
+                    "-n".into(),
+                    name.into(),
+                ]
+            },
+        ),
+    )
+}
+
+fn mebibytes(bytes: u64) -> String { format!("{}", bytes / (1024 * 1024)) }

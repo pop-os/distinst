@@ -1,5 +1,6 @@
 use super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType};
 use super::partitions::check_partition_size;
+use std::path::Path;
 
 pub trait DiskExt {
     fn get_table_type(&self) -> Option<PartitionTable>;
@@ -9,6 +10,8 @@ pub trait DiskExt {
     fn get_sector_size(&self) -> u64;
 
     fn get_partitions(&self) -> &[PartitionInfo];
+
+    fn get_device_path(&self) -> &Path;
 
     fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError>;
 
