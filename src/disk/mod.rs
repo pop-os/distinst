@@ -2,6 +2,7 @@ pub(crate) mod external;
 pub mod mount;
 
 mod disk;
+mod error;
 mod lvm;
 mod mounts;
 mod operations;
@@ -11,15 +12,12 @@ mod serial;
 mod swaps;
 
 pub use self::disk::DiskExt;
-use self::external::{lvcreate, mkfs, vgcreate};
+pub use self::error::{DiskError, PartitionSizeError};
 pub use self::lvm::{LvmDevice, LvmEncryption};
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
 use self::operations::*;
-pub use self::partitions::{
-    check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionSizeError,
-    PartitionType,
-};
+pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
 use self::serial::get_serial;
 pub use self::swaps::Swaps;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
@@ -27,100 +25,9 @@ pub use libparted::PartitionFlag;
 
 use std::ffi::OsString;
 use std::io;
-use std::iter::FromIterator;
+use std::iter::{self, FromIterator};
 use std::path::{Path, PathBuf};
 use std::str::{self, FromStr};
-
-/// Defines a variety of errors that may arise from configuring and committing changes to disks.
-#[cfg_attr(rustfmt, rustfmt_skip)]
-#[derive(Debug, Fail)]
-pub enum DiskError {
-    #[fail(display = "unable to get device: {}", why)]
-    DeviceGet { why: io::Error },
-    #[fail(display = "unable to probe for devices")]
-    DeviceProbe,
-    #[fail(display = "unable to commit changes to disk: {}", why)]
-    DiskCommit { why: io::Error },
-    #[fail(display = "unable to format partition table: {}", why)]
-    DiskFresh { why: io::Error },
-    #[fail(display = "unable to find disk")]
-    DiskGet,
-    #[fail(display = "unable to open disk: {}", why)]
-    DiskNew { why: io::Error },
-    #[fail(display = "unable to sync disk changes with OS: {}", why)]
-    DiskSync { why: io::Error },
-    #[fail(display = "serial model does not match")]
-    InvalidSerial,
-    #[fail(display = "failed to create partition geometry: {}", why)]
-    GeometryCreate { why: io::Error },
-    #[fail(display = "failed to duplicate partition geometry")]
-    GeometryDuplicate,
-    #[fail(display = "failed to set values on partition geometry")]
-    GeometrySet,
-    #[fail(display = "partition layout on disk has changed")]
-    LayoutChanged,
-    #[fail(display = "unable to create logical volume: {}", why)]
-    LogicalVolumeCreate { why: io::Error },
-    #[fail(display = "unable to get mount points: {}", why)]
-    MountsObtain { why: io::Error },
-    #[fail(display = "new partition could not be found")]
-    NewPartNotFound,
-    #[fail(display = "no file system was found on the partition")]
-    NoFilesystem,
-    #[fail(display = "unable to create partition: {}", why)]
-    PartitionCreate { why: io::Error },
-    #[fail(display = "unable to format partition: {}", why)]
-    PartitionFormat { why: io::Error },
-    #[fail(display = "partition {} not be found on disk", partition)]
-    PartitionNotFound { partition: i32 },
-    #[fail(display = "partition overlaps other partitions")]
-    PartitionOverlaps,
-    #[fail(display = "unable to remove partition {}: {}", partition, why)]
-    PartitionRemove { partition: i32, why: io::Error },
-    #[fail(display = "unable to move partition: {}", why)]
-    PartitionMove { why: io::Error },
-    #[fail(display = "unable to resize partition: {}", why)]
-    PartitionResize { why: io::Error },
-    #[fail(display = "partition table not found on disk")]
-    PartitionTableNotFound,
-    #[fail(display = "partition was too large (size: {}, max: {}", size, max)]
-    PartitionTooLarge { size: u64, max:  u64 },
-    #[fail(display = "partition was too small (size: {}, min: {})", size, min)]
-    PartitionTooSmall { size: u64, min:  u64 },
-    #[fail(display = "too many primary partitions in MSDOS partition table")]
-    PrimaryPartitionsExceeded,
-    #[fail(display = "sector overlaps partition {}", id)]
-    SectorOverlaps { id: i32 },
-    #[fail(display = "unable to get serial model of device: {}", why)]
-    SerialGet { why: io::Error },
-    #[fail(display = "partition exceeds size of disk")]
-    PartitionOOB,
-    #[fail(display = "partition resize value is too small")]
-    ResizeTooSmall,
-    #[fail(display = "unable to unmount partition(s): {}", why)]
-    Unmount { why: io::Error },
-    #[fail(display = "shrinking not supported for this file system")]
-    UnsupportedShrinking,
-    #[fail(display = "unable to create volume group: {}", why)]
-    VolumeGroupCreate { why: io::Error },
-    #[fail(display = "volume partition lacks a label")]
-    VolumePartitionLacksLabel,
-}
-
-impl From<DiskError> for io::Error {
-    fn from(err: DiskError) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, format!("{}", err))
-    }
-}
-
-impl From<PartitionSizeError> for DiskError {
-    fn from(err: PartitionSizeError) -> DiskError {
-        match err {
-            PartitionSizeError::TooSmall(size, min) => DiskError::PartitionTooSmall { size, min },
-            PartitionSizeError::TooLarge(size, max) => DiskError::PartitionTooLarge { size, max },
-        }
-    }
-}
 
 /// Bootloader type
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -1025,6 +932,22 @@ impl Disks {
         None
     }
 
+    pub fn find_volumes<'a>(&'a self, volume_group: &str) -> Vec<&'a Path> {
+        let mut volumes = Vec::new();
+
+        for disk in &self.physical {
+            for partition in disk.get_partitions() {
+                if let Some(ref pvolume_group) = partition.volume_group {
+                    if pvolume_group == volume_group {
+                        volumes.push(disk.get_device_path());
+                    }
+                }
+            }
+        }
+
+        volumes
+    }
+
     /// Obtains the paths to the device and partition block paths where the root and EFI
     /// partitions are installed. The paths for the EFI partition will not be collected if
     /// the provided boot loader was of the EFI variety.
@@ -1155,22 +1078,50 @@ impl Disks {
     }
 
     pub(crate) fn commit_logical_partitions(&mut self) -> Result<(), DiskError> {
+        // First we verify that we have a valid logical layout.
         for device in &self.logical {
+            let volumes = self.find_volumes(&device.volume_group);
+            debug_assert!(volumes.len() > 0);
+            if device.encryption.is_some() && volumes.len() > 1 {
+                return Err(DiskError::SameGroup);
+            }
             device.validate()?;
         }
 
+        // By default, the `device_path` field is not populated, so let's fix that.
         for device in &mut self.logical {
-            device.create_group(self.physical.iter().flat_map(|disk| {
-                disk.get_partitions()
-                    .iter()
-                    .filter(|part| part.volume_group.as_ref() == Some(&device.volume_group))
-                    .map(|part| part.path())
-            }))?;
+            for partition in &mut device.partitions {
+                let label = partition.name.as_ref().unwrap();
+                partition.device_path =
+                    PathBuf::from(format!("/dev/mapper/{}-{}", device.volume_group, label));
+            }
+        }
 
-            device
-                .create_partitions()
-                .and_then(|_| device.encrypt())
-                .and_then(|_| device.open())?;
+        // Now we will apply the logical layout.
+        for device in &self.logical {
+            let volumes: Vec<&Path> = self.find_volumes(&device.volume_group);
+            let mut device_path = None;
+
+            // TODO: NLL
+            if let Some(encryption) = device.encryption.as_ref() {
+                encryption.encrypt(volumes[0])?;
+                encryption.open(volumes[0])?;
+                encryption.create_physical_volume()?;
+                device_path = Some(PathBuf::from(
+                    ["/dev/mapper/", &encryption.physical_volume].concat(),
+                ));
+            }
+
+            // Obtains an iterator which may produce one or more device paths.
+            let volumes: Box<Iterator<Item = &Path>> = match device_path.as_ref() {
+                // There will be only one volume, which we obtained from encryption.
+                Some(path) => Box::new(iter::once(path.as_path())),
+                // There may be more than one volume within a unencrypted LVM config.
+                None => Box::new(volumes.into_iter()),
+            };
+
+            device.create_volume_group(volumes)?;
+            device.create_partitions()?;
         }
 
         Ok(())

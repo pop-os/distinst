@@ -1,5 +1,5 @@
 use super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
-use super::external::{lvcreate, mkfs, vgcreate};
+use super::external::{cryptsetup_encrypt, cryptsetup_open, lvcreate, mkfs, pvcreate, vgcreate};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -46,7 +46,7 @@ impl LvmDevice {
 
     pub(crate) fn add_sectors(&mut self, sectors: u64) { self.sectors += sectors; }
 
-    pub fn encrypt_with_password(&mut self, password: &str) {
+    pub fn encrypt_with_password(&mut self, physical_volume: &str, password: &str) {
         // TODO: NLL
         if self.encryption.is_some() {
             if let Some(ref mut encryption) = self.encryption.as_mut() {
@@ -54,8 +54,9 @@ impl LvmDevice {
             }
         } else {
             self.encryption = Some(LvmEncryption {
-                password: Some(password.into()),
-                keyfile:  None,
+                physical_volume: physical_volume.into(),
+                password:        Some(password.into()),
+                keyfile:         None,
             });
         }
     }
@@ -71,7 +72,7 @@ impl LvmDevice {
         Ok(())
     }
 
-    pub(crate) fn create_group<I, S>(&self, blocks: I) -> Result<(), DiskError>
+    pub(crate) fn create_volume_group<I, S>(&self, blocks: I) -> Result<(), DiskError>
     where
         I: Iterator<Item = S>,
         S: AsRef<OsStr>,
@@ -79,10 +80,9 @@ impl LvmDevice {
         vgcreate(&self.volume_group, blocks).map_err(|why| DiskError::VolumeGroupCreate { why })
     }
 
-    pub(crate) fn create_partitions(&mut self) -> Result<(), DiskError> {
+    pub(crate) fn create_partitions(&self) -> Result<(), DiskError> {
         let nparts = self.partitions.len();
-        let volume_group = &self.volume_group;
-        for (id, partition) in self.partitions.iter_mut().enumerate() {
+        for (id, partition) in self.partitions.iter().enumerate() {
             let label = partition.name.as_ref().unwrap();
 
             // Create the new logical volume on the volume group.
@@ -96,10 +96,6 @@ impl LvmDevice {
                 },
             ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
 
-            // Set the device path of the newly-created partition.
-            partition.device_path =
-                PathBuf::from(format!("/dev/mapper/{}-{}", volume_group, label));
-
             // Then format the newly-created logical volume
             if let Some(fs) = partition.filesystem.as_ref() {
                 mkfs(&partition.device_path, fs.clone())
@@ -109,36 +105,37 @@ impl LvmDevice {
 
         Ok(())
     }
-
-    pub(crate) fn encrypt(&self) -> Result<(), DiskError> {
-        if let Some(encryption) = self.encryption.as_ref() {
-            if let Some(password) = encryption.password.as_ref() {
-                unimplemented!();
-            }
-
-            if let Some(keyfile) = encryption.keyfile.as_ref() {
-                unimplemented!();
-            }
-        }
-
-        Ok(())
-    }
-
-    pub(crate) fn open(&self) -> Result<(), DiskError> {
-        if let Some(enc) = self.encryption.as_ref() {
-            match (enc.password.as_ref(), enc.keyfile.as_ref()) {
-                (Some(password), None) => unimplemented!(),
-                (Some(password), Some(keyfile)) => unimplemented!(),
-                (None, Some(keyfile)) => unimplemented!(),
-                (None, None) => unimplemented!(),
-            }
-        }
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LvmEncryption {
-    pub(crate) password: Option<String>,
-    pub(crate) keyfile:  Option<String>,
+    pub(crate) physical_volume: String,
+    pub(crate) password:        Option<String>,
+    pub(crate) keyfile:         Option<String>,
+}
+
+impl LvmEncryption {
+    pub(crate) fn encrypt(&self, device: &Path) -> Result<(), DiskError> {
+        cryptsetup_encrypt(device, self).map_err(|why| DiskError::Encryption {
+            volume: device.into(),
+            why,
+        })
+    }
+
+    pub(crate) fn open(&self, device: &Path) -> Result<(), DiskError> {
+        cryptsetup_open(device, &self.physical_volume, self).map_err(|why| {
+            DiskError::EncryptionOpen {
+                volume: device.into(),
+                why,
+            }
+        })
+    }
+
+    pub(crate) fn create_physical_volume(&self) -> Result<(), DiskError> {
+        let path = ["/dev/mapper/", &self.physical_volume].concat();
+        pvcreate(&path).map_err(|why| DiskError::PhysicalVolumeCreate {
+            volume: self.physical_volume.clone(),
+            why,
+        })
+    }
 }

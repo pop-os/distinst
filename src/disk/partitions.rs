@@ -1,4 +1,4 @@
-use super::{Mounts, Swaps};
+use super::{Mounts, PartitionSizeError, Swaps};
 use libparted::{Partition, PartitionFlag};
 use std::ffi::{OsStr, OsString};
 use std::io;
@@ -72,11 +72,6 @@ impl Into<&'static str> for FileSystemType {
             FileSystemType::Lvm => "lvm",
         }
     }
-}
-
-pub enum PartitionSizeError {
-    TooSmall(u64, u64),
-    TooLarge(u64, u64),
 }
 
 const MIB: u64 = 1_000_000;

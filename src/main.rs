@@ -117,6 +117,18 @@ fn main() {
                 .takes_value(true)
                 .multiple(true),
         )
+        .arg(
+            Arg::with_name("lvm_volume")
+                .long("--lvm-volume")
+                .help("creates a partition on a LVM volume group")
+                .takes_value(true)
+                .multiple(true),
+        )
+        .arg(
+            Arg::with_name("encrypt")
+                .long("--encrypt")
+                .help("defines the encryption to apply to a LVM volume group"),
+        )
         .get_matches();
 
     if let Err(err) = distinst::log(|_level, message| {
@@ -557,8 +569,12 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     configure_new(&mut disks, matches.values_of("new"))?;
     eprintln!("distinst: initializing LVM groups");
     disks.initialize_volume_groups();
-    // TODO: Configure LVM partitions.
-    // TODO: Encrypt Volume Groups
+    eprintln!("distinst: configuring LVM devices");
+    configure_lvm(
+        &mut disks,
+        matches.values_of("lvm_group"),
+        matches.values_of("encrypt"),
+    )?;
     eprintln!("distisnt: disks configured");
 
     Ok(disks)
