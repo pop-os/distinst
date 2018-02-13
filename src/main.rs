@@ -260,12 +260,60 @@ fn parse_part_type(table: &str) -> PartitionType {
     }
 }
 
-fn parse_fs(fs: &str) -> FileSystemType {
-    match fs.parse::<FileSystemType>() {
-        Ok(fs) => fs,
-        Err(_) => {
-            eprintln!("distinst: provided file system, '{}', was invalid", fs);
+enum PartType {
+    Fs(FileSystemType),
+    Encrypted(String, Option<String>, Option<PathBuf>),
+}
+
+fn parse_fs(fs: &str) -> PartType {
+    if fs.starts_with("enc=") {
+        let (mut pass, mut keyfile) = (None, None);
+
+        let mut fields = fs[3..].split(",");
+        let physical_volume = match fields.next() {
+            Some(pv) => pv.into(),
+            None => {
+                eprintln!("distinst: no volume group was defined in file system field");
+                exit(1);
+            }
+        };
+
+        for field in fields {
+            if field.starts_with("pass=") {
+                let passval = &field[4..];
+                if passval.is_empty() {
+                    eprintln!("distinst: provided password is empty");
+                    exit(1);
+                }
+
+                pass = Some(passval.into());
+            } else if field.starts_with("keyfile=") {
+                let keyval = &field[7..];
+                if keyval.is_empty() {
+                    eprintln!("distinst: provided keyval is empty");
+                    exit(1);
+                }
+
+                keyfile = Some(Path::new(keyval).to_path_buf());
+            } else {
+                eprintln!("distinst: invalid fs field");
+                exit(1);
+            }
+        }
+
+        if !pass.is_some() && !keyfile.is_some() {
+            eprintln!("distinst: no values provided for encryption");
             exit(1);
+        } else {
+            PartType::Encrypted(physical_volume, pass, keyfile)
+        }
+    } else {
+        match fs.parse::<FileSystemType>() {
+            Ok(fs) => PartType::Fs(fs),
+            Err(_) => {
+                eprintln!("distinst: provided file system, '{}', was invalid", fs);
+                exit(1);
+            }
         }
     }
 }
@@ -490,7 +538,16 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
                 partition.set_mount(Path::new(mount).to_path_buf());
             }
 
-            if let Some(fs) = fs {
+            if let Some(pkind) = fs {
+                let fs = match pkind {
+                    PartType::Fs(fs) => fs,
+                    PartType::Encrypted(pv, pass, keyfile) => {
+                        unimplemented!()
+                        // TODO: set encryption parameters, then return Lvm.
+                        // FileSystemType::Lvm
+                    }
+                };
+
                 partition.format_with(fs);
             }
 
@@ -519,7 +576,7 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
                 exit(1);
             }
 
-            let (block, kind, start, end, fs, mount, flags) = (
+            let (block, kind, start, end, pkind, mount, flags) = (
                 values[0],
                 parse_part_type(values[1]),
                 parse_sector(values[2]),
@@ -533,7 +590,14 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
 
             let start = disk.get_sector(start);
             let end = disk.get_sector(end);
-            let mut builder = PartitionBuilder::new(start, end, fs).partition_type(kind);
+            let mut builder = match pkind {
+                PartType::Encrypted(pv, password, keyfile) => {
+                    PartitionBuilder::new(start, end, FileSystemType::Lvm)
+                        .partition_type(kind)
+                        .encrypt(pv.clone(), Some(LvmEncryption::new(pv, password, keyfile)))
+                }
+                PartType::Fs(fs) => PartitionBuilder::new(start, end, fs).partition_type(kind),
+            };
 
             if let Some(mount) = mount {
                 builder = builder.mount(mount.into());
@@ -692,7 +756,13 @@ fn parse_logical<F: FnMut(LogicalArgs)>(values: Values, mut action: F) {
             group: values[0].into(),
             name: values[1].into(),
             size: parse_sector(values[2]),
-            fs: parse_fs(values[3]),
+            fs: match parse_fs(values[3]) {
+                PartType::Fs(fs) => fs,
+                // LUKS on LVM
+                PartType::Encrypted(pv, pass, keyfile) => {
+                    unimplemented!();
+                }
+            },
             mount,
             flags,
         });
@@ -731,7 +801,6 @@ fn configure_lvm(
         parse_logical(logical, |args| ops.push(LvmAction::CreateLogical(args)));
     }
 
-    // TODO: Apply ops as they become possible, and remove them from the operation list.
     while !ops.is_empty() {
         let mut remove = None;
         for id in 0..ops.len() {

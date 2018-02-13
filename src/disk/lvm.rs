@@ -113,14 +113,14 @@ impl LvmDevice {
 pub struct LvmEncryption {
     pub(crate) physical_volume: String,
     pub(crate) password:        Option<String>,
-    pub(crate) keyfile:         Option<String>,
+    pub(crate) keyfile:         Option<PathBuf>,
 }
 
 impl LvmEncryption {
-    pub fn new<O: Into<Option<String>>>(
+    pub fn new<S: Into<Option<String>>, P: Into<Option<PathBuf>>>(
         physical_volume: String,
-        password: O,
-        keyfile: O,
+        password: S,
+        keyfile: P,
     ) -> LvmEncryption {
         LvmEncryption {
             physical_volume,
