@@ -1,4 +1,4 @@
-use super::{Mounts, PartitionSizeError, Swaps};
+use super::{LvmEncryption, Mounts, PartitionSizeError, Swaps};
 use libparted::{Partition, PartitionFlag};
 use std::ffi::{OsStr, OsString};
 use std::io;
@@ -117,7 +117,7 @@ pub struct PartitionBuilder {
     pub(crate) name:         Option<String>,
     pub(crate) flags:        Vec<PartitionFlag>,
     pub(crate) mount:        Option<PathBuf>,
-    pub(crate) volume_group: Option<String>,
+    pub(crate) volume_group: Option<(String, Option<LvmEncryption>)>,
 }
 
 impl PartitionBuilder {
@@ -160,8 +160,8 @@ impl PartitionBuilder {
     }
 
     /// Assigns the new partition to a LVM volume group.
-    pub fn volume_group(mut self, volume_group: String) -> PartitionBuilder {
-        self.volume_group = Some(volume_group);
+    pub fn encrypt(mut self, group: String, encryption: Option<LvmEncryption>) -> PartitionBuilder {
+        self.volume_group = Some((group, encryption));
         self
     }
 
@@ -189,6 +189,7 @@ impl PartitionBuilder {
             swapped:      false,
             target:       self.mount,
             volume_group: self.volume_group.clone(),
+
         }
     }
 }
@@ -238,7 +239,7 @@ pub struct PartitionInfo {
     /// Where this partition will be mounted in the future
     pub target: Option<PathBuf>,
     /// The volume group associated with this device.
-    pub volume_group: Option<String>,
+    pub volume_group: Option<(String, Option<LvmEncryption>)>,
 }
 
 /// Information that will be used to generate a fstab entry for the given partition.

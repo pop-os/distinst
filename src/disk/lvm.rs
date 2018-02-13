@@ -32,7 +32,12 @@ impl DiskExt for LvmDevice {
 }
 
 impl LvmDevice {
-    pub(crate) fn new(volume_group: String, sectors: u64, sector_size: u64) -> LvmDevice {
+    pub(crate) fn new(
+        volume_group: String,
+        encryption: Option<LvmEncryption>,
+        sectors: u64,
+        sector_size: u64
+    ) -> LvmDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group));
         LvmDevice {
             volume_group,
@@ -40,7 +45,7 @@ impl LvmDevice {
             sectors,
             sector_size,
             partitions: Vec::new(),
-            encryption: None,
+            encryption,
         }
     }
 
@@ -112,6 +117,14 @@ pub struct LvmEncryption {
 }
 
 impl LvmEncryption {
+    pub fn new<O: Into<Option<String>>>(
+        physical_volume: String,
+        password: O,
+        keyfile: O
+    ) -> LvmEncryption {
+        LvmEncryption { physical_volume, password: password.into(), keyfile: keyfile.into() }
+    }
+
     pub(crate) fn encrypt(&self, device: &Path) -> Result<(), DiskError> {
         cryptsetup_encrypt(device, self).map_err(|why| DiskError::Encryption {
             volume: device.into(),

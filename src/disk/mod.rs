@@ -938,7 +938,7 @@ impl Disks {
         for disk in &self.physical {
             for partition in disk.get_partitions() {
                 if let Some(ref pvolume_group) = partition.volume_group {
-                    if pvolume_group == volume_group {
+                    if pvolume_group.0 == volume_group {
                         volumes.push(disk.get_device_path());
                     }
                 }
@@ -1057,7 +1057,7 @@ impl Disks {
             for partition in disk.get_partitions() {
                 if let Some(ref lvm) = partition.volume_group {
                     // TODO: NLL
-                    let push = match logical.iter_mut().find(|d| &d.volume_group == lvm) {
+                    let push = match logical.iter_mut().find(|d| &d.volume_group == &lvm.0) {
                         Some(device) => {
                             device.add_sectors(partition.sectors());
                             false
@@ -1067,7 +1067,8 @@ impl Disks {
 
                     if push {
                         logical.push(LvmDevice::new(
-                            lvm.clone(),
+                            lvm.0.clone(),
+                            lvm.1.clone(),
                             partition.sectors(),
                             sector_size,
                         ));

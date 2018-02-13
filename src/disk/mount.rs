@@ -40,12 +40,9 @@ pub fn umount<P: AsRef<Path>>(dest: P, lazy: bool) -> Result<()> {
 pub struct Mounts(pub Vec<Mount>);
 
 impl Mounts {
+    #[cfg_attr(rustfmt, rustfmt_skip)]
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
-        self.0
-            .iter_mut()
-            .rev()
-            .map(|mount| mount.unmount(lazy))
-            .collect()
+        self.0.iter_mut().rev().map(|mount| mount.unmount(lazy)).collect()
     }
 }
 
