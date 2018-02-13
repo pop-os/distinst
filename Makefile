@@ -58,6 +58,16 @@ target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target
 		cargo build --bin distinst --release; \
 	fi
 
+target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub: $(SRC)
+	if [ -d vendor ]; \
+	then \
+		cargo rustc --frozen --lib -- --crate-type=dylib; \
+		cargo build --frozen --bin distinst; \
+	else \
+		cargo rustc --lib -- --crate-type=dylib; \
+		cargo build --bin distinst; \
+	fi
+
 target/pkgconfig/$(BIN).pc: target/pkgconfig/$(BIN).pc.stub
 	echo "libdir=$(libdir)" > "$@.partial"
 	echo "includedir=$(includedir)" >> "$@.partial"
