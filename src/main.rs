@@ -570,11 +570,11 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     eprintln!("distinst: initializing LVM groups");
     disks.initialize_volume_groups();
     eprintln!("distinst: configuring LVM devices");
-    configure_lvm(
-        &mut disks,
-        matches.values_of("lvm_group"),
-        matches.values_of("encrypt"),
-    )?;
+    // configure_lvm(
+    //     &mut disks,
+    //     matches.values_of("lvm_group"),
+    //     matches.values_of("encrypt"),
+    // )?;
     eprintln!("distisnt: disks configured");
 
     Ok(disks)
