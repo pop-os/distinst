@@ -62,14 +62,11 @@ impl LvmDevice {
     }
 
     /// LVM Partitions should have names!
+    #[cfg_attr(rustfmt, rustfmt_skip)]
     pub(crate) fn validate(&self) -> Result<(), DiskError> {
-        for partition in &self.partitions {
-            if !partition.name.is_some() {
-                return Err(DiskError::VolumePartitionLacksLabel);
-            }
-        }
-
-        Ok(())
+        self.partitions.iter()
+            .map(|p| p.name.as_ref().map(|_| ()).ok_or(DiskError::VolumePartitionLacksLabel))
+            .collect()
     }
 
     pub(crate) fn create_volume_group<I, S>(&self, blocks: I) -> Result<(), DiskError>
@@ -92,7 +89,7 @@ impl LvmDevice {
                 if id == nparts {
                     None
                 } else {
-                    Some((partition.end_sector - partition.start_sector) * self.sector_size)
+                    Some(partition.sectors() * self.sector_size)
                 },
             ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
 

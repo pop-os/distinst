@@ -41,11 +41,11 @@ pub struct Mounts(pub Vec<Mount>);
 
 impl Mounts {
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
-        for mount in self.0.iter_mut().rev() {
-            mount.unmount(lazy)?;
-        }
-
-        Ok(())
+        self.0
+            .iter_mut()
+            .rev()
+            .map(|mount| mount.unmount(lazy))
+            .collect()
     }
 }
 
