@@ -11,6 +11,8 @@ pub trait DiskExt {
 
     fn get_partitions(&self) -> &[PartitionInfo];
 
+    fn get_partitions_mut(&mut self) -> &mut [PartitionInfo];
+
     fn get_device_path(&self) -> &Path;
 
     fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError>;

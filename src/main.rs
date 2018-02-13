@@ -261,8 +261,10 @@ fn parse_part_type(table: &str) -> PartitionType {
 }
 
 enum PartType {
+    /// A normal partition with a standard file system
     Fs(FileSystemType),
-    Encrypted(String, Option<String>, Option<PathBuf>),
+    /// A partition that is formatted with LVM, optionally with encryption.
+    Lvm(String, Option<LvmEncryption>),
 }
 
 fn parse_fs(fs: &str) -> PartType {
@@ -272,6 +274,14 @@ fn parse_fs(fs: &str) -> PartType {
         let mut fields = fs[3..].split(",");
         let physical_volume = match fields.next() {
             Some(pv) => pv.into(),
+            None => {
+                eprintln!("distinst: no physical volume was defined in file system field");
+                exit(1);
+            }
+        };
+
+        let volume_group = match fields.next() {
+            Some(vg) => vg.into(),
             None => {
                 eprintln!("distinst: no volume group was defined in file system field");
                 exit(1);
@@ -301,12 +311,14 @@ fn parse_fs(fs: &str) -> PartType {
             }
         }
 
-        if !pass.is_some() && !keyfile.is_some() {
-            eprintln!("distinst: no values provided for encryption");
-            exit(1);
-        } else {
-            PartType::Encrypted(physical_volume, pass, keyfile)
-        }
+        PartType::Lvm(
+            volume_group,
+            if !pass.is_some() && !keyfile.is_some() {
+                None
+            } else {
+                Some(LvmEncryption::new(physical_volume, pass, keyfile))
+            },
+        )
     } else {
         match fs.parse::<FileSystemType>() {
             Ok(fs) => PartType::Fs(fs),
@@ -541,8 +553,8 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
             if let Some(pkind) = fs {
                 let fs = match pkind {
                     PartType::Fs(fs) => fs,
-                    PartType::Encrypted(pv, pass, keyfile) => {
-                        partition.set_volume_group(pv, Some((pass, keyfile)));
+                    PartType::Lvm(volume_group, encryption) => {
+                        partition.set_volume_group(volume_group, encryption);
                         FileSystemType::Lvm
                     }
                 };
@@ -590,10 +602,10 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
             let start = disk.get_sector(start);
             let end = disk.get_sector(end);
             let mut builder = match pkind {
-                PartType::Encrypted(pv, password, keyfile) => {
+                PartType::Lvm(volume_group, encryption) => {
                     PartitionBuilder::new(start, end, FileSystemType::Lvm)
                         .partition_type(kind)
-                        .encrypt(pv.clone(), Some(LvmEncryption::new(pv, password, keyfile)))
+                        .logical_volume(volume_group, encryption)
                 }
                 PartType::Fs(fs) => PartitionBuilder::new(start, end, fs).partition_type(kind),
             };
@@ -679,7 +691,7 @@ fn parse_encryption<F: FnMut(EncryptArgs)>(values: Values, mut action: F) {
 // Defines a new volume group to create from a device map for a LVM on LUKS configuration.
 struct VolumeGroupArgs {
     group:      String,
-    assignment: PathBuf,
+    assignment: String,
 }
 
 fn parse_groups<F: FnMut(VolumeGroupArgs)>(values: Values, mut action: F) {
@@ -692,7 +704,7 @@ fn parse_groups<F: FnMut(VolumeGroupArgs)>(values: Values, mut action: F) {
 
         action(VolumeGroupArgs {
             group:      values[0].into(),
-            assignment: Path::new(values[1]).to_path_buf(),
+            assignment: values[1].into(),
         });
     }
 }
@@ -757,9 +769,8 @@ fn parse_logical<F: FnMut(LogicalArgs)>(values: Values, mut action: F) {
             size: parse_sector(values[2]),
             fs: match parse_fs(values[3]) {
                 PartType::Fs(fs) => fs,
-                // LUKS on LVM
-                PartType::Encrypted(pv, pass, keyfile) => {
-                    unimplemented!();
+                PartType::Lvm(..) => {
+                    unimplemented!("LUKS on LVM is unsupported");
                 }
             },
             mount,
@@ -777,7 +788,13 @@ enum LvmAction {
 impl LvmAction {
     /// Returns Ok(true) if the action was performed, Ok(false) if it could not
     /// be performed yet, and an error if it could be performed but failed.
-    fn apply(&self, disks: &mut Disks) -> Result<bool, DiskError> { unimplemented!() }
+    fn apply(&self, disks: &mut Disks) -> Result<bool, DiskError> {
+        match *self {
+            LvmAction::CreateGroup(ref args) => unimplemented!(),
+            LvmAction::CreateLogical(ref args) => unimplemented!(),
+            LvmAction::Encrypt(ref args) => unimplemented!(),
+        }
+    }
 }
 
 fn configure_lvm(

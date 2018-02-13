@@ -197,6 +197,8 @@ impl DiskExt for Disk {
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
 
+    fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
+
     fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError> {
@@ -852,6 +854,8 @@ impl Disks {
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) { self.physical.push(disk); }
 
+    pub fn add_logical(&mut self, device: LvmDevice) { self.logical.push(device); }
+
     /// Returns a slice of physical disks stored within the configuration.
     pub fn get_physical_devices(&self) -> &[Disk] { &self.physical }
 
@@ -932,7 +936,7 @@ impl Disks {
         None
     }
 
-    pub fn find_volumes<'a>(&'a self, volume_group: &str) -> Vec<&'a Path> {
+    pub fn find_volume_paths<'a>(&'a self, volume_group: &str) -> Vec<&'a Path> {
         let mut volumes = Vec::new();
 
         for disk in &self.physical {
@@ -941,6 +945,49 @@ impl Disks {
                     if pvolume_group.0 == volume_group {
                         volumes.push(disk.get_device_path());
                     }
+                }
+            }
+        }
+
+        volumes
+    }
+
+    pub fn find_volumes_mut<'a>(
+        &'a mut self,
+        volume_group: &str,
+    ) -> Vec<(u64, &'a mut PartitionInfo)> {
+        let mut volumes = Vec::new();
+
+        for disk in &mut self.physical {
+            let sector_size = disk.get_sector_size();
+            for partition in disk.get_partitions_mut() {
+                // TODO: NLL
+                let mut is_valid = false;
+                if let Some(ref pvolume) = partition.volume_group {
+                    if pvolume.0 == volume_group {
+                        is_valid = true;
+                    }
+                }
+
+                if is_valid {
+                    volumes.push((sector_size, partition));
+                }
+            }
+        }
+
+        for disk in &mut self.logical {
+            let sector_size = disk.get_sector_size();
+            for partition in disk.get_partitions_mut() {
+                // TODO: NLL
+                let mut is_valid = false;
+                if let Some(ref pvolume) = partition.volume_group {
+                    if pvolume.0 == volume_group {
+                        is_valid = true;
+                    }
+                }
+
+                if is_valid {
+                    volumes.push((sector_size, partition));
                 }
             }
         }
@@ -1078,10 +1125,16 @@ impl Disks {
         }
     }
 
+    /// Applies all logical device operations, which are to be performed after all physical disk
+    /// operations have completed.
     pub(crate) fn commit_logical_partitions(&mut self) -> Result<(), DiskError> {
+        // TODO: Some actions need to be performed in a certain order. We need to
+        //       create another diff-like function which can generate operations
+        //       in the other that they need to be applied.
+
         // First we verify that we have a valid logical layout.
         for device in &self.logical {
-            let volumes = self.find_volumes(&device.volume_group);
+            let volumes = self.find_volume_paths(&device.volume_group);
             debug_assert!(volumes.len() > 0);
             if device.encryption.is_some() && volumes.len() > 1 {
                 return Err(DiskError::SameGroup);
@@ -1100,7 +1153,7 @@ impl Disks {
 
         // Now we will apply the logical layout.
         for device in &self.logical {
-            let volumes: Vec<&Path> = self.find_volumes(&device.volume_group);
+            let volumes: Vec<&Path> = self.find_volume_paths(&device.volume_group);
             let mut device_path = None;
 
             // TODO: NLL

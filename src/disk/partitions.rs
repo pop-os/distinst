@@ -159,8 +159,12 @@ impl PartitionBuilder {
         self
     }
 
-    /// Assigns the new partition to a LVM volume group.
-    pub fn encrypt(mut self, group: String, encryption: Option<LvmEncryption>) -> PartitionBuilder {
+    /// Assigns the new partition to a LVM volume group, which may optionally be encrypted.
+    pub fn logical_volume(
+        mut self,
+        group: String,
+        encryption: Option<LvmEncryption>,
+    ) -> PartitionBuilder {
         self.volume_group = Some((group, encryption));
         self
     }
@@ -311,8 +315,10 @@ impl PartitionInfo {
         }))
     }
 
+    /// Returns the length of the partition in sectors.
     pub fn sectors(&self) -> u64 { self.end_sector - self.start_sector }
 
+    /// Returns true if the partition is a swap partition.
     pub fn is_swap(&self) -> bool {
         self.filesystem
             .clone()
@@ -333,27 +339,26 @@ impl PartitionInfo {
         self.is_source && other.is_source && self.number == other.number
     }
 
+    /// Defines a mount target for this partition.
     pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
-    pub fn set_volume_group(
-        &mut self,
-        group: String,
-        encryption: Option<(Option<String>, Option<PathBuf>)>,
-    ) {
-        self.volume_group = Some((
-            group.clone(),
-            encryption.map(|(password, keyfile)|
-                LvmEncryption::new(group, password, keyfile)
-            )
-        ));
+    /// Defines that the partition belongs to a given volume group.
+    ///
+    /// Optionally, this partition may be encrypted, in which you will also need to
+    /// specify a new physical volume name as well. In the event of encryption, an LVM
+    /// device will be assigned to the encrypted partition.
+    pub fn set_volume_group(&mut self, group: String, encryption: Option<LvmEncryption>) {
+        self.volume_group = Some((group.clone(), encryption));
     }
 
+    /// Defines that a new file system will be applied to this partition.
     pub fn format_with(&mut self, fs: FileSystemType) {
         self.format = true;
         self.filesystem = Some(fs);
         self.name = None;
     }
 
+    /// Specifies to delete this partition from the partition table.
     pub fn remove(&mut self) { self.remove = true; }
 
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {

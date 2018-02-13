@@ -22,6 +22,8 @@ impl DiskExt for LvmDevice {
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
 
+    fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
+
     fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn validate_partition_table(&self, _part_type: PartitionType) -> Result<(), DiskError> {
