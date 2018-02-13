@@ -335,6 +335,19 @@ impl PartitionInfo {
 
     pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
+    pub fn set_volume_group(
+        &mut self,
+        group: String,
+        encryption: Option<(Option<String>, Option<PathBuf>)>,
+    ) {
+        self.volume_group = Some((
+            group.clone(),
+            encryption.map(|(password, keyfile)|
+                LvmEncryption::new(group, password, keyfile)
+            )
+        ));
+    }
+
     pub fn format_with(&mut self, fs: FileSystemType) {
         self.format = true;
         self.filesystem = Some(fs);

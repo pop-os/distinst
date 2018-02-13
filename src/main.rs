@@ -542,9 +542,8 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
                 let fs = match pkind {
                     PartType::Fs(fs) => fs,
                     PartType::Encrypted(pv, pass, keyfile) => {
-                        unimplemented!()
-                        // TODO: set encryption parameters, then return Lvm.
-                        // FileSystemType::Lvm
+                        partition.set_volume_group(pv, Some((pass, keyfile)));
+                        FileSystemType::Lvm
                     }
                 };
 
