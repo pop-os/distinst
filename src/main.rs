@@ -5,15 +5,15 @@ extern crate pbr;
 
 use clap::{App, Arg, ArgMatches, Values};
 use distinst::{
-    Config, Disk, DiskError, DiskExt, Disks, FileSystemType, Installer, PartitionBuilder,
-    PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step, KILL_SWITCH,
-    PARTITIONING_TEST,
+    Config, Disk, DiskError, DiskExt, Disks, FileSystemType, Installer, LvmEncryption,
+    PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step,
+    KILL_SWITCH, PARTITIONING_TEST,
 };
 use pbr::ProgressBar;
 
 use std::{io, process};
 use std::cell::RefCell;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
@@ -118,8 +118,8 @@ fn main() {
                 .multiple(true),
         )
         .arg(
-            Arg::with_name("lvm_volume")
-                .long("--lvm-volume")
+            Arg::with_name("logical")
+                .long("--logical")
                 .help("creates a partition on a LVM volume group")
                 .takes_value(true)
                 .multiple(true),
@@ -552,6 +552,209 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
     Ok(())
 }
 
+// Defines the group to which encryption will be assigned
+struct EncryptArgs {
+    /// The group to which encryption will be assigned
+    group: String,
+    password: Option<String>,
+    keyfile: Option<String>,
+}
+
+fn parse_encryption<F: FnMut(EncryptArgs)>(values: Values, mut action: F) {
+    for value in values {
+        let values: Vec<&str> = value.split(":").collect();
+        if values.len() < 2 {
+            eprintln!(
+                "distinst: two to three colon-delimited values need to be supplied for encryption"
+            );
+            exit(1);
+        } else if values.len() > 3 {
+            eprintln!("distinst: too many values were supplied to the encryption flag");
+            exit(1);
+        }
+
+        let group = values[0].into();
+        let (mut password, mut keyfile) = (None, None);
+        for value in values.into_iter().skip(1) {
+            if value.starts_with("pass=") {
+                let passval = &value[4..];
+                if passval.is_empty() {
+                    eprintln!("distinst: password is empty");
+                    exit(1);
+                } else if password.is_some() {
+                    eprintln!("distinst: password was already defined");
+                    exit(1);
+                }
+
+                password = Some(passval.into());
+            } else if value.starts_with("keyfile=") {
+                let keyval = &value[7..];
+                if keyval.is_empty() {
+                    eprintln!("distinst: keyfile is empty");
+                    exit(1);
+                } else if keyfile.is_some() {
+                    eprintln!("distinst: keyfile was already defined");
+                    exit(1);
+                }
+
+                // TODO: Maybe check if the key path is valid?
+                keyfile = Some(keyval.into())
+            } else {
+                eprintln!("distinst: encryption flag has invalid field: {}", value);
+                exit(1);
+            }
+        }
+
+        action(EncryptArgs {
+            group,
+            password,
+            keyfile,
+        });
+    }
+}
+
+// Defines a new volume group to create from a device map for a LVM on LUKS configuration.
+struct VolumeGroupArgs {
+    group:      String,
+    assignment: PathBuf,
+}
+
+fn parse_groups<F: FnMut(VolumeGroupArgs)>(values: Values, mut action: F) {
+    for value in values {
+        let values: Vec<&str> = value.split(":").collect();
+        if values.len() != 2 {
+            eprintln!("distinst: two values need to be supplied for volume groups");
+            exit(1);
+        }
+
+        action(VolumeGroupArgs {
+            group:      values[0].into(),
+            assignment: Path::new(values[1]).to_path_buf(),
+        });
+    }
+}
+
+// Defines a new partition to assign to a volume group
+struct LogicalArgs {
+    // The group to create a partition on
+    group: String,
+    // The name of the partition
+    name: String,
+    // The length of the partition
+    size: Sector,
+    // The filesystem to assign to this partition
+    fs: FileSystemType,
+    // Where to mount this partition
+    mount: Option<PathBuf>,
+    // The partition flags to assign
+    flags: Option<Vec<PartitionFlag>>,
+}
+
+fn parse_logical<F: FnMut(LogicalArgs)>(values: Values, mut action: F) {
+    for value in values {
+        let values: Vec<&str> = value.split(":").collect();
+        if values.len() < 4 {
+            eprintln!("distinst: at least four values need to be supplied for logical volumes");
+            exit(1);
+        } else if values.len() > 6 {
+            eprintln!(
+                "distinst: no more than six arguments should be supplied for logical volumes"
+            );
+            exit(1);
+        }
+
+        let (mut mount, mut flags) = (None, None);
+
+        for arg in values.iter().skip(4) {
+            if arg.starts_with("mount=") {
+                let mountval = &arg[5..];
+                if mountval.is_empty() {
+                    eprintln!("distinst: mount value is empty");
+                    exit(1);
+                }
+
+                mount = Some(Path::new(mountval).to_path_buf());
+            } else if arg.starts_with("flags=") {
+                let flagval = &arg[5..];
+                if flagval.is_empty() {
+                    eprintln!("distinst: mount value is empty");
+                    exit(1);
+                }
+
+                flags = Some(parse_flags(flagval));
+            } else {
+                eprintln!("distinst: invalid field passed to logical volume flag");
+                exit(1);
+            }
+        }
+
+        action(LogicalArgs {
+            group: values[0].into(),
+            name: values[1].into(),
+            size: parse_sector(values[2]),
+            fs: parse_fs(values[3]),
+            mount,
+            flags,
+        });
+    }
+}
+
+enum LvmAction {
+    Encrypt(EncryptArgs),
+    CreateGroup(VolumeGroupArgs),
+    CreateLogical(LogicalArgs),
+}
+
+impl LvmAction {
+    /// Returns Ok(true) if the action was performed, Ok(false) if it could not
+    /// be performed yet, and an error if it could be performed but failed.
+    fn apply(&self, disks: &mut Disks) -> Result<bool, DiskError> { unimplemented!() }
+}
+
+fn configure_lvm(
+    disks: &mut Disks,
+    groups: Option<Values>,
+    logical: Option<Values>,
+    encryption: Option<Values>,
+) -> Result<(), DiskError> {
+    let mut ops = Vec::new();
+
+    if let Some(encryption) = encryption {
+        parse_encryption(encryption, |args| ops.push(LvmAction::Encrypt(args)));
+    }
+
+    if let Some(groups) = groups {
+        parse_groups(groups, |args| ops.push(LvmAction::CreateGroup(args)));
+    }
+
+    if let Some(logical) = logical {
+        parse_logical(logical, |args| ops.push(LvmAction::CreateLogical(args)));
+    }
+
+    // TODO: Apply ops as they become possible, and remove them from the operation list.
+    while !ops.is_empty() {
+        let mut remove = None;
+        for id in 0..ops.len() {
+            if ops[id].apply(disks)? {
+                remove = Some(id);
+                break;
+            }
+        }
+
+        match remove {
+            Some(id) => {
+                ops.remove(id);
+            }
+            None => {
+                eprintln!("distinst: an LVM action could not be performed.");
+                exit(1);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     let mut disks = Disks::new();
 
@@ -570,11 +773,12 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     eprintln!("distinst: initializing LVM groups");
     disks.initialize_volume_groups();
     eprintln!("distinst: configuring LVM devices");
-    // configure_lvm(
-    //     &mut disks,
-    //     matches.values_of("lvm_group"),
-    //     matches.values_of("encrypt"),
-    // )?;
+    configure_lvm(
+        &mut disks,
+        matches.values_of("volume_group"),
+        matches.values_of("encrypt"),
+        matches.values_of("logical"),
+    )?;
     eprintln!("distisnt: disks configured");
 
     Ok(disks)

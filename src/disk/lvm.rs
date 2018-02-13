@@ -36,7 +36,7 @@ impl LvmDevice {
         volume_group: String,
         encryption: Option<LvmEncryption>,
         sectors: u64,
-        sector_size: u64
+        sector_size: u64,
     ) -> LvmDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group));
         LvmDevice {
@@ -120,9 +120,13 @@ impl LvmEncryption {
     pub fn new<O: Into<Option<String>>>(
         physical_volume: String,
         password: O,
-        keyfile: O
+        keyfile: O,
     ) -> LvmEncryption {
-        LvmEncryption { physical_volume, password: password.into(), keyfile: keyfile.into() }
+        LvmEncryption {
+            physical_volume,
+            password: password.into(),
+            keyfile: keyfile.into(),
+        }
     }
 
     pub(crate) fn encrypt(&self, device: &Path) -> Result<(), DiskError> {

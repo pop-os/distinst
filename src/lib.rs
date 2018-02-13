@@ -22,8 +22,8 @@ use tempdir::TempDir;
 
 pub use chroot::Chroot;
 pub use disk::{
-    Bootloader, Disk, DiskError, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionFlag,
-    PartitionInfo, PartitionTable, PartitionType, Sector,
+    Bootloader, Disk, DiskError, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption,
+    PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 pub use disk::mount::{Mount, Mounts};
 

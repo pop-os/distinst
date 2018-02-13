@@ -189,7 +189,6 @@ impl PartitionBuilder {
             swapped:      false,
             target:       self.mount,
             volume_group: self.volume_group.clone(),
-
         }
     }
 }
