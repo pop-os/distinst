@@ -146,3 +146,21 @@ pub trait DiskExt {
         Ok(())
     }
 }
+
+/// Finds the partition block path and associated partition information that is associated with
+/// the given target mount point.
+pub(crate) fn find_partition<'a, T: DiskExt>(
+    disks: &'a [T],
+    target: &Path,
+) -> Option<(&'a Path, &'a PartitionInfo)> {
+    for disk in disks {
+        for partition in disk.get_partitions() {
+            if let Some(ref ptarget) = partition.target {
+                if ptarget == target {
+                    return Some((disk.get_device_path(), partition));
+                }
+            }
+        }
+    }
+    None
+}

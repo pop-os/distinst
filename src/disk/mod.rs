@@ -12,6 +12,7 @@ mod serial;
 mod swaps;
 
 pub use self::disk::{DiskExt, Sector};
+use self::disk::find_partition;
 pub use self::error::{DiskError, PartitionSizeError};
 pub use self::lvm::{LvmDevice, LvmEncryption};
 use self::mount::{swapoff, umount};
@@ -352,6 +353,10 @@ impl Disk {
         Ok(())
     }
 
+    pub fn get_device_type(&self) -> &str {
+        &self.device_type
+    }
+
     /// Obtains an immutable reference to a partition within the partition scheme.
     pub fn get_partition(&self, partition: i32) -> Option<&PartitionInfo> {
         self.partitions.iter().find(|part| part.number == partition)
@@ -596,7 +601,12 @@ impl Disk {
         let sector_size = new.sector_size;
         let device_path = new.device_path.clone();
 
-        let (new_sorted, old_sorted) = sort_partitions(&self.partitions, &new.partitions);
+        let (new_sorted, old_sorted): (Vec<&PartitionInfo>, Vec<&PartitionInfo>) = if !new.mklabel {
+            sort_partitions(&self.partitions, &new.partitions)
+        } else {
+            (new.partitions.iter().collect(), Vec::new())
+        };
+
         info!("libdistinst: proposed layout:{}", {
             let mut output = String::new();
             for partition in &new_sorted {
@@ -607,6 +617,7 @@ impl Disk {
             }
             output
         });
+
         let mut new_parts = new_sorted.iter();
         let mut new_part = None;
 
@@ -734,12 +745,24 @@ impl Disk {
             "libdistinst: reloading disk information for {}",
             self.path().display()
         );
+
+        // Ensure that mount targets are carried over in the new data.
         let mounts: Vec<(u64, PathBuf)> = self.partitions
             .iter()
             .filter_map(|p| match p.target {
                 Some(ref path) => Some((p.start_sector, path.to_path_buf())),
                 None => None,
             })
+            .collect();
+
+        // Ensure that volume groups are carried over in the new data.
+        let vol_groups: Vec<(u64, (String, Option<LvmEncryption>))> = self.partitions
+            .iter()
+            .filter_map(|p| p.volume_group.as_ref()
+                .map(|vg| {
+                    (p.start_sector, vg.clone())
+                })
+            )
             .collect();
 
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
@@ -750,6 +773,14 @@ impl Disk {
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
             part.target = Some(mount);
+        }
+
+        for (sector, volgroup) in vol_groups {
+            info!("libdistinst: checking for mount target at {}", sector);
+            let mut part = self.get_partition_at(sector)
+                .and_then(|num| self.get_partition_mut(num))
+                .expect("partition sectors are off");
+            part.volume_group = Some(volgroup);
         }
 
         Ok(())
@@ -832,29 +863,9 @@ impl Disks {
     }
 
     /// Finds the partition block path and associated partition information that is associated with
-    /// the given target mount point.
+    /// the given target mount point. Scans both physical and logical partitions.
     pub fn find_partition<'a>(&'a self, target: &Path) -> Option<(&'a Path, &'a PartitionInfo)> {
-        for disk in &self.physical {
-            for partition in disk.get_partitions() {
-                if let Some(ref ptarget) = partition.target {
-                    if ptarget == target {
-                        return Some((disk.get_device_path(), partition));
-                    }
-                }
-            }
-        }
-
-        for disk in &self.logical {
-            for partition in disk.get_partitions() {
-                if let Some(ref ptarget) = partition.target {
-                    if ptarget == target {
-                        return Some((disk.get_device_path(), partition));
-                    }
-                }
-            }
-        }
-
-        None
+        find_partition(&self.physical, target).or(find_partition(&self.logical, target))
     }
 
     pub fn find_volume_paths<'a>(&'a self, volume_group: &str) -> Vec<&'a Path> {
@@ -1013,7 +1024,7 @@ impl Disks {
         // First we verify that we have a valid logical layout.
         for device in &self.logical {
             let volumes = self.find_volume_paths(&device.volume_group);
-            debug_assert!(volumes.len() > 0);
+            debug_assert!(!volumes.is_empty());
             if device.encryption.is_some() && volumes.len() > 1 {
                 return Err(DiskError::SameGroup);
             }

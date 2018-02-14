@@ -266,7 +266,7 @@ fn parse_fs(fs: &str) -> PartType {
     if fs.starts_with("enc=") {
         let (mut pass, mut keyfile) = (None, None);
 
-        let mut fields = fs[3..].split(",");
+        let mut fields = fs[4..].split(",");
         let physical_volume = match fields.next() {
             Some(pv) => pv.into(),
             None => {
@@ -285,7 +285,7 @@ fn parse_fs(fs: &str) -> PartType {
 
         for field in fields {
             if field.starts_with("pass=") {
-                let passval = &field[4..];
+                let passval = &field[5..];
                 if passval.is_empty() {
                     eprintln!("distinst: provided password is empty");
                     exit(1);
@@ -293,7 +293,7 @@ fn parse_fs(fs: &str) -> PartType {
 
                 pass = Some(passval.into());
             } else if field.starts_with("keyfile=") {
-                let keyval = &field[7..];
+                let keyval = &field[8..];
                 if keyval.is_empty() {
                     eprintln!("distinst: provided keyval is empty");
                     exit(1);
@@ -655,7 +655,7 @@ fn parse_logical<F: FnMut(LogicalArgs)>(values: Values, mut action: F) {
 
         for arg in values.iter().skip(4) {
             if arg.starts_with("mount=") {
-                let mountval = &arg[5..];
+                let mountval = &arg[6..];
                 if mountval.is_empty() {
                     eprintln!("distinst: mount value is empty");
                     exit(1);
@@ -663,7 +663,7 @@ fn parse_logical<F: FnMut(LogicalArgs)>(values: Values, mut action: F) {
 
                 mount = Some(Path::new(mountval).to_path_buf());
             } else if arg.starts_with("flags=") {
-                let flagval = &arg[5..];
+                let flagval = &arg[6..];
                 if flagval.is_empty() {
                     eprintln!("distinst: mount value is empty");
                     exit(1);
@@ -707,6 +707,7 @@ fn configure_lvm(disks: &mut Disks, logical: Option<Values>) -> Result<(), DiskE
                         PartitionBuilder::new(start, end, args.fs).name(args.name.clone());
 
                     if let Some(mount) = args.mount.as_ref() {
+                        eprintln!("{} was specified as mount", mount.display());
                         builder = builder.mount(mount.clone());
                     }
 

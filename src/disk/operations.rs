@@ -307,7 +307,7 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
     let fs_type = partition
         .file_system
         .clone()
-        .map(|fs| PedFileSystemType::get(fs.into()).unwrap());
+        .and_then(|fs| PedFileSystemType::get(fs.into()));
 
     let mut disk = open_disk(device)?;
     let mut part = PedPartition::new(&disk, part_type, fs_type.as_ref(), start, end)
