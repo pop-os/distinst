@@ -1,0 +1,45 @@
+#!/bin/sh
+FS="tests/filesystem.squashfs"
+REMOVE="tests/filesystem.manifest-remove"
+RUNS=3
+
+if ! test -e "target/debug/distinst"; then
+    cargo build --bin distinst
+fi
+
+if ! test "${1}"; then
+    echo "must provide a block device as an argument"
+    exit 1
+fi
+
+if ! test -b "${1}"; then
+    echo "provided argument is not a block device"
+    exit 1
+fi
+
+for file in "$FS" "$REMOVE"; do
+    if ! test -e "${file}"; then
+        echo "failed to find ${file}"
+        exit 1
+    fi
+done
+
+set -x
+
+echo 'Running LVM on LUKS test'
+index=0; while test ${index} -ne ${RUNS}; do
+    sudo target/debug/distinst --test \
+        -s "${FS}" \
+        -r "${REMOVE}" \
+        -h "pop-testing" \
+        -k "us" \
+        -l "en_US.UTF-8" \
+        -b "$1" \
+        -t "$1:gpt" \
+        -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
+        -n "$1:primary:1024M:end:enc=cryptdata,data,pass=password" \
+        --logical "data:root:-4096M:ext4:mount=/" \
+        --logical "data:swap:4096M:swap"
+
+    index=$((index + 1))
+done

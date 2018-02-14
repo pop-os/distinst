@@ -147,7 +147,13 @@ impl PartitionBuilder {
         self
     }
 
-    /// Sets partition flags for the new partition.
+    /// Sets the input as the flags field for the new partition.
+    pub fn flags(mut self, flags: Vec<PartitionFlag>) -> PartitionBuilder {
+        self.flags = flags;
+        self
+    }
+
+    /// Adds a partition flag for the new partition.
     pub fn flag(mut self, flag: PartitionFlag) -> PartitionBuilder {
         self.flags.push(flag);
         self

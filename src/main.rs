@@ -24,7 +24,7 @@ fn main() {
             Arg::with_name("squashfs")
                 .short("s")
                 .long("squashfs")
-        mmentsharesavehidereportcrosspost        .help("define the squashfs image which will be installed")
+                .help("define the squashfs image which will be installed")
                 .takes_value(true)
                 .required(true),
         )
@@ -692,16 +692,41 @@ fn parse_logical<F: FnMut(LogicalArgs)>(values: Values, mut action: F) {
     }
 }
 
-fn configure_lvm(
-    disks: &mut Disks,
-    logical: Option<Values>,
-) -> Result<(), DiskError> {
-    let mut ops = Vec::new();
-
+fn configure_lvm(disks: &mut Disks, logical: Option<Values>) -> Result<(), DiskError> {
     if let Some(logical) = logical {
         parse_logical(logical, |args| {
-            // TODO: Get the logical device, then add this partition to it.
-            unimplemented!()
+            match disks.find_logical_disk_mut(&args.group) {
+                Some(lvm_device) => {
+                    let start = match lvm_device.get_partitions().iter().last() {
+                        Some(partition) => partition.end_sector + 1,
+                        None => 0,
+                    };
+
+                    let end = start + lvm_device.get_sector(args.size);
+                    let mut builder =
+                        PartitionBuilder::new(start, end, args.fs).name(args.name.clone());
+
+                    if let Some(mount) = args.mount.as_ref() {
+                        builder = builder.mount(mount.clone());
+                    }
+
+                    if let Some(flags) = args.flags.as_ref() {
+                        builder = builder.flags(flags.clone());
+                    }
+
+                    if let Err(why) = lvm_device.add_partition(builder) {
+                        eprintln!("distinst: unable to add partition to lvm device: {}", why);
+                        exit(1);
+                    }
+                }
+                None => {
+                    eprintln!(
+                        "distinst: could not find volume group associated with '{}'",
+                        args.group
+                    );
+                    exit(1);
+                }
+            }
         });
     }
 
@@ -726,10 +751,7 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     eprintln!("distinst: initializing LVM groups");
     disks.initialize_volume_groups();
     eprintln!("distinst: configuring LVM devices");
-    configure_lvm(
-        &mut disks,
-        matches.values_of("logical"),
-    )?;
+    configure_lvm(&mut disks, matches.values_of("logical"))?;
     eprintln!("distisnt: disks configured");
 
     Ok(disks)
