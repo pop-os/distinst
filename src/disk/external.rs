@@ -17,7 +17,6 @@ fn exec(cmd: &str, stdin: Option<&[u8]>, args: &[OsString]) -> io::Result<()> {
             Stdio::null()
         })
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
         .spawn()?;
 
     if let Some(stdin) = stdin {

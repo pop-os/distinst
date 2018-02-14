@@ -85,7 +85,7 @@ impl LvmDevice {
     }
 
     pub(crate) fn create_partitions(&self) -> Result<(), DiskError> {
-        let nparts = self.partitions.len();
+        let nparts = self.partitions.len() - 1;
         for (id, partition) in self.partitions.iter().enumerate() {
             let label = partition.name.as_ref().unwrap();
 

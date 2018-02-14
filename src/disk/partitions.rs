@@ -331,7 +331,7 @@ impl PartitionInfo {
             .map_or(false, |fs| fs == FileSystemType::Swap)
     }
 
-    pub fn path(&self) -> &Path { &self.device_path }
+    pub fn get_device_path(&self) -> &Path { &self.device_path }
 
     pub(crate) fn requires_changes(&self, other: &PartitionInfo) -> bool {
         self.sectors_differ_from(other) || self.filesystem != other.filesystem || other.format

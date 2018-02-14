@@ -285,7 +285,7 @@ impl Disk {
             if let Some(ref mount) = partition.mount_point {
                 info!(
                     "libdistinst: unmounting {}, which is mounted at {}",
-                    partition.path().display(),
+                    partition.get_device_path().display(),
                     mount.display()
                 );
 
@@ -295,8 +295,8 @@ impl Disk {
             partition.mount_point = None;
 
             if partition.swapped {
-                info!("libdistinst: unswapping '{}'", partition.path().display(),);
-                swapoff(&partition.path())?;
+                info!("libdistinst: unswapping '{}'", partition.get_device_path().display(),);
+                swapoff(&partition.get_device_path())?;
             }
 
             partition.swapped = false;
@@ -868,14 +868,14 @@ impl Disks {
         find_partition(&self.physical, target).or(find_partition(&self.logical, target))
     }
 
-    pub fn find_volume_paths<'a>(&'a self, volume_group: &str) -> Vec<&'a Path> {
+    pub fn find_volume_paths<'a>(&'a self, volume_group: &str) -> Vec<(&'a Path, &'a Path)> {
         let mut volumes = Vec::new();
 
         for disk in &self.physical {
             for partition in disk.get_partitions() {
                 if let Some(ref pvolume_group) = partition.volume_group {
                     if pvolume_group.0 == volume_group {
-                        volumes.push(disk.get_device_path());
+                        volumes.push((disk.get_device_path(), partition.get_device_path()));
                     }
                 }
             }
@@ -1042,13 +1042,13 @@ impl Disks {
 
         // Now we will apply the logical layout.
         for device in &self.logical {
-            let volumes: Vec<&Path> = self.find_volume_paths(&device.volume_group);
+            let volumes: Vec<(&Path, &Path)> = self.find_volume_paths(&device.volume_group);
             let mut device_path = None;
 
             // TODO: NLL
             if let Some(encryption) = device.encryption.as_ref() {
-                encryption.encrypt(volumes[0])?;
-                encryption.open(volumes[0])?;
+                encryption.encrypt(volumes[0].1)?;
+                encryption.open(volumes[0].1)?;
                 encryption.create_physical_volume()?;
                 device_path = Some(PathBuf::from(
                     ["/dev/mapper/", &encryption.physical_volume].concat(),
@@ -1060,7 +1060,7 @@ impl Disks {
                 // There will be only one volume, which we obtained from encryption.
                 Some(path) => Box::new(iter::once(path.as_path())),
                 // There may be more than one volume within a unencrypted LVM config.
-                None => Box::new(volumes.into_iter()),
+                None => Box::new(volumes.into_iter().map(|(_, part)| part)),
             };
 
             device.create_volume_group(volumes)?;
