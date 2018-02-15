@@ -82,7 +82,7 @@ pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<
         FileSystemType::F2fs => ("mkfs.f2fs", &["-q"]),
         FileSystemType::Fat16 => ("mkfs.fat", &["-F", "16"]),
         FileSystemType::Fat32 => ("mkfs.fat", &["-F", "32"]),
-        FileSystemType::Ntfs => ("mkfs.ntfs", &["-F", "-q"]),
+        FileSystemType::Ntfs => ("mkfs.ntfs", &["-FQ", "-q"]),
         FileSystemType::Swap => ("mkswap", &["-f"]),
         FileSystemType::Xfs => ("mkfs.xfs", &["-f"]),
         FileSystemType::Lvm => return Ok(()),
