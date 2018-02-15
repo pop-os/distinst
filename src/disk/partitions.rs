@@ -28,7 +28,7 @@ impl FileSystemType {
             FileSystemType::Fat16 | FileSystemType::Fat32 => "umask=0077",
             FileSystemType::Ext4 => "noatime,errors=remount-ro",
             FileSystemType::Swap => "sw",
-            _ => "default",
+            _ => "defaults",
         }
     }
 }
