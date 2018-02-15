@@ -42,7 +42,14 @@ pub struct Mounts(pub Vec<Mount>);
 impl Mounts {
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
-        self.0.iter_mut().rev().map(|mount| mount.unmount(lazy)).collect()
+        // TODO: Rust 1.23
+        // self.0.iter_mut().rev().map(|mount| mount.unmount(lazy)).collect()
+
+        for mount in self.0.iter_mut().rev() {
+            mount.unmount(lazy)?;
+        }
+
+        Ok(())
     }
 }
 

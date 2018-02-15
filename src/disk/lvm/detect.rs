@@ -15,6 +15,7 @@ pub(crate) fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec
             "libdistinst: checking if {} needs to be marked",
             pv.display()
         );
+
         if let Ok(path) = read_link(pv) {
             // NOTE: It would be nice if Rust supported &[&OsStr] -> OsString concat().
             //       This block wouldn't be needed if you could do that...
