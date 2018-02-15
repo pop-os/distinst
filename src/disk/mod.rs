@@ -11,18 +11,19 @@ mod resize;
 mod serial;
 mod swaps;
 
+pub use libparted::PartitionFlag;
 pub use self::disk::{DiskExt, Sector};
-use self::disk::find_partition;
 pub use self::error::{DiskError, PartitionSizeError};
 pub use self::lvm::{LvmDevice, LvmEncryption};
+pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
+pub use self::swaps::Swaps;
+use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
+use self::disk::find_partition;
+use self::external::{pvs, pvremove, cryptsetup_close, deactivate_volumes};
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
 use self::operations::*;
-pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
 use self::serial::get_serial;
-pub use self::swaps::Swaps;
-use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
-pub use libparted::PartitionFlag;
 
 use std::ffi::OsString;
 use std::io;
@@ -818,6 +819,48 @@ impl Disks {
     pub fn get_logical_devices(&self) -> &[LvmDevice] { &self.logical }
 
     pub fn get_logical_devices_mut(&mut self) -> &mut [LvmDevice] { &mut self.logical }
+
+    pub fn get_device_paths_to_modify(&self) -> Vec<PathBuf> {
+        let mut output = Vec::new();
+        for dev in self.get_physical_devices() {
+            if dev.mklabel {
+                for part in Disk::from_name_with_serial(&dev.device_path, &dev.serial)
+                    .unwrap()
+                    .get_partitions()
+                    .iter()
+                    .map(|part| part.get_device_path())
+                {
+                    output.push(part.to_path_buf());
+                }
+            } else {
+                for part in dev.get_partitions()
+                    .iter()
+                    .filter(|part| part.is_source && (part.remove || part.format))
+                    .map(|part| part.get_device_path())
+                {
+                    output.push(part.to_path_buf());
+                }
+            }
+        }
+
+        output
+    }
+
+    /// Deactivates all device maps associated with the inner disks/partitions to be modified.
+    pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
+        let devices_to_modify = self.get_device_paths_to_modify();
+        let volume_map = pvs().map_err(|why| DiskError::ExternalCommand { why })?;
+        for pv in lvm::physical_volumes_to_deactivate(&devices_to_modify) {
+            if let Some(vg) = volume_map.get(&pv) {
+                deactivate_volumes(&vg)
+                    .and_then(|_| pvremove(&pv))
+                    .and_then(|_| cryptsetup_close(&pv))
+                    .map_err(|why| DiskError::ExternalCommand { why })?;
+            }
+        }
+
+        Ok(())
+    }
 
     /// Probes for and returns disk information for every disk in the system.
     pub fn probe_devices() -> Result<Disks, DiskError> {

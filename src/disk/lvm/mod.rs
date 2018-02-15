@@ -1,5 +1,10 @@
+mod detect;
+mod encryption;
+
+pub use self::encryption::LvmEncryption;
+pub(crate) use self::detect::physical_volumes_to_deactivate;
 use super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
-use super::external::{cryptsetup_encrypt, cryptsetup_open, lvcreate, mkfs, pvcreate, vgcreate};
+use super::external::{lvcreate, mkfs, vgcreate};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -108,50 +113,5 @@ impl LvmDevice {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct LvmEncryption {
-    pub(crate) physical_volume: String,
-    pub(crate) password:        Option<String>,
-    pub(crate) keyfile:         Option<PathBuf>,
-}
-
-impl LvmEncryption {
-    pub fn new<S: Into<Option<String>>, P: Into<Option<PathBuf>>>(
-        physical_volume: String,
-        password: S,
-        keyfile: P,
-    ) -> LvmEncryption {
-        LvmEncryption {
-            physical_volume,
-            password: password.into(),
-            keyfile: keyfile.into(),
-        }
-    }
-
-    pub(crate) fn encrypt(&self, device: &Path) -> Result<(), DiskError> {
-        cryptsetup_encrypt(device, self).map_err(|why| DiskError::Encryption {
-            volume: device.into(),
-            why,
-        })
-    }
-
-    pub(crate) fn open(&self, device: &Path) -> Result<(), DiskError> {
-        cryptsetup_open(device, &self.physical_volume, self).map_err(|why| {
-            DiskError::EncryptionOpen {
-                volume: device.into(),
-                why,
-            }
-        })
-    }
-
-    pub(crate) fn create_physical_volume(&self) -> Result<(), DiskError> {
-        let path = ["/dev/mapper/", &self.physical_volume].concat();
-        pvcreate(&path).map_err(|why| DiskError::PhysicalVolumeCreate {
-            volume: self.physical_volume.clone(),
-            why,
-        })
     }
 }

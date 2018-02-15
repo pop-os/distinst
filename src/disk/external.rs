@@ -1,12 +1,20 @@
 //! A collection of external commands used throughout the program.
 
 use super::{FileSystemType, LvmEncryption};
+use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::io::{self, BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-fn exec(cmd: &str, stdin: Option<&[u8]>, args: &[OsString]) -> io::Result<()> {
+const PVS_FIELD_ERR: &str = "pvs returned invalid line";
+
+fn exec(
+    cmd: &str,
+    stdin: Option<&[u8]>,
+    valid_codes: Option<&'static [i32]>,
+    args: &[OsString]
+) -> io::Result<()> {
     info!("libdistinst: executing {} with {:?}", cmd, args);
 
     let mut child = Command::new(cmd)
@@ -28,7 +36,12 @@ fn exec(cmd: &str, stdin: Option<&[u8]>, args: &[OsString]) -> io::Result<()> {
     }
 
     let status = child.wait()?;
-    if status.success() {
+    let success = status.success()
+        || valid_codes.map_or(false, |codes| {
+            status.code().map_or(false, |code| codes.contains(&code))
+        });
+
+    if success {
         Ok(())
     } else {
         Err(io::Error::new(
@@ -41,15 +54,15 @@ fn exec(cmd: &str, stdin: Option<&[u8]>, args: &[OsString]) -> io::Result<()> {
 /// Checks & corrects errors with partitions that have been moved / resized.
 pub(crate) fn fsck<P: AsRef<Path>>(part: P, cmd: Option<(&str, &str)>) -> io::Result<()> {
     let (cmd, arg) = cmd.unwrap_or(("fsck", "-fy"));
-    exec(cmd, None, &vec![arg.into(), part.as_ref().into()])
+    exec(cmd, None, None, &vec![arg.into(), part.as_ref().into()])
 }
 
 /// Utilized for ensuring that block & partition information has synced with the OS.
-pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
+pub(crate) fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
     disk: P,
     args: I,
 ) -> io::Result<()> {
-    exec("blockdev", None, &{
+    exec("blockdev", None, None, &{
         let mut args = args.into_iter()
             .map(|x| x.as_ref().into())
             .collect::<Vec<OsString>>();
@@ -59,7 +72,7 @@ pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
 }
 
 /// Formats the supplied `part` device with the file system specified.
-pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
+pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
     let (cmd, args): (&'static str, &'static [&'static str]) = match kind {
         FileSystemType::Btrfs => ("mkfs.btrfs", &["-f"]),
         FileSystemType::Exfat => ("mkfs.exfat", &[]),
@@ -75,7 +88,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
         FileSystemType::Lvm => return Ok(()),
     };
 
-    exec(cmd, None, &{
+    exec(cmd, None, None, &{
         let mut args = args.into_iter().map(Into::into).collect::<Vec<OsString>>();
         args.push(part.as_ref().into());
         args
@@ -83,13 +96,13 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
 }
 
 /// Used to create a physical volume on a LUKS partition.
-pub fn pvcreate<P: AsRef<Path>>(device: P) -> io::Result<()> {
-    exec("pvcreate", None, &vec![device.as_ref().into()])
+pub(crate) fn pvcreate<P: AsRef<Path>>(device: P) -> io::Result<()> {
+    exec("pvcreate", None, None, &vec![device.as_ref().into()])
 }
 
 /// Used to create a volume group from one or more physical volumes.
-pub fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(group: &str, devices: I) -> io::Result<()> {
-    exec("vgcreate", None, &{
+pub(crate) fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(group: &str, devices: I) -> io::Result<()> {
+    exec("vgcreate", None, None, &{
         let mut args = Vec::with_capacity(16);
         args.push(group.into());
         args.extend(devices.map(|x| x.as_ref().into()));
@@ -98,9 +111,10 @@ pub fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(group: &str, devices: I)
 }
 
 /// Used to create a logical volume on a volume group.
-pub fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result<()> {
+pub(crate) fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result<()> {
     exec(
         "lvcreate",
+        None,
         None,
         &size.map_or(
             [
@@ -134,12 +148,13 @@ fn append_newline(input: &[u8]) -> Vec<u8> {
 
 /// Creates a LUKS partition from a physical partition. This could be either a LUKS on LVM
 /// configuration, or a LVM on LUKS configurations.
-pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
+pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
     match (enc.password.as_ref(), enc.keyfile.as_ref()) {
         (Some(password), Some(keyfile)) => unimplemented!(),
         (Some(password), None) => exec(
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
+            None,
             &vec![
                 "-s".into(),
                 "512".into(),
@@ -155,12 +170,13 @@ pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> 
 }
 
 /// Opens an encrypted partition and maps it to the group name.
-pub fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -> io::Result<()> {
+pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -> io::Result<()> {
     match (enc.password.as_ref(), enc.keyfile.as_ref()) {
         (Some(password), Some(keyfile)) => unimplemented!(),
         (Some(password), None) => exec(
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
+            None,
             &vec!["open".into(), device.into(), group.into()],
         ),
         (None, Some(keyfile)) => unimplemented!(),
@@ -169,19 +185,31 @@ pub fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -> io::R
 }
 
 /// Closes an encrypted partition.
-pub fn cryptsetup_close(device: &Path) -> io::Result<()> {
+pub(crate) fn cryptsetup_close(device: &Path) -> io::Result<()> {
     let args = &vec!["close".into(), device.into()];
-    exec("cryptsetup", None, args)
+    exec("cryptsetup", None, Some(&[4]), args)
 }
 
-/// Returns a list of mapped devices found on the system.
-pub fn dmsetup() -> io::Result<Vec<String>> {
-    let mut current_line = String::with_capacity(32);
-    let mut output = Vec::with_capacity(8);
+pub(crate) fn deactivate_volumes(volume_group: &str) -> io::Result<()> {
+    let args = &vec!["-ffyan".into(), volume_group.into()];
+    exec("vgchange", None, None, args)
+}
+
+pub(crate) fn pvremove(physical_volume: &Path) -> io::Result<()> {
+    let args = &vec![
+        "-ffy".into(),
+        physical_volume.into(),
+    ];
+    exec("pvremove", None, None, args)
+}
+
+pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, String>> {
+    info!("libdistinst: obtaining PV - VG map from pvs");
+    let mut current_line = String::with_capacity(64);
+    let mut output = BTreeMap::new();
 
     let mut reader = BufReader::new(
-        Command::new("dmsetup")
-            .arg("ls")
+        Command::new("pvs")
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()?
@@ -189,24 +217,25 @@ pub fn dmsetup() -> io::Result<Vec<String>> {
             .unwrap(),
     );
 
+    // Skip the first line of output
+    let _ = reader.read_line(&mut current_line);
+    current_line.clear();
+
     while reader.read_line(&mut current_line)? != 0 {
-        output.push(current_line.clone());
+        {
+            let mut fields = current_line.split_whitespace();
+            let (pv, vg) = (
+                fields.next().expect(PVS_FIELD_ERR),
+                fields.next().expect(PVS_FIELD_ERR)
+            );
+
+            output.insert(PathBuf::from(pv), vg.into());
+        }
+
         current_line.clear();
     }
+
     Ok(output)
-}
-
-pub fn deactivate_volumes(volume_group: &str) -> io::Result<()> {
-    let args = &vec!["-affyn".into(), volume_group.into()];
-    exec("vgchange", None, args)
-}
-
-pub fn pvremove(physical_volume: &str) -> io::Result<()> {
-    let args = &vec![
-        "-ffy".into(),
-        ["/dev/mapper/", physical_volume].concat().into(),
-    ];
-    exec("pvremove", None, args)
 }
 
 fn mebibytes(bytes: u64) -> String { format!("{}", bytes / (1024 * 1024)) }

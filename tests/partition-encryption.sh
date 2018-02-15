@@ -13,7 +13,7 @@ if ! test "${1}"; then
 fi
 
 if ! test -b "${1}"; then
-    echo "provided argument is not a block device"
+    echo "'${1}' is not a block device"
     exit 1
 fi
 
@@ -28,7 +28,7 @@ set -x
 
 echo 'Running LVM on LUKS test'
 index=0; while test ${index} -ne ${RUNS}; do
-    sudo target/debug/distinst --test \
+    sudo env RUST_BACKTRACE=1 target/debug/distinst --test \
         -s "${FS}" \
         -r "${REMOVE}" \
         -h "pop-testing" \
@@ -37,7 +37,7 @@ index=0; while test ${index} -ne ${RUNS}; do
         -b "$1" \
         -t "$1:gpt" \
         -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
-        -n "$1:primary:1024M:end:enc=cryptdata,data,pass=password" \
+        -n "$1:primary:512M:end:enc=cryptdata,data,pass=password" \
         --logical "data:root:-4096M:ext4:mount=/" \
         --logical "data:swap:4096M:swap"
 

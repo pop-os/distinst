@@ -23,6 +23,8 @@ pub enum DiskError {
     Encryption { volume: PathBuf, why: io::Error },
     #[fail(display = "unable to open encrypted volume '{:?}': {}", volume, why)]
     EncryptionOpen { volume: PathBuf, why: io::Error },
+    #[fail(display = "problem executing external command: {}", why)]
+    ExternalCommand { why: io::Error },
     #[fail(display = "serial model does not match")]
     InvalidSerial,
     #[fail(display = "failed to create partition geometry: {}", why)]
