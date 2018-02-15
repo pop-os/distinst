@@ -1,5 +1,5 @@
-use disk::external::{cryptsetup_open, cryptsetup_encrypt, pvcreate};
 use disk::DiskError;
+use disk::external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq)]

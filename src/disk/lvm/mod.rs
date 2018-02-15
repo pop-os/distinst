@@ -1,8 +1,8 @@
 mod detect;
 mod encryption;
 
-pub use self::encryption::LvmEncryption;
 pub(crate) use self::detect::physical_volumes_to_deactivate;
+pub use self::encryption::LvmEncryption;
 use super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
 use super::external::{lvcreate, mkfs, vgcreate};
 use std::ffi::OsStr;

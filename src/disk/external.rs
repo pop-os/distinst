@@ -7,13 +7,11 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-const PVS_FIELD_ERR: &str = "pvs returned invalid line";
-
 fn exec(
     cmd: &str,
     stdin: Option<&[u8]>,
     valid_codes: Option<&'static [i32]>,
-    args: &[OsString]
+    args: &[OsString],
 ) -> io::Result<()> {
     info!("libdistinst: executing {} with {:?}", cmd, args);
 
@@ -36,10 +34,9 @@ fn exec(
     }
 
     let status = child.wait()?;
-    let success = status.success()
-        || valid_codes.map_or(false, |codes| {
-            status.code().map_or(false, |code| codes.contains(&code))
-        });
+    let success = status.success() || valid_codes.map_or(false, |codes| {
+        status.code().map_or(false, |code| codes.contains(&code))
+    });
 
     if success {
         Ok(())
@@ -101,13 +98,20 @@ pub(crate) fn pvcreate<P: AsRef<Path>>(device: P) -> io::Result<()> {
 }
 
 /// Used to create a volume group from one or more physical volumes.
-pub(crate) fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(group: &str, devices: I) -> io::Result<()> {
+pub(crate) fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(
+    group: &str,
+    devices: I,
+) -> io::Result<()> {
     exec("vgcreate", None, None, &{
         let mut args = Vec::with_capacity(16);
         args.push(group.into());
         args.extend(devices.map(|x| x.as_ref().into()));
         args
     })
+}
+
+pub(crate) fn vgremove(group: &str) -> io::Result<()> {
+    exec("vgremove", None, None, &vec!["-ffy".into(), group.into()])
 }
 
 /// Used to create a logical volume on a volume group.
@@ -196,14 +200,11 @@ pub(crate) fn deactivate_volumes(volume_group: &str) -> io::Result<()> {
 }
 
 pub(crate) fn pvremove(physical_volume: &Path) -> io::Result<()> {
-    let args = &vec![
-        "-ffy".into(),
-        physical_volume.into(),
-    ];
+    let args = &vec!["-ffy".into(), physical_volume.into()];
     exec("pvremove", None, None, args)
 }
 
-pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, String>> {
+pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
     info!("libdistinst: obtaining PV - VG map from pvs");
     let mut current_line = String::with_capacity(64);
     let mut output = BTreeMap::new();
@@ -223,13 +224,19 @@ pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, String>> {
 
     while reader.read_line(&mut current_line)? != 0 {
         {
-            let mut fields = current_line.split_whitespace();
-            let (pv, vg) = (
-                fields.next().expect(PVS_FIELD_ERR),
-                fields.next().expect(PVS_FIELD_ERR)
-            );
-
-            output.insert(PathBuf::from(pv), vg.into());
+            let line = &current_line[2..];
+            match line.find(' ') {
+                Some(pos) => {
+                    let pv = &line[..pos];
+                    let line = &line[pos + 1..];
+                    let vg = &line[..line.find(' ').unwrap_or(0)];
+                    output.insert(
+                        PathBuf::from(pv),
+                        if vg.is_empty() { None } else { Some(vg.into()) },
+                    );
+                }
+                None => (),
+            }
         }
 
         current_line.clear();

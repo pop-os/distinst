@@ -187,12 +187,8 @@ impl Installer {
         // Deactivate any open logical volumes & close any encrypted partitions.
         if let Err(why) = disks.deactivate_device_maps() {
             error!("lvm deactivation error: {}", why);
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("{}", why)
-            ));
+            return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
         }
-        
 
         let squashfs = match Path::new(&config.squashfs).canonicalize() {
             Ok(squashfs) => if squashfs.exists() {

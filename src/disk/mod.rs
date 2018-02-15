@@ -11,19 +11,19 @@ mod resize;
 mod serial;
 mod swaps;
 
-pub use libparted::PartitionFlag;
 pub use self::disk::{DiskExt, Sector};
-pub use self::error::{DiskError, PartitionSizeError};
-pub use self::lvm::{LvmDevice, LvmEncryption};
-pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
-pub use self::swaps::Swaps;
-use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 use self::disk::find_partition;
-use self::external::{pvs, pvremove, cryptsetup_close, deactivate_volumes};
+pub use self::error::{DiskError, PartitionSizeError};
+use self::external::{cryptsetup_close, deactivate_volumes, pvremove, pvs, vgremove};
+pub use self::lvm::{LvmDevice, LvmEncryption};
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
 use self::operations::*;
+pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
 use self::serial::get_serial;
+pub use self::swaps::Swaps;
+use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
+pub use libparted::PartitionFlag;
 
 use std::ffi::OsString;
 use std::io;
@@ -824,6 +824,8 @@ impl Disks {
         let mut output = Vec::new();
         for dev in self.get_physical_devices() {
             if dev.mklabel {
+                // Devices with this set no longer hold the original source partitions.
+                // TODO: Maybe have a backup field with the old partitions?
                 for part in Disk::from_name_with_serial(&dev.device_path, &dev.serial)
                     .unwrap()
                     .get_partitions()
@@ -851,11 +853,16 @@ impl Disks {
         let devices_to_modify = self.get_device_paths_to_modify();
         let volume_map = pvs().map_err(|why| DiskError::ExternalCommand { why })?;
         for pv in lvm::physical_volumes_to_deactivate(&devices_to_modify) {
-            if let Some(vg) = volume_map.get(&pv) {
-                deactivate_volumes(&vg)
+            match volume_map.get(&pv) {
+                Some(&Some(ref vg)) => deactivate_volumes(vg)
+                    .and_then(|_| vgremove(vg))
                     .and_then(|_| pvremove(&pv))
                     .and_then(|_| cryptsetup_close(&pv))
-                    .map_err(|why| DiskError::ExternalCommand { why })?;
+                    .map_err(|why| DiskError::ExternalCommand { why })?,
+                Some(&None) => {
+                    cryptsetup_close(&pv).map_err(|why| DiskError::ExternalCommand { why })?
+                }
+                None => (),
             }
         }
 
