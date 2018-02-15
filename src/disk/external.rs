@@ -2,7 +2,7 @@
 
 use super::{FileSystemType, LvmEncryption};
 use std::ffi::{OsStr, OsString};
-use std::io::{self, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -166,6 +166,47 @@ pub fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -> io::R
         (None, Some(keyfile)) => unimplemented!(),
         (None, None) => unimplemented!(),
     }
+}
+
+/// Closes an encrypted partition.
+pub fn cryptsetup_close(device: &Path) -> io::Result<()> {
+    let args = &vec!["close".into(), device.into()];
+    exec("cryptsetup", None, args)
+}
+
+/// Returns a list of mapped devices found on the system.
+pub fn dmsetup() -> io::Result<Vec<String>> {
+    let mut current_line = String::with_capacity(32);
+    let mut output = Vec::with_capacity(8);
+
+    let mut reader = BufReader::new(
+        Command::new("dmsetup")
+            .arg("ls")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?
+            .stdout
+            .unwrap(),
+    );
+
+    while reader.read_line(&mut current_line)? != 0 {
+        output.push(current_line.clone());
+        current_line.clear();
+    }
+    Ok(output)
+}
+
+pub fn deactivate_volumes(volume_group: &str) -> io::Result<()> {
+    let args = &vec!["-affyn".into(), volume_group.into()];
+    exec("vgchange", None, args)
+}
+
+pub fn pvremove(physical_volume: &str) -> io::Result<()> {
+    let args = &vec![
+        "-ffy".into(),
+        ["/dev/mapper/", physical_volume].concat().into(),
+    ];
+    exec("pvremove", None, args)
 }
 
 fn mebibytes(bytes: u64) -> String { format!("{}", bytes / (1024 * 1024)) }

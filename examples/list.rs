@@ -1,6 +1,6 @@
 extern crate distinst;
 
-use distinst::{Disks, DiskExt};
+use distinst::{DiskExt, Disks};
 use std::io::Result;
 use std::process;
 

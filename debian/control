@@ -25,6 +25,7 @@ Depends:
   btrfs-progs,
   coreutils,
   cryptsetup,
+  dmsetup,
   dosfstools,
   e2fsprogs,
   exfat-utils,

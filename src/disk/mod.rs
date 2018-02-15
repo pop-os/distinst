@@ -295,7 +295,10 @@ impl Disk {
             partition.mount_point = None;
 
             if partition.swapped {
-                info!("libdistinst: unswapping '{}'", partition.get_device_path().display(),);
+                info!(
+                    "libdistinst: unswapping '{}'",
+                    partition.get_device_path().display(),
+                );
                 swapoff(&partition.get_device_path())?;
             }
 
@@ -353,9 +356,7 @@ impl Disk {
         Ok(())
     }
 
-    pub fn get_device_type(&self) -> &str {
-        &self.device_type
-    }
+    pub fn get_device_type(&self) -> &str { &self.device_type }
 
     /// Obtains an immutable reference to a partition within the partition scheme.
     pub fn get_partition(&self, partition: i32) -> Option<&PartitionInfo> {
@@ -758,11 +759,11 @@ impl Disk {
         // Ensure that volume groups are carried over in the new data.
         let vol_groups: Vec<(u64, (String, Option<LvmEncryption>))> = self.partitions
             .iter()
-            .filter_map(|p| p.volume_group.as_ref()
-                .map(|vg| {
-                    (p.start_sector, vg.clone())
-                })
-            )
+            .filter_map(|p| {
+                p.volume_group
+                    .as_ref()
+                    .map(|vg| (p.start_sector, vg.clone()))
+            })
             .collect();
 
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
