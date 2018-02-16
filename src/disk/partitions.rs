@@ -1,4 +1,4 @@
-use super::{LvmEncryption, Mounts, PartitionSizeError, Swaps};
+use super::{get_uuid, LvmEncryption, Mounts, PartitionSizeError, Swaps};
 use libparted::{Partition, PartitionFlag};
 use std::ffi::{OsStr, OsString};
 use std::io;
@@ -378,36 +378,34 @@ impl PartitionInfo {
             return None;
         }
 
-        let uuid_dir =
-            ::std::fs::read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
-
-        for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-            if uuid_entry.path().canonicalize().unwrap() == self.device_path {
-                let fs = self.filesystem.clone().unwrap();
-                return Some(BlockInfo {
-                    uuid:    uuid_entry.file_name(),
-                    mount:   if fs == FileSystemType::Swap {
-                        None
-                    } else {
-                        Some(self.target.clone().unwrap())
-                    },
-                    fs:      match fs {
-                        FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
-                        FileSystemType::Swap => "swap",
-                        _ => fs.clone().into(),
-                    },
-                    options: fs.get_preferred_options().into(),
-                    dump:    false,
-                    pass:    false,
-                });
+        let result = get_uuid(&self.device_path).map(|uuid| {
+            let fs = self.filesystem.clone().unwrap();
+            BlockInfo {
+                uuid,
+                mount: if fs == FileSystemType::Swap {
+                    None
+                } else {
+                    Some(self.target.clone().unwrap())
+                },
+                fs: match fs {
+                    FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
+                    FileSystemType::Swap => "swap",
+                    _ => fs.clone().into(),
+                },
+                options: fs.get_preferred_options().into(),
+                dump: false,
+                pass: false,
             }
+        });
+
+        if !result.is_some() {
+            error!(
+                "{}: no UUID associated with device",
+                self.device_path.display()
+            );
         }
 
-        error!(
-            "{}: no UUID associated with device",
-            self.device_path.display()
-        );
-        None
+        result
     }
 }
 

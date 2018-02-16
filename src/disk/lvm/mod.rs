@@ -1,7 +1,7 @@
 mod detect;
 mod encryption;
 
-pub(crate) use self::detect::physical_volumes_to_deactivate;
+pub(crate) use self::detect::{device_maps, physical_volumes_to_deactivate};
 pub use self::encryption::LvmEncryption;
 use super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
 use super::external::{lvcreate, mkfs, vgcreate};

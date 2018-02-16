@@ -16,6 +16,7 @@ use self::disk::find_partition;
 pub use self::error::{DiskError, PartitionSizeError};
 use self::external::{cryptsetup_close, deactivate_volumes, pvremove, pvs, vgremove};
 pub use self::lvm::{LvmDevice, LvmEncryption};
+pub(crate) use self::lvm::device_maps;
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
 use self::operations::*;
@@ -1053,7 +1054,7 @@ impl Disks {
 
                 match get_uuid(&partition.device_path) {
                     Some(uuid) => {
-                        crypttab.push("luks");
+                        crypttab.push(&enc.physical_volume);
                         crypttab.push(" UUID=");
                         crypttab.push(&uuid);
                         crypttab.push(" ");
@@ -1178,13 +1179,26 @@ impl FromIterator<Disk> for Disks {
     }
 }
 
+pub(crate) fn is_device_map(path: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let path_string = path.as_os_str();
+    path_string.len() > 12 && &path_string.as_bytes()[..12] == b"/dev/mapper/"
+}
+
 fn get_uuid(path: &Path) -> Option<OsString> {
     let uuid_dir =
         ::std::fs::read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
 
-    for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-        if &uuid_entry.path().canonicalize().unwrap() == path {
-            return Some(uuid_entry.file_name());
+    if let Ok(path) = path.canonicalize() {
+        eprintln!("DEBUG: Checking for {}", path.display());
+        for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
+            eprintln!(
+                "DEBUG: is {} a match?",
+                uuid_entry.path().canonicalize().unwrap().display()
+            );
+            if &uuid_entry.path().canonicalize().unwrap() == &path {
+                return Some(uuid_entry.file_name());
+            }
         }
     }
 

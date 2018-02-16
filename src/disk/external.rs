@@ -43,7 +43,14 @@ fn exec(
     } else {
         Err(io::Error::new(
             io::ErrorKind::Other,
-            format!("{} failed with status: {}", cmd, status),
+            format!(
+                "{} failed with status: {}",
+                cmd,
+                match status.code() {
+                    Some(code) => format!("{} ({})", code, io::Error::from_raw_os_error(code)),
+                    None => "unknown".into(),
+                }
+            ),
         ))
     }
 }

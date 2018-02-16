@@ -53,7 +53,7 @@ pub(crate) fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec
     discovered
 }
 
-fn device_maps<F: FnMut(&Path)>(mut action: F) {
+pub(crate) fn device_maps<F: FnMut(&Path)>(mut action: F) {
     read_dirs("/dev/mapper", |pv| action(&pv.path())).unwrap()
 }
 
