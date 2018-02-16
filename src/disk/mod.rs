@@ -1056,6 +1056,8 @@ impl Disks {
                         crypttab.push("luks");
                         crypttab.push(" UUID=");
                         crypttab.push(&uuid);
+                        crypttab.push(" ");
+                        crypttab.push(password);
                         crypttab.push(" luks,timeout=90\n");
                     }
                     None => error!(
