@@ -406,7 +406,7 @@ fn configure_tables(disks: &mut Disks, tables: Option<Values>) -> Result<(), Dis
             }
 
             match disks.find_disk_mut(values[0]) {
-                Some(mut disk) => match values[1] {
+                Some(disk) => match values[1] {
                     "gpt" => disk.mklabel(PartitionTable::Gpt)?,
                     "msdos" => disk.mklabel(PartitionTable::Msdos)?,
                     _ => {
@@ -450,7 +450,7 @@ fn configure_removed(disks: &mut Disks, ops: Option<Values>) -> Result<(), DiskE
                 };
 
                 let disk = find_disk_mut(disks, block_dev);
-                let mut partition = find_partition_mut(disk, part_id as i32);
+                let partition = find_partition_mut(disk, part_id as i32);
                 partition.remove();
             }
         }
@@ -490,7 +490,7 @@ fn configure_moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskE
                 },
             );
 
-            let mut disk = find_disk_mut(disks, block);
+            let disk = find_disk_mut(disks, block);
             if let Some(start) = start {
                 let start = disk.get_sector(start);
                 disk.move_partition(partition, start)?;
@@ -539,7 +539,7 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
             );
 
             let disk = find_disk_mut(disks, block_dev);
-            let mut partition = find_partition_mut(disk, part_id);
+            let partition = find_partition_mut(disk, part_id);
 
             if let Some(mount) = mount {
                 partition.set_mount(Path::new(mount).to_path_buf());
@@ -592,7 +592,7 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
                 values.get(6).map(|&flags| parse_flags(flags)),
             );
 
-            let mut disk = find_disk_mut(disks, block);
+            let disk = find_disk_mut(disks, block);
 
             let start = disk.get_sector(start);
             let end = disk.get_sector(end);

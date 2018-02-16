@@ -635,7 +635,7 @@ impl Disk {
         } else {
             'outer: for source in &old_sorted {
                 loop {
-                    let mut next_part = new_part.take().or_else(|| new_parts.next());
+                    let next_part = new_part.take().or_else(|| new_parts.next());
                     if let Some(new) = next_part {
                         // Source partitions may be removed or changed.
                         if new.is_source {
@@ -771,7 +771,7 @@ impl Disk {
 
         for (sector, mount) in mounts {
             info!("libdistinst: checking for mount target at {}", sector);
-            let mut part = self.get_partition_at(sector)
+            let part = self.get_partition_at(sector)
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
             part.target = Some(mount);
@@ -779,7 +779,7 @@ impl Disk {
 
         for (sector, volgroup) in vol_groups {
             info!("libdistinst: checking for mount target at {}", sector);
-            let mut part = self.get_partition_at(sector)
+            let part = self.get_partition_at(sector)
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
             part.volume_group = Some(volgroup);
@@ -991,7 +991,7 @@ impl Disks {
     }
 
     /// Generates fstab entries in memory
-    pub fn generate_fstab(&self) -> OsString {
+    pub(crate) fn generate_fstab(&self) -> OsString {
         info!("libdistinst: generating fstab in memory");
         let mut fstab = OsString::with_capacity(1024);
 
@@ -1030,6 +1030,43 @@ impl Disks {
 
         fstab.shrink_to_fit();
         fstab
+    }
+
+    /// Similar to `generate_fstab`, but for the crypttab file.
+    pub fn generate_crypttab(&self) -> OsString {
+        info!("libdistinst: generating crypttab in memory");
+        let mut crypttab = OsString::with_capacity(1024);
+
+        let fs_entries = self.physical.iter().flat_map(|disk| disk.partitions.iter());
+
+        let logical_entries = self.logical.iter().flat_map(|disk| disk.partitions.iter());
+
+        // <PV> <UUID> <Pass> <Options>
+        for partition in fs_entries.chain(logical_entries) {
+            if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
+                let password = match (enc.password.is_some(), enc.keyfile.as_ref()) {
+                    (true, None) => "none",
+                    (false, None) => "/dev/urandom",
+                    (true, Some(key)) => unimplemented!(),
+                    (false, Some(key)) => unimplemented!(),
+                };
+
+                match get_uuid(&partition.device_path) {
+                    Some(uuid) => {
+                        crypttab.push("luks");
+                        crypttab.push(" UUID=");
+                        crypttab.push(&uuid);
+                        crypttab.push(" luks,timeout=90\n");
+                    }
+                    None => error!(
+                        "unable to find UUID for {} -- skipping",
+                        partition.device_path.display()
+                    ),
+                }
+            }
+        }
+
+        crypttab
     }
 
     /// Generates intial LVM devices with a clean slate, using partition information.
@@ -1137,6 +1174,19 @@ impl FromIterator<Disk> for Disks {
             logical:  Vec::new(),
         }
     }
+}
+
+fn get_uuid(path: &Path) -> Option<OsString> {
+    let uuid_dir =
+        ::std::fs::read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
+
+    for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
+        if &uuid_entry.path().canonicalize().unwrap() == path {
+            return Some(uuid_entry.file_name());
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]

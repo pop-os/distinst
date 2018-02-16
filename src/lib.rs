@@ -375,7 +375,13 @@ impl Installer {
             file.sync_all()?;
         }
 
-        // TODO: /etc/crypttab
+        {
+            info!("libdistinst: writing /etc/crypttab");
+            let crypttab = mount_dir.join("etc/crypttab");
+            let mut file = fs::File::create(&crypttab)?;
+            file.write_all(disks.generate_crypttab().as_bytes())?;
+            file.sync_all()?;
+        }
 
         let root_entry = {
             info!("libdistinst: retrieving root partition");
