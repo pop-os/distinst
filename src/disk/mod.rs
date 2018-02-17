@@ -984,23 +984,56 @@ impl Disks {
     /// Ensures that EFI installs contain a `/boot/efi` and `/` partition, whereas MBR installs
     /// contain a `/` partition. Additionally, the EFI partition must have the ESP flag set.
     pub fn verify_partitions(&self, bootloader: Bootloader) -> io::Result<()> {
-        let _root = self.find_partition(Path::new("/")).ok_or_else(|| {
+        let (_, root) = self.find_partition(Path::new("/")).ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "root partition was not defined",
             )
         })?;
 
+        use FileSystemType::*;
+        match root.filesystem {
+            Some(Fat16) | Some(Fat32) | Some(Ntfs) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "root partition has invalid file system",
+                ));
+            }
+            Some(_) => (),
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "root partition does not have a file system",
+                ));
+            }
+        }
+
         if bootloader == Bootloader::Efi {
-            let efi = self.find_partition(Path::new("/boot/efi")).ok_or_else(|| {
+            let (_, efi) = self.find_partition(Path::new("/boot/efi")).ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "EFI partition was not defined")
             })?;
 
-            if !efi.1.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
+            if !efi.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "EFI partition did not have ESP flag set",
                 ));
+            }
+
+            match efi.filesystem {
+                Some(Fat16) | Some(Fat32) => (),
+                Some(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "efi partition has invalid file system",
+                    ));
+                }
+                None => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "efi partition does not have a file system",
+                    ));
+                }
             }
         }
 
