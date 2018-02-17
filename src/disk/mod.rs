@@ -14,9 +14,8 @@ mod swaps;
 pub use self::disk::{DiskExt, Sector};
 use self::disk::find_partition;
 pub use self::error::{DiskError, PartitionSizeError};
-use self::external::{cryptsetup_close, deactivate_volumes, pvremove, pvs, vgremove};
+use self::external::{cryptsetup_close, deactivate_volumes, lvs, pvremove, pvs, vgremove};
 pub use self::lvm::{LvmDevice, LvmEncryption};
-pub(crate) use self::lvm::device_maps;
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
 use self::operations::*;
@@ -851,15 +850,32 @@ impl Disks {
 
     /// Deactivates all device maps associated with the inner disks/partitions to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
+        let mounts = Mounts::new().unwrap();
+        let umount = move |vg: &str| -> Result<(), DiskError> {
+            for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
+                if let Some(mount) = mounts.get_mount_point(&lv) {
+                    info!(
+                        "libdistinst: unmounting logical volume mounted at {}",
+                        mount.display()
+                    );
+                    umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
+                }
+            }
+
+            Ok(())
+        };
+
         let devices_to_modify = self.get_device_paths_to_modify();
         let volume_map = pvs().map_err(|why| DiskError::ExternalCommand { why })?;
         for pv in lvm::physical_volumes_to_deactivate(&devices_to_modify) {
             match volume_map.get(&pv) {
-                Some(&Some(ref vg)) => deactivate_volumes(vg)
-                    .and_then(|_| vgremove(vg))
-                    .and_then(|_| pvremove(&pv))
-                    .and_then(|_| cryptsetup_close(&pv))
-                    .map_err(|why| DiskError::ExternalCommand { why })?,
+                Some(&Some(ref vg)) => umount(vg).and_then(|_| {
+                    deactivate_volumes(vg)
+                        .and_then(|_| vgremove(vg))
+                        .and_then(|_| pvremove(&pv))
+                        .and_then(|_| cryptsetup_close(&pv))
+                        .map_err(|why| DiskError::ExternalCommand { why })
+                })?,
                 Some(&None) => {
                     cryptsetup_close(&pv).map_err(|why| DiskError::ExternalCommand { why })?
                 }

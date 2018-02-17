@@ -211,8 +211,43 @@ pub(crate) fn pvremove(physical_volume: &Path) -> io::Result<()> {
     exec("pvremove", None, None, args)
 }
 
+pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
+    info!("libdistinst: obtaining logical volumes on {}", vg);
+    let mut current_line = String::with_capacity(128);
+    let mut output = Vec::new();
+
+    let mut reader = BufReader::new(
+        Command::new("lvs")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?
+            .stdout
+            .unwrap(),
+    );
+
+    // Skip the first line of output
+    let _ = reader.read_line(&mut current_line);
+    current_line.clear();
+
+    while reader.read_line(&mut current_line)? != 0 {
+        {
+            let line = &current_line[2..];
+            match line.find(' ') {
+                Some(pos) => output.push(PathBuf::from(
+                    ["/dev/mapper/", vg, "-", &line[..pos]].concat(),
+                )),
+                None => (),
+            }
+        }
+
+        current_line.clear();
+    }
+
+    Ok(output)
+}
+
 pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
-    info!("libdistinst: obtaining PV - VG map from pvs");
+    info!("libdistinst: obtaining BTreeMap<PV, VG>");
     let mut current_line = String::with_capacity(64);
     let mut output = BTreeMap::new();
 
