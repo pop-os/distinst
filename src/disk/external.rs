@@ -1,11 +1,15 @@
 //! A collection of external commands used throughout the program.
 
 use super::{FileSystemType, LvmEncryption};
+use super::mount::Mount;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
+use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use tempdir::TempDir;
 
 fn exec(
     cmd: &str,
@@ -58,7 +62,7 @@ fn exec(
 /// Checks & corrects errors with partitions that have been moved / resized.
 pub(crate) fn fsck<P: AsRef<Path>>(part: P, cmd: Option<(&str, &str)>) -> io::Result<()> {
     let (cmd, arg) = cmd.unwrap_or(("fsck", "-fy"));
-    exec(cmd, None, None, &vec![arg.into(), part.as_ref().into()])
+    exec(cmd, None, None, &[arg.into(), part.as_ref().into()])
 }
 
 /// Utilized for ensuring that block & partition information has synced with the OS.
@@ -101,7 +105,7 @@ pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<
 
 /// Used to create a physical volume on a LUKS partition.
 pub(crate) fn pvcreate<P: AsRef<Path>>(device: P) -> io::Result<()> {
-    exec("pvcreate", None, None, &vec![device.as_ref().into()])
+    exec("pvcreate", None, None, &[device.as_ref().into()])
 }
 
 /// Used to create a volume group from one or more physical volumes.
@@ -119,7 +123,7 @@ pub(crate) fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(
 }
 
 pub(crate) fn vgremove(group: &str) -> io::Result<()> {
-    exec("vgremove", None, None, &vec!["-ffy".into(), group.into()])
+    exec("vgremove", None, None, &["-ffy".into(), group.into()])
 }
 
 /// Used to create a logical volume on a volume group.
@@ -169,7 +173,7 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
             None,
-            &vec![
+            &[
                 "-s".into(),
                 "512".into(),
                 "luksFormat".into(),
@@ -178,7 +182,26 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
                 device.into(),
             ],
         ),
-        (None, Some(keyfile)) => unimplemented!(),
+        (None, Some(keyfile)) => {
+            let tmpfs = TempDir::new("distinst")?;
+            let _mount = ExternalMount::new(&keyfile, tmpfs.path())?;
+
+            generate_keyfile(tmpfs.path())?;
+            exec(
+                "cryptsetup",
+                None,
+                None,
+                &[
+                    "-s".into(),
+                    "512".into(),
+                    "luksFormat".into(),
+                    "--type".into(),
+                    "luks2".into(),
+                    device.into(),
+                    tmpfs.path().join("keyfile").into(),
+                ],
+            )
+        }
         (None, None) => unimplemented!(),
     }
 }
@@ -191,26 +214,42 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
             None,
-            &vec!["open".into(), device.into(), group.into()],
+            &["open".into(), device.into(), group.into()],
         ),
-        (None, Some(keyfile)) => unimplemented!(),
+        (None, Some(keyfile)) => {
+            let tmpfs = TempDir::new("distinst")?;
+            exec("mount", None, None, &[keyfile.into(), tmpfs.path().into()])?;
+
+            exec(
+                "cryptsetup",
+                None,
+                None,
+                &[
+                    "open".into(),
+                    device.into(),
+                    group.into(),
+                    "--key-file".into(),
+                    tmpfs.path().join("keyfile").into(),
+                ],
+            )
+        }
         (None, None) => unimplemented!(),
     }
 }
 
 /// Closes an encrypted partition.
 pub(crate) fn cryptsetup_close(device: &Path) -> io::Result<()> {
-    let args = &vec!["close".into(), device.into()];
+    let args = &["close".into(), device.into()];
     exec("cryptsetup", None, Some(&[4]), args)
 }
 
 pub(crate) fn deactivate_volumes(volume_group: &str) -> io::Result<()> {
-    let args = &vec!["-ffyan".into(), volume_group.into()];
+    let args = &["-ffyan".into(), volume_group.into()];
     exec("vgchange", None, None, args)
 }
 
 pub(crate) fn pvremove(physical_volume: &Path) -> io::Result<()> {
-    let args = &vec!["-ffy".into(), physical_volume.into()];
+    let args = &["-ffy".into(), physical_volume.into()];
     exec("pvremove", None, None, args)
 }
 
@@ -291,3 +330,30 @@ pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
 }
 
 fn mebibytes(bytes: u64) -> String { format!("{}", bytes / (1024 * 1024)) }
+
+fn generate_keyfile(tmpfs: &Path) -> io::Result<()> {
+    // Generate the key in memory from /dev/urandom.
+    let mut key = [0u8; 512];
+    let mut urandom = File::open("/dev/urandom")?;
+    urandom.read_exact(&mut key)?;
+
+    // Open the keyfile and write the key.
+    let mut keyfile = File::create(tmpfs.join("keyfile"))?;
+    keyfile.write_all(&key)?;
+    keyfile.sync_all()
+}
+
+struct ExternalMount<'a> {
+    src:  &'a Path,
+    dest: &'a Path,
+}
+
+impl<'a> ExternalMount<'a> {
+    fn new(src: &'a Path, dest: &'a Path) -> io::Result<ExternalMount<'a>> {
+        exec("mount", None, None, &[src.into(), dest.into()]).map(|_| ExternalMount { src, dest })
+    }
+}
+
+impl<'a> Drop for ExternalMount<'a> {
+    fn drop(&mut self) { let _ = exec("umount", None, None, &["-l".into(), self.dest.into()]); }
+}
