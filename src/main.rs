@@ -314,6 +314,18 @@ fn parse_fs(fs: &str) -> PartType {
                 Some(LvmEncryption::new(physical_volume, pass, keyfile))
             },
         )
+    } else if fs.starts_with("lvm=") {
+        let mut fields = fs[4..].split(",");
+        PartType::Lvm(
+            match fields.next() {
+                Some(vg) => vg.into(),
+                None => {
+                    eprintln!("distinst: no volume group was defined for LVM");
+                    exit(1);
+                }
+            },
+            None,
+        )
     } else {
         match fs.parse::<FileSystemType>() {
             Ok(fs) => PartType::Fs(fs),

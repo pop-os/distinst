@@ -25,7 +25,9 @@ pub use self::swaps::Swaps;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 pub use libparted::PartitionFlag;
 
+use itertools::Itertools;
 use std::ffi::OsString;
+use std::fs::read_dir;
 use std::io;
 use std::iter::{self, FromIterator};
 use std::path::{Path, PathBuf};
@@ -826,9 +828,8 @@ impl Disks {
             if dev.mklabel {
                 // Devices with this set no longer hold the original source partitions.
                 // TODO: Maybe have a backup field with the old partitions?
-                for part in Disk::from_name_with_serial(&dev.device_path, &dev.serial)
-                    .unwrap()
-                    .get_partitions()
+                let disk = Disk::from_name_with_serial(&dev.device_path, &dev.serial).unwrap();
+                for part in disk.get_partitions()
                     .iter()
                     .map(|part| part.get_device_path())
                 {
@@ -866,20 +867,37 @@ impl Disks {
         };
 
         let devices_to_modify = self.get_device_paths_to_modify();
+        info!("libdistinst: devices to modify: {:?}", devices_to_modify);
         let volume_map = pvs().map_err(|why| DiskError::ExternalCommand { why })?;
-        for pv in lvm::physical_volumes_to_deactivate(&devices_to_modify) {
-            match volume_map.get(&pv) {
+        info!("libdistinst: volume map: {:?}", volume_map);
+        let pvs = lvm::physical_volumes_to_deactivate(&devices_to_modify);
+        info!("libdistinst: pvs: {:?}", pvs);
+
+        // Handle LVM on LUKS
+        for pv in &pvs {
+            match volume_map.get(pv) {
                 Some(&Some(ref vg)) => umount(vg).and_then(|_| {
                     deactivate_volumes(vg)
                         .and_then(|_| vgremove(vg))
-                        .and_then(|_| pvremove(&pv))
-                        .and_then(|_| cryptsetup_close(&pv))
+                        .and_then(|_| pvremove(pv))
+                        .and_then(|_| cryptsetup_close(pv))
                         .map_err(|why| DiskError::ExternalCommand { why })
                 })?,
                 Some(&None) => {
-                    cryptsetup_close(&pv).map_err(|why| DiskError::ExternalCommand { why })?
+                    cryptsetup_close(pv).map_err(|why| DiskError::ExternalCommand { why })?
                 }
                 None => (),
+            }
+        }
+
+        // Handle LVM without LUKS
+        for entry in devices_to_modify
+            .iter()
+            .filter_map(|dev| volume_map.get(dev))
+            .unique()
+        {
+            if let Some(ref vg) = *entry {
+                vgremove(vg).map_err(|why| DiskError::ExternalCommand { why })?;
             }
         }
 
@@ -1228,15 +1246,8 @@ impl FromIterator<Disk> for Disks {
     }
 }
 
-pub(crate) fn is_device_map(path: &Path) -> bool {
-    use std::os::unix::ffi::OsStrExt;
-    let path_string = path.as_os_str();
-    path_string.len() > 12 && &path_string.as_bytes()[..12] == b"/dev/mapper/"
-}
-
 fn get_uuid(path: &Path) -> Option<OsString> {
-    let uuid_dir =
-        ::std::fs::read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
+    let uuid_dir = read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
 
     if let Ok(path) = path.canonicalize() {
         eprintln!("DEBUG: Checking for {}", path.display());

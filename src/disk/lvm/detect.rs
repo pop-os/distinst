@@ -1,3 +1,4 @@
+use std::ffi::{OsStr, OsString};
 use std::fs::{read_dir, read_link, DirEntry};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -8,7 +9,6 @@ use std::path::{Path, PathBuf};
 pub(crate) fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec<PathBuf> {
     info!("libdistinst: searching for device maps to deactivate");
     let mut discovered = Vec::new();
-    use std::ffi::{OsStr, OsString};
 
     device_maps(|pv| {
         info!(

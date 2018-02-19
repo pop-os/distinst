@@ -111,6 +111,7 @@ pub(crate) fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(
 ) -> io::Result<()> {
     exec("vgcreate", None, None, &{
         let mut args = Vec::with_capacity(16);
+        args.push("-ffy".into());
         args.push(group.into());
         args.extend(devices.map(|x| x.as_ref().into()));
         args
@@ -129,6 +130,7 @@ pub(crate) fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result
         None,
         &size.map_or(
             [
+                "-y".into(),
                 "-l".into(),
                 "100%FREE".into(),
                 group.into(),
@@ -137,6 +139,7 @@ pub(crate) fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result
             ],
             |size| {
                 [
+                    "-y".into(),
                     "-L".into(),
                     mebibytes(size).into(),
                     group.into(),
@@ -266,19 +269,19 @@ pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
 
     while reader.read_line(&mut current_line)? != 0 {
         {
-            let line = &current_line[2..];
-            match line.find(' ') {
-                Some(pos) => {
-                    let pv = &line[..pos];
-                    let line = &line[pos + 1..];
-                    let vg = &line[..line.find(' ').unwrap_or(0)];
+            let mut fields = current_line[2..].split_whitespace();
+            fields.next().map(|pv| {
+                fields.next().map(|vg| {
                     output.insert(
                         PathBuf::from(pv),
-                        if vg.is_empty() { None } else { Some(vg.into()) },
-                    );
-                }
-                None => (),
-            }
+                        if vg.is_empty() || vg == "lvm2" {
+                            None
+                        } else {
+                            Some(vg.into())
+                        },
+                    )
+                })
+            });
         }
 
         current_line.clear();

@@ -22,6 +22,7 @@ libparted = "0.1.2"
 log = "0.3"
 pbr = "1.0"
 tempdir = "0.3"
+itertools = "0.7.6"
 
 [dependencies.failure]
 version = "0.1.1"
