@@ -999,6 +999,61 @@ impl Disks {
         }
     }
 
+    fn resolve_keyfile_paths(&mut self) -> Result<(), DiskError> {
+        let mut temp = Vec::new();
+
+        {
+            // A closure which generates an iterator over partitions.
+            let partitions = || {
+                self.physical
+                    .iter()
+                    .flat_map(|p| p.partitions.iter())
+                    .chain(self.logical.iter().flat_map(|p| p.partitions.iter()))
+            };
+
+            // Get a list of ID's and their corresponding keyfile ID's and paths.
+            // Compares each partition
+            for (id, partition) in partitions().enumerate() {
+                if let Some((_, Some(ref enc))) = partition.volume_group {
+                    if let Some(&(ref key_id, _)) = enc.keyfile.as_ref() {
+                        for (comp_id, comp_partition) in partitions().enumerate() {
+                            if id == comp_id {
+                                continue;
+                            }
+                            if let Some((ref comp_key_id, ref key_mount)) = comp_partition.key_id {
+                                if key_id == comp_key_id {
+                                    temp.push((id, key_mount.clone()));
+                                }
+                            }
+                        }
+                        return Err(DiskError::KeyWithoutPath);
+                    }
+                }
+            }
+        }
+
+        // Fill in the missing information from the collected data.
+        let mut partitions_mut = self.physical
+            .iter_mut()
+            .flat_map(|p| p.partitions.iter_mut())
+            .chain(
+                self.logical
+                    .iter_mut()
+                    .flat_map(|p| p.partitions.iter_mut()),
+            )
+            .collect::<Vec<&mut PartitionInfo>>();
+
+        for (id, key_path) in temp {
+            let part = partitions_mut.get_mut(id).unwrap();
+            let volume_group = part.volume_group.as_mut().unwrap();
+            let encryption = volume_group.1.as_mut().unwrap();
+            let keyfile = encryption.keyfile.as_mut().unwrap();
+            keyfile.1 = Some(key_path);
+        }
+
+        Ok(())
+    }
+
     /// Ensures that EFI installs contain a `/boot/efi` and `/` partition, whereas MBR installs
     /// contain a `/` partition. Additionally, the EFI partition must have the ESP flag set.
     pub fn verify_partitions(&self, bootloader: Bootloader) -> io::Result<()> {
@@ -1054,6 +1109,8 @@ impl Disks {
                 }
             }
         }
+
+        // TODO:
 
         Ok(())
     }
@@ -1175,10 +1232,6 @@ impl Disks {
     /// Applies all logical device operations, which are to be performed after all physical disk
     /// operations have completed.
     pub(crate) fn commit_logical_partitions(&mut self) -> Result<(), DiskError> {
-        // TODO: Some actions need to be performed in a certain order. We need to
-        //       create another diff-like function which can generate operations
-        //       in the other that they need to be applied.
-
         // First we verify that we have a valid logical layout.
         for device in &self.logical {
             let volumes = self.find_volume_paths(&device.volume_group);
@@ -1198,12 +1251,14 @@ impl Disks {
             }
         }
 
+        // Ensure that the keyfile paths are mapped to their mount targets.
+        self.resolve_keyfile_paths()?;
+
         // Now we will apply the logical layout.
         for device in &self.logical {
             let volumes: Vec<(&Path, &Path)> = self.find_volume_paths(&device.volume_group);
             let mut device_path = None;
 
-            // TODO: NLL
             if let Some(encryption) = device.encryption.as_ref() {
                 encryption.encrypt(volumes[0].1)?;
                 encryption.open(volumes[0].1)?;

@@ -118,6 +118,7 @@ pub struct PartitionBuilder {
     pub(crate) flags:        Vec<PartitionFlag>,
     pub(crate) mount:        Option<PathBuf>,
     pub(crate) volume_group: Option<(String, Option<LvmEncryption>)>,
+    pub(crate) key_id:       Option<(String, PathBuf)>,
 }
 
 impl PartitionBuilder {
@@ -132,6 +133,7 @@ impl PartitionBuilder {
             flags:        Vec::new(),
             mount:        None,
             volume_group: None,
+            key_id:       None,
         }
     }
 
@@ -175,6 +177,11 @@ impl PartitionBuilder {
         self
     }
 
+    pub fn keyfile(mut self, id: String, target: PathBuf) -> PartitionBuilder {
+        self.key_id = Some((id, target));
+        self
+    }
+
     /// Builds a brand new Partition from the current state of the builder.
     pub fn build(self) -> PartitionInfo {
         PartitionInfo {
@@ -197,8 +204,13 @@ impl PartitionBuilder {
             device_path:  PathBuf::new(),
             mount_point:  None,
             swapped:      false,
-            target:       self.mount,
+            target:       if self.key_id.is_some() {
+                self.key_id.as_ref().map(|&(_, ref path)| path.clone())
+            } else {
+                self.mount
+            },
             volume_group: self.volume_group.clone(),
+            key_id:       self.key_id,
         }
     }
 }
@@ -249,6 +261,9 @@ pub struct PartitionInfo {
     pub target: Option<PathBuf>,
     /// The volume group associated with this device.
     pub volume_group: Option<(String, Option<LvmEncryption>)>,
+    /// If the partition is associated with a keyfile, this will name the key and it's mount
+    /// path.
+    pub key_id: Option<(String, PathBuf)>,
 }
 
 /// Information that will be used to generate a fstab entry for the given partition.
@@ -318,6 +333,7 @@ impl PartitionInfo {
             // TODO: detect if this is assigned to a volume group:
             //       pvdisplay $PATH
             volume_group: None,
+            key_id: None,
         }))
     }
 

@@ -33,6 +33,8 @@ pub enum DiskError {
     GeometryDuplicate,
     #[fail(display = "failed to set values on partition geometry")]
     GeometrySet,
+    #[fail(display = "LUKS keyfile designation lacks key path")]
+    KeyWithoutPath,
     #[fail(display = "partition layout on disk has changed")]
     LayoutChanged,
     #[fail(display = "unable to create logical volume: {}", why)]

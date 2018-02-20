@@ -1,7 +1,6 @@
 //! A collection of external commands used throughout the program.
 
 use super::{FileSystemType, LvmEncryption};
-use super::mount::Mount;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -182,7 +181,8 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
                 device.into(),
             ],
         ),
-        (None, Some(keyfile)) => {
+        (None, Some(&(_, ref keyfile))) => {
+            let keyfile = keyfile.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             let _mount = ExternalMount::new(&keyfile, tmpfs.path())?;
 
@@ -216,7 +216,8 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
             None,
             &["open".into(), device.into(), group.into()],
         ),
-        (None, Some(keyfile)) => {
+        (None, Some(&(_, ref keyfile))) => {
+            let keyfile = keyfile.as_ref().expect("should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             exec("mount", None, None, &[keyfile.into(), tmpfs.path().into()])?;
 
@@ -343,14 +344,14 @@ fn generate_keyfile(tmpfs: &Path) -> io::Result<()> {
     keyfile.sync_all()
 }
 
+// TODO: Don't require this
 struct ExternalMount<'a> {
-    src:  &'a Path,
     dest: &'a Path,
 }
 
 impl<'a> ExternalMount<'a> {
     fn new(src: &'a Path, dest: &'a Path) -> io::Result<ExternalMount<'a>> {
-        exec("mount", None, None, &[src.into(), dest.into()]).map(|_| ExternalMount { src, dest })
+        exec("mount", None, None, &[src.into(), dest.into()]).map(|_| ExternalMount { dest })
     }
 }
 
