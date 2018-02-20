@@ -299,7 +299,7 @@ fn parse_fs(fs: &str) -> PartType {
                     exit(1);
                 }
 
-                keyfile = Some(Path::new(keyval).to_path_buf());
+                keyfile = Some(keyval.into());
             } else {
                 eprintln!("distinst: invalid fs field");
                 exit(1);
