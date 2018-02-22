@@ -533,7 +533,7 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
                 exit(1);
             }
 
-            let (block_dev, part_id, fs, mount, flags) = (
+            let (block_dev, part_id, fs) = (
                 values[0],
                 match values[1].parse::<u32>() {
                     Ok(id) => id as i32,
@@ -546,19 +546,40 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
                     "reuse" => None,
                     fs => Some(parse_fs(fs)),
                 },
-                values.get(3),
-                values.get(4).map(|&flags| parse_flags(flags)),
             );
+
+            let (mut key, mut mount, mut flags) = (None, None, None);
+
+            for value in values.iter().skip(3) {
+                if value.starts_with("mount=") {
+                    mount = Some(Path::new(&value[6..]));
+                } else if value.starts_with("flags=") {
+                    flags = Some(parse_flags(&value[6..]));
+                } else if value.starts_with("keyid=") {
+                    key = Some(String::from(&value[6..]));
+                } else {
+                    eprintln!("distinst: invalid arguments supplied");
+                    exit(1);
+                }
+            }
 
             let disk = find_disk_mut(disks, block_dev);
             let partition = find_partition_mut(disk, part_id);
 
-            if let Some(mount) = mount {
+            if let Some(keyid) = key {
+                match mount {
+                    Some(mount) => partition.set_keyfile(keyid, mount.into()),
+                    None => {
+                        eprintln!("distinst: mount path must be specified with key");
+                        exit(1);
+                    }
+                }
+            } else if let Some(mount) = mount {
                 partition.set_mount(Path::new(mount).to_path_buf());
             }
 
-            if let Some(pkind) = fs {
-                let fs = match pkind {
+            if let Some(fs) = fs {
+                let fs = match fs {
                     PartType::Fs(fs) => fs,
                     PartType::Lvm(volume_group, encryption) => {
                         partition.set_volume_group(volume_group, encryption);
@@ -594,21 +615,34 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
                 exit(1);
             }
 
-            let (block, kind, start, end, pkind, mount, flags) = (
+            let (block, kind, start, end, fs) = (
                 values[0],
                 parse_part_type(values[1]),
                 parse_sector(values[2]),
                 parse_sector(values[3]),
                 parse_fs(values[4]),
-                values.get(5).map(Path::new),
-                values.get(6).map(|&flags| parse_flags(flags)),
             );
+
+            let (mut key, mut mount, mut flags) = (None, None, None);
+
+            for value in values.iter().skip(5) {
+                if value.starts_with("mount=") {
+                    mount = Some(Path::new(&value[6..]));
+                } else if value.starts_with("flags=") {
+                    flags = Some(parse_flags(&value[6..]));
+                } else if value.starts_with("keyid=") {
+                    key = Some(String::from(&value[6..]));
+                } else {
+                    eprintln!("distinst: invalid arguments supplied");
+                    exit(1);
+                }
+            }
 
             let disk = find_disk_mut(disks, block);
 
             let start = disk.get_sector(start);
             let end = disk.get_sector(end);
-            let mut builder = match pkind {
+            let mut builder = match fs {
                 PartType::Lvm(volume_group, encryption) => {
                     PartitionBuilder::new(start, end, FileSystemType::Lvm)
                         .partition_type(kind)
@@ -617,14 +651,20 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
                 PartType::Fs(fs) => PartitionBuilder::new(start, end, fs).partition_type(kind),
             };
 
-            if let Some(mount) = mount {
-                builder = builder.mount(mount.into());
+            if let Some(flags) = flags {
+                builder = builder.flags(flags);
             }
 
-            if let Some(flags) = flags {
-                for flag in flags {
-                    builder = builder.flag(flag);
+            if let Some(keyid) = key {
+                match mount {
+                    Some(mount) => builder = builder.keyfile(keyid, mount.into()),
+                    None => {
+                        eprintln!("distinst: mount path must be specified with key");
+                        exit(1);
+                    }
                 }
+            } else if let Some(mount) = mount {
+                builder = builder.mount(mount.into());
             }
 
             disk.add_partition(builder)?;

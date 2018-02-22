@@ -1,7 +1,7 @@
 #!/bin/sh
 FS="tests/filesystem.squashfs"
 REMOVE="tests/filesystem.manifest-remove"
-RUNS=3
+RUNS=1
 
 if ! test -e "target/debug/distinst"; then
     cargo build --bin distinst
@@ -38,8 +38,10 @@ index=0; while test ${index} -ne ${RUNS}; do
         -l "en_US.UTF-8" \
         -b "$1" \
         -t "$1:gpt" \
+        -t "$2:gpt" \
         -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
-        -n "$1:primary:512M:end:enc=cryptdata,data,keyfile=${2}" \
+        -n "$1:primary:512M:end:enc=cryptdata,data,keyfile=K" \
+        -n "$2:primary:start:100M:key=K:/etc/cryptkey" \
         --logical "data:root:-4096M:ext4:mount=/" \
         --logical "data:swap:4096M:swap"
 

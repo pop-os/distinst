@@ -1149,7 +1149,7 @@ impl Disks {
         }
 
         info!(
-            "libdistinst: generated the following fstab data:\n\n{}\n\n",
+            "libdistinst: generated the following fstab data:\n{}\n",
             fstab.to_string_lossy(),
         );
 
@@ -1193,6 +1193,12 @@ impl Disks {
             }
         }
 
+        info!(
+            "libdistinst: generated the following crypttab data:\n{}\n",
+            crypttab.to_string_lossy(),
+        );
+
+        crypttab.shrink_to_fit();
         crypttab
     }
 

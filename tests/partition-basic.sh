@@ -36,9 +36,9 @@ index=0; while test ${index} -ne ${RUNS}; do
         -l "en_US.UTF-8" \
         -b "$1" \
         -t "$1:gpt" \
-        -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
-        -n "$1:primary:512M:-512M:ext4:/" \
-        -n "$1:primary:-512M:end:swap"
+        -n "$1:primary:start:512M:fat32:mount=/boot/efi:flags=esp" \
+        -n "$1:primary:512M:-4096M:ext4:mount=/" \
+        -n "$1:primary:-4096M:end:swap"
     index=$((index + 1))
 done
 
@@ -51,8 +51,8 @@ index=0; while test ${index} -ne ${RUNS}; do
         -k "us" \
         -l "en_US.UTF-8" \
         -b "$1" \
-        -u "$1:1:reuse:/boot/efi:esp" \
-        -u "$1:2:ext4:/" \
+        -u "$1:1:reuse:mount=/boot/efi:flags=esp" \
+        -u "$1:2:ext4:mount=/" \
         -u "$1:3:swap"
     index=$((index + 1))
 done
@@ -67,8 +67,8 @@ index=0; while test ${index} -ne ${RUNS}; do
         -l "en_US.UTF-8" \
         -b "$1" \
         -d "$1:1:3" \
-        -u "$1:2:reuse:/" \
-        -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
+        -u "$1:2:reuse:mount=/" \
+        -n "$1:primary:start:512M:fat32:mount=/boot/efi:flags=esp" \
         -n "$1:primary:-512M:end:swap"
     index=$((index + 1))
 done

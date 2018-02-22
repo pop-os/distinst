@@ -36,7 +36,7 @@ index=0; while test ${index} -ne ${RUNS}; do
         -l "en_US.UTF-8" \
         -b "$1" \
         -t "$1:gpt" \
-        -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
+        -n "$1:primary:start:512M:fat32:mount=/boot/efi:flags=esp" \
         -n "$1:primary:512M:end:enc=cryptdata,data,pass=password" \
         --logical "data:root:-4096M:ext4:mount=/" \
         --logical "data:swap:4096M:swap"

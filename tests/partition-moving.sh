@@ -45,8 +45,8 @@ index=0; while test ${index} -ne ${RUNS}; do
         -l "en_US.UTF-8" \
         -b "$1" \
         -t "$1:gpt" \
-        -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
-        -n "$1:primary:1024M:1536M:ext4:/" \
+        -n "$1:primary:start:512M:fat32:mount=/boot/efi:flags=esp" \
+        -n "$1:primary:1024M:1536M:ext4:mount=/" \
         -n "$1:primary:1536M:4096M:ext4" \
         -n "$1:primary:-512M:end:swap"
 
@@ -67,8 +67,8 @@ index=0; while test ${index} -ne ${RUNS}; do
         -m "$1:3:2048M:3584M" \
         -m "$1:2:512M:2048M" \
         -m "$1:4:-1024M:end" \
-        -u "$1:1:reuse:/boot/efi:esp" \
-        -u "$1:2:reuse:/"
+        -u "$1:1:reuse:mount=/boot/efi:flags=esp" \
+        -u "$1:2:reuse:mount=/"
 
     sudo mount "${DISK}2" temp
     sudo sh -c "cat temp/some_file"
