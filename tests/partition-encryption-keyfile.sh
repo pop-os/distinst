@@ -37,11 +37,12 @@ index=0; while test ${index} -ne ${RUNS}; do
         -k "us" \
         -l "en_US.UTF-8" \
         -b "$1" \
+        -b "$2" \
         -t "$1:gpt" \
         -t "$2:gpt" \
-        -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
+        -n "$1:primary:start:512M:fat32:mount=/boot/efi:flags=esp" \
         -n "$1:primary:512M:end:enc=cryptdata,data,keyfile=K" \
-        -n "$2:primary:start:100M:key=K:/etc/cryptkey" \
+        -n "$2:primary:start:100M:ext4:keyid=K:mount=/etc/cryptkey" \
         --logical "data:root:-4096M:ext4:mount=/" \
         --logical "data:swap:4096M:swap"
 

@@ -33,6 +33,6 @@ sudo target/debug/distinst \
     -l "en_US.UTF-8" \
     -b "$1" \
     -t "$1:gpt" \
-    -n "$1:primary:start:512M:fat32:/boot/efi:esp" \
-    -n "$1:primary:512M:-512M:ext4:/" \
-    -n "$1:primary:-512M:end:swap"
+    -n "$1:primary:start:512M:fat32:mount=/boot/efi:flags=esp" \
+    -n "$1:primary:512M:-4096M:ext4:mount=/" \
+    -n "$1:primary:-4096M:end:swap"

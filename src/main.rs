@@ -558,7 +558,7 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
                 } else if value.starts_with("keyid=") {
                     key = Some(String::from(&value[6..]));
                 } else {
-                    eprintln!("distinst: invalid arguments supplied");
+                    eprintln!("distinst: invalid argument supplied: {}", value);
                     exit(1);
                 }
             }
@@ -633,7 +633,7 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
                 } else if value.starts_with("keyid=") {
                     key = Some(String::from(&value[6..]));
                 } else {
-                    eprintln!("distinst: invalid arguments supplied");
+                    eprintln!("distinst: invalid argument supplied: {}", value);
                     exit(1);
                 }
             }
@@ -790,6 +790,7 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DiskError> {
     let mut disks = Disks::new();
 
     for block in matches.values_of("disk").unwrap() {
+        eprintln!("distinst: adding {} to disks configuration", block);
         disks.add(Disk::from_name(block)?);
     }
 

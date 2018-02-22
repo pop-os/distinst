@@ -1167,14 +1167,20 @@ impl Disks {
         let logical_entries = self.logical.iter().flat_map(|disk| disk.partitions.iter());
 
         // <PV> <UUID> <Pass> <Options>
+        use std::borrow::Cow;
+        use std::ffi::OsStr;
         for partition in fs_entries.chain(logical_entries) {
-            if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
-                let password = match (enc.password.is_some(), enc.keyfile.as_ref()) {
-                    (true, None) => "none",
-                    (false, None) => "/dev/urandom",
-                    (true, Some(key)) => unimplemented!(),
-                    (false, Some(key)) => unimplemented!(),
-                };
+            if let Some(&(ref pv, Some(ref enc))) = partition.volume_group.as_ref() {
+                let password: Cow<'static, OsStr> =
+                    match (enc.password.is_some(), enc.keyfile.as_ref()) {
+                        (true, None) => Cow::Borrowed(OsStr::new("none")),
+                        (false, None) => Cow::Borrowed(OsStr::new("/dev/urandom")),
+                        (true, Some(key)) => unimplemented!(),
+                        (false, Some(key)) => {
+                            let path = key.1.clone().expect("should have been populated").join(pv);
+                            Cow::Owned(path.into_os_string())
+                        }
+                    };
 
                 match get_uuid(&partition.device_path) {
                     Some(uuid) => {
@@ -1182,7 +1188,7 @@ impl Disks {
                         crypttab.push(" UUID=");
                         crypttab.push(&uuid);
                         crypttab.push(" ");
-                        crypttab.push(password);
+                        crypttab.push(&password);
                         crypttab.push(" luks,timeout=90\n");
                     }
                     None => error!(

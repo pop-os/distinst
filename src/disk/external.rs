@@ -186,7 +186,7 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
             let tmpfs = TempDir::new("distinst")?;
             let _mount = ExternalMount::new(&keyfile, tmpfs.path())?;
 
-            generate_keyfile(tmpfs.path())?;
+            generate_keyfile(&tmpfs.path().join(&enc.physical_volume))?;
             exec(
                 "cryptsetup",
                 None,
@@ -198,7 +198,7 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
                     "--type".into(),
                     "luks2".into(),
                     device.into(),
-                    tmpfs.path().join("keyfile").into(),
+                    tmpfs.path().join(&enc.physical_volume).into(),
                 ],
             )
         }
@@ -230,7 +230,7 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
                     device.into(),
                     group.into(),
                     "--key-file".into(),
-                    tmpfs.path().join("keyfile").into(),
+                    tmpfs.path().join(&enc.physical_volume).into(),
                 ],
             )
         }
@@ -332,14 +332,14 @@ pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
 
 fn mebibytes(bytes: u64) -> String { format!("{}", bytes / (1024 * 1024)) }
 
-fn generate_keyfile(tmpfs: &Path) -> io::Result<()> {
+fn generate_keyfile(path: &Path) -> io::Result<()> {
     // Generate the key in memory from /dev/urandom.
     let mut key = [0u8; 512];
     let mut urandom = File::open("/dev/urandom")?;
     urandom.read_exact(&mut key)?;
 
     // Open the keyfile and write the key.
-    let mut keyfile = File::create(tmpfs.join("keyfile"))?;
+    let mut keyfile = File::create(path)?;
     keyfile.write_all(&key)?;
     keyfile.sync_all()
 }
