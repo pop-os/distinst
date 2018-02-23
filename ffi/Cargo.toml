@@ -9,7 +9,7 @@ readme = "README.md"
 
 [lib]
 name = "distinst"
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 distinst = { path = ".." }
