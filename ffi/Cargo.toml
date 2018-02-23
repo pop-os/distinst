@@ -12,6 +12,9 @@ build = "build.rs"
 name = "distinst"
 crate-type = ["cdylib"]
 
+[build-dependencies]
+cbindgen = "0.4"
+
 [dependencies]
 distinst = { path = ".." }
 libc = "0.2"

@@ -121,14 +121,8 @@ These files will be placed in /usr/local when installed, and `pkg-config --cflag
 In order to produce a source package, you must run the following commands:
 
 ```
-# Install cargo-expand
-cargo install cargo-expand
-
 # Install cargo-vendor
 cargo install cargo-vendor
-
-# Install cbindgen
-cargo install cbindgen --vers ^0.4
 
 # Download vendored sources
 make vendor

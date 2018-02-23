@@ -7,6 +7,9 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 license = "LGPL-3.0"
 readme = "README.md"
 
+[workspace]
+members = ["ffi"]
+
 [lib]
 name = "distinst"
 crate-type = ["lib"]

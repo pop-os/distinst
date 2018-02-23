@@ -14,9 +14,9 @@ FFI_SRC=ffi/Cargo.toml ffi/build.rs ffi/src/*
 PACKAGE=distinst
 
 BINARY=target/release/$(PACKAGE)
-LIBRARY=ffi/target/release/lib$(PACKAGE).so
-HEADER=ffi/$(PACKAGE).h
-PKGCONFIG=ffi/target/$(PACKAGE).pc
+LIBRARY=target/release/lib$(PACKAGE).so
+HEADER=target/$(PACKAGE).h
+PKGCONFIG=target/$(PACKAGE).pc
 VAPI=ffi/$(PACKAGE).vapi
 
 all: $(BINARY) $(LIBRARY) $(HEADER) $(PKGCONFIG)
@@ -26,7 +26,7 @@ clean:
 	cargo clean --manifest-path ffi/Cargo.toml
 
 distclean: clean
-	rm -rf .cargo $(HEADER) vendor
+	rm -rf .cargo vendor
 
 install: all
 	install -D -m 0755 "$(BINARY)" "$(DESTDIR)$(bindir)/$(PACKAGE)"
@@ -49,14 +49,19 @@ update:
 	mkdir -p .cargo
 	cp $< $@
 
-$(HEADER): ffi/cbindgen.toml $(FFI_SRC)
-	cbindgen --config $< --output $@ ffi
-
-vendor: .cargo/config $(HEADER)
+vendor: .cargo/config
 	cargo vendor
 	touch vendor
 
-$(LIBRARY) $(PKGCONFIG).stub: $(FFI_SRC)
+$(BINARY): $(SRC)
+	if [ -d vendor ]; \
+	then \
+		cargo build --frozen --bin distinst --release; \
+	else \
+		cargo build --bin distinst --release; \
+	fi
+
+$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(FFI_SRC)
 	if [ -d vendor ]; \
 	then \
 		cargo build --manifest-path ffi/Cargo.toml --frozen --lib --release; \
@@ -69,12 +74,3 @@ $(PKGCONFIG): $(PKGCONFIG).stub
 	echo "includedir=$(includedir)" >> "$@.partial"
 	cat "$<" >> "$@.partial"
 	mv "$@.partial" "$@"
-
-# Each lib crate type has to be built independently, else there will be a compiler error.
-$(BINARY): $(SRC)
-	if [ -d vendor ]; \
-	then \
-		cargo build --frozen --bin distinst --release; \
-	else \
-		cargo build --bin distinst --release; \
-	fi
