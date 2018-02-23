@@ -1,6 +1,6 @@
 use libc;
 
-use std::ffi::{CStr, OsStr};
+use std::ffi::{CStr, CString, OsStr};
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
 
@@ -64,6 +64,14 @@ unsafe fn disk_action_mut<T, F: Fn(&mut Disk) -> T>(disk: *mut DistinstDisk, act
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_device_path(
+    disk: *const DistinstDisk
+) -> *mut libc::c_char {
+    let disk = &*(disk as *const Disk);
+    CString::new(disk.get_device_path().as_os_str().as_bytes()).unwrap().into_raw()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_partition(
     disk: *mut DistinstDisk,
     partition: libc::int32_t,
@@ -73,30 +81,42 @@ pub unsafe extern "C" fn distinst_disk_get_partition(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_partitions(
+pub unsafe extern "C" fn distinst_disk_list_partitions(
     disk: *mut DistinstDisk,
-    partitions: *mut *mut DistinstPartition,
-) -> libc::size_t {
+    len: *mut libc::c_int
+) -> *mut *mut DistinstPartition {
     let disk = &mut *(disk as *mut Disk);
 
     let mut output: Vec<*mut DistinstPartition> = Vec::new();
-    for partition in disk.partitions.iter_mut() {
+    for partition in disk.get_partitions_mut().iter_mut() {
         output.push(partition as *mut PartitionInfo as *mut DistinstPartition);
     }
-    output.push(ptr::null_mut());
-    let len = output.len() as libc::size_t;
-    *partitions = Box::into_raw(output.into_boxed_slice()) as *mut DistinstPartition;
 
-    len
+    *len = output.len() as libc::c_int;
+    Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstPartition
 }
 
 #[no_mangle]
-/// This is to be used with vectors returned from `distinst_disk_partitions`.
-pub unsafe extern "C" fn distinst_partitions_destroy(
+/// TODO: This is to be used with vectors returned from `distinst_disk_list_partitions`.
+pub unsafe extern "C" fn distinst_disk_list_partitions_destroy(
     partitions: *mut DistinstPartition,
-    length: libc::size_t,
+    len: libc::size_t,
 ) {
-    drop(Vec::from_raw_parts(partitions, length, length))
+    drop(Vec::from_raw_parts(partitions, len, len))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_sectors(
+    disk: *const DistinstDisk
+) -> libc::uint64_t {
+    disk_action(disk, |disk| disk.get_sectors())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_sector_size(
+    disk: *const DistinstDisk
+) -> libc::uint64_t {
+    disk_action(disk, |disk| disk.get_sector_size())
 }
 
 #[no_mangle]
@@ -253,6 +273,31 @@ pub unsafe extern "C" fn distinst_disks_probe() -> *mut DistinstDisks {
             ptr::null_mut()
         }
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_list(
+    disks: *mut DistinstDisks,
+    len: *mut libc::c_int,
+) -> *mut *mut DistinstDisk {
+    let disks = &mut *(disks as *mut Disks);
+
+    let mut output: Vec<*mut DistinstDisk> = Vec::new();
+    for disk in disks.get_physical_devices_mut().iter_mut() {
+        output.push(disk as *mut Disk as *mut DistinstDisk);
+    }
+
+    *len = output.len() as libc::c_int;
+    Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstDisk
+}
+
+#[no_mangle]
+/// TODO: This is to be used with vectors returned from `distinst_disks_list`.
+pub unsafe extern "C" fn distinst_disks_list_destroy(
+    list: *mut DistinstDisk,
+    len: libc::size_t,
+) {
+    drop(Vec::from_raw_parts(list, len, len))
 }
 
 #[no_mangle]

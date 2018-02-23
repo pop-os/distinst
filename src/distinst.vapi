@@ -94,14 +94,13 @@ namespace Distinst {
 
     [CCode (has_type_id = false, unref_function = "")]
     public class Partition {
+        public unowned string get_device_path();
         public void set_flags(PartitionFlag *flags, size_t len);
         public void set_mount(string target);
         public int format_with(FileSystemType fs);
         public uint64 get_start_sector();
         public uint64 get_end_sector();
     }
-
-    public void partitions_destroy(Partition **partitions, size_t length);
 
     [CCode (has_type_id = false)]
     public enum SectorKind {
@@ -123,10 +122,13 @@ namespace Distinst {
     [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
     public class Disk {
         public Disk (string path);
+        public unowned string get_device_path();
         public Partition get_partition(int partition);
-        public size_t partitions(out Partition *partitions);
+        public unowned Partition[] list_partitions();
         public int add_partition (PartitionBuilder partition);
         public int format_partition (int partition, FileSystemType fs);
+        public uint64 get_sectors ();
+        public uint64 get_sector_size ();
         public uint64 get_sector (Sector sector);
         public int mklabel (PartitionTable table);
         public int move_partition (int partition, uint64 start);
@@ -139,7 +141,8 @@ namespace Distinst {
     public class Disks {
         public static Disks probe();
         public Disks ();
-        public void push(Disk* disk);
+        public unowned Disk[] list();
+        public void push(Disk disk);
     }
 
     [CCode (has_type_id = false)]

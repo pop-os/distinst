@@ -2,6 +2,8 @@ use libc;
 
 use super::{gen_object_ptr, get_str};
 use PartitionInfo;
+use std::ffi::CString;
+use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr;
 
@@ -213,6 +215,14 @@ pub unsafe extern "C" fn distinst_partition_builder_flag(
 
 #[repr(C)]
 pub struct DistinstPartition;
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_get_device_path(
+    partition: *const DistinstPartition
+) -> *mut libc::c_char {
+    let part = &*(partition as *const PartitionInfo);
+    CString::new(part.get_device_path().as_os_str().as_bytes()).unwrap().into_raw()
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_start_sector(
