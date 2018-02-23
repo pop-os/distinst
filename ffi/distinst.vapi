@@ -58,7 +58,8 @@ namespace Distinst {
         FAT32,
         NTFS,
         SWAP,
-        XFS
+        XFS,
+        LVM
     }
 
     [CCode (has_type_id = false)]

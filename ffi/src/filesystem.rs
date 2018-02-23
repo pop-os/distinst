@@ -19,6 +19,7 @@ pub enum DISTINST_FILE_SYSTEM_TYPE {
     NTFS = 9,
     SWAP = 10,
     XFS = 11,
+    LVM = 12,
 }
 
 impl From<DISTINST_FILE_SYSTEM_TYPE> for Option<FileSystemType> {
@@ -36,6 +37,7 @@ impl From<DISTINST_FILE_SYSTEM_TYPE> for Option<FileSystemType> {
             DISTINST_FILE_SYSTEM_TYPE::NTFS => Some(FileSystemType::Ntfs),
             DISTINST_FILE_SYSTEM_TYPE::SWAP => Some(FileSystemType::Swap),
             DISTINST_FILE_SYSTEM_TYPE::XFS => Some(FileSystemType::Xfs),
+            DISTINST_FILE_SYSTEM_TYPE::LVM => Some(FileSystemType::Lvm),
         }
     }
 }
@@ -54,7 +56,7 @@ impl From<FileSystemType> for DISTINST_FILE_SYSTEM_TYPE {
             FileSystemType::Ntfs => DISTINST_FILE_SYSTEM_TYPE::NTFS,
             FileSystemType::Swap => DISTINST_FILE_SYSTEM_TYPE::SWAP,
             FileSystemType::Xfs => DISTINST_FILE_SYSTEM_TYPE::XFS,
-            FileSystemType::Lvm => unimplemented!(),
+            FileSystemType::Lvm => DISTINST_FILE_SYSTEM_TYPE::LVM,
         }
     }
 }
