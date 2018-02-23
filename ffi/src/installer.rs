@@ -1,11 +1,12 @@
 use libc;
 
-use super::gen_object_ptr;
 use std::io;
 
-use {Disks, Error, Installer, Status, Step};
-use c::config::DistinstConfig;
-use c::disk::DistinstDisks;
+use distinst::{Disks, Error, Installer, Status, Step};
+
+use gen_object_ptr;
+use config::DistinstConfig;
+use disk::DistinstDisks;
 
 /// Bootloader steps
 #[repr(C)]

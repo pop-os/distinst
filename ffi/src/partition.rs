@@ -1,14 +1,13 @@
 use libc;
 
-use super::{gen_object_ptr, get_str};
-use PartitionInfo;
-use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr;
 
-use {Bootloader, PartitionBuilder, PartitionFlag, PartitionType};
-use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
+use distinst::{Bootloader, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType};
+
+use {gen_object_ptr, get_str};
+use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -218,10 +217,13 @@ pub struct DistinstPartition;
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_device_path(
-    partition: *const DistinstPartition
-) -> *mut libc::c_char {
+    partition: *const DistinstPartition,
+    len: *mut libc::c_int,
+) -> *const u8 {
     let part = &*(partition as *const PartitionInfo);
-    CString::new(part.get_device_path().as_os_str().as_bytes()).unwrap().into_raw()
+    let path = part.get_device_path().as_os_str().as_bytes();
+    *len = path.len() as libc::c_int;
+    path.as_ptr()
 }
 
 #[no_mangle]

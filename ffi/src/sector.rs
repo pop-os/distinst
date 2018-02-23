@@ -1,6 +1,6 @@
 use libc;
 
-use Sector;
+use distinst::Sector;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
