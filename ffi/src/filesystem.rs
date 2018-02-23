@@ -2,7 +2,7 @@ use libc;
 
 use std::ffi::CStr;
 
-use FileSystemType;
+use distinst::FileSystemType;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]

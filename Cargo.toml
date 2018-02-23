@@ -5,15 +5,12 @@ description = "Distribution Installer Backend"
 repository = "https://github.com/pop-os/distinst"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 license = "LGPL-3.0"
-build = "build.rs"
 readme = "README.md"
+build = "build.rs"
 
 [lib]
 name = "distinst"
-crate-type = ["lib", "dylib"]
-
-[build-dependencies]
-cbindgen = "0.4"
+crate-type = ["lib"]
 
 [dependencies]
 clap = "=2.26.0"
@@ -31,3 +28,6 @@ features = ["derive"]
 
 [dependencies.failure_derive]
 version = "0.1.1"
+
+[workspace]
+members = ["ffi"]

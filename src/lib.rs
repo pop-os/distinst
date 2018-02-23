@@ -28,10 +28,6 @@ pub use disk::{
 };
 pub use disk::mount::{Mount, Mounts};
 
-#[doc(hidden)]
-pub use c::*;
-
-mod c;
 mod chroot;
 mod disk;
 mod logger;

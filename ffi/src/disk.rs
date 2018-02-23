@@ -1,15 +1,16 @@
 use libc;
 
-use std::ffi::{CStr, CString, OsStr};
+use std::ffi::{CStr, OsStr};
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
 
-use super::gen_object_ptr;
-use {Disk, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
-use c::ffi::AsMutPtr;
-use c::filesystem::DISTINST_FILE_SYSTEM_TYPE;
-use c::partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
-use c::sector::DistinstSector;
+use distinst::{Disk, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
+
+use gen_object_ptr;
+use ffi::AsMutPtr;
+use filesystem::DISTINST_FILE_SYSTEM_TYPE;
+use partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
+use sector::DistinstSector;
 
 #[repr(C)]
 pub struct DistinstDisk;
@@ -65,10 +66,13 @@ unsafe fn disk_action_mut<T, F: Fn(&mut Disk) -> T>(disk: *mut DistinstDisk, act
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_device_path(
-    disk: *const DistinstDisk
-) -> *mut libc::c_char {
+    disk: *const DistinstDisk,
+    len: *mut libc::c_int,
+) -> *const u8 {
     let disk = &*(disk as *const Disk);
-    CString::new(disk.get_device_path().as_os_str().as_bytes()).unwrap().into_raw()
+    let path = disk.get_device_path().as_os_str().as_bytes();
+    *len = path.len() as libc::c_int;
+    path.as_ptr()
 }
 
 #[no_mangle]

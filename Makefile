@@ -10,11 +10,10 @@ datadir = $(datarootdir)
 
 BIN=distinst
 
-SRC=src/* src/*/*
+SRC=Cargo.toml build.rs src/* src/*/*
+FFI_SRC=ffi/Cargo.toml ffi/src/*
 
 all: target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
-
-debug: target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
 
 clean:
 	cargo clean
@@ -27,7 +26,7 @@ install: all
 	install -D -m 0644 "target/release/lib$(BIN).so" "$(DESTDIR)$(libdir)/lib$(BIN).so"
 	install -D -m 0644 "target/include/$(BIN).h" "$(DESTDIR)$(includedir)/$(BIN).h"
 	install -D -m 0644 "target/pkgconfig/$(BIN).pc" "$(DESTDIR)$(datadir)/pkgconfig/$(BIN).pc"
-	install -D -m 0644 "src/$(BIN).vapi" "$(DESTDIR)$(datadir)/vala/vapi/$(BIN).vapi"
+	install -D -m 0644 "ffi/$(BIN).vapi" "$(DESTDIR)$(datadir)/vala/vapi/$(BIN).vapi"
 
 uninstall:
 	rm -f "$(DESTDIR)$(bindir)/$(BIN)"
@@ -47,25 +46,24 @@ vendor: .cargo/config
 	cargo vendor
 	touch vendor
 
-# Each lib crate type has to be built independently, else there will be a compiler error.
-target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub: $(SRC)
+target/include/$(BIN).h: $(FFI_SRC)
+	cbindgen -c cbindgen.toml -o $@ ffi
+
+target/release/lib$(BIN).so: $(FFI_SRC)
 	if [ -d vendor ]; \
 	then \
-		cargo rustc --frozen --lib --release -- --crate-type=dylib; \
-		cargo build --frozen --bin distinst --release; \
+		cargo build --manifest-path ffi/Cargo.toml --frozen --lib --release; \
 	else \
-		cargo rustc --lib --release -- --crate-type=dylib; \
-		cargo build --bin distinst --release; \
+		cargo build --manifest-path ffi/Cargo.toml --lib --release; \
 	fi
 
-target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub: $(SRC)
+# Each lib crate type has to be built independently, else there will be a compiler error.
+target/release/$(BIN) target/pkgconfig/$(BIN).pc.stub: $(SRC)
 	if [ -d vendor ]; \
 	then \
-		cargo rustc --frozen --lib -- --crate-type=dylib; \
-		cargo build --frozen --bin distinst; \
+		cargo build --frozen --bin distinst --release; \
 	else \
-		cargo rustc --lib -- --crate-type=dylib; \
-		cargo build --bin distinst; \
+		cargo build --bin distinst --release; \
 	fi
 
 target/pkgconfig/$(BIN).pc: target/pkgconfig/$(BIN).pc.stub

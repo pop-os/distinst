@@ -1,5 +1,8 @@
 include_guard = "distinst_h"
 language = "C"
 
+[parse]
+expand = ["distinst_ffi"]
+
 [enum]
 prefix_with_name = true

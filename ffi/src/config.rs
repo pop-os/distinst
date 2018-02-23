@@ -1,9 +1,10 @@
 use libc;
 
-use super::get_str;
 use std::io;
 
-use Config;
+use distinst::Config;
+
+use get_str;
 
 /// Installer configuration
 #[repr(C)]

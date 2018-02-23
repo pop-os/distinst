@@ -1,15 +1,12 @@
 TARGET=../../target
 
-LIB=$(TARGET)/debug/libdistinst.so
+LIB=$(TARGET)/release/libdistinst.so
 
 install: install.vala $(LIB)
-	valac $< -o $@ -X -I$(TARGET)/include -X $(LIB) --vapidir=../../src/ --pkg=distinst
+	valac $< -o $@ --save-temps -X -I$(TARGET)/include -X $(LIB) --vapidir=../../ffi/ --pkg=distinst
 
-list: list.vala $(TARGET)/release/libdistinst.so
-	valac $< -o $@ -X -I$(TARGET)/include -X $(LIB) --vapidir=../../src/ --pkg=distinst
+list: list.vala $(LIB)
+	valac $< -o $@ --save-temps -X -I$(TARGET)/include -X $(LIB) --vapidir=../../ffi/ --pkg=distinst
 
 clean:
-	rm -f install
-
-run: install
-	./install
+	rm -f install list

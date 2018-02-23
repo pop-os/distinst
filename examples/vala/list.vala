@@ -22,17 +22,21 @@ public static int main (string[] args) {
 
     Distinst.Disks disks = Distinst.Disks.probe ();
     foreach (unowned Distinst.Disk disk in disks.list()) {
+        uint8[] disk_path = disk.get_device_path();
         stdout.printf(
-            "%s: %d * %d\n",
-            disk.get_device_path(),
+            "%.*s: %d * %d\n",
+            disk_path.length,
+            (string) disk_path,
             (int)disk.get_sectors(),
             (int)disk.get_sector_size()
         );
 
         foreach (unowned Distinst.Partition partition in disk.list_partitions()) {
+            uint8[] part_path = partition.get_device_path();
             stdout.printf(
-                "  %s: %d : %d\n",
-                partition.get_device_path(),
+                "  %.*s: %d : %d\n",
+                part_path.length,
+                (string) part_path,
                 (int)partition.get_start_sector(),
                 (int)partition.get_end_sector()
             );

@@ -94,7 +94,7 @@ namespace Distinst {
 
     [CCode (has_type_id = false, unref_function = "")]
     public class Partition {
-        public unowned string get_device_path();
+        public unowned uint8[] get_device_path();
         public void set_flags(PartitionFlag *flags, size_t len);
         public void set_mount(string target);
         public int format_with(FileSystemType fs);
@@ -122,7 +122,7 @@ namespace Distinst {
     [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
     public class Disk {
         public Disk (string path);
-        public unowned string get_device_path();
+        public unowned uint8[] get_device_path();
         public Partition get_partition(int partition);
         public unowned Partition[] list_partitions();
         public int add_partition (PartitionBuilder partition);
