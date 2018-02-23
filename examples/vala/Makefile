@@ -2,6 +2,8 @@ TARGET=../../target
 
 LIB=$(TARGET)/release/libdistinst.so
 
+all: install list
+
 install: install.vala $(LIB)
 	valac $< -o $@ --save-temps -X -I$(TARGET)/include -X $(LIB) --vapidir=../../ffi/ --pkg=distinst
 
