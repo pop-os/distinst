@@ -52,6 +52,8 @@ apt-get autoremove -y --purge
 # Install grub packages
 apt-get install -y "${INSTALL_PKGS[@]}"
 
+echo "ROOT_UUID = $ROOT_UUID"
+
 # Update bootloader configuration
 if [ -d "/boot/efi" ]
 then

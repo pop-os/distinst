@@ -14,9 +14,11 @@ extern crate tempdir;
 
 use disk::external::blockdev;
 use std::{fs, io};
+use std::fs::{File, Permissions};
 use std::collections::BTreeMap;
-use std::io::{BufRead, Write};
+use std::io::{BufRead,  Write};
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use tempdir::TempDir;
@@ -363,7 +365,17 @@ impl Installer {
         {
             info!("libdistinst: writing /tmp/configure.sh");
             let mut file = fs::File::create(&configure)?;
-            file.write_all(include_bytes!("configure.sh"))?;
+            file.write_all(include_bytes!("scripts/configure.sh"))?;
+            file.sync_all()?;
+        }
+
+        {
+            info!("libdistinst: applying LVM initramfs autodetect workaround");
+            fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
+            let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
+            let mut file = fs::File::create(&lvm_fix)?;
+            file.write_all(include_bytes!("scripts/lvm-workaround.sh"))?;
+            file.set_permissions(Permissions::from_mode(0o1755))?;
             file.sync_all()?;
         }
 
