@@ -750,6 +750,8 @@ impl Disk {
             self.path().display()
         );
 
+        // TODO: Collect less
+
         // Ensure that mount targets are carried over in the new data.
         let mounts: Vec<(u64, PathBuf)> = self.partitions
             .iter()
@@ -769,6 +771,12 @@ impl Disk {
             })
             .collect();
 
+        // Same for key IDs
+        let key_ids: Vec<(u64, (String, PathBuf))> = self.partitions
+            .iter()
+            .filter_map(|p| p.key_id.as_ref().map(|id| (p.start_sector, id.clone())))
+            .collect();
+
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
 
         for (sector, mount) in mounts {
@@ -785,6 +793,14 @@ impl Disk {
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
             part.volume_group = Some(volgroup);
+        }
+
+        for (sector, id) in key_ids {
+            info!("libdistinst: checking for mount target at {}", sector);
+            let part = self.get_partition_at(sector)
+                .and_then(|num| self.get_partition_mut(num))
+                .expect("partition sectors are off");
+            part.key_id = Some(id);
         }
 
         Ok(())
@@ -999,56 +1015,24 @@ impl Disks {
         }
     }
 
+    // TODO: Add a similar function to check whether this will suceed without failure.
     fn resolve_keyfile_paths(&mut self) -> Result<(), DiskError> {
-        let mut temp = Vec::new();
-
-        {
-            // A closure which generates an iterator over partitions.
-            let partitions = || {
-                self.physical
-                    .iter()
-                    .flat_map(|p| p.partitions.iter())
-                    .chain(self.logical.iter().flat_map(|p| p.partitions.iter()))
-            };
-
-            // Get a list of ID's and their corresponding keyfile ID's and paths.
-            // Compares each partition
-            for (id, partition) in partitions().enumerate() {
-                if let Some((_, Some(ref enc))) = partition.volume_group {
-                    if let Some(&(ref key_id, _)) = enc.keyfile.as_ref() {
-                        for (comp_id, comp_partition) in partitions().enumerate() {
-                            if id == comp_id {
-                                continue;
-                            }
-                            if let Some((ref comp_key_id, ref key_mount)) = comp_partition.key_id {
-                                if key_id == comp_key_id {
-                                    temp.push((id, key_mount.clone()));
-                                }
+        'outer: for logical_device in &mut self.logical {
+            if let Some(ref mut encryption) = logical_device.encryption {
+                if let Some((ref key_id, ref mut paths)) = encryption.keydata {
+                    let partitions = self.physical.iter().flat_map(|p| p.partitions.iter());
+                    for partition in partitions {
+                        let dev = partition.get_device_path();
+                        if let Some((ref pkey_id, ref pkey_mount)) = partition.key_id {
+                            if pkey_id == key_id {
+                                *paths = Some((dev.into(), pkey_mount.into()));
+                                continue 'outer;
                             }
                         }
-                        return Err(DiskError::KeyWithoutPath);
                     }
+                    return Err(DiskError::KeyWithoutPath);
                 }
             }
-        }
-
-        // Fill in the missing information from the collected data.
-        let mut partitions_mut = self.physical
-            .iter_mut()
-            .flat_map(|p| p.partitions.iter_mut())
-            .chain(
-                self.logical
-                    .iter_mut()
-                    .flat_map(|p| p.partitions.iter_mut()),
-            )
-            .collect::<Vec<&mut PartitionInfo>>();
-
-        for (id, key_path) in temp {
-            let part = partitions_mut.get_mut(id).unwrap();
-            let volume_group = part.volume_group.as_mut().unwrap();
-            let encryption = volume_group.1.as_mut().unwrap();
-            let keyfile = encryption.keyfile.as_mut().unwrap();
-            keyfile.1 = Some(key_path);
         }
 
         Ok(())
@@ -1172,12 +1156,16 @@ impl Disks {
         for partition in fs_entries.chain(logical_entries) {
             if let Some(&(ref pv, Some(ref enc))) = partition.volume_group.as_ref() {
                 let password: Cow<'static, OsStr> =
-                    match (enc.password.is_some(), enc.keyfile.as_ref()) {
+                    match (enc.password.is_some(), enc.keydata.as_ref()) {
                         (true, None) => Cow::Borrowed(OsStr::new("none")),
                         (false, None) => Cow::Borrowed(OsStr::new("/dev/urandom")),
                         (true, Some(key)) => unimplemented!(),
                         (false, Some(key)) => {
-                            let path = key.1.clone().expect("should have been populated").join(pv);
+                            let path = key.1
+                                .clone()
+                                .expect("should have been populated")
+                                .1
+                                .join(pv);
                             Cow::Owned(path.into_os_string())
                         }
                     };
@@ -1210,7 +1198,7 @@ impl Disks {
 
     /// Generates intial LVM devices with a clean slate, using partition information.
     /// TODO: This should consume `Disks` and return a locked state.
-    pub fn initialize_volume_groups(&mut self) {
+    pub fn initialize_volume_groups(&mut self) -> io::Result<()> {
         let logical = &mut self.logical;
         let physical = &self.physical;
         logical.clear();
@@ -1239,6 +1227,8 @@ impl Disks {
                 }
             }
         }
+
+        Ok(())
     }
 
     /// Applies all logical device operations, which are to be performed after all physical disk
@@ -1272,6 +1262,7 @@ impl Disks {
             let mut device_path = None;
 
             if let Some(encryption) = device.encryption.as_ref() {
+                eprintln!("DEBUG: device: {:?}", device);
                 encryption.encrypt(volumes[0].1)?;
                 encryption.open(volumes[0].1)?;
                 encryption.create_physical_volume()?;
@@ -1317,12 +1308,7 @@ fn get_uuid(path: &Path) -> Option<OsString> {
     let uuid_dir = read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
 
     if let Ok(path) = path.canonicalize() {
-        eprintln!("DEBUG: Checking for {}", path.display());
         for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-            eprintln!(
-                "DEBUG: is {} a match?",
-                uuid_entry.path().canonicalize().unwrap().display()
-            );
             if &uuid_entry.path().canonicalize().unwrap() == &path {
                 return Some(uuid_entry.file_name());
             }

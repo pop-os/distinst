@@ -166,8 +166,13 @@ fn append_newline(input: &[u8]) -> Vec<u8> {
 /// Creates a LUKS partition from a physical partition. This could be either a LUKS on LVM
 /// configuration, or a LVM on LUKS configurations.
 pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
-    match (enc.password.as_ref(), enc.keyfile.as_ref()) {
-        (Some(password), Some(keyfile)) => unimplemented!(),
+    info!(
+        "libdistinst: cryptsetup is encrypting {} with {:?}",
+        device.display(),
+        enc
+    );
+    match (enc.password.as_ref(), enc.keydata.as_ref()) {
+        (Some(password), Some(keydata)) => unimplemented!(),
         (Some(password), None) => exec(
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
@@ -181,10 +186,10 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
                 device.into(),
             ],
         ),
-        (None, Some(&(_, ref keyfile))) => {
-            let keyfile = keyfile.as_ref().expect("field should have been populated");
+        (None, Some(&(_, ref keydata))) => {
+            let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let _mount = ExternalMount::new(&keyfile, tmpfs.path())?;
+            let _mount = ExternalMount::new(&keydata.0, tmpfs.path())?;
 
             generate_keyfile(&tmpfs.path().join(&enc.physical_volume))?;
             exec(
@@ -208,18 +213,29 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
 
 /// Opens an encrypted partition and maps it to the group name.
 pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -> io::Result<()> {
-    match (enc.password.as_ref(), enc.keyfile.as_ref()) {
-        (Some(password), Some(keyfile)) => unimplemented!(),
+    info!(
+        "libdistinst: cryptsetup is opening {} with group {} and {:?}",
+        device.display(),
+        group,
+        enc
+    );
+    match (enc.password.as_ref(), enc.keydata.as_ref()) {
+        (Some(password), Some(keydata)) => unimplemented!(),
         (Some(password), None) => exec(
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
             None,
             &["open".into(), device.into(), group.into()],
         ),
-        (None, Some(&(_, ref keyfile))) => {
-            let keyfile = keyfile.as_ref().expect("should have been populated");
+        (None, Some(&(_, ref keydata))) => {
+            let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            exec("mount", None, None, &[keyfile.into(), tmpfs.path().into()])?;
+            exec(
+                "mount",
+                None,
+                None,
+                &[keydata.0.clone().into(), tmpfs.path().into()],
+            )?;
 
             exec(
                 "cryptsetup",

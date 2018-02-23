@@ -6,19 +6,19 @@ use std::path::{Path, PathBuf};
 pub struct LvmEncryption {
     pub(crate) physical_volume: String,
     pub(crate) password:        Option<String>,
-    pub(crate) keyfile:         Option<(String, Option<PathBuf>)>,
+    pub(crate) keydata:         Option<(String, Option<(PathBuf, PathBuf)>)>,
 }
 
 impl LvmEncryption {
     pub fn new<S: Into<Option<String>>>(
         physical_volume: String,
         password: S,
-        keyfile: S,
+        keydata: S,
     ) -> LvmEncryption {
         LvmEncryption {
             physical_volume,
             password: password.into(),
-            keyfile: keyfile.into().map(|key| (key, None)),
+            keydata: keydata.into().map(|key| (key, None)),
         }
     }
 

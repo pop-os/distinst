@@ -68,7 +68,7 @@ impl LvmDevice {
             self.encryption = Some(LvmEncryption {
                 physical_volume: physical_volume.into(),
                 password:        Some(password.into()),
-                keyfile:         None,
+                keydata:         None,
             });
         }
     }

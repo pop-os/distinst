@@ -179,7 +179,7 @@ impl PartitionBuilder {
 
     /// Defines that this partition will store the keyfile of the given ID(s),
     /// at the target mount point.
-    pub fn keyfile(mut self, id: String, target: PathBuf) -> PartitionBuilder {
+    pub fn keydata(mut self, id: String, target: PathBuf) -> PartitionBuilder {
         self.key_id = Some((id, target));
         self
     }
@@ -339,7 +339,7 @@ impl PartitionInfo {
         }))
     }
 
-    pub fn set_keyfile(&mut self, id: String, target: PathBuf) {
+    pub fn set_keydata(&mut self, id: String, target: PathBuf) {
         self.key_id = Some((id, target));
         self.target = None;
     }

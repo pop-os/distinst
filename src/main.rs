@@ -264,7 +264,7 @@ enum PartType {
 
 fn parse_fs(fs: &str) -> PartType {
     if fs.starts_with("enc=") {
-        let (mut pass, mut keyfile) = (None, None);
+        let (mut pass, mut keydata) = (None, None);
 
         let mut fields = fs[4..].split(",");
         let physical_volume = match fields.next() {
@@ -299,7 +299,7 @@ fn parse_fs(fs: &str) -> PartType {
                     exit(1);
                 }
 
-                keyfile = Some(keyval.into());
+                keydata = Some(keyval.into());
             } else {
                 eprintln!("distinst: invalid fs field");
                 exit(1);
@@ -308,10 +308,10 @@ fn parse_fs(fs: &str) -> PartType {
 
         PartType::Lvm(
             volume_group,
-            if !pass.is_some() && !keyfile.is_some() {
+            if !pass.is_some() && !keydata.is_some() {
                 None
             } else {
-                Some(LvmEncryption::new(physical_volume, pass, keyfile))
+                Some(LvmEncryption::new(physical_volume, pass, keydata))
             },
         )
     } else if fs.starts_with("lvm=") {
@@ -568,7 +568,7 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Disk
 
             if let Some(keyid) = key {
                 match mount {
-                    Some(mount) => partition.set_keyfile(keyid, mount.into()),
+                    Some(mount) => partition.set_keydata(keyid, mount.into()),
                     None => {
                         eprintln!("distinst: mount path must be specified with key");
                         exit(1);
@@ -657,7 +657,7 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DiskErr
 
             if let Some(keyid) = key {
                 match mount {
-                    Some(mount) => builder = builder.keyfile(keyid, mount.into()),
+                    Some(mount) => builder = builder.keydata(keyid, mount.into()),
                     None => {
                         eprintln!("distinst: mount path must be specified with key");
                         exit(1);
