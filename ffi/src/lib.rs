@@ -1,8 +1,9 @@
-use libc;
+extern crate distinst;
+extern crate libc;
+#[macro_use]
+extern crate log;
 
 use std::ffi::{CStr, CString};
-
-use log;
 
 pub use self::config::*;
 pub use self::disk::*;
@@ -74,7 +75,7 @@ pub unsafe extern "C" fn distinst_log(
     use log::LogLevel;
 
     let user_data_sync = user_data as usize;
-    match log(move |level, message| {
+    match distinst::log(move |level, message| {
         let c_level = match level {
             LogLevel::Trace => TRACE,
             LogLevel::Debug => DEBUG,

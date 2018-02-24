@@ -8,33 +8,39 @@ datadir = $(datarootdir)
 
 .PHONY: all clean distclean install uninstall update
 
-BIN=distinst
+SRC=Cargo.toml src/* src/*/*
+FFI_SRC=ffi/Cargo.toml ffi/build.rs ffi/src/*
 
-SRC=src/* src/*/*
+PACKAGE=distinst
 
-all: target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
+BINARY=target/release/$(PACKAGE)
+LIBRARY=target/release/lib$(PACKAGE).so
+HEADER=target/$(PACKAGE).h
+PKGCONFIG=target/$(PACKAGE).pc
+VAPI=ffi/$(PACKAGE).vapi
 
-debug: target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
+all: $(BINARY) $(LIBRARY) $(HEADER) $(PKGCONFIG)
 
 clean:
 	cargo clean
+	cargo clean --manifest-path ffi/Cargo.toml
 
 distclean: clean
 	rm -rf .cargo vendor
 
 install: all
-	install -D -m 0755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
-	install -D -m 0644 "target/release/lib$(BIN).so" "$(DESTDIR)$(libdir)/lib$(BIN).so"
-	install -D -m 0644 "target/include/$(BIN).h" "$(DESTDIR)$(includedir)/$(BIN).h"
-	install -D -m 0644 "target/pkgconfig/$(BIN).pc" "$(DESTDIR)$(datadir)/pkgconfig/$(BIN).pc"
-	install -D -m 0644 "src/$(BIN).vapi" "$(DESTDIR)$(datadir)/vala/vapi/$(BIN).vapi"
+	install -D -m 0755 "$(BINARY)" "$(DESTDIR)$(bindir)/$(PACKAGE)"
+	install -D -m 0644 "$(LIBRARY)" "$(DESTDIR)$(libdir)/lib$(PACKAGE).so"
+	install -D -m 0644 "$(HEADER)" "$(DESTDIR)$(includedir)/$(PACKAGE).h"
+	install -D -m 0644 "$(PKGCONFIG)" "$(DESTDIR)$(datadir)/pkgconfig/$(PACKAGE).pc"
+	install -D -m 0644 "$(VAPI)" "$(DESTDIR)$(datadir)/vala/vapi/$(PACKAGE).vapi"
 
 uninstall:
-	rm -f "$(DESTDIR)$(bindir)/$(BIN)"
-	rm -f "$(DESTDIR)$(libdir)/lib$(BIN).so"
-	rm -f "$(DESTDIR)$(includedir)/$(BIN).h"
-	rm -f "$(DESTDIR)$(datadir)/pkgconfig/$(BIN).pc"
-	rm -f "$(DESTDIR)$(datadir)/vala/vapi/$(BIN).vapi"
+	rm -f "$(DESTDIR)$(bindir)/$(PACKAGE)"
+	rm -f "$(DESTDIR)$(libdir)/lib$(PACKAGE).so"
+	rm -f "$(DESTDIR)$(includedir)/$(PACKAGE).h"
+	rm -f "$(DESTDIR)$(datadir)/pkgconfig/$(PACKAGE).pc"
+	rm -f "$(DESTDIR)$(datadir)/vala/vapi/$(PACKAGE).vapi"
 
 update:
 	cargo update
@@ -47,28 +53,23 @@ vendor: .cargo/config
 	cargo vendor
 	touch vendor
 
-# Each lib crate type has to be built independently, else there will be a compiler error.
-target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub: $(SRC)
+$(BINARY): $(SRC)
 	if [ -d vendor ]; \
 	then \
-		cargo rustc --frozen --lib --release -- --crate-type=dylib; \
 		cargo build --frozen --bin distinst --release; \
 	else \
-		cargo rustc --lib --release -- --crate-type=dylib; \
 		cargo build --bin distinst --release; \
 	fi
 
-target/debug/$(BIN) target/debug/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc.stub: $(SRC)
+$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(FFI_SRC)
 	if [ -d vendor ]; \
 	then \
-		cargo rustc --frozen --lib -- --crate-type=dylib; \
-		cargo build --frozen --bin distinst; \
+		cargo build --manifest-path ffi/Cargo.toml --frozen --lib --release; \
 	else \
-		cargo rustc --lib -- --crate-type=dylib; \
-		cargo build --bin distinst; \
+		cargo build --manifest-path ffi/Cargo.toml --lib --release; \
 	fi
 
-target/pkgconfig/$(BIN).pc: target/pkgconfig/$(BIN).pc.stub
+$(PKGCONFIG): $(PKGCONFIG).stub
 	echo "libdir=$(libdir)" > "$@.partial"
 	echo "includedir=$(includedir)" >> "$@.partial"
 	cat "$<" >> "$@.partial"
