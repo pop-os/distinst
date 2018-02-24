@@ -6,7 +6,7 @@ Distinst is a Rust-based software library that handles Linux distribution instal
 
 ## Frontends
 
-At the moment, Elementary's installer is the primary target for distinst. However, distinst also ships with a CLI application (also called distinst) that serves as a fully-functioning test bed for the distinst library.
+At the moment, elementary's installer is the primary target for distinst. However, distinst also ships with a CLI application (also called distinst) that serves as a fully-functioning test bed for the distinst library.
 
 ### CLI
 
@@ -14,7 +14,7 @@ At the moment, Elementary's installer is the primary target for distinst. Howeve
 
 ### GTK
 
- - [Elementary Installer](https://github.com/elementary/installer) (Vala)
+ - [elementary Installer](https://github.com/elementary/installer) (Vala)
 
 ## Capabilities
 
