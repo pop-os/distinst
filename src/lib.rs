@@ -14,9 +14,9 @@ extern crate tempdir;
 
 use disk::external::blockdev;
 use std::{fs, io};
-use std::fs::{File, Permissions};
 use std::collections::BTreeMap;
-use std::io::{BufRead,  Write};
+use std::fs::{File, Permissions};
+use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -224,7 +224,7 @@ impl Installer {
 
         let mut remove_pkgs = Vec::new();
         {
-            let file = match fs::File::open(&config.remove) {
+            let file = match File::open(&config.remove) {
                 Ok(file) => file,
                 Err(err) => {
                     error!("config.remove: {}", err);
@@ -364,7 +364,7 @@ impl Installer {
 
         {
             info!("libdistinst: writing /tmp/configure.sh");
-            let mut file = fs::File::create(&configure)?;
+            let mut file = File::create(&configure)?;
             file.write_all(include_bytes!("scripts/configure.sh"))?;
             file.sync_all()?;
         }
@@ -373,7 +373,7 @@ impl Installer {
             info!("libdistinst: applying LVM initramfs autodetect workaround");
             fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
             let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
-            let mut file = fs::File::create(&lvm_fix)?;
+            let mut file = File::create(&lvm_fix)?;
             file.write_all(include_bytes!("scripts/lvm-workaround.sh"))?;
             file.set_permissions(Permissions::from_mode(0o1755))?;
             file.sync_all()?;
@@ -382,7 +382,7 @@ impl Installer {
         {
             info!("libdistinst: writing /etc/fstab");
             let fstab = mount_dir.join("etc/fstab");
-            let mut file = fs::File::create(&fstab)?;
+            let mut file = File::create(&fstab)?;
             file.write_all(FSTAB_HEADER)?;
             file.write_all(disks.generate_fstab().as_bytes())?;
             file.sync_all()?;
@@ -391,7 +391,7 @@ impl Installer {
         {
             info!("libdistinst: writing /etc/crypttab");
             let crypttab = mount_dir.join("etc/crypttab");
-            let mut file = fs::File::create(&crypttab)?;
+            let mut file = File::create(&crypttab)?;
             file.write_all(disks.generate_crypttab().as_bytes())?;
             file.sync_all()?;
         }

@@ -1017,6 +1017,8 @@ impl Disks {
 
     // TODO: Add a similar function to check whether this will suceed without failure.
     fn resolve_keyfile_paths(&mut self) -> Result<(), DiskError> {
+        let mut temp: Vec<(String, Option<(PathBuf, PathBuf)>)> = Vec::new();
+
         'outer: for logical_device in &mut self.logical {
             if let Some(ref mut encryption) = logical_device.encryption {
                 if let Some((ref key_id, ref mut paths)) = encryption.keydata {
@@ -1026,11 +1028,34 @@ impl Disks {
                         if let Some((ref pkey_id, ref pkey_mount)) = partition.key_id {
                             if pkey_id == key_id {
                                 *paths = Some((dev.into(), pkey_mount.into()));
+                                temp.push((pkey_id.clone(), paths.clone()));
                                 continue 'outer;
                             }
                         }
                     }
                     return Err(DiskError::KeyWithoutPath);
+                }
+            }
+        }
+
+        for (key, paths) in temp {
+            let partitions = self.physical
+                .iter_mut()
+                .flat_map(|x| x.get_partitions_mut().iter_mut())
+                .chain(
+                    self.logical
+                        .iter_mut()
+                        .flat_map(|x| x.get_partitions_mut().iter_mut()),
+                );
+
+            for partition in partitions {
+                if let Some(&mut (_, Some(ref mut enc))) = partition.volume_group.as_mut() {
+                    if let Some((ref id, ref mut ppath)) = enc.keydata {
+                        if &*id == &*key {
+                            *ppath = paths.clone();
+                            continue;
+                        }
+                    }
                 }
             }
         }
@@ -1146,14 +1171,15 @@ impl Disks {
         info!("libdistinst: generating crypttab in memory");
         let mut crypttab = OsString::with_capacity(1024);
 
-        let fs_entries = self.physical.iter().flat_map(|disk| disk.partitions.iter());
-
-        let logical_entries = self.logical.iter().flat_map(|disk| disk.partitions.iter());
+        let partitions = self.physical
+            .iter()
+            .flat_map(|x| x.get_partitions().iter())
+            .chain(self.logical.iter().flat_map(|x| x.get_partitions().iter()));
 
         // <PV> <UUID> <Pass> <Options>
         use std::borrow::Cow;
         use std::ffi::OsStr;
-        for partition in fs_entries.chain(logical_entries) {
+        for partition in partitions {
             if let Some(&(ref pv, Some(ref enc))) = partition.volume_group.as_ref() {
                 let password: Cow<'static, OsStr> =
                     match (enc.password.is_some(), enc.keydata.as_ref()) {
@@ -1177,7 +1203,7 @@ impl Disks {
                         crypttab.push(&uuid);
                         crypttab.push(" ");
                         crypttab.push(&password);
-                        crypttab.push(" luks,timeout=90\n");
+                        crypttab.push(" luks\n");
                     }
                     None => error!(
                         "unable to find UUID for {} -- skipping",
@@ -1262,7 +1288,6 @@ impl Disks {
             let mut device_path = None;
 
             if let Some(encryption) = device.encryption.as_ref() {
-                eprintln!("DEBUG: device: {:?}", device);
                 encryption.encrypt(volumes[0].1)?;
                 encryption.open(volumes[0].1)?;
                 encryption.create_physical_volume()?;

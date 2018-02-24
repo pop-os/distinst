@@ -395,7 +395,6 @@ impl PartitionInfo {
             "libdistinst: getting block information for partition at {}",
             self.device_path.display()
         );
-        info!("DEBUG: {:?}", self);
 
         if self.filesystem != Some(FileSystemType::Swap)
             && (self.target.is_none() || self.filesystem.is_none())
