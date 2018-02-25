@@ -90,11 +90,11 @@ Based on whether the image is running on a system that is EFI or not, the bootlo
 In order to build `distinst` on Ubuntu, you will need to follow these instructions:
 
 ```
+# Install clang
+sudo apt install clang
+
 # Install libparted
 sudo apt install libparted-dev
-
-# Fetch libparted Rust bindings
-git submodule update --init libparted
 
 # Install Rust
 curl https://sh.rustup.rs -sSf | sh
