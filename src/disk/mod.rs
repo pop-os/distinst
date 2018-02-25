@@ -1329,6 +1329,8 @@ impl FromIterator<Disk> for Disks {
     }
 }
 
+/// Obtains the UUID of the given device path by resolving symlinks in `/dev/disk/by-uuid`
+/// until the device is found.
 fn get_uuid(path: &Path) -> Option<OsString> {
     let uuid_dir = read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
 

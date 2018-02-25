@@ -104,7 +104,12 @@ pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<
 
 /// Used to create a physical volume on a LUKS partition.
 pub(crate) fn pvcreate<P: AsRef<Path>>(device: P) -> io::Result<()> {
-    exec("pvcreate", None, None, &[device.as_ref().into()])
+    exec(
+        "pvcreate",
+        None,
+        None,
+        &["-ffy".into(), device.as_ref().into()],
+    )
 }
 
 /// Used to create a volume group from one or more physical volumes.
@@ -181,8 +186,6 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
                 "-s".into(),
                 "512".into(),
                 "luksFormat".into(),
-                "--type".into(),
-                "luks2".into(),
                 device.into(),
             ],
         ),
@@ -200,8 +203,6 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
                     "-s".into(),
                     "512".into(),
                     "luksFormat".into(),
-                    "--type".into(),
-                    "luks2".into(),
                     device.into(),
                     tmpfs.path().join(&enc.physical_volume).into(),
                 ],
