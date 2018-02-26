@@ -1018,6 +1018,7 @@ impl Disks {
 
     /// Ensure that keyfiles have key paths.
     pub fn verify_keyfile_paths(&self) -> Result<(), DiskError> {
+        info!("libdistinst: verifying if keyfiles have paths");
         let mut set = HashSet::new();
         'outer: for logical_device in &self.logical {
             if let Some(ref encryption) = logical_device.encryption {

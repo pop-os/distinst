@@ -3,9 +3,10 @@
 use super::{FileSystemType, LvmEncryption};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::File;
+use std::fs::{File, Permissions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::io::Read;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempdir::TempDir;
@@ -356,8 +357,9 @@ fn generate_keyfile(path: &Path) -> io::Result<()> {
     let mut urandom = File::open("/dev/urandom")?;
     urandom.read_exact(&mut key)?;
 
-    // Open the keyfile and write the key.
+    // Open the keyfile and write the key, ensuring it is readable only to root.
     let mut keyfile = File::create(path)?;
+    keyfile.set_permissions(Permissions::from_mode(0o0400))?;
     keyfile.write_all(&key)?;
     keyfile.sync_all()
 }
