@@ -6,9 +6,9 @@ use std::ptr;
 
 use distinst::{Disk, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
 
-use gen_object_ptr;
 use ffi::AsMutPtr;
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
+use gen_object_ptr;
 use partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
 use sector::DistinstSector;
 
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn distinst_disk_get_partition(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_list_partitions(
     disk: *mut DistinstDisk,
-    len: *mut libc::c_int
+    len: *mut libc::c_int,
 ) -> *mut *mut DistinstPartition {
     let disk = &mut *(disk as *mut Disk);
 
@@ -90,16 +90,14 @@ pub unsafe extern "C" fn distinst_disk_list_partitions_destroy(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_get_sectors(
-    disk: *const DistinstDisk
-) -> libc::uint64_t {
+pub unsafe extern "C" fn distinst_disk_get_sectors(disk: *const DistinstDisk) -> libc::uint64_t {
     let disk = &*(disk as *const Disk);
     disk.get_sectors()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_sector_size(
-    disk: *const DistinstDisk
+    disk: *const DistinstDisk,
 ) -> libc::uint64_t {
     let disk = &*(disk as *const Disk);
     disk.get_sector_size()
@@ -240,6 +238,7 @@ pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::
 #[repr(C)]
 pub struct DistinstDisks;
 
+
 /// Returns an empty disks array
 ///
 /// On error, a null pointer will be returned.
@@ -280,10 +279,7 @@ pub unsafe extern "C" fn distinst_disks_list(
 
 #[no_mangle]
 /// TODO: This is to be used with vectors returned from `distinst_disks_list`.
-pub unsafe extern "C" fn distinst_disks_list_destroy(
-    list: *mut DistinstDisk,
-    len: libc::size_t,
-) {
+pub unsafe extern "C" fn distinst_disks_list_destroy(list: *mut DistinstDisk, len: libc::size_t) {
     drop(Vec::from_raw_parts(list, len, len))
 }
 
