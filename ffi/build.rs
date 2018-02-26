@@ -10,7 +10,7 @@ fn main() {
 
     let pkg_config = format!(
         include_str!("distinst.pc.in"),
-        name = env::var("CARGO_PKG_NAME").unwrap(),
+        name = "distinst",
         description = env::var("CARGO_PKG_DESCRIPTION").unwrap(),
         version = env::var("CARGO_PKG_VERSION").unwrap()
     );
