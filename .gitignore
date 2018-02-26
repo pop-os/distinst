@@ -2,6 +2,7 @@
 /.vscode/
 /distinst/
 /debian/files
+/ffi/target/
 /target/
 /vendor/
 /tests/filesystem.squashfs

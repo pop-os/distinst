@@ -9,6 +9,7 @@ pub use self::config::*;
 pub use self::disk::*;
 pub use self::filesystem::*;
 pub use self::installer::*;
+pub use self::lvm::*;
 pub use self::partition::*;
 pub use self::sector::*;
 
@@ -16,6 +17,7 @@ use std::io;
 
 mod config;
 mod disk;
+mod lvm;
 mod ffi;
 mod filesystem;
 mod installer;

@@ -4,9 +4,9 @@ use std::io;
 
 use distinst::{Disks, Error, Installer, Status, Step};
 
-use gen_object_ptr;
 use config::DistinstConfig;
 use disk::DistinstDisks;
+use gen_object_ptr;
 
 /// Bootloader steps
 #[repr(C)]

@@ -238,7 +238,6 @@ pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::
 #[repr(C)]
 pub struct DistinstDisks;
 
-
 /// Returns an empty disks array
 ///
 /// On error, a null pointer will be returned.

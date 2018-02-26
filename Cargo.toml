@@ -14,6 +14,11 @@ members = ["ffi"]
 name = "distinst"
 crate-type = ["lib"]
 
+[[bin]]
+name = "distinst"
+path = "src/main.rs"
+doc = false
+
 [dependencies]
 clap = "=2.26.0"
 libc = "0.2"

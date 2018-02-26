@@ -466,9 +466,10 @@ fn read_lsb(base: &Path) -> Option<String> {
         .ok()
         .and_then(|file| {
             for line in BufReader::new(file).lines() {
-                let line = line.ok()?;
-                if line.starts_with("DISTRIB_DESCRIPTION=") {
-                    return Some(line[20..line.len() - 1].into());
+                if let Ok(line) = line {
+                    if line.starts_with("DISTRIB_DESCRIPTION=") {
+                        return Some(line[20..line.len() - 1].into());
+                    }
                 }
             }
             None
