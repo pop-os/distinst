@@ -1,9 +1,12 @@
 use super::{get_uuid, LvmEncryption, Mounts, PartitionSizeError, Swaps};
+use super::mount::Mount;
 use libparted::{Partition, PartitionFlag};
 use std::ffi::{OsStr, OsString};
-use std::io;
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use tempdir::TempDir;
 
 /// Specifies which file system format to use.
 #[derive(Debug, PartialEq, Copy, Clone, Hash)]
@@ -387,6 +390,31 @@ impl PartitionInfo {
         self.name = None;
     }
 
+    /// Detects if an OS is installed to this partition, and if so, what the OS is named.
+    pub fn probe_os(&self) -> Option<String> {
+        self.filesystem.and_then(|fs| {
+            // Mount a temporary directoy where we will mount the FS.
+            TempDir::new("distinst").ok().and_then(|tempdir| {
+                // Mount the FS to the temporary directory
+                Mount::new(
+                    self.get_device_path(),
+                    &tempdir.path(),
+                    match fs {
+                        FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
+                        fs => fs.into(),
+                    },
+                    0,
+                    None,
+                ).ok()
+                    .and_then(|_mount| {
+                        // Check if the partition contains `/etc/lsb-release` to detect a Linux
+                        // install.
+                        read_lsb(&tempdir.path())
+                    })
+            })
+        })
+    }
+
     /// Specifies to delete this partition from the partition table.
     pub fn remove(&mut self) { self.remove = true; }
 
@@ -431,6 +459,20 @@ impl PartitionInfo {
 
         result
     }
+}
+
+fn read_lsb(base: &Path) -> Option<String> {
+    File::open(base.join("etc/lsb-release"))
+        .ok()
+        .and_then(|file| {
+            for line in BufReader::new(file).lines() {
+                let line = line.ok()?;
+                if line.starts_with("DISTRIB_DESCRIPTION=") {
+                    return Some(line[20..line.len() - 1].into());
+                }
+            }
+            None
+        })
 }
 
 const FLAGS: &[PartitionFlag] = &[
