@@ -2,11 +2,12 @@
 
 **Warning!** *This code is not ready for general use. It is not compatible with all Ubuntu-based distributions. Release is targeted for April, 2018.*
 
-Distinst is a Rust-based software library that handles Linux distribution installer installation details. It has been built specifically to be used in the construction of Linux distribution installers, so that installers can spend more time improving their UI, and less time worrying about some of the more complicated implementation details, such as partition management.
+Distinst is a Rust-based software library that handles Linux distribution installer installation details. It has been built specifically to be used in the construction of Linux distribution installers, so that installers can spend more time improving their UI, and less time worrying about some of the more complicated implementation details, such as partition management & encryption.
 
 ## Frontends
 
-At the moment, elementary's installer is the primary target for distinst. However, distinst also ships with a CLI application (also called distinst) that serves as a fully-functioning test bed for the distinst library.
+At the moment, elementary's installer is the primary target for distinst. However, distinst also ships with a CLI application (also called distinst) that serves as a fully-functioning test bed for the distinst library. Example scripts exist within the [tests](https://github.com/pop-os/distinst/tree/master/tests) directory to demonstrate how the CLI
+can be used to perform installs using files from the Pop! ISO.
 
 ### CLI
 
@@ -20,11 +21,9 @@ At the moment, elementary's installer is the primary target for distinst. Howeve
 
 ### Disk Partitioning & Formatting
 
-Distinst provides a Rust, C, and Vala API for probing disk and partition information, as well as the ability to create and manipulate partitions. In addition to partitioning the disk via the libparted bindings, distinst will also handle disk partitioning using `mkfs`, provided that you have installed the corresponding packages for each file system type that you want to support in your installer.
+Distinst provides a Rust, C, and Vala API for probing disk and partition information, as well as the ability to create and manipulate partitions. In addition to partitioning the disk via the libparted bindings, distinst will also handle disk partitioning using `mkfs`, provided that you have installed the corresponding packages for each file system type that you want to support in your installer. LUKS & LVM configurations are also supported, and may be configured after configuring your physical partitions.
 
-Implementors of the library should note that distinst utilizes in-memory partition management logic to determine whether changes that are being specified will be valid or not. Changes specified will be applied by distinst during the `install` method, which is where you will pass your disk configurations into. This configuration will further be validated by distinst before finally making the changes with libparted (which also performs similar measures of its own).
-
-> LVM support & disk/partition encryption has not yet been implemented.
+Implementors of the library should note that distinst utilizes in-memory partition management logic to determine whether changes that are being specified will be valid or not. Changes specified will be applied by distinst during the `install` method, which is where you will pass your disk configurations into. This configuration will be validated by distinst before any changes are made.
 
 #### Rust Example
 
