@@ -26,6 +26,7 @@ use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
 pub use libparted::PartitionFlag;
 
 use itertools::Itertools;
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs::read_dir;
 use std::io;
@@ -1015,7 +1016,33 @@ impl Disks {
         }
     }
 
-    // TODO: Add a similar function to check whether this will suceed without failure.
+    /// Ensure that keyfiles have key paths.
+    pub fn verify_keyfile_paths(&self) -> Result<(), DiskError> {
+        let mut set = HashSet::new();
+        'outer: for logical_device in &self.logical {
+            if let Some(ref encryption) = logical_device.encryption {
+                if let Some((ref key_id, _)) = encryption.keydata {
+                    let partitions = self.physical.iter().flat_map(|p| p.partitions.iter());
+                    for partition in partitions {
+                        if let Some((ref pkey_id, _)) = partition.key_id {
+                            if pkey_id == key_id {
+                                if set.contains(&key_id) {
+                                    return Err(DiskError::KeyPathAlreadySet { id: key_id.clone() });
+                                }
+                                set.insert(key_id);
+                                continue 'outer;
+                            }
+                        }
+                    }
+                    return Err(DiskError::KeyWithoutPath);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Maps key paths to their keyfile IDs
     fn resolve_keyfile_paths(&mut self) -> Result<(), DiskError> {
         let mut temp: Vec<(String, Option<(PathBuf, PathBuf)>)> = Vec::new();
 

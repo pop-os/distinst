@@ -78,7 +78,7 @@ impl LvmDevice {
     pub(crate) fn validate(&self) -> Result<(), DiskError> {
         // TODO: Requires Rust 1.23
         // self.partitions.iter()
-        //     .map(|p| p.name.as_ref().map(|_| ()).ok_or(DiskError::VolumePartitionLacksLabel))
+        //     .map(|p| p.name.as_ref().ok_or_else(|_| DiskError::VolumePartitionLacksLabel))
         //     .collect()
 
         for partition in self.get_partitions() {

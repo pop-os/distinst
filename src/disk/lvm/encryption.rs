@@ -2,6 +2,7 @@ use disk::DiskError;
 use disk::external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
 use std::path::{Path, PathBuf};
 
+/// A structure which contains the encryption settings for a physical volume.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LvmEncryption {
     pub(crate) physical_volume: String,
@@ -22,6 +23,7 @@ impl LvmEncryption {
         }
     }
 
+    /// Encrypts a new partition with the settings stored in the structure.
     pub(crate) fn encrypt(&self, device: &Path) -> Result<(), DiskError> {
         cryptsetup_encrypt(device, self).map_err(|why| DiskError::Encryption {
             volume: device.into(),
@@ -29,6 +31,7 @@ impl LvmEncryption {
         })
     }
 
+    /// Opens the previously-encrypted partition with the same settings used to encrypt it.
     pub(crate) fn open(&self, device: &Path) -> Result<(), DiskError> {
         cryptsetup_open(device, &self.physical_volume, self).map_err(|why| {
             DiskError::EncryptionOpen {
@@ -38,6 +41,7 @@ impl LvmEncryption {
         })
     }
 
+    /// Creates a physical volume
     pub(crate) fn create_physical_volume(&self) -> Result<(), DiskError> {
         let path = ["/dev/mapper/", &self.physical_volume].concat();
         pvcreate(&path).map_err(|why| DiskError::PhysicalVolumeCreate {

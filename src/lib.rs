@@ -206,9 +206,10 @@ impl Installer {
             }
         };
 
+        disks.verify_keyfile_paths()?;
+
         callback(20);
 
-        // TODO: Handle LVM too
         for disk in disks.get_physical_devices_mut() {
             if let Err(why) = disk.unmount_all_partitions() {
                 error!("unable to unmount partitions");
