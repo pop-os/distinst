@@ -7,8 +7,16 @@ use std::ffi::CStr;
 
 // Initializes the initial volume groups within the disks object.
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disks_initialize_volume_groups(disks: *mut DistinstDisks) {
-    (&mut *(disks as *mut Disks)).initialize_volume_groups();
+pub unsafe extern "C" fn distinst_disks_initialize_volume_groups(
+    disks: *mut DistinstDisks,
+) -> libc::c_int {
+    match (&mut *(disks as *mut Disks)).initialize_volume_groups() {
+        Ok(_) => 0,
+        Err(why) => {
+            error!("unable to initialize volumes: {}", why);
+            -1
+        }
+    }
 }
 
 #[no_mangle]
@@ -53,7 +61,7 @@ pub unsafe extern "C" fn distinst_lvm_device_add_partition(
     let disk = &mut *(device as *mut LvmDevice);
 
     if let Err(why) = disk.add_partition(*Box::from_raw(partition as *mut PartitionBuilder)) {
-        info!("unable to add partition: {}", why);
+        error!("unable to add partition: {}", why);
         -1
     } else {
         0

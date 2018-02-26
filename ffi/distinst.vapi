@@ -136,6 +136,14 @@ namespace Distinst {
         public int remove_partition (int partition);
         public int resize_partition (int partition, uint64 end);
         public int commit();
+        public int initialize_volume_groups ();
+    }
+
+    [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
+    public class LvmDevice {
+        public uint64 last_used_sector ();
+        public uint64 get_sector (Sector sector);
+        public int add_partition (PartitionBuilder partition);
     }
 
     [CCode (has_type_id = false, destroy_function = "distinst_disks_destroy", free_function = "", unref_function = "")]
