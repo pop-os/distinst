@@ -91,6 +91,7 @@ namespace Distinst {
         public PartitionBuilder mount(string target);
         public PartitionBuilder partition_type(PartitionType part_type);
         public PartitionBuilder flag(PartitionFlag flag);
+        public PartitionBuilder logical_volume(string group, LvmEncryption encryption);
     }
 
     [CCode (has_type_id = false, unref_function = "")]
@@ -137,6 +138,7 @@ namespace Distinst {
         public int resize_partition (int partition, uint64 end);
         public int commit();
         public int initialize_volume_groups ();
+        public unowned LvmDevice find_logical_volume (string group);
     }
 
     [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
@@ -144,6 +146,13 @@ namespace Distinst {
         public uint64 last_used_sector ();
         public uint64 get_sector (Sector sector);
         public int add_partition (PartitionBuilder partition);
+    }
+
+    [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
+    public class LvmEncryption {
+        string physical_volume;
+        string? password;
+        string? keydata;
     }
 
     [CCode (has_type_id = false, destroy_function = "distinst_disks_destroy", free_function = "", unref_function = "")]

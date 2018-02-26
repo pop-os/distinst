@@ -4,9 +4,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr;
 
-use distinst::{Bootloader, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType};
-
-use {gen_object_ptr, get_str};
+use distinst::{Bootloader, LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType};
+use {gen_object_ptr, get_str, DistinstLvmEncryption};
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 
 #[repr(C)]
@@ -210,6 +209,52 @@ pub unsafe extern "C" fn distinst_partition_builder_flag(
     flag: DISTINST_PARTITION_FLAG,
 ) -> *mut DistinstPartitionBuilder {
     builder_action(builder, |builder| builder.flag(flag.into()))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
+    builder: *mut DistinstPartitionBuilder,
+    group: *const libc::c_char,
+    encryption: *mut DistinstLvmEncryption,
+) -> *mut DistinstPartitionBuilder {
+    let group = match get_str(group, "distinst_partition_builder_logical_volume") {
+        Ok(string) => String::from(string.to_string()),
+        Err(why) => panic!("builder_action: failed: {}", why),
+    };
+
+    let encryption = if encryption.is_null() {
+        None
+    } else {
+        let pv = match get_str(
+            (*encryption).physical_volume,
+            "distinst_partition_builder_logical_volume"
+        ) {
+            Ok(string) => String::from(string.to_string()),
+            Err(why) => panic!("builder_action: failed: {}", why),
+        };
+
+        let password = if (*encryption).password.is_null() {
+            None
+        } else {
+            match get_str((*encryption).password, "distinst_partition_builder_logical_volume") {
+                Ok(string) => Some(String::from(string.to_string())),
+                Err(why) => panic!("builder_action: failed: {}", why),
+            }
+        };
+
+        let keydata = if (*encryption).keydata.is_null() {
+            None
+        } else {
+            match get_str((*encryption).keydata, "distinst_partition_builder_logical_volume") {
+                Ok(string) => Some(String::from(string.to_string())),
+                Err(why) => panic!("builder_action: failed: {}", why),
+            }
+        };
+
+        Some(LvmEncryption::new(pv, password, keydata))
+    };
+
+    builder_action(builder, |builder| builder.logical_volume(group, encryption))
 }
 
 #[repr(C)]
