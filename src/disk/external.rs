@@ -193,8 +193,11 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             let _mount = ExternalMount::new(&keydata.0, tmpfs.path())?;
+            let keypath = tmpfs.path().join(&enc.physical_volume);
 
-            generate_keyfile(&tmpfs.path().join(&enc.physical_volume))?;
+            generate_keyfile(&keypath)?;
+            info!("libdistinst: keypath exists: {}", keypath.is_file());
+
             exec(
                 "cryptsetup",
                 None,
@@ -231,12 +234,9 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            exec(
-                "mount",
-                None,
-                None,
-                &[keydata.0.clone().into(), tmpfs.path().into()],
-            )?;
+            let _mount = ExternalMount::new(&keydata.0, tmpfs.path())?;
+            let keypath = tmpfs.path().join(&enc.physical_volume);
+            info!("libdistinst: keypath exists: {}", keypath.is_file());
 
             exec(
                 "cryptsetup",
@@ -247,7 +247,7 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
                     device.into(),
                     group.into(),
                     "--key-file".into(),
-                    tmpfs.path().join(&enc.physical_volume).into(),
+                    keypath.into(),
                 ],
             )
         }
@@ -350,6 +350,7 @@ pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
 fn mebibytes(bytes: u64) -> String { format!("{}", bytes / (1024 * 1024)) }
 
 fn generate_keyfile(path: &Path) -> io::Result<()> {
+    info!("libdistinst: generating keyfile at {}", path.display());
     // Generate the key in memory from /dev/urandom.
     let mut key = [0u8; 512];
     let mut urandom = File::open("/dev/urandom")?;

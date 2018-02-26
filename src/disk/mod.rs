@@ -1194,7 +1194,7 @@ impl Disks {
     }
 
     /// Similar to `generate_fstab`, but for the crypttab file.
-    pub fn generate_crypttab(&self) -> OsString {
+    pub(crate) fn generate_crypttab(&self) -> OsString {
         info!("libdistinst: generating crypttab in memory");
         let mut crypttab = OsString::with_capacity(1024);
 
@@ -1207,18 +1207,17 @@ impl Disks {
         use std::borrow::Cow;
         use std::ffi::OsStr;
         for partition in partitions {
-            if let Some(&(ref pv, Some(ref enc))) = partition.volume_group.as_ref() {
+            if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
                 let password: Cow<'static, OsStr> =
                     match (enc.password.is_some(), enc.keydata.as_ref()) {
                         (true, None) => Cow::Borrowed(OsStr::new("none")),
                         (false, None) => Cow::Borrowed(OsStr::new("/dev/urandom")),
                         (true, Some(key)) => unimplemented!(),
-                        (false, Some(key)) => {
-                            let path = key.1
-                                .clone()
+                        (false, Some(&(_, ref key))) => {
+                            let path = key.clone()
                                 .expect("should have been populated")
                                 .1
-                                .join(pv);
+                                .join(&enc.physical_volume);
                             Cow::Owned(path.into_os_string())
                         }
                     };
