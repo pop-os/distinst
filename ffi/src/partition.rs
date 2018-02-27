@@ -347,17 +347,17 @@ pub unsafe extern "C" fn distinst_partition_probe_os(
 }
 
 #[repr(C)]
-struct DistinstPartitionUsage {
+pub struct DistinstPartitionUsage {
     // 0 = None, 1 = Some(Ok(T)), 2 = Some(Err(T))
-    tag: uint8_t,
+    tag: libc::uint8_t,
     // Some(Ok(sectors)) | Some(Err(errno))
-    value: uint64_t,
+    value: libc::uint64_t,
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_sectors_used(
     partition: *const DistinstPartition,
-    sector_size: uint64_t,
+    sector_size: libc::uint64_t,
 ) -> DistinstPartitionUsage {
     let part = &*(partition as *const PartitionInfo);
     match part.sectors_used(sector_size) {
