@@ -33,6 +33,8 @@ pub enum DiskError {
     GeometryDuplicate,
     #[fail(display = "failed to set values on partition geometry")]
     GeometrySet,
+    #[fail(display = "the root partition may not be contained on a key-encrypted volume")]
+    KeyContainsRoot,
     #[fail(display = "LUKS key path was already set for {}", id)]
     KeyPathAlreadySet { id: String },
     #[fail(display = "LUKS keyfile designation lacks key path")]
@@ -67,6 +69,8 @@ pub enum DiskError {
     PartitionTooLarge { size: u64, max:  u64 },
     #[fail(display = "partition was too small (size: {}, min: {})", size, min)]
     PartitionTooSmall { size: u64, min:  u64 },
+    #[fail(display = "partition exceeds size of disk")]
+    PartitionOOB,
     #[fail(display = "unable to create physical volume from '{}': {}", volume, why)]
     PhysicalVolumeCreate { volume: String, why: io::Error },
     #[fail(display = "too many primary partitions in MSDOS partition table")]
@@ -77,8 +81,6 @@ pub enum DiskError {
     SectorOverlaps { id: i32 },
     #[fail(display = "unable to get serial model of device: {}", why)]
     SerialGet { why: io::Error },
-    #[fail(display = "partition exceeds size of disk")]
-    PartitionOOB,
     #[fail(display = "partition resize value is too small")]
     ResizeTooSmall,
     #[fail(display = "unable to unmount partition(s): {}", why)]

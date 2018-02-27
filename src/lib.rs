@@ -110,7 +110,7 @@ pub struct Installer {
 impl Installer {
     /// Create a new installer object
     ///
-    /// ```
+    /// ```ignore,rust
     /// use distinst::Installer;
     /// let installer = Installer::new();
     /// ```
@@ -123,7 +123,7 @@ impl Installer {
 
     /// Send an error message
     ///
-    /// ```
+    /// ```ignore,rust
     /// use distinst::{Error, Installer, Step};
     /// use std::io;
     /// let mut installer = Installer::new();
@@ -140,7 +140,7 @@ impl Installer {
 
     /// Set the error callback
     ///
-    /// ```
+    /// ```ignore,rust
     /// use distinst::Installer;
     /// let mut installer = Installer::new();
     /// installer.on_error(|error| println!("{:?}", error));
@@ -151,7 +151,7 @@ impl Installer {
 
     /// Send a status message
     ///
-    /// ```
+    /// ```ignore,rust
     /// use distinst::{Installer, Status, Step};
     /// let mut installer = Installer::new();
     /// installer.emit_status(&Status {
@@ -167,7 +167,7 @@ impl Installer {
 
     /// Set the status callback
     ///
-    /// ```
+    /// ```ignore,rust
     /// use distinst::Installer;
     /// let mut installer = Installer::new();
     /// installer.on_status(|status| println!("{:?}", status));
@@ -694,7 +694,7 @@ impl Installer {
 
     /// Get a list of disks, skipping loopback devices
     ///
-    /// ```
+    /// ```ignore,rust
     /// use distinst::Installer;
     /// let installer = Installer::new();
     /// let disks = installer.disks().unwrap();

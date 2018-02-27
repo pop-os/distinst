@@ -1,5 +1,6 @@
 use super::{get_uuid, LvmEncryption, Mounts, PartitionSizeError, Swaps};
 use super::mount::Mount;
+use super::usage::get_used_sectors;
 use libparted::{Partition, PartitionFlag};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -77,11 +78,13 @@ impl Into<&'static str> for FileSystemType {
     }
 }
 
-const MIB: u64 = 1_000_000;
-const GIB: u64 = MIB * 1000;
-const TIB: u64 = GIB * 1000;
+const MIB: u64 = 1024 * 1024;
+const GIB: u64 = MIB * 1024;
+const TIB: u64 = GIB * 1024;
 
-const FAT32_MIN: u64 = 32 * MIB;
+const FAT16_MIN: u64 = 16 * MIB;
+const FAT16_MAX: u64 = (4096 - 1) * MIB;
+const FAT32_MIN: u64 = 33 * MIB;
 const FAT32_MAX: u64 = 2 * TIB;
 const EXT4_MAX: u64 = 16 * TIB;
 const BTRFS_MIN: u64 = 250 * MIB;
@@ -90,6 +93,12 @@ pub fn check_partition_size(size: u64, fs: FileSystemType) -> Result<(), Partiti
     match fs {
         FileSystemType::Btrfs if size < BTRFS_MIN => {
             Err(PartitionSizeError::TooSmall(size, BTRFS_MIN))
+        }
+        FileSystemType::Fat16 if size < FAT16_MIN => {
+            Err(PartitionSizeError::TooSmall(size, FAT16_MIN))
+        }
+        FileSystemType::Fat16 if size > FAT16_MAX => {
+            Err(PartitionSizeError::TooLarge(size, FAT16_MAX))
         }
         FileSystemType::Fat32 if size < FAT32_MIN => {
             Err(PartitionSizeError::TooSmall(size, FAT32_MIN))
@@ -388,6 +397,12 @@ impl PartitionInfo {
         self.format = true;
         self.filesystem = Some(fs);
         self.name = None;
+    }
+
+    /// Returns the minimum size (sectors) that the partition can be shrunk to.
+    pub fn sectors_used(&self, sector_size: u64) -> Option<u64> {
+        self.filesystem
+            .and_then(|fs| get_used_sectors(self.get_device_path(), fs, sector_size).ok())
     }
 
     /// Detects if an OS is installed to this partition, and if so, what the OS is named.
