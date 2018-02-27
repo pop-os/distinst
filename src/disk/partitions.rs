@@ -401,8 +401,14 @@ impl PartitionInfo {
 
     /// Returns the number of used sectors on the file system that belongs to this partition.
     pub fn sectors_used(&self, sector_size: u64) -> Option<io::Result<u64>> {
-        self.filesystem
-            .map(|fs| get_used_sectors(self.get_device_path(), fs, sector_size))
+        use FileSystemType::*;
+        self.filesystem.and_then(|fs| {
+            if fs == Swap || fs == Lvm {
+                None
+            } else {
+                Some(get_used_sectors(self.get_device_path(), fs, sector_size))
+            }
+        })
     }
 
     /// Detects if an OS is installed to this partition, and if so, what the OS is named.
