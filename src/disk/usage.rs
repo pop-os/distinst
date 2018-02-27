@@ -12,7 +12,7 @@ pub(crate) fn get_used_sectors<P: AsRef<Path>>(
     use FileSystemType::*;
     match fs {
         Ext2 | Ext3 | Ext4 => {
-            let mut reader = Cursor::new(
+            let reader = Cursor::new(
                 Command::new("dumpe2fs")
                     .arg("-h")
                     .arg(part.as_ref())
@@ -25,7 +25,7 @@ pub(crate) fn get_used_sectors<P: AsRef<Path>>(
             get_ext4_usage(reader.lines().skip(1), sector_size)
         }
         Fat16 | Fat32 => {
-            let mut reader = Cursor::new(
+            let reader = Cursor::new(
                 Command::new("fsck.fat")
                     .arg("-nv")
                     .arg(part.as_ref())
@@ -47,15 +47,34 @@ pub(crate) fn get_used_sectors<P: AsRef<Path>>(
                 .stderr(Stdio::null())
                 .output()?;
 
-            let mut reader = Cursor::new(cmd.stdout).lines().skip(1);
+            let reader = Cursor::new(cmd.stdout).lines().skip(1);
             if cmd.status.success() {
                 get_ntfs_usage(reader, sector_size)
             } else {
                 get_ntfs_size(reader, sector_size)
             }
         }
+        Btrfs => {
+            let cmd = Command::new("btrfs")
+                .arg("filesystem")
+                .arg("show")
+                .arg(part.as_ref())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .output()?;
+
+            let reader = Cursor::new(cmd.stdout).lines().skip(1);
+            get_btrfs_usage(reader, sector_size)
+        }
         _ => unimplemented!(),
     }
+}
+
+fn get_btrfs_usage<R: Iterator<Item = io::Result<String>>>(
+    mut reader: R,
+    sector_size: u64,
+) -> io::Result<u64> {
+    parse_field_as_unit(&mut reader, "Total devices", 6).map(|used| used / sector_size)
 }
 
 fn get_ext4_usage<R: Iterator<Item = io::Result<String>>>(
@@ -164,6 +183,54 @@ fn parse_field<R: Iterator<Item = io::Result<String>>>(
             match line.split_whitespace().nth(value).map(|v| v.parse::<u64>()) {
                 Some(Ok(value)) => return Ok(value),
                 _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid usage field")),
+            }
+        }
+    }
+
+    Err(io::Error::new(io::ErrorKind::Other, "invalid usage output"))
+}
+
+fn parse_unit(unit: &str) -> io::Result<u64> {
+    let (value, unit) = unit.split_at(unit.len() - 3);
+    eprintln!("Value: {}, unit: {}", value, unit);
+    let value = match value.parse::<f64>() {
+        Ok(value) => value,
+        Err(why) => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("invalid unit value: {}", why),
+            ));
+        }
+    };
+
+    match unit {
+        "KiB" => Ok((value * 1024f64) as u64),
+        "MiB" => Ok((value * 1024f64 * 1024f64) as u64),
+        "GiB" => Ok((value * 1024f64 * 1024f64 * 1024f64) as u64),
+        "TiB" => Ok((value * 1024f64 * 1024f64 * 1024f64 * 1024f64) as u64),
+        _ => Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("invalid unit type: {}", unit),
+        )),
+    }
+}
+
+fn parse_field_as_unit<R: Iterator<Item = io::Result<String>>>(
+    reader: &mut R,
+    field: &str,
+    value: usize,
+) -> io::Result<u64> {
+    while let Some(line) = reader.next() {
+        let line = line?;
+        let line = line.trim_left();
+        if line.starts_with(field) {
+            match line.split_whitespace().nth(value) {
+                Some(value) => {
+                    let value = parse_unit(value)?;
+                    eprintln!("Value: {}", value);
+                    return Ok(value);
+                }
+                None => return Err(io::Error::new(io::ErrorKind::Other, "invalid usage field")),
             }
         }
     }
@@ -311,5 +378,15 @@ Please make a test run using both the -n and -s options before real resizing!"#;
     fn ntfs_usage() {
         let mut reader = NTFS_INPUT.lines().map(|x| Ok(x.into()));
         assert_eq!(get_ntfs_usage(reader, 512).unwrap(), 133256);
+    }
+
+    const BTRFS_INPUT: &str = r#"Label: none  uuid: 8a69ba4c-6cf5-46cc-aff3-f0c23251a21b
+        Total devices 1 FS bytes used 112.00KiB
+        devid    1 size 20.00GiB used 2.02GiB path /dev/sdb2"#;
+
+    #[test]
+    fn btrfs_usage() {
+        let mut reader = BTRFS_INPUT.lines().map(|x| Ok(x.into()));
+        assert_eq!(get_btrfs_usage(reader, 512).unwrap(), 224);
     }
 }

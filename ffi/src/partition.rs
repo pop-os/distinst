@@ -361,11 +361,14 @@ pub unsafe extern "C" fn distinst_partition_sectors_used(
 ) -> DistinstPartitionUsage {
     let part = &*(partition as *const PartitionInfo);
     match part.sectors_used(sector_size) {
-        None => DistinstPartitionUsage { tag: 0, value: 0 },
-        Some(Ok(used)) => DistinstPartitionUsage { tag: 1, value: used },
+        None => DistinstPartitionUsage { tag:   0, value: 0 },
+        Some(Ok(used)) => DistinstPartitionUsage {
+            tag:   1,
+            value: used,
+        },
         Some(Err(why)) => {
             error!("unable to get partition sector usage: {}", why);
-            DistinstPartitionUsage { tag: 2, value: 0 }
+            DistinstPartitionUsage { tag:   2, value: 0 }
         }
     }
 }
