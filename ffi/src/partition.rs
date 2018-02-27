@@ -345,3 +345,27 @@ pub unsafe extern "C" fn distinst_partition_probe_os(
         .and_then(|osstr| CString::new(osstr).ok().map(|string| string.into_raw()))
         .unwrap_or(ptr::null_mut())
 }
+
+#[repr(C)]
+struct DistinstPartitionUsage {
+    // 0 = None, 1 = Some(Ok(T)), 2 = Some(Err(T))
+    tag: uint8_t,
+    // Some(Ok(sectors)) | Some(Err(errno))
+    value: uint64_t,
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_sectors_used(
+    partition: *const DistinstPartition,
+    sector_size: uint64_t,
+) -> DistinstPartitionUsage {
+    let part = &*(partition as *const PartitionInfo);
+    match part.sectors_used(sector_size) {
+        None => DistinstPartitionUsage { tag: 0, value: 0 },
+        Some(Ok(used)) => DistinstPartitionUsage { tag: 1, value: used },
+        Some(Err(why)) => {
+            error!("unable to get partition sector usage: {}", why);
+            DistinstPartitionUsage { tag: 2, value: 0 }
+        }
+    }
+}

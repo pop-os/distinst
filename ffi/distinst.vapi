@@ -94,6 +94,12 @@ namespace Distinst {
         public PartitionBuilder logical_volume (string group, LvmEncryption encryption);
     }
 
+    [CCode (has_type_id = false)]
+    public struct PartitionUsage {
+        uint8 tag;
+        uint64 value;
+    }
+
     [CCode (has_type_id = false, unref_function = "")]
     public class Partition {
         public unowned uint8[] get_device_path ();
@@ -103,6 +109,7 @@ namespace Distinst {
         public uint64 get_start_sector ();
         public uint64 get_end_sector ();
         public string? probe_os ();
+        public PartitionUsage sectors_used (uint64 sector_size);
     }
 
     [CCode (has_type_id = false)]
