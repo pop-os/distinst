@@ -1,11 +1,12 @@
 use libc;
 
+use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr;
 
-use distinst::{Bootloader, LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType};
 use {gen_object_ptr, get_str, DistinstLvmEncryption};
+use distinst::{Bootloader, LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType};
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 
 #[repr(C)]
@@ -227,7 +228,7 @@ pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
     } else {
         let pv = match get_str(
             (*encryption).physical_volume,
-            "distinst_partition_builder_logical_volume"
+            "distinst_partition_builder_logical_volume",
         ) {
             Ok(string) => String::from(string.to_string()),
             Err(why) => panic!("builder_action: failed: {}", why),
@@ -236,7 +237,10 @@ pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
         let password = if (*encryption).password.is_null() {
             None
         } else {
-            match get_str((*encryption).password, "distinst_partition_builder_logical_volume") {
+            match get_str(
+                (*encryption).password,
+                "distinst_partition_builder_logical_volume",
+            ) {
                 Ok(string) => Some(String::from(string.to_string())),
                 Err(why) => panic!("builder_action: failed: {}", why),
             }
@@ -245,7 +249,10 @@ pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
         let keydata = if (*encryption).keydata.is_null() {
             None
         } else {
-            match get_str((*encryption).keydata, "distinst_partition_builder_logical_volume") {
+            match get_str(
+                (*encryption).keydata,
+                "distinst_partition_builder_logical_volume",
+            ) {
                 Ok(string) => Some(String::from(string.to_string())),
                 Err(why) => panic!("builder_action: failed: {}", why),
             }
@@ -327,4 +334,14 @@ pub unsafe extern "C" fn distinst_partition_format_with(
         None => return -1,
     });
     0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_probe_os(
+    partition: *const DistinstPartition,
+) -> *mut libc::c_char {
+    let part = &*(partition as *const PartitionInfo);
+    part.probe_os()
+        .and_then(|osstr| CString::new(osstr).ok().map(|string| string.into_raw()))
+        .unwrap_or(ptr::null_mut())
 }

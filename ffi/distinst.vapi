@@ -87,21 +87,22 @@ namespace Distinst {
     [CCode (has_type_id = false, unref_function = "")]
     public class PartitionBuilder {
         public PartitionBuilder (uint64 start_sector, uint64 end_sector, FileSystemType filesystem);
-        public PartitionBuilder name(string name);
-        public PartitionBuilder mount(string target);
-        public PartitionBuilder partition_type(PartitionType part_type);
-        public PartitionBuilder flag(PartitionFlag flag);
-        public PartitionBuilder logical_volume(string group, LvmEncryption encryption);
+        public PartitionBuilder name (string name);
+        public PartitionBuilder mount (string target);
+        public PartitionBuilder partition_type (PartitionType part_type);
+        public PartitionBuilder flag (PartitionFlag flag);
+        public PartitionBuilder logical_volume (string group, LvmEncryption encryption);
     }
 
     [CCode (has_type_id = false, unref_function = "")]
     public class Partition {
-        public unowned uint8[] get_device_path();
-        public void set_flags(PartitionFlag *flags, size_t len);
-        public void set_mount(string target);
-        public int format_with(FileSystemType fs);
-        public uint64 get_start_sector();
-        public uint64 get_end_sector();
+        public unowned uint8[] get_device_path ();
+        public void set_flags (PartitionFlag *flags, size_t len);
+        public void set_mount (string target);
+        public int format_with (FileSystemType fs);
+        public uint64 get_start_sector ();
+        public uint64 get_end_sector ();
+        public string? probe_os ();
     }
 
     [CCode (has_type_id = false)]
