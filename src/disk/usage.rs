@@ -1,5 +1,5 @@
 use super::FileSystemType;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, Cursor};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -12,32 +12,47 @@ pub(crate) fn get_used_sectors<P: AsRef<Path>>(
     use FileSystemType::*;
     match fs {
         Ext2 | Ext3 | Ext4 => {
-            let mut reader = BufReader::new(
+            let mut reader = Cursor::new(
                 Command::new("dumpe2fs")
                     .arg("-h")
                     .arg(part.as_ref())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null())
-                    .spawn()?
-                    .stdout
-                    .unwrap(),
+                    .output()?
+                    .stdout,
             );
 
             get_ext4_usage(reader.lines().skip(1), sector_size)
         }
         Fat16 | Fat32 => {
-            let mut reader = BufReader::new(
+            let mut reader = Cursor::new(
                 Command::new("fsck.fat")
                     .arg("-nv")
                     .arg(part.as_ref())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null())
-                    .spawn()?
-                    .stdout
-                    .unwrap(),
+                    .output()?
+                    .stdout,
             );
 
             get_fat_usage(reader.lines().skip(1), sector_size)
+        }
+        Ntfs => {
+            let cmd = Command::new("ntfsresize")
+                .arg("--info")
+                .arg("--force")
+                .arg("--no-progress-bar")
+                .arg(part.as_ref())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .output()?;
+
+            let mut reader = Cursor::new(cmd.stdout).lines().skip(1);
+            if cmd.status.success() {
+                get_ntfs_usage(reader, sector_size)
+            } else {
+                get_ntfs_size(reader, sector_size)
+            }
         }
         _ => unimplemented!(),
     }
@@ -47,10 +62,24 @@ fn get_ext4_usage<R: Iterator<Item = io::Result<String>>>(
     mut reader: R,
     sector_size: u64,
 ) -> io::Result<u64> {
-    let total_blocks = parse_dump_field(&mut reader, "Block count:")?;
-    let free_blocks = parse_dump_field(&mut reader, "Free blocks:")?;
-    let block_size = parse_dump_field(&mut reader, "Block size:")?;
+    let total_blocks = parse_field(&mut reader, "Block count:", 2)?;
+    let free_blocks = parse_field(&mut reader, "Free blocks:", 2)?;
+    let block_size = parse_field(&mut reader, "Block size:", 2)?;
     Ok(((total_blocks - free_blocks) * block_size) / sector_size)
+}
+
+fn get_ntfs_usage<R: Iterator<Item = io::Result<String>>>(
+    mut reader: R,
+    sector_size: u64,
+) -> io::Result<u64> {
+    parse_field(&mut reader, "You might resize at", 4).map(|bytes| bytes / sector_size)
+}
+
+fn get_ntfs_size<R: Iterator<Item = io::Result<String>>>(
+    mut reader: R,
+    sector_size: u64,
+) -> io::Result<u64> {
+    parse_field(&mut reader, "Current volume size", 3).map(|bytes| bytes / sector_size)
 }
 
 fn get_fat_usage<R: Iterator<Item = io::Result<String>>>(
@@ -60,41 +89,6 @@ fn get_fat_usage<R: Iterator<Item = io::Result<String>>>(
     let cluster_size = parse_fsck_field(&mut reader, "per logical sector")?;
     let (used, _) = parse_fsck_cluster_summary(&mut reader)?;
     Ok((used * cluster_size) / sector_size)
-}
-
-fn parse_dump_field<R: Iterator<Item = io::Result<String>>>(
-    reader: &mut R,
-    start: &str,
-) -> io::Result<u64> {
-    loop {
-        match reader.next() {
-            Some(line) => {
-                let line = line?;
-                if line.starts_with(start) {
-                    match line[start.len()..].split_whitespace().next() {
-                        Some(value) => match value.parse::<u64>() {
-                            Ok(value) => break Ok(value),
-                            Err(_) => {
-                                break Err(io::Error::new(
-                                    io::ErrorKind::Other,
-                                    "invalid dump output: bad value",
-                                ))
-                            }
-                        },
-                        None => {
-                            break Err(io::Error::new(io::ErrorKind::Other, "invalid dump output"))
-                        }
-                    }
-                }
-            }
-            None => {
-                break Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "invalid dump output: EOF",
-                ));
-            }
-        }
-    }
 }
 
 fn parse_fsck_field<R: Iterator<Item = io::Result<String>>>(
@@ -157,6 +151,24 @@ fn parse_fsck_cluster_summary<R: Iterator<Item = io::Result<String>>>(
             }
         }
     }
+}
+
+fn parse_field<R: Iterator<Item = io::Result<String>>>(
+    reader: &mut R,
+    field: &str,
+    value: usize,
+) -> io::Result<u64> {
+    while let Some(line) = reader.next() {
+        let line = line?;
+        if line.starts_with(field) {
+            match line.split_whitespace().nth(value).map(|v| v.parse::<u64>()) {
+                Some(Ok(value)) => return Ok(value),
+                _ => return Err(io::Error::new(io::ErrorKind::Other, "invalid usage field")),
+            }
+        }
+    }
+
+    Err(io::Error::new(io::ErrorKind::Other, "invalid usage output"))
 }
 
 #[cfg(test)]
@@ -270,15 +282,34 @@ Journal start:            0
     fn ext_parsing() {
         let mut reader = EXT_INPUT.lines().map(|x| Ok(x.into()));
         assert_eq!(
-            parse_dump_field(&mut reader, "Block count:").unwrap(),
+            parse_field(&mut reader, "Block count:", 2).unwrap(),
             5242880
         );
 
         assert_eq!(
-            parse_dump_field(&mut reader, "Free blocks:").unwrap(),
+            parse_field(&mut reader, "Free blocks:", 2).unwrap(),
             5116591
         );
 
-        assert_eq!(parse_dump_field(&mut reader, "Block size:").unwrap(), 4096);
+        assert_eq!(parse_field(&mut reader, "Block size:", 2).unwrap(), 4096);
+    }
+
+    const NTFS_INPUT: &str = r#"ntfsresize v2017.3.23 (libntfs-3g)
+Device name        : /dev/sdb4
+NTFS volume version: 3.1
+Cluster size       : 4096 bytes
+Current volume size: 21474832896 bytes (21475 MB)
+Current device size: 21474836480 bytes (21475 MB)
+Checking filesystem consistency ...
+Accounting clusters ...
+Space in use       : 69 MB (0.3%)
+Collecting resizing constraints ...
+You might resize at 68227072 bytes or 69 MB (freeing 21406 MB).
+Please make a test run using both the -n and -s options before real resizing!"#;
+
+    #[test]
+    fn ntfs_usage() {
+        let mut reader = NTFS_INPUT.lines().map(|x| Ok(x.into()));
+        assert_eq!(get_ntfs_usage(reader, 512).unwrap(), 133256);
     }
 }

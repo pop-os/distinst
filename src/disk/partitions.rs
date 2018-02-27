@@ -399,10 +399,10 @@ impl PartitionInfo {
         self.name = None;
     }
 
-    /// Returns the minimum size (sectors) that the partition can be shrunk to.
-    pub fn sectors_used(&self, sector_size: u64) -> Option<u64> {
+    /// Returns the number of used sectors on the file system that belongs to this partition.
+    pub fn sectors_used(&self, sector_size: u64) -> Option<io::Result<u64>> {
         self.filesystem
-            .and_then(|fs| get_used_sectors(self.get_device_path(), fs, sector_size).ok())
+            .map(|fs| get_used_sectors(self.get_device_path(), fs, sector_size))
     }
 
     /// Detects if an OS is installed to this partition, and if so, what the OS is named.
