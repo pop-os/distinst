@@ -28,19 +28,9 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<String> {
 }
 
 fn detect_linux(base: &Path) -> Option<String> {
-    const FIELD: &str = "PRETTY_NAME=";
     File::open(base.join("etc/os-release"))
         .ok()
-        .and_then(|file| {
-            for line in BufReader::new(file).lines() {
-                if let Ok(line) = line {
-                    if line.starts_with(FIELD) {
-                        return Some(line[FIELD.len()..line.len() - 1].into());
-                    }
-                }
-            }
-            None
-        })
+        .and_then(|file| parse_osrelease(BufReader::new(file)))
         .or_else(|| {
             if base.join("etc").exists() {
                 Some("Unknown Linux".into())
@@ -48,6 +38,14 @@ fn detect_linux(base: &Path) -> Option<String> {
                 None
             }
         })
+}
+
+fn parse_osrelease<R: BufRead>(file: R) -> Option<String> {
+    const FIELD: &str = "PRETTY_NAME=";
+    file.lines()
+        .flat_map(|line| line)
+        .find(|line| line.starts_with(FIELD))
+        .map(|line| line[FIELD.len() + 1..line.len() - 1].into())
 }
 
 fn detect_windows(base: &Path) -> Option<String> {
@@ -67,5 +65,32 @@ fn detect_macos(base: &Path) -> Option<String> {
         Some("macOS".into())
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    const OS_RELEASE: &str = r#"NAME="Pop!_OS"
+VERSION="18.04 LTS (Bionic Beaver)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="Pop!_OS 18.04 LTS (Bionic Beaver)"
+VERSION_ID="18.04"
+HOME_URL="https://system76.com/pop"
+SUPPORT_URL="http://support.system76.com/"
+BUG_REPORT_URL="https://github.com/pop-os/pop/issues"
+PRIVACY_POLICY_URL="https://system76.com/privacy"
+VERSION_CODENAME=bionic
+UBUNTU_CODENAME=bionic"#;
+
+    #[test]
+    fn os_release_parsing() {
+        assert_eq!(
+            parse_osrelease(Cursor::new(OS_RELEASE)),
+            Some("Pop!_OS 18.04 LTS (Bionic Beaver)".into())
+        )
     }
 }
