@@ -5,20 +5,19 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use tempdir::TempDir;
 
+/// Mounts the partition to a temporary directory and checks for the existence of an
+/// installed operating system.
 pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<String> {
+    let fs = match fs {
+        FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
+        fs => fs.into(),
+    };
+
     // Mount a temporary directoy where we will mount the FS.
     TempDir::new("distinst").ok().and_then(|tempdir| {
         // Mount the FS to the temporary directory
-        Mount::new(
-            device,
-            &tempdir.path(),
-            match fs {
-                FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
-                fs => fs.into(),
-            },
-            0,
-            None,
-        ).ok()
+        Mount::new(device, &tempdir.path(), fs, 0, None)
+            .ok()
             .and_then(|_mount| {
                 // Check if the partition contains `/etc/lsb-release` to detect a Linux
                 // install.

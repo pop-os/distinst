@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempdir::TempDir;
 
+/// A generic function for executing a variety external commands.
 fn exec(
     cmd: &str,
     stdin: Option<&[u8]>,
@@ -127,6 +128,7 @@ pub(crate) fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(
     })
 }
 
+/// Removes the given volume group from the system.
 pub(crate) fn vgremove(group: &str) -> io::Result<()> {
     exec("vgremove", None, None, &["-ffy".into(), group.into()])
 }
@@ -160,6 +162,7 @@ pub(crate) fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result
     )
 }
 
+/// Append a newline to the input (used for the password)
 fn append_newline(input: &[u8]) -> Vec<u8> {
     let mut input = input.to_owned();
     input.reserve_exact(1);
@@ -262,16 +265,19 @@ pub(crate) fn cryptsetup_close(device: &Path) -> io::Result<()> {
     exec("cryptsetup", None, Some(&[4]), args)
 }
 
+/// Deactivates all logical volumes in the supplied volume group
 pub(crate) fn deactivate_volumes(volume_group: &str) -> io::Result<()> {
     let args = &["-ffyan".into(), volume_group.into()];
     exec("vgchange", None, None, args)
 }
 
+/// Removes the physical volume from the system.
 pub(crate) fn pvremove(physical_volume: &Path) -> io::Result<()> {
     let args = &["-ffy".into(), physical_volume.into()];
     exec("pvremove", None, None, args)
 }
 
+/// Obtains a list of logical volumes associated with the given volume group.
 pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
     info!("libdistinst: obtaining logical volumes on {}", vg);
     let mut current_line = String::with_capacity(128);
@@ -307,6 +313,7 @@ pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
     Ok(output)
 }
 
+/// Obtains a map of physical volume paths and their optionally-assigned volume groups.
 pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
     info!("libdistinst: obtaining BTreeMap<PV, VG>");
     let mut current_line = String::with_capacity(64);
@@ -350,6 +357,7 @@ pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
 
 fn mebibytes(bytes: u64) -> String { format!("{}", bytes / (1024 * 1024)) }
 
+/// Generates a new keyfile by reading 512 bytes from "/dev/urandom".
 fn generate_keyfile(path: &Path) -> io::Result<()> {
     info!("libdistinst: generating keyfile at {}", path.display());
     // Generate the key in memory from /dev/urandom.

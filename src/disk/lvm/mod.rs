@@ -8,6 +8,8 @@ use super::external::{lvcreate, mkfs, vgcreate};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
+/// An LVM device acts similar to a Disk, but consists of one more block devices
+/// that comprise a volume group, and may optionally be encrypted.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LvmDevice {
     pub(crate) volume_group: String,
@@ -39,6 +41,7 @@ impl DiskExt for LvmDevice {
 }
 
 impl LvmDevice {
+    /// Creates a new volume group, with an optional encryption configuration.
     pub(crate) fn new(
         volume_group: String,
         encryption: Option<LvmEncryption>,
@@ -58,29 +61,8 @@ impl LvmDevice {
 
     pub(crate) fn add_sectors(&mut self, sectors: u64) { self.sectors += sectors; }
 
-    pub fn encrypt_with_password(&mut self, physical_volume: &str, password: &str) {
-        // TODO: NLL
-        if self.encryption.is_some() {
-            if let Some(ref mut encryption) = self.encryption.as_mut() {
-                encryption.password = Some(password.into());
-            }
-        } else {
-            self.encryption = Some(LvmEncryption {
-                physical_volume: physical_volume.into(),
-                password:        Some(password.into()),
-                keydata:         None,
-            });
-        }
-    }
-
-    /// LVM Partitions should have names!
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub(crate) fn validate(&self) -> Result<(), DiskError> {
-        // TODO: Requires Rust 1.23
-        // self.partitions.iter()
-        //     .map(|p| p.name.as_ref().ok_or_else(|_| DiskError::VolumePartitionLacksLabel))
-        //     .collect()
-
         for partition in self.get_partitions() {
             if !partition.name.is_some() {
                 return Err(DiskError::VolumePartitionLacksLabel);
@@ -90,6 +72,8 @@ impl LvmDevice {
         Ok(())
     }
 
+    /// Creates the volume group using all of the supplied block devices as members of the
+    /// group.
     pub(crate) fn create_volume_group<I, S>(&self, blocks: I) -> Result<(), DiskError>
     where
         I: Iterator<Item = S>,
@@ -98,6 +82,7 @@ impl LvmDevice {
         vgcreate(&self.volume_group, blocks).map_err(|why| DiskError::VolumeGroupCreate { why })
     }
 
+    /// Create all logical volumes on the volume group, and format them.
     pub(crate) fn create_partitions(&self) -> Result<(), DiskError> {
         if self.partitions.is_empty() {
             return Ok(());

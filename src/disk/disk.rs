@@ -60,19 +60,27 @@ impl FromStr for Sector {
     }
 }
 
+/// Contains methods that are shared between physical and logical disk devices.
 pub trait DiskExt {
+    /// The partition table that is on the device.
     fn get_table_type(&self) -> Option<PartitionTable>;
 
+    /// The combined total number of sectors on the disk.
     fn get_sectors(&self) -> u64;
 
+    /// The size of each sector, in bytes.
     fn get_sector_size(&self) -> u64;
 
+    /// Returns a slice of all partitions in the device.
     fn get_partitions(&self) -> &[PartitionInfo];
 
+    /// Returns a mutable slice of all partitions in the device.
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo];
 
+    /// Returns the path to the block device in the system.
     fn get_device_path(&self) -> &Path;
 
+    /// Validates that the partitions are valid for the partition table
     fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError>;
 
     /// If a given start and end range overlaps a pre-existing partition, that
@@ -114,6 +122,7 @@ pub trait DiskExt {
         }
     }
 
+    /// Adds a new partition to the partition list.
     fn push_partition(&mut self, partition: PartitionInfo);
 
     /// Adds a partition to the partition scheme.

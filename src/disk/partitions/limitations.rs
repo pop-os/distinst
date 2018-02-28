@@ -11,6 +11,7 @@ const FAT32_MAX: u64 = 2 * TIB;
 const EXT4_MAX: u64 = 16 * TIB;
 const BTRFS_MIN: u64 = 250 * MIB;
 
+/// Determines if the supplied file system size is valid for the given file system type.
 pub fn check_partition_size(size: u64, fs: FileSystemType) -> Result<(), PartitionSizeError> {
     match fs {
         FileSystemType::Btrfs if size < BTRFS_MIN => {

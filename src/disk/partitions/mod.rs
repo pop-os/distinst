@@ -189,6 +189,8 @@ impl PartitionInfo {
         }))
     }
 
+    /// Assigns the partition to a key ID, and defines where it should mounted
+    /// within the "/etc/crypttab" file.
     pub fn set_keydata(&mut self, id: String, target: PathBuf) {
         self.key_id = Some((id, target));
         self.target = None;
@@ -204,6 +206,7 @@ impl PartitionInfo {
             .map_or(false, |fs| fs == FileSystemType::Swap)
     }
 
+    /// Returns the path to this device in the system.
     pub fn get_device_path(&self) -> &Path { &self.device_path }
 
     pub(crate) fn requires_changes(&self, other: &PartitionInfo) -> bool {
@@ -240,12 +243,9 @@ impl PartitionInfo {
     /// Returns the number of used sectors on the file system that belongs to this partition.
     pub fn sectors_used(&self, sector_size: u64) -> Option<io::Result<u64>> {
         use FileSystemType::*;
-        self.filesystem.and_then(|fs| {
-            if fs == Swap || fs == Lvm {
-                None
-            } else {
-                Some(get_used_sectors(self.get_device_path(), fs, sector_size))
-            }
+        self.filesystem.and_then(|fs| match fs {
+            Swap | Lvm | Xfs | F2fs | Exfat => None,
+            _ => Some(get_used_sectors(self.get_device_path(), fs, sector_size)),
         })
     }
 
@@ -258,6 +258,8 @@ impl PartitionInfo {
     /// Specifies to delete this partition from the partition table.
     pub fn remove(&mut self) { self.remove = true; }
 
+    /// Obtains bock information for the partition, if possible, for use with
+    /// generating entries in "/etc/fstab".
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
         info!(
             "libdistinst: getting block information for partition at {}",
