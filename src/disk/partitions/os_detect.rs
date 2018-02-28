@@ -70,28 +70,32 @@ fn parse_plist<R: BufRead>(file: R) -> Option<String> {
     let mut version: Option<String> = None;
     let mut flags = 0;
 
-    for entry in file.lines() {
-        if let Ok(ref entry) = entry.as_ref() {
-            let entry = entry.trim();
-            match flags {
-                0 => match entry {
-                    "<key>ProductUserVisibleVersion</key>" => flags |= 1,
-                    "<key>ProductName</key>" => flags |= 2,
-                    _ => (),
-                },
-                1 => {
-                    version = Some(entry[8..entry.len() - 9].into());
-                    flags = 0;
+    for entry in file.lines().flat_map(|line| line) {
+        let entry = entry.trim();
+        match flags {
+            0 => match entry {
+                "<key>ProductUserVisibleVersion</key>" => flags |= 1,
+                "<key>ProductName</key>" => flags |= 2,
+                _ => (),
+            },
+            1 => {
+                if entry.len() < 10 {
+                    return None;
                 }
-                2 => {
-                    product_name = Some(entry[8..entry.len() - 9].into());
-                    flags = 0;
+                version = Some(entry[8..entry.len() - 9].into());
+                flags = 0;
+            }
+            2 => {
+                if entry.len() < 10 {
+                    return None;
                 }
-                _ => unreachable!(),
+                product_name = Some(entry[8..entry.len() - 9].into());
+                flags = 0;
             }
-            if product_name.is_some() && version.is_some() {
-                break;
-            }
+            _ => unreachable!(),
+        }
+        if product_name.is_some() && version.is_some() {
+            break;
         }
     }
 
