@@ -9,13 +9,18 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str;
 
-/// Extracts a squashfs image using the external `unsquashfs` command.
+enum ExtractFormat {
+    Tar,
+    Squashfs,
+}
+
+/// Extracts an image using either unsquashfs or tar.
 pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
-    squashfs: P,
+    archive: P,
     directory: Q,
     mut callback: F,
 ) -> Result<()> {
-    let squashfs = squashfs.as_ref().canonicalize()?;
+    let archive = archive.as_ref().canonicalize()?;
     let directory = directory.as_ref().canonicalize()?;
 
     let mut fds = [0; 2];
@@ -27,17 +32,26 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
     let mut input = unsafe { File::from_raw_fd(fds[0]) };
     let output = unsafe { Stdio::from_raw_fd(fds[1]) };
 
-    let command = format!(
-        "unsquashfs -f -d '{}' '{}'",
-        directory
-            .to_str()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid directory path"))?
-            .replace("'", "'\"'\"'"),
-        squashfs
-            .to_str()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid squashfs path"))?
-            .replace("'", "'\"'\"'")
-    );
+    let directory = directory
+        .to_str()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid directory path"))?
+        .replace("'", "'\"'\"'");
+
+    let format = if archive.extension().map_or(false, |ext| ext == "squashfs") {
+        ExtractFormat::Squashfs
+    } else {
+        ExtractFormat::Tar
+    };
+
+    let archive = archive
+        .to_str()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid archive path"))?
+        .replace("'", "'\"'\"'");
+
+    let command = match format {
+        ExtractFormat::Squashfs => format!("unsquashfs -f -d '{}' '{}'", directory, archive),
+        ExtractFormat::Tar => format!("tar --overwrite -xf '{}' -C '{}'", archive, directory),
+    };
 
     debug!("{}", command);
 
@@ -79,7 +93,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
     } else {
         Err(Error::new(
             ErrorKind::Other,
-            format!("unsquashfs failed with status: {}", status),
+            format!("archive extraction failed with status: {}", status),
         ))
     }
 }
