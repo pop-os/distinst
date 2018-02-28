@@ -13,15 +13,13 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<String> {
         fs => fs.into(),
     };
 
-    // Mount a temporary directoy where we will mount the FS.
+    // Create a temporary directoy where we will mount the FS.
     TempDir::new("distinst").ok().and_then(|tempdir| {
         // Mount the FS to the temporary directory
-        Mount::new(device, &tempdir.path(), fs, 0, None)
+        let base = tempdir.path();
+        Mount::new(device, base, fs, 0, None)
             .ok()
             .and_then(|_mount| {
-                // Check if the partition contains `/etc/lsb-release` to detect a Linux
-                // install.
-                let base = tempdir.path();
                 detect_linux(base)
                     .or(detect_windows(base))
                     .or(detect_macos(base))
