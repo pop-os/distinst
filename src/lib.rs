@@ -15,9 +15,11 @@ extern crate tempdir;
 use disk::external::blockdev;
 use std::{fs, io};
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::fs::{File, Permissions};
 use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
@@ -269,7 +271,7 @@ impl Installer {
     }
 
     /// Mount all target paths defined within the provided `disks` configuration.
-    fn mount(disks: &Disks, chroot: &str) -> io::Result<Mounts> {
+    fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
         let physical_targets = disks
             .get_physical_devices()
             .iter()
@@ -290,19 +292,37 @@ impl Installer {
         // NOTE: It is assumed that the target is an absolute path.
         let paths: BTreeMap<PathBuf, (PathBuf, &'static str)> = targets
             .map(|target| {
-                let target_path = target.target.as_ref().unwrap();
-                let target_mount =
-                    [chroot, target_path.to_string_lossy().to_string().as_str()].concat();
+                let target_mount: PathBuf = {
+                    let target_path = target.target.as_ref().unwrap().as_os_str().as_bytes();
+                    let target_path = if target_path[0] == b'/' {
+                        if target_path.len() > 1 {
+                            &target_path[1..]
+                        } else {
+                            b""
+                        }
+                    } else {
+                        target_path
+                    };
+
+                    let chroot = chroot.as_os_str().as_bytes();
+                    let mut target_mount: Vec<u8> = if chroot[chroot.len() - 1] == b'/' {
+                        chroot.to_owned()
+                    } else {
+                        let mut temp = chroot.to_owned();
+                        temp.push(b'/');
+                        temp
+                    };
+
+                    target_mount.extend_from_slice(target_path);
+                    PathBuf::from(OsString::from_vec(target_mount))
+                };
 
                 let fs = match target.filesystem.clone().unwrap() {
                     FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
                     fs => fs.into(),
                 };
 
-                (
-                    PathBuf::from(target_mount),
-                    (target.device_path.clone(), fs),
-                )
+                (target_mount, (target.device_path.clone(), fs))
             })
             .collect();
 
@@ -336,7 +356,7 @@ impl Installer {
     /// Extracts the squashfs image into the new install
     fn extract<P: AsRef<Path>, F: FnMut(i32)>(
         squashfs: P,
-        mount_dir: &'static str,
+        mount_dir: P,
         callback: F,
     ) -> io::Result<()> {
         info!("libdistinst: Extracting {}", squashfs.as_ref().display());
@@ -495,7 +515,7 @@ impl Installer {
     /// Installs and configures the boot loader after it has been configured.
     fn bootloader<F: FnMut(i32)>(
         disks: &Disks,
-        mount_dir: &'static str,
+        mount_dir: &Path,
         bootloader: Bootloader,
         mut callback: F,
     ) -> io::Result<()> {
@@ -514,8 +534,19 @@ impl Installer {
         );
 
         {
-            let boot_path = [mount_dir, "/boot"].concat();
-            let efi_path = [&boot_path, "/efi"].concat();
+            let efi_path = {
+                let chroot = mount_dir.as_os_str().as_bytes();
+                let mut target_mount: Vec<u8> = if chroot[chroot.len() - 1] == b'/' {
+                    chroot.to_owned()
+                } else {
+                    let mut temp = chroot.to_owned();
+                    temp.push(b'/');
+                    temp
+                };
+
+                target_mount.extend_from_slice(b"boot/efi/");
+                PathBuf::from(OsString::from_vec(target_mount))
+            };
 
             // Also ensure that the /boot/efi directory is created.
             if efi_opt.is_some() {
@@ -657,7 +688,7 @@ impl Installer {
             let mount_dir = TempDir::new(CHROOT_ROOT)?;
 
             {
-                let mut mounts = Installer::mount(&disks, CHROOT_ROOT)?;
+                let mut mounts = Installer::mount(&disks, mount_dir.path())?;
 
                 if PARTITIONING_TEST.load(Ordering::SeqCst) {
                     info!("libdistinst: PARTITION_TEST enabled: exiting before unsquashing");
@@ -665,13 +696,13 @@ impl Installer {
                 }
 
                 apply_step!(Step::Extract, "extraction", {
-                    Installer::extract(&squashfs, CHROOT_ROOT, percent!())
+                    Installer::extract(squashfs.as_path(), mount_dir.path(), percent!())
                 });
 
                 apply_step!(Step::Configure, "configuration", {
                     Installer::configure(
                         &disks,
-                        CHROOT_ROOT,
+                        mount_dir.path(),
                         bootloader,
                         &config,
                         &remove_pkgs,
@@ -680,7 +711,7 @@ impl Installer {
                 });
 
                 apply_step!(Step::Bootloader, "bootloader", {
-                    Installer::bootloader(&disks, CHROOT_ROOT, bootloader, percent!())
+                    Installer::bootloader(&disks, mount_dir.path(), bootloader, percent!())
                 });
 
                 mounts.unmount(false)?;
