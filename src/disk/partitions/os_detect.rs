@@ -5,6 +5,21 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use tempdir::TempDir;
 
+/// Adds a new map method for boolean types.
+pub trait BoolExt {
+    fn map<T, F: Fn() -> T>(&self, action: F) -> Option<T>;
+}
+
+impl BoolExt for bool {
+    fn map<T, F: Fn() -> T>(&self, action: F) -> Option<T> {
+        if *self {
+            Some(action())
+        } else {
+            None
+        }
+    }
+}
+
 /// Mounts the partition to a temporary directory and checks for the existence of an
 /// installed operating system.
 pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<String> {
@@ -31,13 +46,7 @@ fn detect_linux(base: &Path) -> Option<String> {
     File::open(base.join("etc/os-release"))
         .ok()
         .and_then(|file| parse_osrelease(BufReader::new(file)))
-        .or_else(|| {
-            if base.join("etc").exists() {
-                Some("Unknown Linux".into())
-            } else {
-                None
-            }
-        })
+        .or_else(|| base.join("etc").exists().map(|| "Unknown Linux".into()))
 }
 
 fn parse_osrelease<R: BufRead>(file: R) -> Option<String> {
@@ -50,22 +59,16 @@ fn parse_osrelease<R: BufRead>(file: R) -> Option<String> {
 
 fn detect_windows(base: &Path) -> Option<String> {
     // TODO: More advanced version-specific detection is possible.
-    if base.join("Windows/System32/ntoskrnl.exe").exists() {
-        Some("Windows".into())
-    } else {
-        None
-    }
+    base.join("Windows/System32/ntoskrnl.exe")
+        .exists()
+        .map(|| "Windows".into())
 }
 
 fn detect_macos(base: &Path) -> Option<String> {
     // TODO: More advanced version-specific detection is possible.
-    if base.join("System/Library/CoreServices/SystemVersion.plist")
+    base.join("System/Library/CoreServices/SystemVersion.plist")
         .exists()
-    {
-        Some("macOS".into())
-    } else {
-        None
-    }
+        .map(|| "macOS".into())
 }
 
 #[cfg(test)]
