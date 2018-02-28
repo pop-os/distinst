@@ -7,23 +7,25 @@ mod lvm;
 mod mounts;
 mod operations;
 mod partitions;
+mod sector;
 mod serial;
 mod swaps;
 
-pub use self::disk::{DiskExt, Sector};
-use self::disk::find_partition;
+pub use self::disk::DiskExt;
 pub use self::error::{DiskError, PartitionSizeError};
-use self::external::{cryptsetup_close, deactivate_volumes, lvs, pvremove, pvs, vgremove};
 pub use self::lvm::{LvmDevice, LvmEncryption};
+pub use self::partitions::{check_partition_size, FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
+pub use self::sector::Sector;
+pub use self::swaps::Swaps;
+pub use libparted::PartitionFlag;
+
+use self::disk::find_partition;
+use self::external::{cryptsetup_close, deactivate_volumes, lvs, pvremove, pvs, vgremove};
 use self::mount::{swapoff, umount};
 use self::mounts::Mounts;
 use self::operations::*;
-pub use self::partitions::{FileSystemType, PartitionBuilder, PartitionInfo, PartitionType};
-pub use self::partitions::check_partition_size;
 use self::serial::get_serial;
-pub use self::swaps::Swaps;
 use libparted::{Device, DeviceType, Disk as PedDisk, DiskType as PedDiskType};
-pub use libparted::PartitionFlag;
 
 use itertools::Itertools;
 use std::collections::HashSet;
