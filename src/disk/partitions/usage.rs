@@ -25,16 +25,32 @@ pub(crate) fn get_used_sectors<P: AsRef<Path>>(
             get_ext4_usage(reader.lines().skip(1), sector_size)
         }
         Fat16 | Fat32 => {
-            let reader = Cursor::new(
+            let mut cmd = Command::new("fsck.fat")
+                .arg("-nv")
+                .arg(part.as_ref())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .output()?;
+
+            if !cmd.status.success() {
+                // If a failure occurred, try to correct any fixable errors.
                 Command::new("fsck.fat")
+                    .arg("-fy")
+                    .arg(part.as_ref())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
+                    .output()?;
+
+                // Then re-run the fsck command to get the status again.
+                cmd = Command::new("fsck.fat")
                     .arg("-nv")
                     .arg(part.as_ref())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null())
-                    .output()?
-                    .stdout,
-            );
+                    .output()?;
+            }
 
+            let reader = Cursor::new(cmd.stdout);
             get_fat_usage(reader.lines().skip(1), sector_size)
         }
         Ntfs => {
