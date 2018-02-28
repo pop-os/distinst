@@ -360,6 +360,7 @@ impl Disk {
         Ok(())
     }
 
+    /// Returns the device type information as a string.
     pub fn get_device_type(&self) -> &str { &self.device_type }
 
     /// Obtains an immutable reference to a partition within the partition scheme.
@@ -827,6 +828,7 @@ impl Disks {
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) { self.physical.push(disk); }
 
+    /// Adds a logical disk (`LvmDevice`) to the list of disks.
     pub fn add_logical(&mut self, device: LvmDevice) { self.logical.push(device); }
 
     /// Returns a slice of physical disks stored within the configuration.
@@ -835,10 +837,13 @@ impl Disks {
     /// Returns a mutable slice of physical disks stored within the configuration.
     pub fn get_physical_devices_mut(&mut self) -> &mut [Disk] { &mut self.physical }
 
+    /// Returns a slice of logical disks stored within the configuration.
     pub fn get_logical_devices(&self) -> &[LvmDevice] { &self.logical }
 
+    /// Returns a mutable slice of logical disks stored within the configuration.
     pub fn get_logical_devices_mut(&mut self) -> &mut [LvmDevice] { &mut self.logical }
 
+    /// Returns a list of device paths which will be modified by this configuration.
     pub fn get_device_paths_to_modify(&self) -> Vec<PathBuf> {
         let mut output = Vec::new();
         for dev in self.get_physical_devices() {

@@ -82,10 +82,15 @@ pub enum Step {
 /// Installer configuration
 #[derive(Debug)]
 pub struct Config {
+    /// Hostname to assign to the installed system.
     pub hostname: String,
+    /// Keyboard configuration to set for the installed system.
     pub keyboard: String,
-    pub lang:     String,
-    pub remove:   String,
+    /// The locale to use for the installed system.
+    pub lang: String,
+    /// The file that contains a list of packages to remove.
+    pub remove: String,
+    /// The archive (`tar` or `squashfs`) which contains the base system.
     pub squashfs: String,
 }
 
