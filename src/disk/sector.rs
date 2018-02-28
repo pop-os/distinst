@@ -59,23 +59,27 @@ impl FromStr for Sector {
 mod tests {
     use super::*;
 
+    #[test]
     fn sector_percentages() {
         assert_eq!("0%".parse::<Sector>(), Ok(Sector::Percent(0)));
         assert_eq!("50%".parse::<Sector>(), Ok(Sector::Percent(50)));
         assert_eq!("100%".parse::<Sector>(), Ok(Sector::Percent(100)));
     }
 
+    #[test]
     fn sector_ends() {
         assert_eq!("start".parse::<Sector>(), Ok(Sector::Start));
         assert_eq!("end".parse::<Sector>(), Ok(Sector::End));
     }
 
+    #[test]
     fn sector_units() {
         assert_eq!("0".parse::<Sector>(), Ok(Sector::Unit(0)));
         assert_eq!("1024".parse::<Sector>(), Ok(Sector::Unit(1024)));
         assert_eq!("-1024".parse::<Sector>(), Ok(Sector::UnitFromEnd(1024)));
     }
 
+    #[test]
     fn sector_megabytes() {
         assert_eq!("0M".parse::<Sector>(), Ok(Sector::Megabyte(0)));
         assert_eq!("500M".parse::<Sector>(), Ok(Sector::Megabyte(500)));

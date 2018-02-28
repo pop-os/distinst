@@ -435,7 +435,7 @@ Please make a test run using both the -n and -s options before real resizing!"#;
 
     #[test]
     fn ntfs_usage() {
-        let mut reader = NTFS_INPUT.lines().map(|x| Ok(x.into()));
+        let reader = NTFS_INPUT.lines().map(|x| Ok(x.into()));
         assert_eq!(get_ntfs_usage(reader, 512).unwrap(), 133256);
     }
 
@@ -445,7 +445,7 @@ Please make a test run using both the -n and -s options before real resizing!"#;
 
     #[test]
     fn btrfs_usage() {
-        let mut reader = BTRFS_INPUT.lines().map(|x| Ok(x.into()));
+        let reader = BTRFS_INPUT.lines().map(|x| Ok(x.into()));
         assert_eq!(get_btrfs_usage(reader, 512).unwrap(), 224);
     }
 }

@@ -64,11 +64,50 @@ fn detect_windows(base: &Path) -> Option<String> {
         .map(|| "Windows".into())
 }
 
+fn parse_plist<R: BufRead>(file: R) -> Option<String> {
+    // The plist is an XML file, but we don't need complex XML parsing for this.
+    let mut product_name: Option<String> = None;
+    let mut version: Option<String> = None;
+    let mut flags = 0;
+
+    for entry in file.lines() {
+        if let Ok(ref entry) = entry.as_ref() {
+            let entry = entry.trim();
+            match flags {
+                0 => match entry {
+                    "<key>ProductUserVisibleVersion</key>" => flags |= 1,
+                    "<key>ProductName</key>" => flags |= 2,
+                    _ => (),
+                },
+                1 => {
+                    version = Some(entry[8..entry.len() - 9].into());
+                    flags = 0;
+                }
+                2 => {
+                    product_name = Some(entry[8..entry.len() - 9].into());
+                    flags = 0;
+                }
+                _ => unreachable!(),
+            }
+            if product_name.is_some() && version.is_some() {
+                break;
+            }
+        }
+    }
+
+    if let (Some(name), Some(version)) = (product_name, version) {
+        Some(format!("{} ({})", name, version))
+    } else {
+        None
+    }
+}
+
 fn detect_macos(base: &Path) -> Option<String> {
-    // TODO: More advanced version-specific detection is possible.
-    base.join("System/Library/CoreServices/SystemVersion.plist")
-        .exists()
-        .map(|| "macOS".into())
+    File::open(base.join("etc/os-release"))
+        .ok()
+        .and_then(|file| {
+            parse_plist(BufReader::new(file)).or_else(|| Some("Mac OS (Unknown)".into()))
+        })
 }
 
 #[cfg(test)]
@@ -95,5 +134,28 @@ UBUNTU_CODENAME=bionic"#;
             parse_osrelease(Cursor::new(OS_RELEASE)),
             Some("Pop!_OS 18.04 LTS (Bionic Beaver)".into())
         )
+    }
+
+    const MAC_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "Apple Stuff">
+<plist version="1.0">
+<dict>
+    <key>ProductBuildVersion</key>
+    <string>10C540</string>
+    <key>ProductName</key>
+    <string>Mac OS X</string>
+    <key>ProductUserVisibleVersion</key>
+    <string>10.6.2</string>
+    <key>ProductVersion</key>
+    <string>10.6.2</string>
+</dict>
+</plist>"#;
+
+    #[test]
+    fn mac_plist_parsing() {
+        assert_eq!(
+            parse_plist(Cursor::new(MAC_PLIST)),
+            Some("Mac OS X (10.6.2)".into())
+        );
     }
 }
