@@ -1,6 +1,8 @@
+mod move_and_resize;
+
+use self::move_and_resize::{transform, Coordinates, ResizeOperation};
 use super::*;
 use super::external::mkfs;
-use super::resize::{transform, Coordinates, ResizeOperation};
 use blockdev;
 use libparted::{
     Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry, Partition as PedPartition,

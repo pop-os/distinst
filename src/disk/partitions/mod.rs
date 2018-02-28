@@ -2,13 +2,14 @@ mod block_info;
 mod builder;
 mod limitations;
 mod os_detect;
+mod usage;
 
 use self::block_info::BlockInfo;
 pub use self::builder::PartitionBuilder;
 pub use self::limitations::check_partition_size;
 use self::os_detect::detect_os;
+use self::usage::get_used_sectors;
 use super::{get_uuid, LvmEncryption, Mounts, PartitionSizeError, Swaps};
-use super::usage::get_used_sectors;
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};

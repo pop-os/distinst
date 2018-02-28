@@ -7,10 +7,8 @@ mod lvm;
 mod mounts;
 mod operations;
 mod partitions;
-mod resize;
 mod serial;
 mod swaps;
-mod usage;
 
 pub use self::disk::{DiskExt, Sector};
 use self::disk::find_partition;
