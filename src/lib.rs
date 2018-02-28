@@ -292,7 +292,21 @@ impl Installer {
         // NOTE: It is assumed that the target is an absolute path.
         let paths: BTreeMap<PathBuf, (PathBuf, &'static str)> = targets
             .map(|target| {
+                // Path mangling commences here, since we need to concatenate an absolute
+                // path onto another absolute path, and the standard library opts for
+                // overwriting the original path when doing that.
                 let target_mount: PathBuf = {
+                    // Ensure that the chroot path has the ending '/'.
+                    let chroot = chroot.as_os_str().as_bytes();
+                    let mut target_mount: Vec<u8> = if chroot[chroot.len() - 1] == b'/' {
+                        chroot.to_owned()
+                    } else {
+                        let mut temp = chroot.to_owned();
+                        temp.push(b'/');
+                        temp
+                    };
+
+                    // Cut the ending '/' from the target path if it exists.
                     let target_path = target.target.as_ref().unwrap().as_os_str().as_bytes();
                     let target_path = if target_path[0] == b'/' {
                         if target_path.len() > 1 {
@@ -304,15 +318,7 @@ impl Installer {
                         target_path
                     };
 
-                    let chroot = chroot.as_os_str().as_bytes();
-                    let mut target_mount: Vec<u8> = if chroot[chroot.len() - 1] == b'/' {
-                        chroot.to_owned()
-                    } else {
-                        let mut temp = chroot.to_owned();
-                        temp.push(b'/');
-                        temp
-                    };
-
+                    // Append the target path to the chroot, and return it as a path type.
                     target_mount.extend_from_slice(target_path);
                     PathBuf::from(OsString::from_vec(target_mount))
                 };
@@ -380,13 +386,17 @@ impl Installer {
         let configure = configure_dir.path().join("configure.sh");
 
         {
+            // Write the installer's intallation script to the chroot's temporary directory.
             info!("libdistinst: writing /tmp/configure.sh");
             let mut file = File::create(&configure)?;
             file.write_all(include_bytes!("scripts/configure.sh"))?;
             file.sync_all()?;
         }
 
+        callback(15);
+
         {
+            // Ubuntu's LVM auto-detection doesn't seem to work for activating root volumes.
             info!("libdistinst: applying LVM initramfs autodetect workaround");
             fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
             let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
@@ -396,7 +406,10 @@ impl Installer {
             file.sync_all()?;
         }
 
+        callback(30);
+
         {
+            // Generate and write all of the file system mount targets to the new install.
             info!("libdistinst: writing /etc/fstab");
             let fstab = mount_dir.join("etc/fstab");
             let mut file = File::create(&fstab)?;
@@ -405,7 +418,10 @@ impl Installer {
             file.sync_all()?;
         }
 
+        callback(45);
+
         {
+            // Do the same for generating any encryption entries needed by the install.
             info!("libdistinst: writing /etc/crypttab");
             let crypttab = mount_dir.join("etc/crypttab");
             let mut file = File::create(&crypttab)?;
@@ -413,25 +429,7 @@ impl Installer {
             file.sync_all()?;
         }
 
-        let root_entry = {
-            info!("libdistinst: retrieving root partition");
-            disks
-                .get_physical_devices()
-                .iter()
-                .flat_map(|disk| disk.partitions.iter())
-                .filter_map(|part| part.get_block_info())
-                .find(|entry| entry.mount() == "/")
-                .or(disks
-                    .get_logical_devices()
-                    .iter()
-                    .flat_map(|disk| disk.partitions.iter())
-                    .filter_map(|part| part.get_block_info())
-                    .find(|entry| entry.mount() == "/"))
-                .ok_or(io::Error::new(
-                    io::ErrorKind::Other,
-                    "root partition not found",
-                ))?
-        };
+        callback(60);
 
         {
             info!(
@@ -445,6 +443,28 @@ impl Installer {
                     format!("Path::strip_prefix failed: {}", err),
                 )
             })?;
+
+            callback(75);
+
+            let root_entry = {
+                info!("libdistinst: retrieving root partition");
+                disks
+                    .get_physical_devices()
+                    .iter()
+                    .flat_map(|disk| disk.partitions.iter())
+                    .filter_map(|part| part.get_block_info())
+                    .find(|entry| entry.mount() == "/")
+                    .or(disks
+                        .get_logical_devices()
+                        .iter()
+                        .flat_map(|disk| disk.partitions.iter())
+                        .filter_map(|part| part.get_block_info())
+                        .find(|entry| entry.mount() == "/"))
+                    .ok_or(io::Error::new(
+                        io::ErrorKind::Other,
+                        "root partition not found",
+                    ))?
+            };
 
             let install_pkgs: &[&str] = match bootloader {
                 Bootloader::Bios => &["grub-pc"],

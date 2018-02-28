@@ -1,13 +1,18 @@
+mod block_info;
+mod builder;
+mod limitations;
+mod os_detect;
+
+use self::block_info::BlockInfo;
+pub use self::builder::PartitionBuilder;
+pub use self::limitations::check_partition_size;
+use self::os_detect::detect_os;
 use super::{get_uuid, LvmEncryption, Mounts, PartitionSizeError, Swaps};
-use super::mount::Mount;
 use super::usage::get_used_sectors;
 use libparted::{Partition, PartitionFlag};
-use std::ffi::{OsStr, OsString};
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tempdir::TempDir;
 
 /// Specifies which file system format to use.
 #[derive(Debug, PartialEq, Copy, Clone, Hash)]
@@ -78,155 +83,11 @@ impl Into<&'static str> for FileSystemType {
     }
 }
 
-const MIB: u64 = 1024 * 1024;
-const GIB: u64 = MIB * 1024;
-const TIB: u64 = GIB * 1024;
-
-const FAT16_MIN: u64 = 16 * MIB;
-const FAT16_MAX: u64 = (4096 - 1) * MIB;
-const FAT32_MIN: u64 = 33 * MIB;
-const FAT32_MAX: u64 = 2 * TIB;
-const EXT4_MAX: u64 = 16 * TIB;
-const BTRFS_MIN: u64 = 250 * MIB;
-
-pub fn check_partition_size(size: u64, fs: FileSystemType) -> Result<(), PartitionSizeError> {
-    match fs {
-        FileSystemType::Btrfs if size < BTRFS_MIN => {
-            Err(PartitionSizeError::TooSmall(size, BTRFS_MIN))
-        }
-        FileSystemType::Fat16 if size < FAT16_MIN => {
-            Err(PartitionSizeError::TooSmall(size, FAT16_MIN))
-        }
-        FileSystemType::Fat16 if size > FAT16_MAX => {
-            Err(PartitionSizeError::TooLarge(size, FAT16_MAX))
-        }
-        FileSystemType::Fat32 if size < FAT32_MIN => {
-            Err(PartitionSizeError::TooSmall(size, FAT32_MIN))
-        }
-        FileSystemType::Fat32 if size > FAT32_MAX => {
-            Err(PartitionSizeError::TooLarge(size, FAT32_MAX))
-        }
-        FileSystemType::Ext4 if size > EXT4_MAX => {
-            Err(PartitionSizeError::TooLarge(size, EXT4_MAX))
-        }
-        _ => Ok(()),
-    }
-}
-
 /// Defines whether the partition is a primary or logical partition.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 pub enum PartitionType {
     Primary,
     Logical,
-}
-
-/// Partition builders are supplied as inputs to `Disk::add_partition`.
-pub struct PartitionBuilder {
-    pub(crate) start_sector: u64,
-    pub(crate) end_sector:   u64,
-    pub(crate) filesystem:   FileSystemType,
-    pub(crate) part_type:    PartitionType,
-    pub(crate) name:         Option<String>,
-    pub(crate) flags:        Vec<PartitionFlag>,
-    pub(crate) mount:        Option<PathBuf>,
-    pub(crate) volume_group: Option<(String, Option<LvmEncryption>)>,
-    pub(crate) key_id:       Option<(String, PathBuf)>,
-}
-
-impl PartitionBuilder {
-    /// Creates a new partition builder.
-    pub fn new(start: u64, end: u64, fs: FileSystemType) -> PartitionBuilder {
-        PartitionBuilder {
-            start_sector: start,
-            end_sector:   end - 1,
-            filesystem:   fs,
-            part_type:    PartitionType::Primary,
-            name:         None,
-            flags:        Vec::new(),
-            mount:        None,
-            volume_group: None,
-            key_id:       None,
-        }
-    }
-
-    /// Defines a label for the new partition.
-    pub fn name(mut self, name: String) -> PartitionBuilder {
-        self.name = Some(name);
-        self
-    }
-
-    /// Defines whether the partition shall be a logical or primary partition.
-    pub fn partition_type(mut self, part_type: PartitionType) -> PartitionBuilder {
-        self.part_type = part_type;
-        self
-    }
-
-    /// Sets the input as the flags field for the new partition.
-    pub fn flags(mut self, flags: Vec<PartitionFlag>) -> PartitionBuilder {
-        self.flags = flags;
-        self
-    }
-
-    /// Adds a partition flag for the new partition.
-    pub fn flag(mut self, flag: PartitionFlag) -> PartitionBuilder {
-        self.flags.push(flag);
-        self
-    }
-
-    /// Specifies where the new partition should be mounted.
-    pub fn mount(mut self, mount: PathBuf) -> PartitionBuilder {
-        self.mount = Some(mount);
-        self
-    }
-
-    /// Assigns the new partition to a LVM volume group, which may optionally be encrypted.
-    pub fn logical_volume(
-        mut self,
-        group: String,
-        encryption: Option<LvmEncryption>,
-    ) -> PartitionBuilder {
-        self.volume_group = Some((group, encryption));
-        self
-    }
-
-    /// Defines that this partition will store the keyfile of the given ID(s),
-    /// at the target mount point.
-    pub fn keydata(mut self, id: String, target: PathBuf) -> PartitionBuilder {
-        self.key_id = Some((id, target));
-        self
-    }
-
-    /// Builds a brand new Partition from the current state of the builder.
-    pub fn build(self) -> PartitionInfo {
-        PartitionInfo {
-            is_source:    false,
-            remove:       false,
-            format:       true,
-            active:       false,
-            busy:         false,
-            number:       -1,
-            start_sector: self.start_sector,
-            end_sector:   self.end_sector,
-            part_type:    self.part_type,
-            filesystem:   if self.volume_group.is_some() {
-                Some(FileSystemType::Lvm)
-            } else {
-                Some(self.filesystem)
-            },
-            flags:        self.flags,
-            name:         self.name,
-            device_path:  PathBuf::new(),
-            mount_point:  None,
-            swapped:      false,
-            target:       if self.key_id.is_some() {
-                self.key_id.as_ref().map(|&(_, ref path)| path.clone())
-            } else {
-                self.mount
-            },
-            volume_group: self.volume_group.clone(),
-            key_id:       self.key_id,
-        }
-    }
 }
 
 // TODO: Compress boolean fields into a single byte.
@@ -278,29 +139,6 @@ pub struct PartitionInfo {
     /// If the partition is associated with a keyfile, this will name the key and it's mount
     /// path.
     pub key_id: Option<(String, PathBuf)>,
-}
-
-/// Information that will be used to generate a fstab entry for the given partition.
-pub(crate) struct BlockInfo {
-    pub uuid:    OsString,
-    pub mount:   Option<PathBuf>,
-    pub fs:      &'static str,
-    pub options: String,
-    pub dump:    bool,
-    pub pass:    bool,
-}
-
-impl BlockInfo {
-    pub fn mount(&self) -> &OsStr {
-        self.mount
-            .as_ref()
-            .map_or(OsStr::new("none"), |path| path.as_os_str())
-    }
-
-    /// The size of the data contained within.
-    pub fn len(&self) -> usize {
-        self.uuid.len() + self.mount().len() + self.fs.len() + self.options.len() + 2
-    }
 }
 
 impl PartitionInfo {
@@ -413,27 +251,8 @@ impl PartitionInfo {
 
     /// Detects if an OS is installed to this partition, and if so, what the OS is named.
     pub fn probe_os(&self) -> Option<String> {
-        self.filesystem.and_then(|fs| {
-            // Mount a temporary directoy where we will mount the FS.
-            TempDir::new("distinst").ok().and_then(|tempdir| {
-                // Mount the FS to the temporary directory
-                Mount::new(
-                    self.get_device_path(),
-                    &tempdir.path(),
-                    match fs {
-                        FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
-                        fs => fs.into(),
-                    },
-                    0,
-                    None,
-                ).ok()
-                    .and_then(|_mount| {
-                        // Check if the partition contains `/etc/lsb-release` to detect a Linux
-                        // install.
-                        read_lsb(&tempdir.path())
-                    })
-            })
-        })
+        self.filesystem
+            .and_then(|fs| detect_os(self.get_device_path(), fs))
     }
 
     /// Specifies to delete this partition from the partition table.
@@ -480,21 +299,6 @@ impl PartitionInfo {
 
         result
     }
-}
-
-fn read_lsb(base: &Path) -> Option<String> {
-    File::open(base.join("etc/lsb-release"))
-        .ok()
-        .and_then(|file| {
-            for line in BufReader::new(file).lines() {
-                if let Ok(line) = line {
-                    if line.starts_with("DISTRIB_DESCRIPTION=") {
-                        return Some(line[20..line.len() - 1].into());
-                    }
-                }
-            }
-            None
-        })
 }
 
 const FLAGS: &[PartitionFlag] = &[
