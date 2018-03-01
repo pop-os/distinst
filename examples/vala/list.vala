@@ -16,9 +16,9 @@ public static string level_name (Distinst.LogLevel level) {
 }
 
 public static int main (string[] args) {
-    Distinst.log((level, message) => {
-        stderr.printf ("Log: %s %s\r\n", level_name (level), message);
-    });
+    //  Distinst.log((level, message) => {
+    //      stderr.printf ("Log: %s %s\r\n", level_name (level), message);
+    //  });
 
     Distinst.Disks disks = Distinst.Disks.probe ();
     foreach (unowned Distinst.Disk disk in disks.list()) {
@@ -42,17 +42,26 @@ public static int main (string[] args) {
             uint64 part_end = partition.get_end_sector() + 1;
             uint64 part_sectors = part_end - part_start;
             uint64 part_size = part_sectors * disk_sector_size;
+            Distinst.PartitionUsage usage = partition.sectors_used(disk_sector_size);
 
-            stdout.printf(
-                "  %.*s: %lu - %lu = %lu * %lu = %lu MB\n",
-                part_path.length,
-                (string) part_path,
-                part_end,
-                part_start,
-                part_sectors,
-                disk_sector_size,
-                part_size/1000000
-            );
+            stdout.printf("  %.*s:\n", part_path.length, (string) part_path);
+            stdout.printf("    Start: %lu\n", (ulong) part_start);
+            stdout.printf("    End:   %lu\n", (ulong) part_end);
+            stdout.printf("    Size:  %lu MB\n", (ulong) part_size / 1000000);
+            
+            if (usage.tag == 1) {
+                stdout.printf(
+                    "    Usage: %lu MB\n",
+                    (ulong)(usage.value * disk_sector_size / 1000000)
+                );
+            }
+
+            string? os = partition.probe_os();
+            if (os == null) {
+                stdout.printf("    OS:    None\n");
+            } else {
+                stdout.printf("    OS:    Some(%s)\n", os);
+            }
         }
     }
 

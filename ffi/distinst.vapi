@@ -94,10 +94,11 @@ namespace Distinst {
         public PartitionBuilder logical_volume (string group, LvmEncryption encryption);
     }
 
+    [SimpleType]
     [CCode (has_type_id = false)]
     public struct PartitionUsage {
-        uint8 tag;
-        uint64 value;
+        public uint64 value;
+        public uint8 tag;
     }
 
     [CCode (has_type_id = false, unref_function = "")]
