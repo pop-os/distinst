@@ -1,4 +1,5 @@
-use super::{FileSystemType, PartitionSizeError};
+use super::FileSystemType;
+use super::super::super::PartitionSizeError;
 
 const MIB: u64 = 1024 * 1024;
 const GIB: u64 = MIB * 1024;

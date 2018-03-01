@@ -1,4 +1,4 @@
-use super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector};
+use super::super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector};
 use super::partitions::check_partition_size;
 use std::path::Path;
 

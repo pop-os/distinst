@@ -1,3 +1,5 @@
+//! Contains source code for applying physical disk operations to disks.
+
 mod move_and_resize;
 
 use self::move_and_resize::{transform, Coordinates, ResizeOperation};
@@ -42,6 +44,7 @@ fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), D
         kind,
         device_path.as_ref().display()
     );
+
     open_device(&device_path).and_then(|mut device| {
         let kind = match kind {
             PartitionTable::Gpt => PedDiskType::get("gpt").unwrap(),
