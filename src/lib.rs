@@ -583,18 +583,18 @@ impl Installer {
 
                 match bootloader {
                     Bootloader::Bios => {
-                        let mut args = Vec::new();
+                        let status = chroot.command(
+                            "grub-install",
+                            &[
+                                // Recreate device map
+                                "--recheck".into(),
+                                // Install for BIOS
+                                "--target=i386-pc".into(),
+                                // Install to the bootloader_dev device
+                                bootloader_dev.to_str().unwrap().to_owned(),
+                            ],
+                        )?;
 
-                        // Recreate device map
-                        args.push("--recheck".into());
-
-                        // Install for BIOS
-                        args.push("--target=i386-pc".into());
-
-                        // Install to the bootloader_dev device
-                        args.push(bootloader_dev.to_str().unwrap().to_owned());
-
-                        let status = chroot.command("grub-install", args.iter())?;
                         if !status.success() {
                             return Err(io::Error::new(
                                 io::ErrorKind::Other,
@@ -603,19 +603,19 @@ impl Installer {
                         }
                     }
                     Bootloader::Efi => {
-                        let mut args = Vec::new();
+                        let status = chroot.command(
+                            "bootctl",
+                            &[
+                                // Install systemd-boot
+                                "install",
+                                // Provide path to ESP
+                                "--path=/boot/efi",
+                                // Do not set EFI variables
+                                // TODO: Remove this option
+                                "--no-variables",
+                            ],
+                        )?;
 
-                        // Install systemd-boot
-                        args.push("install");
-
-                        // Provide path to ESP
-                        args.push("--path=/boot/efi");
-
-                        // Do not set EFI variables
-                        // TODO: Remove this option
-                        args.push("--no-variables");
-
-                        let status = chroot.command("bootctl", args.iter())?;
                         if !status.success() {
                             return Err(io::Error::new(
                                 io::ErrorKind::Other,
