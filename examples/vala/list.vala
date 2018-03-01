@@ -42,17 +42,23 @@ public static int main (string[] args) {
             uint64 part_end = partition.get_end_sector() + 1;
             uint64 part_sectors = part_end - part_start;
             uint64 part_size = part_sectors * disk_sector_size;
-            Distinst.PartitionUsage usage = partition.sectors_used(disk_sector_size);
 
             stdout.printf("  %.*s:\n", part_path.length, (string) part_path);
+            stdout.printf("    Sector Size: %lu\n", (ulong) disk_sector_size);
             stdout.printf("    Start: %lu\n", (ulong) part_start);
             stdout.printf("    End:   %lu\n", (ulong) part_end);
-            stdout.printf("    Size:  %lu MB\n", (ulong) part_size / 1000000);
+            stdout.printf(
+                "    Size:  %lu MB (%lu MiB)\n",
+                (ulong) (part_size / 1000000),
+                (ulong) (part_size / 1048576)
+            );
             
             if (usage.tag == 1) {
+                uint64 used = usage.value * disk_sector_size;
                 stdout.printf(
-                    "    Usage: %lu MB\n",
-                    (ulong)(usage.value * disk_sector_size / 1000000)
+                    "    Usage: %lu MB (%lu MiB)\n",
+                    (ulong) (used / 1000000),
+                    (ulong) (used / 1048576)
                 );
             }
 
