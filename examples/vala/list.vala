@@ -42,6 +42,7 @@ public static int main (string[] args) {
             uint64 part_end = partition.get_end_sector() + 1;
             uint64 part_sectors = part_end - part_start;
             uint64 part_size = part_sectors * disk_sector_size;
+            Distinst.PartitionUsage usage = partition.sectors_used(disk_sector_size);
 
             stdout.printf("  %.*s:\n", part_path.length, (string) part_path);
             stdout.printf("    Sector Size: %lu\n", (ulong) disk_sector_size);
