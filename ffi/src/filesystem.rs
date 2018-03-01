@@ -104,6 +104,6 @@ impl DISTINST_FILE_SYSTEM_TYPE {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn strfilesys(fs: DISTINST_FILE_SYSTEM_TYPE) -> *const libc::c_char {
+pub unsafe extern "C" fn distinst_strfilesys(fs: DISTINST_FILE_SYSTEM_TYPE) -> *const libc::c_char {
     fs.get_cstr()
 }

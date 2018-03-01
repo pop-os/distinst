@@ -39,13 +39,13 @@ namespace Distinst {
 
     public PartitionTable bootloader_detect ();
 
-    [CCode (has_type_id = false)]
+    [CCode (cname = "DISTINST_PARTITION_TYPE", has_type_id = false)]
     public enum PartitionType {
         PRIMARY,
         LOGICAL
     }
 
-    [CCode (has_type_id = false)]
+    [CCode (cname = "DISTINST_FILE_SYSTEM_TYPE", has_type_id = false)]
     public enum FileSystemType {
         NONE,
         BTRFS,
@@ -62,7 +62,9 @@ namespace Distinst {
         LVM
     }
 
-    [CCode (has_type_id = false)]
+    public unowned string strfilesys(FileSystemType fs);
+
+    [CCode (cname = "DISTINST_PARTITION_FLAG", has_type_id = false)]
     public enum PartitionFlag {
         BOOT,
         ROOT,
@@ -109,6 +111,7 @@ namespace Distinst {
         public int format_with (FileSystemType fs);
         public uint64 get_start_sector ();
         public uint64 get_end_sector ();
+        public FileSystemType get_file_system ();
         public string? probe_os ();
         public PartitionUsage sectors_used (uint64 sector_size);
     }

@@ -1,5 +1,5 @@
-use super::super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector};
 use super::partitions::check_partition_size;
+use super::super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector};
 use std::path::Path;
 
 /// Contains methods that are shared between physical and logical disk devices.

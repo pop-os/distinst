@@ -279,6 +279,17 @@ pub unsafe extern "C" fn distinst_partition_get_device_path(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_get_file_system(
+    partition: *const DistinstPartition,
+) -> DISTINST_FILE_SYSTEM_TYPE {
+    let part = &*(partition as *const PartitionInfo);
+    match part.filesystem {
+        Some(fs) => DISTINST_FILE_SYSTEM_TYPE::from(fs),
+        None => DISTINST_FILE_SYSTEM_TYPE::NONE,
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_start_sector(
     partition: *const DistinstPartition,
 ) -> libc::uint64_t {

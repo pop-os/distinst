@@ -1,6 +1,6 @@
-use super::{Disk, get_uuid};
-use super::super::{Bootloader, DiskError, DiskExt, PartitionFlag, PartitionInfo};
+use super::{get_uuid, Disk};
 use super::find_partition;
+use super::super::{Bootloader, DiskError, DiskExt, PartitionFlag, PartitionInfo};
 use super::super::external::{cryptsetup_close, deactivate_volumes, lvs, pvremove, pvs, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::umount;

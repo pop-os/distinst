@@ -8,12 +8,12 @@ pub(crate) mod lvm;
 pub(crate) mod partitions;
 
 pub use self::disk::*;
-pub use self::disks::*;
 pub use self::disk_trait::DiskExt;
+pub(crate) use self::disk_trait::find_partition;
+pub use self::disks::*;
 pub use self::lvm::{LvmDevice, LvmEncryption};
 pub use self::partitions::*;
 pub use self::sector::Sector;
-pub(crate) use self::disk_trait::find_partition;
 
 use super::{Bootloader, DiskError};
 use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType};
