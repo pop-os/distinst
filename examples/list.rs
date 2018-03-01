@@ -17,15 +17,21 @@ fn list() -> Result<()> {
         );
 
         for part in disk.get_partitions() {
+            println!("  {}:", part.device_path.display());
+            println!("    label:   {:?}", part.name);
+            println!("    fs:      {:?}", part.filesystem);
             println!(
-                "  {}:\n\tfs:      {:?} \n\tsectors: (start: {}, end: {})\n\tsize:    {} MB ({} \
-                 MiB)\n\tusage:   {}\n\tOS:      {:?}",
-                part.device_path.display(),
-                part.filesystem,
-                part.start_sector,
-                part.end_sector,
+                "    sectors: (start: {}, end: {})",
+                part.start_sector, part.end_sector
+            );
+            println!(
+                "    size:    {} MB ({} MiB)",
                 (part.sectors() * sector_size) / 1_000_000,
-                (part.sectors() * sector_size) / 1_048_576,
+                (part.sectors() * sector_size) / 1_048_576
+            );
+
+            println!(
+                "    usage:   {}",
                 if let Some(result) = part.sectors_used(sector_size) {
                     match result {
                         Ok(used_sectors) => {
@@ -49,9 +55,10 @@ fn list() -> Result<()> {
                     }
                 } else {
                     "N/A".into()
-                },
-                part.probe_os(),
+                }
             );
+
+            println!("    OS:      {:?}", part.probe_os());
         }
     }
 

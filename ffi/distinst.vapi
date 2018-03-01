@@ -111,6 +111,7 @@ namespace Distinst {
         public int format_with (FileSystemType fs);
         public uint64 get_start_sector ();
         public uint64 get_end_sector ();
+        public string? get_label ();
         public FileSystemType get_file_system ();
         public string? probe_os ();
         public PartitionUsage sectors_used (uint64 sector_size);

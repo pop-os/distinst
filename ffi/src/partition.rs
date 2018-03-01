@@ -290,6 +290,17 @@ pub unsafe extern "C" fn distinst_partition_get_file_system(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_get_label(
+    partition: *const DistinstPartition,
+) -> *mut libc::c_char {
+    let part = &*(partition as *const PartitionInfo);
+    part.name
+        .clone()
+        .and_then(|osstr| CString::new(osstr).ok().map(|string| string.into_raw()))
+        .unwrap_or(ptr::null_mut())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_start_sector(
     partition: *const DistinstPartition,
 ) -> libc::uint64_t {
