@@ -14,8 +14,8 @@ use distinst::{
 };
 use pbr::ProgressBar;
 
-use std::{io, process};
 use std::cell::RefCell;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
@@ -29,6 +29,8 @@ enum DistinstError {
     TableArgs,
     #[fail(display = "'{}' is not a valid table. Must be either 'gpt' or 'msdos'.", table)]
     InvalidTable { table: String },
+    #[fail(display = "partition type must be either 'primary' or 'logical'")]
+    InvalidPartitionType,
     #[fail(display = "disk at '{}' could not be found", disk)]
     DiskNotFound { disk: String },
     #[fail(display = "no block argument provided")]
@@ -55,6 +57,18 @@ enum DistinstError {
     InvalidFileSystem { fs: String },
     #[fail(display = "could not find volume group associated with '{}'", group)]
     NoVolumeGroupAssociated { group: String },
+    #[fail(display = "invalid number of arguments supplied to --use")]
+    ReusedArgs,
+    #[fail(display = "invalid number of arguments supplied to --new")]
+    NewArgs,
+    #[fail(display = "invalid number of arguments supplied to --logical")]
+    LogicalArgs,
+    #[fail(display = "mount path must be specified with key")]
+    NoMountPath,
+    #[fail(display = "mount value is empty")]
+    EmptyMount,
+    #[fail(display = "unable to add partition to lvm device: {}", why)]
+    LvmPartitionAdd { why: DiskError },
 }
 
 impl From<DiskError> for DistinstError {
@@ -230,8 +244,8 @@ fn main() {
         let disks = match configure_disks(&matches) {
             Ok(disks) => disks,
             Err(why) => {
-                eprintln!("distinst: invalid disk configuration: {}", why);
-                process::exit(1);
+                eprintln!("distinst: {}", why);
+                exit(1);
             }
         };
 
@@ -267,7 +281,7 @@ fn main() {
         }
     };
 
-    process::exit(status);
+    exit(status);
 }
 
 fn configure_signal_handling() {
@@ -283,18 +297,15 @@ fn configure_signal_handling() {
             "distinst: signal handling error: {}",
             io::Error::last_os_error()
         );
-        process::exit(1);
+        exit(1);
     }
 }
 
-fn parse_part_type(table: &str) -> PartitionType {
+fn parse_part_type(table: &str) -> Result<PartitionType, DistinstError> {
     match table {
-        "primary" => PartitionType::Primary,
-        "logical" => PartitionType::Logical,
-        _ => {
-            eprintln!("distinst: partition type must be either 'primary' or 'logical'.");
-            exit(1);
-        }
+        "primary" => Ok(PartitionType::Primary),
+        "logical" => Ok(PartitionType::Logical),
+        _ => Err(DistinstError::InvalidPartitionType),
     }
 }
 
@@ -525,26 +536,18 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dist
     if let Some(parts) = parts {
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
-            if values.len() < 3 {
-                eprintln!(
-                    "distinst: three to five colon-delimited values need to be supplied to \
-                     --use\n\t-u USAGE: 'part_block:fs-or-reuse:mount[:flags,...]'"
-                );
-                exit(1);
-            } else if values.len() > 5 {
-                eprintln!("distinst: too many values were supplied to the use partition flag.");
-                exit(1);
+            if values.len() < 3 || values.len() > 5 {
+                return Err(DistinstError::ReusedArgs);
             }
 
             let (block_dev, part_id, fs) = (
                 values[0],
-                match values[1].parse::<u32>() {
-                    Ok(id) => id as i32,
-                    Err(_) => {
-                        eprintln!("distinst: partition value must be a number");
-                        exit(1);
-                    }
-                },
+                values[1]
+                    .parse::<u32>()
+                    .map(|id| id as i32)
+                    .map_err(|_| DistinstError::ArgNaN {
+                        arg: values[1].into(),
+                    })?,
                 match values[2] {
                     "reuse" => None,
                     fs => Some(parse_fs(fs)?),
@@ -561,8 +564,9 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dist
                 } else if value.starts_with("keyid=") {
                     key = Some(String::from(&value[6..]));
                 } else {
-                    eprintln!("distinst: invalid argument supplied: {}", value);
-                    exit(1);
+                    return Err(DistinstError::InvalidField {
+                        field: (*value).into(),
+                    });
                 }
             }
 
@@ -573,8 +577,7 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dist
                 match mount {
                     Some(mount) => partition.set_keydata(keyid, mount.into()),
                     None => {
-                        eprintln!("distinst: mount path must be specified with key");
-                        exit(1);
+                        return Err(DistinstError::NoMountPath);
                     }
                 }
             } else if let Some(mount) = mount {
@@ -606,21 +609,13 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distins
     if let Some(parts) = parts {
         for part in parts {
             let values: Vec<&str> = part.split(":").collect();
-            if values.len() < 5 {
-                eprintln!(
-                    "distinst: five to seven colon-delimited values need to be supplied to a new \
-                     partition.\n\t-n USAGE: \
-                     'block:part_type:start_sector:end_sector:fs[:mount:flags,...]'"
-                );
-                exit(1);
-            } else if values.len() > 7 {
-                eprintln!("distinst: too many values were supplied to the new partition flag");
-                exit(1);
+            if values.len() < 5 || values.len() > 7 {
+                return Err(DistinstError::NewArgs);
             }
 
             let (block, kind, start, end, fs) = (
                 values[0],
-                parse_part_type(values[1]),
+                parse_part_type(values[1])?,
                 parse_sector(values[2])?,
                 parse_sector(values[3])?,
                 parse_fs(values[4])?,
@@ -636,8 +631,9 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distins
                 } else if value.starts_with("keyid=") {
                     key = Some(String::from(&value[6..]));
                 } else {
-                    eprintln!("distinst: invalid argument supplied: {}", value);
-                    exit(1);
+                    return Err(DistinstError::InvalidField {
+                        field: (*value).into(),
+                    });
                 }
             }
 
@@ -662,8 +658,7 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distins
                 match mount {
                     Some(mount) => builder = builder.keydata(keyid, mount.into()),
                     None => {
-                        eprintln!("distinst: mount path must be specified with key");
-                        exit(1);
+                        return Err(DistinstError::NoMountPath);
                     }
                 }
             } else if let Some(mount) = mount {
@@ -699,14 +694,8 @@ fn parse_logical<F: FnMut(LogicalArgs) -> Result<(), DistinstError>>(
 ) -> Result<(), DistinstError> {
     for value in values {
         let values: Vec<&str> = value.split(":").collect();
-        if values.len() < 4 {
-            eprintln!("distinst: at least four values need to be supplied for logical volumes");
-            exit(1);
-        } else if values.len() > 6 {
-            eprintln!(
-                "distinst: no more than six arguments should be supplied for logical volumes"
-            );
-            exit(1);
+        if values.len() < 4 || values.len() > 6 {
+            return Err(DistinstError::LogicalArgs);
         }
 
         let (mut mount, mut flags) = (None, None);
@@ -715,22 +704,21 @@ fn parse_logical<F: FnMut(LogicalArgs) -> Result<(), DistinstError>>(
             if arg.starts_with("mount=") {
                 let mountval = &arg[6..];
                 if mountval.is_empty() {
-                    eprintln!("distinst: mount value is empty");
-                    exit(1);
+                    return Err(DistinstError::EmptyMount);
                 }
 
                 mount = Some(Path::new(mountval).to_path_buf());
             } else if arg.starts_with("flags=") {
                 let flagval = &arg[6..];
                 if flagval.is_empty() {
-                    eprintln!("distinst: mount value is empty");
-                    exit(1);
+                    return Err(DistinstError::EmptyMount);
                 }
 
                 flags = Some(parse_flags(flagval));
             } else {
-                eprintln!("distinst: invalid field passed to logical volume flag");
-                exit(1);
+                return Err(DistinstError::InvalidField {
+                    field: (*arg).into(),
+                });
             }
         }
 
@@ -775,17 +763,13 @@ fn configure_lvm(disks: &mut Disks, logical: Option<Values>) -> Result<(), Disti
                         builder = builder.flags(flags.clone());
                     }
 
-                    if let Err(why) = lvm_device.add_partition(builder) {
-                        eprintln!("distinst: unable to add partition to lvm device: {}", why);
-                        exit(1);
-                    }
-                    Ok(())
+                    lvm_device
+                        .add_partition(builder)
+                        .map_err(|why| DistinstError::LvmPartitionAdd { why })
                 }
-                None => {
-                    Err(DistinstError::NoVolumeGroupAssociated {
-                        group: args.group.into(),
-                    })
-                }
+                None => Err(DistinstError::NoVolumeGroupAssociated {
+                    group: args.group.into(),
+                }),
             }
         })?;
     }
