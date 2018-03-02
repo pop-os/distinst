@@ -32,9 +32,6 @@ impl Disks {
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) { self.physical.push(disk); }
 
-    /// Adds a logical disk (`LvmDevice`) to the list of disks.
-    pub fn add_logical(&mut self, device: LvmDevice) { self.logical.push(device); }
-
     /// Returns a slice of physical disks stored within the configuration.
     pub fn get_physical_devices(&self) -> &[Disk] { &self.physical }
 
