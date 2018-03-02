@@ -38,16 +38,19 @@ impl Disks {
     /// Returns a slice of physical disks stored within the configuration.
     pub fn get_physical_devices(&self) -> &[Disk] { &self.physical }
 
-    /// Returns a mutable slice of physical disks stored within the configuration.
+    /// Returns a mutable slice of physical disks stored within the
+    /// configuration.
     pub fn get_physical_devices_mut(&mut self) -> &mut [Disk] { &mut self.physical }
 
     /// Returns a slice of logical disks stored within the configuration.
     pub fn get_logical_devices(&self) -> &[LvmDevice] { &self.logical }
 
-    /// Returns a mutable slice of logical disks stored within the configuration.
+    /// Returns a mutable slice of logical disks stored within the
+    /// configuration.
     pub fn get_logical_devices_mut(&mut self) -> &mut [LvmDevice] { &mut self.logical }
 
-    /// Returns a list of device paths which will be modified by this configuration.
+    /// Returns a list of device paths which will be modified by this
+    /// configuration.
     pub fn get_device_paths_to_modify(&self) -> Vec<PathBuf> {
         let mut output = Vec::new();
         for dev in self.get_physical_devices() {
@@ -75,7 +78,8 @@ impl Disks {
         output
     }
 
-    /// Deactivates all device maps associated with the inner disks/partitions to be modified.
+    /// Deactivates all device maps associated with the inner disks/partitions
+    /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
         let mounts = Mounts::new().unwrap();
         let umount = move |vg: &str| -> Result<(), DiskError> {
@@ -146,28 +150,32 @@ impl Disks {
         Ok(disks)
     }
 
-    /// Returns an immutable reference to the disk specified by its path, if it exists.
+    /// Returns an immutable reference to the disk specified by its path, if it
+    /// exists.
     pub fn find_disk<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
         self.physical
             .iter()
             .find(|disk| &disk.device_path == path.as_ref())
     }
 
-    /// Returns a mutable reference to the disk specified by its path, if it exists.
+    /// Returns a mutable reference to the disk specified by its path, if it
+    /// exists.
     pub fn find_disk_mut<P: AsRef<Path>>(&mut self, path: P) -> Option<&mut Disk> {
         self.physical
             .iter_mut()
             .find(|disk| &disk.device_path == path.as_ref())
     }
 
-    /// Returns an immutable reference to the disk specified by its path, if it exists.
+    /// Returns an immutable reference to the disk specified by its path, if it
+    /// exists.
     pub fn find_logical_disk(&self, group: &str) -> Option<&LvmDevice> {
         self.logical
             .iter()
             .find(|device| &device.volume_group == group)
     }
 
-    /// Returns a mutable reference to the disk specified by its path, if it exists.
+    /// Returns a mutable reference to the disk specified by its path, if it
+    /// exists.
     pub fn find_logical_disk_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
         self.logical
             .iter_mut()

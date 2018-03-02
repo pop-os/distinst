@@ -1,4 +1,5 @@
-//! Contains source code related to the configuration of disks & partitions in the system.
+//! Contains source code related to the configuration of disks & partitions in
+//! the system.
 
 mod disk;
 mod disks;
@@ -320,8 +321,8 @@ mod tests {
 
     #[test]
     fn layout_validity() {
-        // This test ensures that invalid layouts will raise a flag. An invalid layout is
-        // a layout which is missing some of the original source partitions.
+        // This test ensures that invalid layouts will raise a flag. An invalid layout
+        // is a layout which is missing some of the original source partitions.
         let source = get_default().physical.into_iter().next().unwrap();
         let mut duplicate = source.clone();
         assert!(source.validate_layout(&duplicate).is_ok());

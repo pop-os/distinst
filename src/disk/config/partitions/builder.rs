@@ -60,7 +60,8 @@ impl PartitionBuilder {
         self
     }
 
-    /// Assigns the new partition to a LVM volume group, which may optionally be encrypted.
+    /// Assigns the new partition to a LVM volume group, which may optionally
+    /// be encrypted.
     pub fn logical_volume(
         mut self,
         group: String,

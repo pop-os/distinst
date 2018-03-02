@@ -5,7 +5,7 @@ pub struct Logger<F: Fn(LogLevel, &str) + Send + Sync> {
 }
 
 impl<F: Fn(LogLevel, &str) + Send + Sync> Logger<F> {
-    pub fn new(callback: F) -> Logger<F> { Logger { callback: callback } }
+    pub fn new(callback: F) -> Logger<F> { Logger { callback } }
 }
 
 impl<F: Fn(LogLevel, &str) + Send + Sync> Log for Logger<F> {

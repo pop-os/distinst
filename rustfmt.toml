@@ -10,5 +10,6 @@ reorder_imported_names = true
 reorder_imports = true
 reorder_imports_in_group = true
 struct_field_align_threshold = 30
+use_field_init_shorthand = true
 wrap_comments = true
 write_mode = "overwrite"

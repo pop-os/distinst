@@ -66,7 +66,8 @@ pub(crate) fn fsck<P: AsRef<Path>>(part: P, cmd: Option<(&str, &str)>) -> io::Re
     exec(cmd, None, None, &[arg.into(), part.as_ref().into()])
 }
 
-/// Utilized for ensuring that block & partition information has synced with the OS.
+/// Utilized for ensuring that block & partition information has synced with
+/// the OS.
 pub(crate) fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
     disk: P,
     args: I,
@@ -313,7 +314,8 @@ pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
     Ok(output)
 }
 
-/// Obtains a map of physical volume paths and their optionally-assigned volume groups.
+/// Obtains a map of physical volume paths and their optionally-assigned volume
+/// groups.
 pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
     info!("libdistinst: obtaining BTreeMap<PV, VG>");
     let mut current_line = String::with_capacity(64);

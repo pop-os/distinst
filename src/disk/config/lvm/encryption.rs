@@ -31,7 +31,8 @@ impl LvmEncryption {
         })
     }
 
-    /// Opens the previously-encrypted partition with the same settings used to encrypt it.
+    /// Opens the previously-encrypted partition with the same settings used to
+    /// encrypt it.
     pub(crate) fn open(&self, device: &Path) -> Result<(), DiskError> {
         cryptsetup_open(device, &self.physical_volume, self).map_err(|why| {
             DiskError::EncryptionOpen {

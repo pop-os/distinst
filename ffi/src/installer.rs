@@ -165,7 +165,7 @@ pub unsafe extern "C" fn distinst_installer_install(
             let errno = err.raw_os_error().unwrap_or(libc::EIO);
             (*(installer as *mut Installer)).emit_error(&Error {
                 step: Step::Init,
-                err:  err,
+                err,
             });
             errno
         }

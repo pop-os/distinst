@@ -273,7 +273,8 @@ impl Disk {
     /// Returns the device type information as a string.
     pub fn get_device_type(&self) -> &str { &self.device_type }
 
-    /// Obtains an immutable reference to a partition within the partition scheme.
+    /// Obtains an immutable reference to a partition within the partition
+    /// scheme.
     pub fn get_partition(&self, partition: i32) -> Option<&PartitionInfo> {
         self.partitions.iter().find(|part| part.number == partition)
     }
@@ -390,7 +391,8 @@ impl Disk {
             })
     }
 
-    /// Rewrites the partition flags on the given partition with the specified flags.
+    /// Rewrites the partition flags on the given partition with the specified
+    /// flags.
     pub fn add_flags(
         &mut self,
         partition: i32,
@@ -445,7 +447,8 @@ impl Disk {
             .map(|part| part.number)
     }
 
-    /// Returns an error if the new disk does not contain the same source partitions.
+    /// Returns an error if the new disk does not contain the same source
+    /// partitions.
     fn validate_layout(&self, new: &Disk) -> Result<(), DiskError> {
         if !new.mklabel {
             let mut new_parts = new.partitions.iter();
@@ -655,7 +658,8 @@ impl Disk {
         self.reload()
     }
 
-    /// Reloads the disk information from the disk into our in-memory representation.
+    /// Reloads the disk information from the disk into our in-memory
+    /// representation.
     pub fn reload(&mut self) -> Result<(), DiskError> {
         info!(
             "libdistinst: reloading disk information for {}",

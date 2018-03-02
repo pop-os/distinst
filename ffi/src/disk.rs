@@ -81,7 +81,8 @@ pub unsafe extern "C" fn distinst_disk_list_partitions(
 }
 
 #[no_mangle]
-/// TODO: This is to be used with vectors returned from `distinst_disk_list_partitions`.
+/// TODO: This is to be used with vectors returned from
+/// `distinst_disk_list_partitions`.
 pub unsafe extern "C" fn distinst_disk_list_partitions_destroy(
     partitions: *mut DistinstPartition,
     len: libc::size_t,

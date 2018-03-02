@@ -3,7 +3,8 @@ use std::io::{self, BufRead, Cursor};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// Executes a given file system's dump command to obtain the minimum shrink size
+/// Executes a given file system's dump command to obtain the minimum shrink
+/// size
 pub(crate) fn get_used_sectors<P: AsRef<Path>>(
     part: P,
     fs: FileSystemType,

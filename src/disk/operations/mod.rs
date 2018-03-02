@@ -61,7 +61,8 @@ fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), D
     Ok(())
 }
 
-/// The first state of disk operations, which provides a method for removing partitions.
+/// The first state of disk operations, which provides a method for removing
+/// partitions.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DiskOps<'a> {
     pub(crate) mklabel:           Option<PartitionTable>,
@@ -72,7 +73,8 @@ pub(crate) struct DiskOps<'a> {
 }
 
 impl<'a> DiskOps<'a> {
-    /// The first stage of disk operations, where a new partition table may be generated
+    /// The first stage of disk operations, where a new partition table may be
+    /// generated
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
         info!(
             "libdistinst: {}: executing remove operations",
@@ -115,7 +117,8 @@ impl<'a> DiskOps<'a> {
     }
 }
 
-/// The second state of disk operations, which provides a method for changing partitions.
+/// The second state of disk operations, which provides a method for changing
+/// partitions.
 pub(crate) struct ChangePartitions<'a> {
     device_path:       &'a Path,
     change_partitions: Vec<PartitionChange>,
@@ -123,7 +126,8 @@ pub(crate) struct ChangePartitions<'a> {
 }
 
 impl<'a> ChangePartitions<'a> {
-    /// The second stage of disk operations, where existing partitions will be modified.
+    /// The second stage of disk operations, where existing partitions will be
+    /// modified.
     pub(crate) fn change(self) -> Result<CreatePartitions<'a>, DiskError> {
         info!(
             "libdistinst: {}: executing change operations",
@@ -423,7 +427,8 @@ pub(crate) struct PartitionChange {
     pub(crate) label: Option<String>,
 }
 
-/// Defstart, end, fs, flagsines a new partition to be created on the file system.
+/// Defstart, end, fs, flagsines a new partition to be created on the file
+/// system.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PartitionCreate {
     /// The location of the disk in the system.

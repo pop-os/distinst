@@ -16,7 +16,8 @@ pub struct Chroot {
 }
 
 impl Chroot {
-    /// Performs binding mounts of all required paths to ensure that a chroot is successful.
+    /// Performs binding mounts of all required paths to ensure that a chroot
+    /// is successful.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Chroot> {
         let path = path.as_ref().canonicalize()?;
         let dev_mount = Mount::new("/dev", &path.join("dev"), "none", BIND, None)?;
@@ -31,12 +32,12 @@ impl Chroot {
         let run_mount = Mount::new("/run", &path.join("run"), "none", BIND, None)?;
         let sys_mount = Mount::new("/sys", &path.join("sys"), "none", BIND, None)?;
         Ok(Chroot {
-            path:       path,
-            dev_mount:  dev_mount,
-            pts_mount:  pts_mount,
-            proc_mount: proc_mount,
-            run_mount:  run_mount,
-            sys_mount:  sys_mount,
+            path,
+            dev_mount,
+            pts_mount,
+            proc_mount,
+            run_mount,
+            sys_mount,
         })
     }
 
@@ -56,7 +57,8 @@ impl Chroot {
         command.status()
     }
 
-    /// Return true if the filesystem was unmounted, false if it was already unmounted
+    /// Return true if the filesystem was unmounted, false if it was already
+    /// unmounted
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
         self.sys_mount.unmount(lazy)?;
         self.run_mount.unmount(lazy)?;

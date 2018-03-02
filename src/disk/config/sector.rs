@@ -8,7 +8,8 @@ pub enum Sector {
     Start,
     /// The last sector in the disk where partitions should be created.
     End,
-    /// A raw value that directly corrects to the exact number of sectors that will be used.
+    /// A raw value that directly corrects to the exact number of sectors that
+    /// will be used.
     Unit(u64),
     /// Similar to the above, but subtracting from the end.
     UnitFromEnd(u64),

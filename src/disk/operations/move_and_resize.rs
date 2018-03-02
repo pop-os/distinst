@@ -196,8 +196,8 @@ where
         None => "none",
     };
 
-    // Each file system uses different units for specifying the size, and these units
-    // are sometimes written in non-standard and conflicting ways.
+    // Each file system uses different units for specifying the size, and these
+    // units are sometimes written in non-standard and conflicting ways.
     let size = match unit {
         ResizeUnit::AbsoluteMebibyte => format!("{}M", resize.as_absolute_mebibyte()),
         ResizeUnit::AbsoluteMegabyte => format!("{}M", resize.as_absolute_megabyte()),
@@ -208,10 +208,11 @@ where
     };
 
     // If the partition is shrinking, we will want to shrink before we move.
-    // If the partition is growing and moving, we will want to move first, then resize.
+    // If the partition is growing and moving, we will want to move first, then
+    // resize.
     //
-    // In addition, the partition in the partition table must be deleted before moving,
-    // and recreated with the new size before attempting to grow.
+    // In addition, the partition in the partition table must be deleted before
+    // moving, and recreated with the new size before attempting to grow.
     if shrinking {
         info!("libdistinst: shrinking {}", change.path.display());
         resize_partition(cmd, args, &size, &change.path, fs, opts)
@@ -261,8 +262,9 @@ where
             .map_err(|why| DiskError::PartitionResize { why })?;
     }
 
-    // If the partition is to be moved, then we will ensure that it has been deleted,
-    // and then dd will be used to move the partition before recreating it in the table.
+    // If the partition is to be moved, then we will ensure that it has been
+    // deleted, and then dd will be used to move the partition before
+    // recreating it in the table.
     if moving {
         info!("libdistinst: moving {}", change.path.display());
         delete(change.num as u32)?;
@@ -312,7 +314,8 @@ fn move_partition<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -
     // buffer size to improve the performance of partition moves.
     let mut buffer = vec![0; bs as usize];
 
-    // Some dynamic dispatching, based on whether we need to move forward or backwards.
+    // Some dynamic dispatching, based on whether we need to move forward or
+    // backwards.
     let range: Box<Iterator<Item = u64>> = if coords.offset > 0 {
         Box::new((0..coords.length).rev())
     } else {
@@ -375,7 +378,8 @@ fn resize_partition<P: AsRef<Path>>(
             None
         },
     ).and_then(|_| {
-        // Btrfs is a strange case that needs resize operations to be performed while it is mounted.
+        // Btrfs is a strange case that needs resize operations to be performed while
+        // it is mounted.
         let (npath, _mount) = if options & (BTRFS | XFS) != 0 {
             let temp = TempDir::new("distinst")?;
             info!(

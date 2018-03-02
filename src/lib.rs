@@ -252,7 +252,8 @@ impl Installer {
         Ok((squashfs, remove_pkgs))
     }
 
-    /// Apply all partitioning and formatting changes to the disks configuration specified.
+    /// Apply all partitioning and formatting changes to the disks
+    /// configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
         for disk in disks.get_physical_devices_mut() {
             info!(
@@ -264,7 +265,8 @@ impl Installer {
             callback(100);
         }
 
-        // This is to ensure that everything's been written and the OS is ready to proceed.
+        // This is to ensure that everything's been written and the OS is ready to
+        // proceed.
         ::std::thread::sleep(::std::time::Duration::from_secs(1));
         for disk in disks.get_physical_devices() {
             blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
@@ -275,7 +277,8 @@ impl Installer {
             .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
     }
 
-    /// Mount all target paths defined within the provided `disks` configuration.
+    /// Mount all target paths defined within the provided `disks`
+    /// configuration.
     fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
         let physical_targets = disks
             .get_physical_devices()
@@ -293,8 +296,8 @@ impl Installer {
 
         let mut mounts = Vec::new();
 
-        // The mount path will actually consist of the target concatenated with the root.
-        // NOTE: It is assumed that the target is an absolute path.
+        // The mount path will actually consist of the target concatenated with the
+        // root. NOTE: It is assumed that the target is an absolute path.
         let paths: BTreeMap<PathBuf, (PathBuf, &'static str)> = targets
             .map(|target| {
                 // Path mangling commences here, since we need to concatenate an absolute
@@ -337,9 +340,10 @@ impl Installer {
             })
             .collect();
 
-        // Each mount directory will be created and then mounted before progressing to the next
-        // mount in the map. The BTreeMap that the mount targets were collected into
-        // will ensure that mounts are created and mounted in the correct order.
+        // Each mount directory will be created and then mounted before progressing to
+        // the next mount in the map. The BTreeMap that the mount targets were
+        // collected into will ensure that mounts are created and mounted in
+        // the correct order.
         for (target_mount, (device_path, filesystem)) in paths {
             if let Err(why) = fs::create_dir_all(&target_mount) {
                 error!("unable to create '{}': {}", why, target_mount.display());

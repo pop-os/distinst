@@ -100,7 +100,8 @@ pub struct PartitionInfo {
     /// If set to true, this is a source partition, which means it currently exists on the
     /// disk.
     pub(crate) is_source: bool,
-    /// Source partitions will set this field. If set, this partition will be removed.
+    /// Source partitions will set this field. If set, this partition will be
+    /// removed.
     pub(crate) remove: bool,
     /// Whether the filesystem should be formatted or not.
     pub format: bool,
@@ -123,7 +124,8 @@ pub struct PartitionInfo {
     pub part_type: PartitionType,
     /// Whether there is a file system currently, or will be, on this partition.
     pub filesystem: Option<FileSystemType>,
-    /// Specifies optional flags that should be applied to the partition, if not already set.
+    /// Specifies optional flags that should be applied to the partition, if
+    /// not already set.
     pub flags: Vec<PartitionFlag>,
     /// Specifies the name of the partition.
     pub name: Option<String>,
@@ -242,7 +244,8 @@ impl PartitionInfo {
         self.name = None;
     }
 
-    /// Returns the number of used sectors on the file system that belongs to this partition.
+    /// Returns the number of used sectors on the file system that belongs to
+    /// this partition.
     pub fn sectors_used(&self, sector_size: u64) -> Option<io::Result<u64>> {
         use FileSystemType::*;
         self.filesystem.and_then(|fs| match fs {
@@ -251,7 +254,8 @@ impl PartitionInfo {
         })
     }
 
-    /// Detects if an OS is installed to this partition, and if so, what the OS is named.
+    /// Detects if an OS is installed to this partition, and if so, what the OS
+    /// is named.
     pub fn probe_os(&self) -> Option<String> {
         self.filesystem
             .and_then(|fs| detect_os(self.get_device_path(), fs))
