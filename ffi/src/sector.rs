@@ -1,5 +1,5 @@
-use distinst::Sector;
 use {get_str, to_cstr};
+use distinst::Sector;
 use libc;
 use std::ptr;
 
@@ -46,30 +46,30 @@ impl From<Sector> for DistinstSector {
             Sector::UnitFromEnd(value) => distinst_sector_unit_from_end(value),
             Sector::Megabyte(value) => distinst_sector_megabyte(value),
             Sector::MegabyteFromEnd(value) => distinst_sector_megabyte_from_end(value),
-            Sector::Percent(value) => distinst_sector_percent(value)
+            Sector::Percent(value) => distinst_sector_percent(value),
         }
     }
 }
 
 #[repr(C)]
 pub struct DistinstSectorResult {
-    tag: libc::uint8_t,
-    error: *mut libc::c_char,
+    tag:    libc::uint8_t,
+    error:  *mut libc::c_char,
     sector: DistinstSector,
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_sector_from_str(
-    string: *const libc::c_char
+    string: *const libc::c_char,
 ) -> DistinstSectorResult {
     // First convert the C string into a Rust string
     let string = match get_str(string, "sector_from_str") {
         Ok(string) => string,
         Err(why) => {
             return DistinstSectorResult {
-                tag: 1,
-                error: to_cstr(format!("{}", why)),
-                sector: distinst_sector_start()
+                tag:    1,
+                error:  to_cstr(format!("{}", why)),
+                sector: distinst_sector_start(),
             };
         }
     };
@@ -77,15 +77,15 @@ pub unsafe extern "C" fn distinst_sector_from_str(
     // Then attempt to get the corresponding sector value
     match string.parse::<Sector>().ok() {
         Some(sector) => DistinstSectorResult {
-            tag: 0,
-            error: ptr::null_mut(),
-            sector: DistinstSector::from(sector)
+            tag:    0,
+            error:  ptr::null_mut(),
+            sector: DistinstSector::from(sector),
         },
         None => DistinstSectorResult {
-            tag: 1,
-            error: to_cstr("sector_from_str: invalid input".into()),
-            sector: distinst_sector_start()
-        }
+            tag:    1,
+            error:  to_cstr("sector_from_str: invalid input".into()),
+            sector: distinst_sector_start(),
+        },
     }
 }
 
@@ -130,9 +130,7 @@ pub extern "C" fn distinst_sector_megabyte(value: libc::uint64_t) -> DistinstSec
 }
 
 #[no_mangle]
-pub extern "C" fn distinst_sector_megabyte_from_end(
-    value: libc::uint64_t,
-) -> DistinstSector {
+pub extern "C" fn distinst_sector_megabyte_from_end(value: libc::uint64_t) -> DistinstSector {
     DistinstSector {
         flag: DISTINST_SECTOR_KIND::MEGABYTE_FROM_END,
         value,
