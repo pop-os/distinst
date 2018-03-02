@@ -130,10 +130,22 @@ namespace Distinst {
 
     [SimpleType]
     [CCode (has_type_id = false)]
+    public struct SectorResult {
+        // 0 = Ok; 1 = Err
+        public uint8 flag;
+        // Err value
+        public string error;
+        // Ok value
+        public Sector sector;
+    }
+
+    [SimpleType]
+    [CCode (has_type_id = false)]
     public struct Sector {
         SectorKind flag;
         uint64 value;
 
+        public static SectorResult from_str(string value);
         public static Sector start();
         public static Sector end();
         public static Sector unit(uint64 value);
