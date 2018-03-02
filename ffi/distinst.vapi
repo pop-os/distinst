@@ -106,7 +106,7 @@ namespace Distinst {
     [CCode (has_type_id = false, unref_function = "")]
     public class Partition {
         public unowned uint8[] get_device_path ();
-        public void set_flags (PartitionFlag *flags, size_t len);
+        public void set_flags (PartitionFlag[] flags, size_t len);
         public void set_mount (string target);
         public int format_with (FileSystemType fs);
         public uint64 get_start_sector ();
@@ -128,10 +128,19 @@ namespace Distinst {
         PERCENT
     }
 
+    [SimpleType]
     [CCode (has_type_id = false)]
     public struct Sector {
         SectorKind flag;
         uint64 value;
+
+        public static Sector start();
+        public static Sector end();
+        public static Sector unit(uint64 value);
+        public static Sector unit_from_end(uint64 value);
+        public static Sector megabyte(uint64 value);
+        public static Sector megabyte_from_end(uint64 value);
+        public static Sector percent(uint16 value);
     }
 
     [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
@@ -144,7 +153,7 @@ namespace Distinst {
         public int format_partition (int partition, FileSystemType fs);
         public uint64 get_sectors ();
         public uint64 get_sector_size ();
-        public uint64 get_sector (Sector sector);
+        public uint64 get_sector (ref Sector sector);
         public int mklabel (PartitionTable table);
         public int move_partition (int partition, uint64 start);
         public int remove_partition (int partition);
@@ -157,7 +166,7 @@ namespace Distinst {
     [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
     public class LvmDevice {
         public uint64 last_used_sector ();
-        public uint64 get_sector (Sector sector);
+        public uint64 get_sector (ref Sector sector);
         public int add_partition (PartitionBuilder partition);
     }
 

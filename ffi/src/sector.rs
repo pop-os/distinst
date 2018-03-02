@@ -35,3 +35,62 @@ impl From<DistinstSector> for Sector {
         }
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_start() -> DistinstSector {
+    DistinstSector {
+        flag:  DISTINST_SECTOR_KIND::START,
+        value: 0,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_end() -> DistinstSector {
+    DistinstSector {
+        flag:  DISTINST_SECTOR_KIND::START,
+        value: 0,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_unit(value: libc::uint64_t) -> DistinstSector {
+    DistinstSector {
+        flag: DISTINST_SECTOR_KIND::UNIT,
+        value,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_unit_from_end(value: libc::uint64_t) -> DistinstSector {
+    DistinstSector {
+        flag: DISTINST_SECTOR_KIND::UNIT_FROM_END,
+        value,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_megabyte(value: libc::uint64_t) -> DistinstSector {
+    DistinstSector {
+        flag: DISTINST_SECTOR_KIND::MEGABYTE,
+        value,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_megabyte_from_end(
+    value: libc::uint64_t,
+) -> DistinstSector {
+    DistinstSector {
+        flag: DISTINST_SECTOR_KIND::MEGABYTE_FROM_END,
+        value,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_sector_percent(value: libc::uint16_t) -> DistinstSector {
+    debug_assert!(value <= 100);
+    DistinstSector {
+        flag:  DISTINST_SECTOR_KIND::PERCENT,
+        value: value as libc::uint64_t,
+    }
+}
