@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use tempdir::TempDir;
 
+pub use automatic::{InstallOption, InstallOptions};
 pub use chroot::Chroot;
 pub use disk::{
     Bootloader, Disk, DiskError, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption,
@@ -32,6 +33,7 @@ pub use disk::{
 };
 pub use disk::mount::{Mount, Mounts};
 
+mod automatic;
 mod chroot;
 mod disk;
 mod logger;
