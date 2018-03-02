@@ -4,6 +4,7 @@ extern crate libc;
 extern crate log;
 
 use std::ffi::{CStr, CString};
+use std::ptr;
 
 pub use self::config::*;
 pub use self::disk::*;
@@ -47,6 +48,12 @@ pub fn get_str<'a>(ptr: *const libc::c_char, msg: &str) -> io::Result<&'a str> {
             )
         })
     })
+}
+
+pub fn to_cstr(string: String) -> *mut libc::c_char {
+    CString::new(string)
+        .map(|string| string.into_raw())
+        .unwrap_or(ptr::null_mut())
 }
 
 /// Log level

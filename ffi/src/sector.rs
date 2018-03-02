@@ -1,6 +1,7 @@
-use libc;
-
 use distinst::Sector;
+use {get_str, to_cstr};
+use libc;
+use std::ptr;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -36,8 +37,60 @@ impl From<DistinstSector> for Sector {
     }
 }
 
+impl From<Sector> for DistinstSector {
+    fn from(sector: Sector) -> DistinstSector {
+        match sector {
+            Sector::Start => distinst_sector_start(),
+            Sector::End => distinst_sector_end(),
+            Sector::Unit(value) => distinst_sector_unit(value),
+            Sector::UnitFromEnd(value) => distinst_sector_unit_from_end(value),
+            Sector::Megabyte(value) => distinst_sector_megabyte(value),
+            Sector::MegabyteFromEnd(value) => distinst_sector_megabyte_from_end(value),
+            Sector::Percent(value) => distinst_sector_percent(value)
+        }
+    }
+}
+
+#[repr(C)]
+pub struct DistinstSectorResult {
+    tag: libc::uint8_t,
+    error: *mut libc::c_char,
+    sector: DistinstSector,
+}
+
 #[no_mangle]
-pub unsafe extern "C" fn distinst_sector_start() -> DistinstSector {
+pub unsafe extern "C" fn distinst_sector_from_str(
+    string: *const libc::c_char
+) -> DistinstSectorResult {
+    // First convert the C string into a Rust string
+    let string = match get_str(string, "sector_from_str") {
+        Ok(string) => string,
+        Err(why) => {
+            return DistinstSectorResult {
+                tag: 1,
+                error: to_cstr(format!("{}", why)),
+                sector: distinst_sector_start()
+            };
+        }
+    };
+
+    // Then attempt to get the corresponding sector value
+    match string.parse::<Sector>().ok() {
+        Some(sector) => DistinstSectorResult {
+            tag: 0,
+            error: ptr::null_mut(),
+            sector: DistinstSector::from(sector)
+        },
+        None => DistinstSectorResult {
+            tag: 1,
+            error: to_cstr("sector_from_str: invalid input".into()),
+            sector: distinst_sector_start()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn distinst_sector_start() -> DistinstSector {
     DistinstSector {
         flag:  DISTINST_SECTOR_KIND::START,
         value: 0,
@@ -45,7 +98,7 @@ pub unsafe extern "C" fn distinst_sector_start() -> DistinstSector {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_sector_end() -> DistinstSector {
+pub extern "C" fn distinst_sector_end() -> DistinstSector {
     DistinstSector {
         flag:  DISTINST_SECTOR_KIND::START,
         value: 0,
@@ -53,7 +106,7 @@ pub unsafe extern "C" fn distinst_sector_end() -> DistinstSector {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_sector_unit(value: libc::uint64_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_unit(value: libc::uint64_t) -> DistinstSector {
     DistinstSector {
         flag: DISTINST_SECTOR_KIND::UNIT,
         value,
@@ -61,7 +114,7 @@ pub unsafe extern "C" fn distinst_sector_unit(value: libc::uint64_t) -> Distinst
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_sector_unit_from_end(value: libc::uint64_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_unit_from_end(value: libc::uint64_t) -> DistinstSector {
     DistinstSector {
         flag: DISTINST_SECTOR_KIND::UNIT_FROM_END,
         value,
@@ -69,7 +122,7 @@ pub unsafe extern "C" fn distinst_sector_unit_from_end(value: libc::uint64_t) ->
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_sector_megabyte(value: libc::uint64_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_megabyte(value: libc::uint64_t) -> DistinstSector {
     DistinstSector {
         flag: DISTINST_SECTOR_KIND::MEGABYTE,
         value,
@@ -77,7 +130,7 @@ pub unsafe extern "C" fn distinst_sector_megabyte(value: libc::uint64_t) -> Dist
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_sector_megabyte_from_end(
+pub extern "C" fn distinst_sector_megabyte_from_end(
     value: libc::uint64_t,
 ) -> DistinstSector {
     DistinstSector {
@@ -87,7 +140,7 @@ pub unsafe extern "C" fn distinst_sector_megabyte_from_end(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_sector_percent(value: libc::uint16_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_percent(value: libc::uint16_t) -> DistinstSector {
     debug_assert!(value <= 100);
     DistinstSector {
         flag:  DISTINST_SECTOR_KIND::PERCENT,
