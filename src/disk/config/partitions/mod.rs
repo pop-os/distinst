@@ -11,6 +11,7 @@ use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
 use super::get_uuid;
 use super::super::{LvmEncryption, Mounts, Swaps};
+use super::super::external::is_encrypted;
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -30,6 +31,7 @@ pub enum FileSystemType {
     Ntfs,
     Swap,
     Xfs,
+    Luks,
     Lvm,
 }
 
@@ -60,6 +62,7 @@ impl FromStr for FileSystemType {
             "ntfs" => FileSystemType::Ntfs,
             "xfs" => FileSystemType::Xfs,
             "lvm" => FileSystemType::Lvm,
+            "luks" => FileSystemType::Luks,
             _ => return Err("invalid file system name"),
         };
         Ok(type_)
@@ -81,6 +84,7 @@ impl Into<&'static str> for FileSystemType {
             FileSystemType::Swap => "linux-swap(v1)",
             FileSystemType::Xfs => "xfs",
             FileSystemType::Lvm => "lvm",
+            FileSystemType::Luks => "luks",
         }
     }
 }
@@ -158,6 +162,15 @@ impl PartitionInfo {
         let mounts = Mounts::new()?;
         let swaps = Swaps::new()?;
 
+        let filesystem = partition
+            .fs_type_name()
+            .and_then(|name| FileSystemType::from_str(name).ok())
+            .or(if is_encrypted(&device_path) {
+                Some(FileSystemType::Luks)
+            } else {
+                None
+            });
+
         Ok(Some(PartitionInfo {
             is_source: true,
             remove: false,
@@ -170,9 +183,7 @@ impl PartitionInfo {
             mount_point: mounts.get_mount_point(&device_path),
             swapped: swaps.get_swapped(&device_path),
             target: None,
-            filesystem: partition
-                .fs_type_name()
-                .and_then(|name| FileSystemType::from_str(name).ok()),
+            filesystem,
             flags: get_flags(partition),
             number: partition.num(),
             name: if is_msdos {
@@ -202,6 +213,9 @@ impl PartitionInfo {
 
     /// Returns the length of the partition in sectors.
     pub fn sectors(&self) -> u64 { self.end_sector - self.start_sector }
+
+    // Returns true if the partition contains an encrypted partition
+    pub fn is_encrypted(&self) -> bool { is_encrypted(self.get_device_path()) }
 
     /// Returns true if the partition is a swap partition.
     pub fn is_swap(&self) -> bool {

@@ -3,6 +3,14 @@ use std::fs::{read_dir, read_link, DirEntry};
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// Concatenates an array of `&OsStr` into a new `OsString`.
+fn concat_osstr(input: &[&OsStr]) -> OsString {
+    let mut output = OsString::with_capacity(input.iter().fold(0, |acc, c| acc + c.len()));
+
+    input.iter().for_each(|comp| output.push(comp));
+    output
+}
+
 /// The input shall contain physical device paths (ie: /dev/sda1), and the output
 /// will contain a list of physical volumes (ie: /dev/mapper/cryptroot) that need
 /// to be deactivated.
@@ -17,24 +25,11 @@ pub(crate) fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec
         );
 
         if let Ok(path) = read_link(pv) {
-            // NOTE: It would be nice if Rust supported &[&OsStr] -> OsString concat().
-            //       This block wouldn't be needed if you could do that...
-            let slave_path = {
-                let slave_components: [&OsStr; 3] = [
-                    "/sys/block/".as_ref(),
-                    path.file_name().unwrap(),
-                    "/slaves".as_ref(),
-                ];
-
-                let mut slave_path = OsString::with_capacity(
-                    slave_components.iter().fold(0, |acc, c| acc + c.len()),
-                );
-
-                slave_components
-                    .iter()
-                    .for_each(|comp| slave_path.push(comp));
-                slave_path
-            };
+            let slave_path = concat_osstr(&[
+                "/sys/block/".as_ref(),
+                path.file_name().unwrap(),
+                "/slaves".as_ref(),
+            ]);
 
             let _ = read_dirs(&slave_path, |slave| {
                 let slave_path = slave.path();

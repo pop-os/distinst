@@ -83,19 +83,20 @@ pub(crate) fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S
 
 /// Formats the supplied `part` device with the file system specified.
 pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
+    use FileSystemType::*;
     let (cmd, args): (&'static str, &'static [&'static str]) = match kind {
-        FileSystemType::Btrfs => ("mkfs.btrfs", &["-f"]),
-        FileSystemType::Exfat => ("mkfs.exfat", &[]),
-        FileSystemType::Ext2 => ("mkfs.ext2", &["-F", "-q"]),
-        FileSystemType::Ext3 => ("mkfs.ext3", &["-F", "-q"]),
-        FileSystemType::Ext4 => ("mkfs.ext4", &["-F", "-q"]),
-        FileSystemType::F2fs => ("mkfs.f2fs", &["-q"]),
-        FileSystemType::Fat16 => ("mkfs.fat", &["-F", "16"]),
-        FileSystemType::Fat32 => ("mkfs.fat", &["-F", "32"]),
-        FileSystemType::Ntfs => ("mkfs.ntfs", &["-FQ", "-q"]),
-        FileSystemType::Swap => ("mkswap", &["-f"]),
-        FileSystemType::Xfs => ("mkfs.xfs", &["-f"]),
-        FileSystemType::Lvm => return Ok(()),
+        Btrfs => ("mkfs.btrfs", &["-f"]),
+        Exfat => ("mkfs.exfat", &[]),
+        Ext2 => ("mkfs.ext2", &["-F", "-q"]),
+        Ext3 => ("mkfs.ext3", &["-F", "-q"]),
+        Ext4 => ("mkfs.ext4", &["-F", "-q"]),
+        F2fs => ("mkfs.f2fs", &["-q"]),
+        Fat16 => ("mkfs.fat", &["-F", "16"]),
+        Fat32 => ("mkfs.fat", &["-F", "32"]),
+        Ntfs => ("mkfs.ntfs", &["-FQ", "-q"]),
+        Swap => ("mkswap", &["-f"]),
+        Xfs => ("mkfs.xfs", &["-f"]),
+        Luks | Lvm => return Ok(()),
     };
 
     exec(cmd, None, None, &{
@@ -182,7 +183,7 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
         enc
     );
     match (enc.password.as_ref(), enc.keydata.as_ref()) {
-        (Some(password), Some(keydata)) => unimplemented!(),
+        (Some(_password), Some(_keydata)) => unimplemented!(),
         (Some(password), None) => exec(
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
@@ -229,7 +230,7 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
         enc
     );
     match (enc.password.as_ref(), enc.keydata.as_ref()) {
-        (Some(password), Some(keydata)) => unimplemented!(),
+        (Some(_password), Some(_keydata)) => unimplemented!(),
         (Some(password), None) => exec(
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
@@ -258,6 +259,11 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
         }
         (None, None) => unimplemented!(),
     }
+}
+
+/// If `cryptsetup info DEV` has an exit status of 0, the partition is encrypted.
+pub(crate) fn is_encrypted(device: &Path) -> bool {
+    exec("cryptsetup", None, None, &["info".into(), device.into()]).is_ok()
 }
 
 /// Closes an encrypted partition.

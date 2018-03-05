@@ -2,6 +2,8 @@
 
 #![allow(unknown_lints)]
 
+#[macro_use]
+extern crate derive_new;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;

@@ -435,7 +435,7 @@ impl Disks {
                     match (enc.password.is_some(), enc.keydata.as_ref()) {
                         (true, None) => Cow::Borrowed(OsStr::new("none")),
                         (false, None) => Cow::Borrowed(OsStr::new("/dev/urandom")),
-                        (true, Some(key)) => unimplemented!(),
+                        (true, Some(_key)) => unimplemented!(),
                         (false, Some(&(_, ref key))) => {
                             let path = key.clone()
                                 .expect("should have been populated")

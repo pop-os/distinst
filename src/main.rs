@@ -69,6 +69,8 @@ enum DistinstError {
     EmptyMount,
     #[fail(display = "unable to add partition to lvm device: {}", why)]
     LvmPartitionAdd { why: DiskError },
+    #[fail(display = "unable to initialize volume groups: {}", why)]
+    InitializeVolumes { why: io::Error },
 }
 
 impl From<DiskError> for DistinstError {
@@ -481,7 +483,7 @@ fn configure_removed(disks: &mut Disks, ops: Option<Values>) -> Result<(), Disti
                     }
                 };
 
-                find_disk_mut(disks, block_dev)?.remove_partition(part_id as i32);
+                find_disk_mut(disks, block_dev)?.remove_partition(part_id as i32)?;
             }
         }
     }
@@ -794,7 +796,9 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DistinstError> {
     eprintln!("distinst: configuring new partitions");
     configure_new(&mut disks, matches.values_of("new"))?;
     eprintln!("distinst: initializing LVM groups");
-    disks.initialize_volume_groups();
+    disks
+        .initialize_volume_groups()
+        .map_err(|why| DistinstError::InitializeVolumes { why })?;
     eprintln!("distinst: configuring LVM devices");
     configure_lvm(&mut disks, matches.values_of("logical"))?;
     eprintln!("distisnt: disks configured");

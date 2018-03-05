@@ -9,14 +9,13 @@ use std::process::{Command, Stdio};
 use tempdir::TempDir;
 
 /// Defines the start and end sectors of a partition on the disk.
+#[derive(new)]
 pub struct Coordinates {
     start: u64,
     end:   u64,
 }
 
 impl Coordinates {
-    pub fn new(start: u64, end: u64) -> Coordinates { Coordinates { start, end } }
-
     /// Modifies the coordinates based on the new length that is supplied. Coordinates
     /// will be adjusted automatically based on whether the partition is shrinking or
     /// growing.
@@ -32,6 +31,7 @@ impl Coordinates {
 
 /// Contains the source and target coordinates for a partition, as well as the size in
 /// bytes of each sector. An `OffsetCoordinates` will be calculated from this data structure.
+#[derive(new)]
 pub struct ResizeOperation {
     sector_size: u64,
     old:         Coordinates,
@@ -49,14 +49,6 @@ const MEBIBYTE: u64 = 1_048_576;
 const MEGABYTE: u64 = 1_000_000;
 
 impl ResizeOperation {
-    pub fn new(sector_size: u64, old: Coordinates, new: Coordinates) -> ResizeOperation {
-        ResizeOperation {
-            sector_size,
-            old,
-            new,
-        }
-    }
-
     /// Calculates the offsets between two coordinates.
     ///
     /// A negative offset means that the partition is moving backwards.
