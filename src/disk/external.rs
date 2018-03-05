@@ -130,6 +130,7 @@ pub(crate) fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option
 
     let output = Command::new(cmd)
         .args(args)
+        .arg(part.as_ref())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .output()
@@ -139,9 +140,17 @@ pub(crate) fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option
     let output: String = String::from_utf8_lossy(&output).into();
 
     let output: String = if kind == FileSystemType::Xfs {
-        output[9..output.len() - 1].into()
+        if output.len() > 10 {
+            output[9..output.len() - 2].into()
+        } else {
+            return None;
+        }
     } else {
-        output
+        if !output.is_empty() {
+            output[..output.len() - 1].into()
+        } else {
+            return None;
+        }
     };
 
     Some(output)
