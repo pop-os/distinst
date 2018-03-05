@@ -93,7 +93,7 @@ namespace Distinst {
         public PartitionBuilder mount (string target);
         public PartitionBuilder partition_type (PartitionType part_type);
         public PartitionBuilder flag (PartitionFlag flag);
-        public PartitionBuilder logical_volume (string group, LvmEncryption encryption);
+        public PartitionBuilder logical_volume (string group, LvmEncryption? encryption);
     }
 
     [SimpleType]
