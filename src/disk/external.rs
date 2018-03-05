@@ -147,7 +147,7 @@ pub(crate) fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option
         }
     } else {
         if !output.is_empty() {
-            output[..output.len() - 1].into()
+            output.trim_right().into()
         } else {
             return None;
         }
