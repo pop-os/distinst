@@ -1,9 +1,10 @@
-use distinst::{DiskExt, Disks, LvmDevice, PartitionBuilder, Sector};
+use distinst::{DiskExt, Disks, LvmDevice, PartitionBuilder, PartitionInfo, Sector};
 use ffi::AsMutPtr;
 use libc;
 
-use super::{DistinstDisks, DistinstPartitionBuilder, DistinstSector};
+use super::{DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
 use std::ffi::CStr;
+use std::os::unix::ffi::OsStrExt;
 
 // Initializes the initial volume groups within the disks object.
 #[no_mangle]
@@ -33,6 +34,17 @@ pub unsafe extern "C" fn distinst_disks_find_logical_volume(
 
 #[repr(C)]
 pub struct DistinstLvmDevice;
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_get_device_path(
+    disk: *const DistinstLvmDevice,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let disk = &*(disk as *const LvmDevice);
+    let path = disk.get_device_path().as_os_str().as_bytes();
+    *len = path.len() as libc::c_int;
+    path.as_ptr()
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
@@ -66,6 +78,22 @@ pub unsafe extern "C" fn distinst_lvm_device_add_partition(
     } else {
         0
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_list_partitions(
+    device: *const DistinstLvmDevice,
+    len: *mut libc::c_int,
+) -> *mut *mut DistinstPartition {
+    let disk = &mut *(device as *mut LvmDevice);
+
+    let mut output: Vec<*mut DistinstPartition> = Vec::new();
+    for partition in disk.get_partitions_mut().iter_mut() {
+        output.push(partition as *mut PartitionInfo as *mut DistinstPartition);
+    }
+
+    *len = output.len() as libc::c_int;
+    Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstPartition
 }
 
 #[repr(C)]

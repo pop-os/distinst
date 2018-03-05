@@ -4,11 +4,15 @@ use std::ffi::{CStr, OsStr};
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
 
-use distinst::{Disk, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
+use distinst::{
+    Disk, DiskExt, Disks, FileSystemType, LvmDevice, PartitionBuilder, PartitionInfo,
+    PartitionTable, Sector,
+};
 
 use ffi::AsMutPtr;
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use gen_object_ptr;
+use lvm::DistinstLvmDevice;
 use partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
 use sector::DistinstSector;
 
@@ -275,6 +279,22 @@ pub unsafe extern "C" fn distinst_disks_list(
 
     *len = output.len() as libc::c_int;
     Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstDisk
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_list_logical(
+    disks: *mut DistinstDisks,
+    len: *mut libc::c_int,
+) -> *mut *mut DistinstLvmDevice {
+    let disks = &mut *(disks as *mut Disks);
+
+    let mut output: Vec<*mut DistinstLvmDevice> = Vec::new();
+    for disk in disks.get_logical_devices_mut().iter_mut() {
+        output.push(disk as *mut LvmDevice as *mut DistinstLvmDevice);
+    }
+
+    *len = output.len() as libc::c_int;
+    Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstLvmDevice
 }
 
 #[no_mangle]
