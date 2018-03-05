@@ -128,18 +128,15 @@ fn get_label_cmd(kind: FileSystemType) -> Option<(&'static str, &'static [&'stat
 pub(crate) fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option<String> {
     let (cmd, args) = get_label_cmd(kind)?;
 
-    let mut current_line = String::with_capacity(64);
-    let mut output = BTreeMap::new();
+    let output = Command::new(cmd)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?
+        .stdout;
 
-    let output = String::from_utf8_lossy(
-        &Command::new(cmd)
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .output()
-            .ok()?
-            .stdout,
-    );
+    let output: String = String::from_utf8_lossy(&output).into();
 
     let output: String = if kind == FileSystemType::Xfs {
         output[9..output.len() - 1].into()
