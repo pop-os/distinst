@@ -20,6 +20,7 @@ pub enum DISTINST_FILE_SYSTEM_TYPE {
     SWAP = 10,
     XFS = 11,
     LVM = 12,
+    LUKS = 13,
 }
 
 impl From<DISTINST_FILE_SYSTEM_TYPE> for Option<FileSystemType> {
@@ -38,6 +39,7 @@ impl From<DISTINST_FILE_SYSTEM_TYPE> for Option<FileSystemType> {
             DISTINST_FILE_SYSTEM_TYPE::SWAP => Some(FileSystemType::Swap),
             DISTINST_FILE_SYSTEM_TYPE::XFS => Some(FileSystemType::Xfs),
             DISTINST_FILE_SYSTEM_TYPE::LVM => Some(FileSystemType::Lvm),
+            DISTINST_FILE_SYSTEM_TYPE::LUKS => Some(FileSystemType::Luks),
         }
     }
 }
@@ -57,6 +59,7 @@ impl From<FileSystemType> for DISTINST_FILE_SYSTEM_TYPE {
             FileSystemType::Swap => DISTINST_FILE_SYSTEM_TYPE::SWAP,
             FileSystemType::Xfs => DISTINST_FILE_SYSTEM_TYPE::XFS,
             FileSystemType::Lvm => DISTINST_FILE_SYSTEM_TYPE::LVM,
+            FileSystemType::Luks => DISTINST_FILE_SYSTEM_TYPE::LUKS,
         }
     }
 }
@@ -99,6 +102,9 @@ impl DISTINST_FILE_SYSTEM_TYPE {
             }
             DISTINST_FILE_SYSTEM_TYPE::XFS => CStr::from_bytes_with_nul(b"xfs\0").unwrap().as_ptr(),
             DISTINST_FILE_SYSTEM_TYPE::LVM => CStr::from_bytes_with_nul(b"lvm\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM_TYPE::LUKS => {
+                CStr::from_bytes_with_nul(b"luks\0").unwrap().as_ptr()
+            }
         }
     }
 }

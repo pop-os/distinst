@@ -18,9 +18,12 @@ pub use self::sector::Sector;
 
 use super::{Bootloader, DiskError};
 use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType};
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::read_dir;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+static mut PVS: Option<BTreeMap<PathBuf, Option<String>>> = None;
 
 /// Specifies whether the partition table on the disk is **MSDOS** or **GPT**.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
@@ -95,6 +98,7 @@ pub(crate) fn sync(device: &mut Device) -> Result<(), DiskError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use disk::operations::*;
 
     fn get_default() -> Disks {
         Disks {
@@ -128,6 +132,7 @@ mod tests {
                             part_type:    PartitionType::Primary,
                             swapped:      false,
                             key_id:       None,
+                            original_vg:  None,
                             volume_group: None,
                         },
                         PartitionInfo {
@@ -148,6 +153,7 @@ mod tests {
                             part_type:    PartitionType::Primary,
                             swapped:      false,
                             key_id:       None,
+                            original_vg:  None,
                             volume_group: None,
                         },
                         PartitionInfo {
@@ -168,6 +174,7 @@ mod tests {
                             part_type:    PartitionType::Primary,
                             swapped:      false,
                             key_id:       None,
+                            original_vg:  None,
                             volume_group: None,
                         },
                         PartitionInfo {
@@ -188,6 +195,7 @@ mod tests {
                             part_type:    PartitionType::Primary,
                             swapped:      false,
                             key_id:       None,
+                            original_vg:  None,
                             volume_group: None,
                         },
                     ],

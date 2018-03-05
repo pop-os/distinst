@@ -9,9 +9,9 @@ pub use self::builder::PartitionBuilder;
 pub use self::limitations::check_partition_size;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
-use super::get_uuid;
+use super::{get_uuid, PVS};
 use super::super::{LvmEncryption, Mounts, Swaps};
-use super::super::external::is_encrypted;
+use super::super::external::{is_encrypted, pvs};
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -142,7 +142,9 @@ pub struct PartitionInfo {
     pub swapped: bool,
     /// Where this partition will be mounted in the future
     pub target: Option<PathBuf>,
-    /// The volume group associated with this device.
+    /// The pre-existing volume group assigned to this partition.
+    pub original_vg: Option<String>,
+    /// The volume group & LUKS configuration to associate with this device.
     pub volume_group: Option<(String, Option<LvmEncryption>)>,
     /// If the partition is associated with a keyfile, this will name the key and it's mount
     /// path.
@@ -171,6 +173,21 @@ impl PartitionInfo {
                 None
             });
 
+        let original_vg = unsafe {
+            if PVS.is_none() {
+                PVS = Some(pvs().unwrap());
+            }
+
+            PVS.as_ref()
+                .unwrap()
+                .get(&device_path)
+                .and_then(|vg| vg.as_ref().map(|vg| vg.clone()))
+        };
+
+        if let Some(ref vg) = original_vg.as_ref() {
+            info!("libdistinst: partition belongs to volume group '{}'", vg);
+        }
+
         Ok(Some(PartitionInfo {
             is_source: true,
             remove: false,
@@ -191,14 +208,12 @@ impl PartitionInfo {
             } else {
                 partition.name().map(String::from)
             },
-            // Note that primary and logical partitions should always have a path.
             device_path,
             active: partition.is_active(),
             busy: partition.is_busy(),
             start_sector: partition.geom_start() as u64,
             end_sector: partition.geom_end() as u64,
-            // TODO: detect if this is assigned to a volume group:
-            //       pvdisplay $PATH
+            original_vg,
             volume_group: None,
             key_id: None,
         }))

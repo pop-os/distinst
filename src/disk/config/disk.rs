@@ -449,7 +449,7 @@ impl Disk {
 
     /// Returns an error if the new disk does not contain the same source
     /// partitions.
-    fn validate_layout(&self, new: &Disk) -> Result<(), DiskError> {
+    pub(crate) fn validate_layout(&self, new: &Disk) -> Result<(), DiskError> {
         if !new.mklabel {
             let mut new_parts = new.partitions.iter();
             for source in &self.partitions {
@@ -468,7 +468,7 @@ impl Disk {
     /// Compares the source disk's partition scheme to a possible new partition scheme.
     ///
     /// An error can occur if the layout of the new disk conflicts with the source.
-    fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
+    pub(crate) fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
         info!(
             "libdistinst: generating diff of disk at {}",
             self.path().display()

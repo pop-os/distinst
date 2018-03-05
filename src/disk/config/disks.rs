@@ -1,6 +1,6 @@
 use super::{get_uuid, Disk};
 use super::find_partition;
-use super::super::{Bootloader, DiskError, DiskExt, PartitionFlag, PartitionInfo};
+use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo};
 use super::super::external::{cryptsetup_close, deactivate_volumes, lvs, pvremove, pvs, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::umount;
@@ -199,6 +199,18 @@ impl Disks {
         }
 
         volumes
+    }
+
+    #[cfg_attr(rustfmt, rustfmt_skip)]
+    pub fn get_encrypted_partitions(&self) -> Vec<&PartitionInfo> {
+        // Get an iterator on physical partitions
+        self.get_physical_devices().iter().flat_map(|d| d.get_partitions().iter())
+            // Chain the logical partitions to the iterator
+            .chain(self.get_logical_devices().iter().flat_map(|d| d.get_partitions().iter()))
+            // Then collect all partitions whose file system is LUKS
+            .filter(|p| p.filesystem.map_or(false, |fs| fs == FileSystemType::Luks))
+            // Commit
+            .collect()
     }
 
     /// Obtains the paths to the device and partition block paths where the root and EFI

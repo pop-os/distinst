@@ -263,7 +263,12 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
 
 /// If `cryptsetup info DEV` has an exit status of 0, the partition is encrypted.
 pub(crate) fn is_encrypted(device: &Path) -> bool {
-    exec("cryptsetup", None, None, &["info".into(), device.into()]).is_ok()
+    exec(
+        "cryptsetup",
+        None,
+        None,
+        &["luksDump".into(), device.into()],
+    ).is_ok()
 }
 
 /// Closes an encrypted partition.

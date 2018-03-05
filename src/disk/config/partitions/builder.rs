@@ -91,7 +91,11 @@ impl PartitionBuilder {
             end_sector:   self.end_sector,
             part_type:    self.part_type,
             filesystem:   if self.volume_group.is_some() {
-                Some(FileSystemType::Lvm)
+                if self.volume_group.as_ref().unwrap().1.is_some() {
+                    Some(FileSystemType::Luks)
+                } else {
+                    Some(FileSystemType::Lvm)
+                }
             } else {
                 Some(self.filesystem)
             },
@@ -105,6 +109,7 @@ impl PartitionBuilder {
             } else {
                 self.mount
             },
+            original_vg:  None,
             volume_group: self.volume_group.clone(),
             key_id:       self.key_id,
         }
