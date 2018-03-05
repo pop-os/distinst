@@ -106,6 +106,50 @@ pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<
     })
 }
 
+fn get_label_cmd(kind: FileSystemType) -> Option<(&'static str, &'static [&'static str])> {
+    use FileSystemType::*;
+    let cmd: (&'static str, &'static [&'static str]) = match kind {
+        Btrfs => ("btrfs", &["filesystem", "label"]),
+        Exfat => ("exfatlabel", &[]),
+        Ext2 | Ext3 | Ext4 => ("e2label", &[]),
+        F2fs => unimplemented!(),
+        Fat16 | Fat32 => ("dosfslabel", &[]),
+        Ntfs => ("ntfslabel", &[]),
+        Xfs => ("xfs_admin", &["-l"]),
+        Swap | Luks | Lvm => {
+            return None;
+        }
+    };
+
+    Some(cmd)
+}
+
+/// Formats the supplied `part` device with the file system specified.
+pub(crate) fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option<String> {
+    let (cmd, args) = get_label_cmd(kind)?;
+
+    let mut current_line = String::with_capacity(64);
+    let mut output = BTreeMap::new();
+
+    let output = String::from_utf8_lossy(
+        &Command::new(cmd)
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+            .ok()?
+            .stdout,
+    );
+
+    let output: String = if kind == FileSystemType::Xfs {
+        output[9..output.len() - 1].into()
+    } else {
+        output
+    };
+
+    Some(output)
+}
+
 /// Used to create a physical volume on a LUKS partition.
 pub(crate) fn pvcreate<P: AsRef<Path>>(device: P) -> io::Result<()> {
     exec(

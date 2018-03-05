@@ -11,7 +11,7 @@ use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
 use super::{get_uuid, PVS};
 use super::super::{LvmEncryption, Mounts, Swaps};
-use super::super::external::{is_encrypted, pvs};
+use super::super::external::{get_label, is_encrypted, pvs};
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -203,11 +203,7 @@ impl PartitionInfo {
             filesystem,
             flags: get_flags(partition),
             number: partition.num(),
-            name: if is_msdos {
-                None
-            } else {
-                partition.name().map(String::from)
-            },
+            name: filesystem.and_then(|fs| get_label(&device_path, fs)),
             device_path,
             active: partition.is_active(),
             busy: partition.is_busy(),
