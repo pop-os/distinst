@@ -39,7 +39,7 @@ uninstall:
 	rm -f "$(DESTDIR)$(bindir)/$(PACKAGE)"
 	rm -f "$(DESTDIR)$(libdir)/lib$(PACKAGE).so"
 	rm -f "$(DESTDIR)$(includedir)/$(PACKAGE).h"
-	rm -f "$(DESTDIR)$(datadir)/pkgconfig/$(PACKAGE).pc"
+	rm -f "$(DESTDIR)$(libdir)/pkgconfig/$(PACKAGE).pc"
 	rm -f "$(DESTDIR)$(datadir)/vala/vapi/$(PACKAGE).vapi"
 
 update:
