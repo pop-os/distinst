@@ -59,7 +59,8 @@ namespace Distinst {
         NTFS,
         SWAP,
         XFS,
-        LVM
+        LVM,
+        LUKS,
     }
 
     /**
@@ -233,7 +234,8 @@ namespace Distinst {
         SectorKind flag;
         uint64 value;
 
-        /** Obtains a `Sector` from a string. IE:
+        /**
+         * Obtains a `Sector` from a string. IE:
          * - "90%"
          * - "500M"
          * - "-4096M"
@@ -297,7 +299,8 @@ namespace Distinst {
          */
         public int add_partition (PartitionBuilder partition);
 
-        /** Specifies to format a partition at the given partition ID with the specified
+        /**
+         * Specifies to format a partition at the given partition ID with the specified
          * file system.
          */
         public int format_partition (int partition, FileSystemType fs);
@@ -381,7 +384,9 @@ namespace Distinst {
         public int add_partition (PartitionBuilder partition);
     }
 
-    // Defines the configuration options to use when creating a new LUKS partition.
+    /**
+     * Defines the configuration options to use when creating a new LUKS partition.
+     */
     [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
     public class LvmEncryption {
         /**
