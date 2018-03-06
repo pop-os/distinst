@@ -101,7 +101,7 @@ fn main() {
                 .long("keyboard")
                 .help("define the keyboard configuration to use")
                 .takes_value(true)
-                .required(true),
+                .default_value("us"),
         )
         .arg(
             Arg::with_name("lang")
@@ -109,7 +109,7 @@ fn main() {
                 .long("lang")
                 .help("define the locale that the new system will use")
                 .takes_value(true)
-                .required(true),
+                .default_value("en_US.UTF-8"),
         )
         .arg(
             Arg::with_name("remove")
