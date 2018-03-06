@@ -152,10 +152,7 @@ pub struct PartitionInfo {
 }
 
 impl PartitionInfo {
-    pub fn new_from_ped(
-        partition: &Partition,
-        is_msdos: bool,
-    ) -> io::Result<Option<PartitionInfo>> {
+    pub fn new_from_ped(partition: &Partition) -> io::Result<Option<PartitionInfo>> {
         let device_path = partition.get_path().unwrap().to_path_buf();
         info!(
             "libdistinst: obtaining partition information from {}",

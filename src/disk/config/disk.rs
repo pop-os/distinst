@@ -107,10 +107,6 @@ impl Disk {
             _ => None,
         });
 
-        // Determines if the table is of the msdos variable, as msdos partition
-        // tables do not support partition names.
-        let is_msdos = table_type.map_or(false, |tt| tt == PartitionTable::Msdos);
-
         Ok(Disk {
             model_name,
             device_path,
@@ -130,7 +126,7 @@ impl Disk {
                     }
 
                     // grab partition info results
-                    let part_result = PartitionInfo::new_from_ped(&part, is_msdos)
+                    let part_result = PartitionInfo::new_from_ped(&part)
                         .map_err(|why| DiskError::MountsObtain { why })?;
                     if let Some(part) = part_result {
                         partitions.push(part);

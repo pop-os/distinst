@@ -16,6 +16,8 @@ fn list() -> Result<()> {
             disk.get_sectors()
         );
 
+        println!("  removable: {}", disk.is_removable());
+
         for part in disk.get_partitions() {
             println!("  {}:", part.device_path.display());
             println!("    label:   {:?}", part.name);

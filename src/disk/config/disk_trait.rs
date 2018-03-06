@@ -1,6 +1,8 @@
 use super::partitions::check_partition_size;
 use super::super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector};
-use std::path::Path;
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 /// Contains methods that are shared between physical and logical disk devices.
 pub trait DiskExt {
@@ -21,6 +23,28 @@ pub trait DiskExt {
 
     /// Returns the path to the block device in the system.
     fn get_device_path(&self) -> &Path;
+
+    /// Checks if the drive is a removable drive.
+    fn is_removable(&self) -> bool {
+        let path = {
+            let path = self.get_device_path();
+            PathBuf::from(match path.read_link() {
+                Ok(resolved) => [
+                    "/sys/class/block/",
+                    resolved.file_name().unwrap().to_str().unwrap(),
+                ].concat(),
+                _ => [
+                    "/sys/class/block/",
+                    path.file_name().unwrap().to_str().unwrap(),
+                ].concat(),
+            })
+        };
+
+        File::open(path.join("removable"))
+            .ok()
+            .and_then(|file| file.bytes().next())
+            .map_or(false, |res| res.ok().map_or(false, |byte| byte == b'1'))
+    }
 
     /// Validates that the partitions are valid for the partition table
     fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError>;
