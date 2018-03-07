@@ -352,6 +352,11 @@ namespace Distinst {
         public bool is_removable ();
 
         /**
+         * Returns true if the device is a spinny disk.
+         */
+        public bool is_rotational ();
+
+        /**
          * Marks all partitions for removal, and specifies to write a new partition table
          */
         public int mklabel (PartitionTable table);

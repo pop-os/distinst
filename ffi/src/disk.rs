@@ -93,6 +93,12 @@ pub unsafe extern "C" fn distinst_disk_is_removable(disk: *mut DistinstDisk) -> 
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disk_is_rotational(disk: *mut DistinstDisk) -> bool {
+    let disk = &mut *(disk as *mut Disk);
+    disk.is_rotational()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disk_list_partitions(
     disk: *mut DistinstDisk,
     len: *mut libc::c_int,

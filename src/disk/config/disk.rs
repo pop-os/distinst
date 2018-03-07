@@ -9,7 +9,8 @@ use super::super::operations::*;
 use super::super::serial::get_serial;
 use libparted::{Device, DeviceType};
 
-use std::io;
+use std::fs::File;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -188,6 +189,25 @@ impl Disk {
 
     /// Returns the serial of the device, filled in by the manufacturer.
     pub fn get_serial(&self) -> &str { &self.serial }
+
+    // Returns true if the device is solid state, or false if it is a spinny disk.
+    pub fn is_rotational(&self) -> bool {
+        let path = PathBuf::from(
+            [
+                "/sys/class/block/",
+                self.get_device_path()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+            ].concat(),
+        );
+
+        File::open(path.join("queue/rotational"))
+            .ok()
+            .and_then(|file| file.bytes().next())
+            .map_or(false, |res| res.ok().map_or(false, |byte| byte == b'1'))
+    }
 
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
