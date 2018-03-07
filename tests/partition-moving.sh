@@ -6,7 +6,7 @@ RUNS=3
 mkdir temp -p
 
 if ! test -e "target/debug/distinst"; then
-    cargo build --bin distinst
+    cargo build --manifest-path cli/Cargo.toml
 fi
 
 if ! test "${1}"; then

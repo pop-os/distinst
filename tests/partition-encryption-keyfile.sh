@@ -4,7 +4,7 @@ REMOVE="tests/filesystem.manifest-remove"
 RUNS=3
 
 if ! test -e "target/debug/distinst"; then
-    cargo build --bin distinst
+    cargo build --manifest-path cli/Cargo.toml
 fi
 
 for block in "${1}" "${2}"; do
