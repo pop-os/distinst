@@ -577,7 +577,10 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dist
 
             if let Some(keyid) = key {
                 match mount {
-                    Some(mount) => partition.set_keydata(keyid, mount.into()),
+                    Some(mount) => {
+                        partition.associate_keyfile(keyid);
+                        partition.set_mount(mount.into());
+                    }
                     None => {
                         return Err(DistinstError::NoMountPath);
                     }
@@ -658,7 +661,9 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distins
 
             if let Some(keyid) = key {
                 match mount {
-                    Some(mount) => builder = builder.keydata(keyid, mount.into()),
+                    Some(mount) => {
+                        builder = builder.associate_keyfile(keyid).mount(mount.into());
+                    }
                     None => {
                         return Err(DistinstError::NoMountPath);
                     }

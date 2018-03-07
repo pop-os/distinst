@@ -11,7 +11,7 @@ pub struct PartitionBuilder {
     pub(crate) flags:        Vec<PartitionFlag>,
     pub(crate) mount:        Option<PathBuf>,
     pub(crate) volume_group: Option<(String, Option<LvmEncryption>)>,
-    pub(crate) key_id:       Option<(String, PathBuf)>,
+    pub(crate) key_id:       Option<String>,
 }
 
 impl PartitionBuilder {
@@ -73,8 +73,8 @@ impl PartitionBuilder {
 
     /// Defines that this partition will store the keyfile of the given ID(s),
     /// at the target mount point.
-    pub fn keydata(mut self, id: String, target: PathBuf) -> PartitionBuilder {
-        self.key_id = Some((id, target));
+    pub fn associate_keyfile(mut self, id: String) -> PartitionBuilder {
+        self.key_id = Some(id);
         self
     }
 
@@ -104,11 +104,7 @@ impl PartitionBuilder {
             device_path:  PathBuf::new(),
             mount_point:  None,
             swapped:      false,
-            target:       if self.key_id.is_some() {
-                self.key_id.as_ref().map(|&(_, ref path)| path.clone())
-            } else {
-                self.mount
-            },
+            target:       self.mount,
             original_vg:  None,
             volume_group: self.volume_group.clone(),
             key_id:       self.key_id,

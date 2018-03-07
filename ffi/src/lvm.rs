@@ -3,8 +3,9 @@ use ffi::AsMutPtr;
 use libc;
 
 use super::{DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::os::unix::ffi::OsStrExt;
+use std::ptr;
 
 // Initializes the initial volume groups within the disks object.
 #[no_mangle]
@@ -44,6 +45,17 @@ pub unsafe extern "C" fn distinst_lvm_device_get_device_path(
     let path = disk.get_device_path().as_os_str().as_bytes();
     *len = path.len() as libc::c_int;
     path.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_get_model(
+    disk: *mut DistinstLvmDevice,
+) -> *mut libc::c_char {
+    let disk = &mut *(disk as *mut LvmDevice);
+    CString::new(disk.get_model())
+        .ok()
+        .map(|string| string.into_raw())
+        .unwrap_or(ptr::null_mut())
 }
 
 #[no_mangle]

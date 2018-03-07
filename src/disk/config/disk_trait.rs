@@ -6,14 +6,11 @@ use std::path::{Path, PathBuf};
 
 /// Contains methods that are shared between physical and logical disk devices.
 pub trait DiskExt {
-    /// The partition table that is on the device.
-    fn get_table_type(&self) -> Option<PartitionTable>;
+    /// Returns the path to the block device in the system.
+    fn get_device_path(&self) -> &Path;
 
-    /// The combined total number of sectors on the disk.
-    fn get_sectors(&self) -> u64;
-
-    /// The size of each sector, in bytes.
-    fn get_sector_size(&self) -> u64;
+    /// Returns the model of the device.
+    fn get_model(&self) -> &str;
 
     /// Returns a slice of all partitions in the device.
     fn get_partitions(&self) -> &[PartitionInfo];
@@ -21,8 +18,14 @@ pub trait DiskExt {
     /// Returns a mutable slice of all partitions in the device.
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo];
 
-    /// Returns the path to the block device in the system.
-    fn get_device_path(&self) -> &Path;
+    /// The combined total number of sectors on the disk.
+    fn get_sectors(&self) -> u64;
+
+    /// The size of each sector, in bytes.
+    fn get_sector_size(&self) -> u64;
+
+    /// The partition table that is on the device.
+    fn get_table_type(&self) -> Option<PartitionTable>;
 
     /// Checks if the drive is a removable drive.
     fn is_removable(&self) -> bool {

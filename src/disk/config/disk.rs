@@ -44,17 +44,19 @@ pub struct Disk {
 }
 
 impl DiskExt for Disk {
-    fn get_table_type(&self) -> Option<PartitionTable> { self.table_type }
+    fn get_device_path(&self) -> &Path { &self.device_path }
 
-    fn get_sectors(&self) -> u64 { self.size }
-
-    fn get_sector_size(&self) -> u64 { self.sector_size }
-
-    fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
+    fn get_model(&self) -> &str { &self.model_name }
 
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
-    fn get_device_path(&self) -> &Path { &self.device_path }
+    fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
+
+    fn get_sector_size(&self) -> u64 { self.sector_size }
+
+    fn get_sectors(&self) -> u64 { self.size }
+
+    fn get_table_type(&self) -> Option<PartitionTable> { self.table_type }
 
     fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError> {
         match self.table_type {
@@ -684,7 +686,7 @@ impl Disk {
             .collect();
 
         // Same for key IDs
-        let key_ids: Vec<(u64, (String, PathBuf))> = self.partitions
+        let key_ids: Vec<(u64, String)> = self.partitions
             .iter()
             .filter_map(|p| p.key_id.as_ref().map(|id| (p.start_sector, id.clone())))
             .collect();

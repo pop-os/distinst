@@ -129,6 +129,14 @@ namespace Distinst {
          * encryption parameter, and a LVM partition will be assigned on top of that.
          */
         public PartitionBuilder logical_volume (string volume_group, LvmEncryption? encryption);
+
+        /**
+         * Species that this partition will contain a keyfile that belongs to the associated ID.
+         *
+         * Note that this partition should also have a mount target, or otherwise
+         * an error will occur.
+         */
+        public PartitionBuilder associate_keyfile (string keyfile_id);
     }
 
     [SimpleType]
@@ -195,6 +203,14 @@ namespace Distinst {
          * Returns the number of sectors that are used in the file system
         */
         public PartitionUsage sectors_used (uint64 sector_size);
+
+        /**
+         * Species that this partition will contain a keyfile that belongs to the associated ID.
+         *
+         * Note that this partition should also have a mount target, or otherwise
+         * an error will occur.
+         */
+        public associate_keyfile (string keyfile_id);
     }
 
     [CCode (has_type_id = false)]
@@ -285,6 +301,11 @@ namespace Distinst {
         public unowned uint8[] get_device_path();
 
         /**
+         * Returns the model name of the device, ie: (ATA Samsung 850 EVO)
+         */
+        public string? get_model();
+
+        /**
          * Gets the partition at the specified location.
          */
         public unowned Partition get_partition(int partition);
@@ -361,6 +382,11 @@ namespace Distinst {
     [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
     public class LvmDevice {
         public unowned uint8[] get_device_path();
+
+        /**
+         * Returns the model name of the device in the format of "LVM <VG>"
+         */
+        public string? get_model();
 
         /**
          * Returns a slice of all partitions on this volume.
