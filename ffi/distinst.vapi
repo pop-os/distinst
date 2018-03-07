@@ -306,6 +306,11 @@ namespace Distinst {
         public string? get_model();
 
         /**
+         * Returns the serial of the device, ie: (Samsung_SSD_850_EVO_500GB_S21HNXAG806916N)
+         */
+        public string? get_serial();
+
+        /**
          * Gets the partition at the specified location.
          */
         public unowned Partition get_partition(int partition);

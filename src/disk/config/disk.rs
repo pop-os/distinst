@@ -186,6 +186,9 @@ impl Disk {
             })
     }
 
+    /// Returns the serial of the device, filled in by the manufacturer.
+    pub fn get_serial(&self) -> &str { &self.serial }
+
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
         info!(

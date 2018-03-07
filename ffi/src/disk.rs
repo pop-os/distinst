@@ -69,6 +69,15 @@ pub unsafe extern "C" fn distinst_disk_get_model(disk: *mut DistinstDisk) -> *mu
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_serial(disk: *mut DistinstDisk) -> *mut libc::c_char {
+    let disk = &mut *(disk as *mut Disk);
+    CString::new(disk.get_serial())
+        .ok()
+        .map(|string| string.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_partition(
     disk: *mut DistinstDisk,
     partition: libc::int32_t,
