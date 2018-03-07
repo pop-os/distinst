@@ -1,6 +1,6 @@
 TARGET=../../target
 
-LIB=$(TARGET)/debug/libdistinst.so
+LIB=$(TARGET)/release/libdistinst.so
 
 all: install list
 
