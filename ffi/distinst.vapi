@@ -301,6 +301,11 @@ namespace Distinst {
         public unowned uint8[] get_device_path();
 
         /**
+         * Returns the model name of the device, ie: (ATA Samsung 850 EVO)
+         */
+        public string? get_model();
+
+        /**
          * Gets the partition at the specified location.
          */
         public unowned Partition get_partition(int partition);
@@ -377,6 +382,11 @@ namespace Distinst {
     [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
     public class LvmDevice {
         public unowned uint8[] get_device_path();
+
+        /**
+         * Returns the model name of the device in the format of "LVM <VG>"
+         */
+        public string? get_model();
 
         /**
          * Returns a slice of all partitions on this volume.

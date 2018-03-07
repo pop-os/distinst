@@ -293,12 +293,11 @@ impl Disks {
                                     *paths = Some((dev.into(), pkey_mount.into()));
                                     temp.push((pkey_id.clone(), paths.clone()));
                                     continue 'outer;
-                                }
+                                },
                                 None => {
                                     return Err(DiskError::KeyFileWithoutPath);
                                 }
                             }
-                            
                         }
                     }
                     return Err(DiskError::KeyWithoutPath);

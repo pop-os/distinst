@@ -357,7 +357,6 @@ pub unsafe extern "C" fn distinst_partition_associate_keyfile(
     part.associate_keyfile(keyid);
 }
 
-
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_set_flags(
     partition: *mut DistinstPartition,

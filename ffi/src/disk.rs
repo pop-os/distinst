@@ -1,6 +1,6 @@
 use libc;
 
-use std::ffi::{CStr, OsStr};
+use std::ffi::{CStr, CString, OsStr};
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
 
@@ -57,6 +57,15 @@ pub unsafe extern "C" fn distinst_disk_get_device_path(
     let path = disk.get_device_path().as_os_str().as_bytes();
     *len = path.len() as libc::c_int;
     path.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_model(disk: *mut DistinstDisk) -> *mut libc::c_char {
+    let disk = &mut *(disk as *mut Disk);
+    CString::new(disk.get_model())
+        .ok()
+        .map(|string| string.into_raw())
+        .unwrap_or(ptr::null_mut())
 }
 
 #[no_mangle]

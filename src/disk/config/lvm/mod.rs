@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 /// that comprise a volume group, and may optionally be encrypted.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LvmDevice {
+    pub(crate) model_name:   String,
     pub(crate) volume_group: String,
     pub(crate) device_path:  PathBuf,
     pub(crate) sectors:      u64,
@@ -21,17 +22,19 @@ pub struct LvmDevice {
 }
 
 impl DiskExt for LvmDevice {
-    fn get_table_type(&self) -> Option<PartitionTable> { None }
+    fn get_device_path(&self) -> &Path { &self.device_path }
 
-    fn get_sectors(&self) -> u64 { self.sectors }
-
-    fn get_sector_size(&self) -> u64 { self.sector_size }
-
-    fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
+    fn get_model(&self) -> &str { &self.model_name }
 
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
-    fn get_device_path(&self) -> &Path { &self.device_path }
+    fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
+
+    fn get_sector_size(&self) -> u64 { self.sector_size }
+
+    fn get_sectors(&self) -> u64 { self.sectors }
+
+    fn get_table_type(&self) -> Option<PartitionTable> { None }
 
     fn validate_partition_table(&self, _part_type: PartitionType) -> Result<(), DiskError> {
         Ok(())
@@ -50,6 +53,7 @@ impl LvmDevice {
     ) -> LvmDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group));
         LvmDevice {
+            model_name: ["LVM ", &volume_group].concat(),
             volume_group,
             device_path,
             sectors,

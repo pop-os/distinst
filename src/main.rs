@@ -662,8 +662,7 @@ fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distins
             if let Some(keyid) = key {
                 match mount {
                     Some(mount) => {
-                        builder = builder.associate_keyfile(keyid)
-                            .mount(mount.into());
+                        builder = builder.associate_keyfile(keyid).mount(mount.into());
                     }
                     None => {
                         return Err(DistinstError::NoMountPath);
