@@ -388,7 +388,7 @@ namespace Distinst {
      * Defines the configuration options to use when creating a new LUKS partition.
      */
     [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
-    public class LvmEncryption {
+    public struct LvmEncryption {
         /**
          * Defines the name of the new PV that the LUKS partition will expose
          * IE: "cryptdata" set here will create a new device map at `/dev/mapper/cryptdata`

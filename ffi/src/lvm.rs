@@ -105,3 +105,16 @@ pub struct DistinstLvmEncryption {
     /// The keydata field is optional
     pub keydata: *mut libc::c_char,
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_encryption_copy(
+    src: *const DistinstLvmEncryption,
+    dst: *mut DistinstLvmEncryption,
+) {
+    let src = &*src;
+    let dst = &mut *dst;
+
+    dst.physical_volume = src.physical_volume;
+    dst.password = src.password;
+    dst.keydata = src.keydata;
+}
