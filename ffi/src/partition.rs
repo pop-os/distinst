@@ -197,6 +197,19 @@ pub unsafe extern "C" fn distinst_partition_builder_mount(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_builder_associate_keyfile(
+    builder: *mut DistinstPartitionBuilder,
+    keyid: *const libc::c_char,
+) -> *mut DistinstPartitionBuilder {
+    let keyid = match get_str(keyid, "distinst_partition_builder_keyfile") {
+        Ok(string) => string.to_string(),
+        Err(why) => panic!("builder_action: failed: {}", why),
+    };
+
+    builder_action(builder, move |builder| builder.associate_keyfile(keyid))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_builder_partition_type(
     builder: *mut DistinstPartitionBuilder,
     part_type: DISTINST_PARTITION_TYPE,
@@ -329,6 +342,21 @@ pub unsafe extern "C" fn distinst_partition_set_mount(
     let part = &mut *(partition as *mut PartitionInfo);
     part.set_mount(target);
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_associate_keyfile(
+    partition: *mut DistinstPartition,
+    keyid: *const libc::c_char,
+) {
+    let keyid = match get_str(keyid, "distinst_partition_associate_keyfile") {
+        Ok(string) => string.to_string(),
+        Err(why) => panic!("partition action: failed: {}", why),
+    };
+
+    let part = &mut *(partition as *mut PartitionInfo);
+    part.associate_keyfile(keyid);
+}
+
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_set_flags(

@@ -684,7 +684,7 @@ impl Disk {
             .collect();
 
         // Same for key IDs
-        let key_ids: Vec<(u64, (String, PathBuf))> = self.partitions
+        let key_ids: Vec<(u64, String)> = self.partitions
             .iter()
             .filter_map(|p| p.key_id.as_ref().map(|id| (p.start_sector, id.clone())))
             .collect();

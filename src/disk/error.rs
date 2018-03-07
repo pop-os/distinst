@@ -39,6 +39,8 @@ pub enum DiskError {
     KeyPathAlreadySet { id: String },
     #[fail(display = "LUKS keyfile designation lacks key path")]
     KeyWithoutPath,
+    #[fail(display = "LUKS keyfile partition does not have a mount target")]
+    KeyFileWithoutPath,
     #[fail(display = "partition layout on disk has changed")]
     LayoutChanged,
     #[fail(display = "unable to create logical volume: {}", why)]

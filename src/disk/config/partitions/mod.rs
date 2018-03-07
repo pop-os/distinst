@@ -146,9 +146,8 @@ pub struct PartitionInfo {
     pub original_vg: Option<String>,
     /// The volume group & LUKS configuration to associate with this device.
     pub volume_group: Option<(String, Option<LvmEncryption>)>,
-    /// If the partition is associated with a keyfile, this will name the key and it's mount
-    /// path.
-    pub key_id: Option<(String, PathBuf)>,
+    /// If the partition is associated with a keyfile, this will name the key.
+    pub key_id: Option<String>,
 }
 
 impl PartitionInfo {
@@ -212,10 +211,9 @@ impl PartitionInfo {
         }))
     }
 
-    /// Assigns the partition to a key ID, and defines where it should mounted
-    /// within the "/etc/crypttab" file.
-    pub fn set_keydata(&mut self, id: String, target: PathBuf) {
-        self.key_id = Some((id, target));
+    /// Assigns the partition to a keyfile ID.
+    pub fn associate_keyfile(&mut self, id: String) {
+        self.key_id = Some(id);
         self.target = None;
     }
 

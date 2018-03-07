@@ -129,6 +129,14 @@ namespace Distinst {
          * encryption parameter, and a LVM partition will be assigned on top of that.
          */
         public PartitionBuilder logical_volume (string volume_group, LvmEncryption? encryption);
+
+        /**
+         * Species that this partition will contain a keyfile that belongs to the associated ID.
+         *
+         * Note that this partition should also have a mount target, or otherwise
+         * an error will occur.
+         */
+        public PartitionBuilder associate_keyfile (string keyfile_id);
     }
 
     [SimpleType]
@@ -195,6 +203,14 @@ namespace Distinst {
          * Returns the number of sectors that are used in the file system
         */
         public PartitionUsage sectors_used (uint64 sector_size);
+
+        /**
+         * Species that this partition will contain a keyfile that belongs to the associated ID.
+         *
+         * Note that this partition should also have a mount target, or otherwise
+         * an error will occur.
+         */
+        public associate_keyfile (string keyfile_id);
     }
 
     [CCode (has_type_id = false)]

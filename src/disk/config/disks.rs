@@ -259,7 +259,7 @@ impl Disks {
 
                     let partitions = self.physical.iter().flat_map(|p| p.partitions.iter());
                     for partition in partitions {
-                        if let Some((ref pkey_id, _)) = partition.key_id {
+                        if let Some(ref pkey_id) = partition.key_id {
                             if pkey_id == key_id {
                                 if set.contains(&key_id) {
                                     return Err(DiskError::KeyPathAlreadySet { id: key_id.clone() });
@@ -287,12 +287,18 @@ impl Disks {
                     let partitions = self.physical.iter().flat_map(|p| p.partitions.iter());
                     for partition in partitions {
                         let dev = partition.get_device_path();
-                        if let Some((ref pkey_id, ref pkey_mount)) = partition.key_id {
-                            if pkey_id == key_id {
-                                *paths = Some((dev.into(), pkey_mount.into()));
-                                temp.push((pkey_id.clone(), paths.clone()));
-                                continue 'outer;
+                        if let Some(ref pkey_id) = partition.key_id {
+                            match partition.target {
+                                Some(ref pkey_mount) => if pkey_id == key_id {
+                                    *paths = Some((dev.into(), pkey_mount.into()));
+                                    temp.push((pkey_id.clone(), paths.clone()));
+                                    continue 'outer;
+                                }
+                                None => {
+                                    return Err(DiskError::KeyFileWithoutPath);
+                                }
                             }
+                            
                         }
                     }
                     return Err(DiskError::KeyWithoutPath);
@@ -381,7 +387,8 @@ impl Disks {
             }
         }
 
-        // TODO:
+        // TODO: Verify that encrypted partitions with a keyfile ID have one
+        // partition match with the same keyfile ID.
 
         Ok(())
     }
