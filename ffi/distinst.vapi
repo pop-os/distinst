@@ -210,7 +210,7 @@ namespace Distinst {
          * Note that this partition should also have a mount target, or otherwise
          * an error will occur.
          */
-        public associate_keyfile (string keyfile_id);
+        public void associate_keyfile (string keyfile_id);
     }
 
     [CCode (has_type_id = false)]
