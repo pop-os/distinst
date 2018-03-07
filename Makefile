@@ -56,9 +56,9 @@ vendor: .cargo/config
 $(BINARY): $(SRC)
 	if [ -d vendor ]; \
 	then \
-		cargo build --frozen --bin distinst --release; \
+		cargo build --frozen --manifest-path cli/Cargo.toml --release; \
 	else \
-		cargo build --bin distinst --release; \
+		cargo build --manifest-path cli/Cargo.toml --release; \
 	fi
 
 $(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(FFI_SRC)
