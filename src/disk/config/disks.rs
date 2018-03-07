@@ -1,7 +1,9 @@
 use super::{get_uuid, Disk};
 use super::find_partition;
-use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo};
-use super::super::external::{cryptsetup_close, deactivate_volumes, lvs, pvremove, pvs, vgremove};
+use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag,
+                   PartitionInfo, PartitionType};
+use super::super::external::{blkid_partition, cryptsetup_close, deactivate_volumes,
+                             lvs, pvremove, pvs, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::umount;
 use super::super::mounts::Mounts;
@@ -524,8 +526,100 @@ impl Disks {
         Ok(())
     }
 
+    // /// Assigns a partition whose logical volume will contain a LUKS/LVM partition itself.
+    // ///
+    // /// The `logical_volume` parameter denotes the name of a logical partition that
+    // /// will be assigned. The `from_group` parameter is the volume group which the logical
+    // /// partition belongs to. The `to_group` parameter is the name of the volume group
+    // /// that the partition is either creating or being added to.
+    // pub fn assign_volume(
+    //     &mut self,
+    //     logical_volume: &str
+    //     from_group: &str,
+    //     to_group: &str,
+    // )
+
+    /// Loads existing logical volume data into memory, excluding encrypted volumes.
+    pub fn load_existing_logical_volumes(&mut self) -> Result<(), DiskError> {
+        let mut existing_devices: Vec<LvmDevice> = Vec::new();
+
+        for disk in &self.physical {
+            let sector_size = disk.get_sector_size();
+            for partition in disk.get_partitions().iter() {
+                if let Some(ref vg) = partition.original_vg {
+                    // TODO: NLL
+                    let mut found = false;
+                    
+                    if let Some(ref mut device) = existing_devices
+                        .iter_mut()
+                        .find(|d| d.volume_group.as_str() == vg.as_str())
+                    {
+                        device.sectors += partition.sectors();
+                        found = true;
+                    }
+
+                    if !found {
+                        existing_devices.push(LvmDevice::new(
+                            vg.clone(),
+                            None,
+                            partition.sectors(),
+                            sector_size,
+                        ));
+                    }
+                }
+            }
+        }
+
+        let mut start_sector = 0;
+        for device in &mut existing_devices {
+            if let Ok(logical_paths) = lvs(&device.volume_group) {
+                for path in logical_paths {
+                    // TODO: Get size from ???
+                    let length = 0;
+                    let partition = PartitionInfo {
+                        is_source: true,
+                        remove: false,
+                        format: false,
+                        active: false,
+                        busy: false,
+                        // This value doesn't matter to a logical volume.
+                        number: -1,
+                        start_sector,
+                        end_sector: start_sector + length,
+                        part_type: PartitionType::Primary,
+                        // TODO: Figure out flags?
+                        flags: vec![],
+                        filesystem: blkid_partition(&path),
+                        // TODO: Parse from path
+                        name: None,
+                        device_path: path,
+                        // TODO: Check if it is mounted?
+                        mount_point: None,
+                        // TODO: Check if swapped?
+                        swapped: false,
+                        target: None,
+                        original_vg: None,
+                        // TODO: Check if this partition is assigned to a VG?
+                        volume_group: None,
+                        key_id: None,
+                    };
+
+                    start_sector += length + 1;
+
+                    device.partitions.push(partition);
+                }
+            }
+        }
+
+        self.logical = existing_devices;
+
+        Ok(())
+    }
+
     /// Applies all logical device operations, which are to be performed after all physical disk
     /// operations have completed.
+    ///
+    /// TODO: We need to generate a diff of logical volume operations.
     pub(crate) fn commit_logical_partitions(&mut self) -> Result<(), DiskError> {
         // First we verify that we have a valid logical layout.
         for device in &self.logical {

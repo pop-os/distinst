@@ -339,6 +339,31 @@ pub(crate) fn pvremove(physical_volume: &Path) -> io::Result<()> {
     exec("pvremove", None, None, args)
 }
 
+/// Obtains the file system on a partition via blkid
+pub(crate) fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystemType> {
+    let output = Command::new("blkid")
+        .arg(part.as_ref())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?
+        .stdout;
+
+    String::from_utf8_lossy(&output)
+        .split_whitespace()
+        .skip(2)
+        .next()
+        .and_then(|type_| {
+            info!("libdistinst: blkid found '{}'", type_);
+            let length = type_.len();
+            if length > 7 {
+                type_[6..length-1].parse::<FileSystemType>().ok()
+            } else {
+                None
+            }
+        })
+}
+
 /// Obtains a list of logical volumes associated with the given volume group.
 pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
     info!("libdistinst: obtaining logical volumes on {}", vg);
