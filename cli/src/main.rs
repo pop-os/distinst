@@ -55,6 +55,12 @@ enum DistinstError {
     InvalidField { field: String },
     #[fail(display = "provided file system, '{}', was invalid", fs)]
     InvalidFileSystem { fs: String },
+    #[fail(display = "no logical device named '{}' found", group)]
+    LogicalDeviceNotFound { group: String },
+    #[fail(display = "'{}' was not found on '{}'", volume, group)]
+    LogicalPartitionNotFound { group:  String, volume: String },
+    #[fail(display = "invalid number of arguments supplied to --logical-modify")]
+    ModifyArgs,
     #[fail(display = "could not find volume group associated with '{}'", group)]
     NoVolumeGroupAssociated { group: String },
     #[fail(display = "invalid number of arguments supplied to --use")]
@@ -63,6 +69,8 @@ enum DistinstError {
     NewArgs,
     #[fail(display = "invalid number of arguments supplied to --logical")]
     LogicalArgs,
+    #[fail(display = "invalid number of arguments supplied to --logical-remove")]
+    LogicalRemoveArgs,
     #[fail(display = "mount path must be specified with key")]
     NoMountPath,
     #[fail(display = "mount value is empty")]
@@ -70,7 +78,7 @@ enum DistinstError {
     #[fail(display = "unable to add partition to lvm device: {}", why)]
     LvmPartitionAdd { why: DiskError },
     #[fail(display = "unable to initialize volume groups: {}", why)]
-    InitializeVolumes { why: io::Error },
+    InitializeVolumes { why: DiskError },
 }
 
 impl From<DiskError> for DistinstError {
@@ -182,6 +190,26 @@ fn main() {
                 .help("creates a partition on a LVM volume group")
                 .takes_value(true)
                 .multiple(true),
+        )
+        .arg(
+            Arg::with_name("logical-modify")
+                .long("--logical-modify")
+                .help("modifies an existing LVM volume group")
+                .takes_value(true)
+                .multiple(true),
+        )
+        .arg(
+            Arg::with_name("logical-remove")
+                .long("--logical-remove")
+                .help("removes an existing LVM logical volume")
+                .takes_value(true)
+                .multiple(true),
+        )
+        .arg(
+            Arg::with_name("logical-remove-all")
+                .long("--logical-remove-all")
+                .help("TODO")
+                .takes_value(true),
         )
         .get_matches();
 
@@ -747,7 +775,87 @@ fn parse_logical<F: FnMut(LogicalArgs) -> Result<(), DistinstError>>(
     Ok(())
 }
 
-fn configure_lvm(disks: &mut Disks, logical: Option<Values>) -> Result<(), DistinstError> {
+fn configure_lvm(
+    disks: &mut Disks,
+    logical: Option<Values>,
+    modify: Option<Values>,
+    remove: Option<Values>,
+    remove_all: bool,
+) -> Result<(), DistinstError> {
+    if remove_all {
+        for device in disks.get_logical_devices_mut() {
+            device.clear_partitions();
+        }
+    } else if let Some(remove) = remove {
+        for value in remove {
+            let values: Vec<&str> = value.split(":").collect();
+            if values.len() != 2 {
+                return Err(DistinstError::LogicalRemoveArgs);
+            }
+
+            let (group, volume) = (values[0], values[1]);
+
+            let device = disks.get_logical_device_mut(group).ok_or(
+                DistinstError::LogicalDeviceNotFound {
+                    group: group.into(),
+                },
+            )?;
+
+            device.remove_partition(volume)?;
+        }
+    }
+
+    if let Some(modify) = modify {
+        for value in modify {
+            let values: Vec<&str> = value.split(":").collect();
+            if values.len() < 3 {
+                return Err(DistinstError::ModifyArgs);
+            }
+
+            let (group, volume) = (values[0], values[1]);
+            let (mut fs, mut mount) = (None, None);
+
+            for field in values.iter().skip(2) {
+                if field.starts_with("fs=") {
+                    fs = Some(parse_fs(&field[3..])?)
+                } else if field.starts_with("mount=") {
+                    mount = Some(&field[6..]);
+                } else {
+                    unimplemented!()
+                }
+            }
+
+            let device = disks.get_logical_device_mut(group).ok_or(
+                DistinstError::LogicalDeviceNotFound {
+                    group: group.into(),
+                },
+            )?;
+
+            let partition = device.get_partition_mut(volume).ok_or(
+                DistinstError::LogicalPartitionNotFound {
+                    group:  group.into(),
+                    volume: volume.into(),
+                },
+            )?;
+
+            if let Some(fs) = fs {
+                let fs = match fs {
+                    PartType::Fs(fs) => fs,
+                    PartType::Lvm(volume_group, encryption) => {
+                        partition.set_volume_group(volume_group, encryption);
+                        FileSystemType::Lvm
+                    }
+                };
+
+                partition.format_and_keep_name(fs);
+            }
+
+            if let Some(mount) = mount {
+                partition.set_mount(PathBuf::from(mount.to_owned()));
+            }
+        }
+    }
+
     if let Some(logical) = logical {
         parse_logical(logical, |args| {
             match disks.find_logical_disk_mut(&args.group) {
@@ -805,7 +913,13 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DistinstError> {
         .initialize_volume_groups()
         .map_err(|why| DistinstError::InitializeVolumes { why })?;
     eprintln!("distinst: configuring LVM devices");
-    configure_lvm(&mut disks, matches.values_of("logical"))?;
+    configure_lvm(
+        &mut disks,
+        matches.values_of("logical"),
+        matches.values_of("logical-modify"),
+        matches.values_of("logical-remove"),
+        matches.is_present("logical-remove-all"),
+    )?;
     eprintln!("distisnt: disks configured");
 
     Ok(disks)

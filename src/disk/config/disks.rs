@@ -1,7 +1,7 @@
 use super::{get_size, get_uuid, Disk};
 use super::find_partition;
 use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
-use super::super::external::{blkid_partition, cryptsetup_close, deactivate_volumes, lvs, pvremove, pvs, vgremove};
+use super::super::external::{blkid_partition, cryptsetup_close, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::umount;
 use super::super::mounts::Mounts;
@@ -38,6 +38,14 @@ impl Disks {
     /// Returns a mutable slice of physical disks stored within the
     /// configuration.
     pub fn get_physical_devices_mut(&mut self) -> &mut [Disk] { &mut self.physical }
+
+    pub fn get_logical_device(&self, group: &str) -> Option<&LvmDevice> {
+        self.logical.iter().find(|d| &d.volume_group == group)
+    }
+
+    pub fn get_logical_device_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
+        self.logical.iter_mut().find(|d| &d.volume_group == group)
+    }
 
     /// Returns a slice of logical disks stored within the configuration.
     pub fn get_logical_devices(&self) -> &[LvmDevice] { &self.logical }
@@ -104,7 +112,7 @@ impl Disks {
         for pv in &pvs {
             match volume_map.get(pv) {
                 Some(&Some(ref vg)) => umount(vg).and_then(|_| {
-                    deactivate_volumes(vg)
+                    vgdeactivate(vg)
                         .and_then(|_| vgremove(vg))
                         .and_then(|_| pvremove(pv))
                         .and_then(|_| cryptsetup_close(pv))
@@ -490,19 +498,19 @@ impl Disks {
         crypttab
     }
 
-    /// Generates intial LVM devices with a clean slate, using partition information.
-    /// TODO: This should consume `Disks` and return a locked state.
-    pub fn initialize_volume_groups(&mut self) -> io::Result<()> {
-        let logical = &mut self.logical;
-        let physical = &self.physical;
-        logical.clear();
+    /// Loads existing logical volume data into memory, excluding encrypted volumes.
+    pub fn initialize_volume_groups(&mut self) -> Result<(), DiskError> {
+        let mut existing_devices: Vec<LvmDevice> = Vec::new();
 
-        for disk in physical {
+        for disk in &self.physical {
             let sector_size = disk.get_sector_size();
-            for partition in disk.get_partitions() {
+            for partition in disk.get_partitions().iter() {
                 if let Some(ref lvm) = partition.volume_group {
                     // TODO: NLL
-                    let push = match logical.iter_mut().find(|d| &d.volume_group == &lvm.0) {
+                    let push = match existing_devices
+                        .iter_mut()
+                        .find(|d| &d.volume_group == &lvm.0)
+                    {
                         Some(device) => {
                             device.add_sectors(partition.sectors());
                             false
@@ -511,7 +519,7 @@ impl Disks {
                     };
 
                     if push {
-                        logical.push(LvmDevice::new(
+                        existing_devices.push(LvmDevice::new(
                             lvm.0.clone(),
                             lvm.1.clone(),
                             partition.sectors(),
@@ -519,21 +527,7 @@ impl Disks {
                             false,
                         ));
                     }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Loads existing logical volume data into memory, excluding encrypted volumes.
-    pub fn load_existing_logical_volumes(&mut self) -> Result<(), DiskError> {
-        let mut existing_devices: Vec<LvmDevice> = Vec::new();
-
-        for disk in &self.physical {
-            let sector_size = disk.get_sector_size();
-            for partition in disk.get_partitions().iter() {
-                if let Some(ref vg) = partition.original_vg {
+                } else if let Some(ref vg) = partition.original_vg {
                     // TODO: NLL
                     let mut found = false;
 
@@ -541,7 +535,7 @@ impl Disks {
                         .iter_mut()
                         .find(|d| d.volume_group.as_str() == vg.as_str())
                     {
-                        device.sectors += partition.sectors();
+                        device.add_sectors(partition.sectors());
                         found = true;
                     }
 
@@ -560,6 +554,9 @@ impl Disks {
 
         let mut start_sector = 0;
         for device in &mut existing_devices {
+            if !device.is_source {
+                continue;
+            }
             if let Ok(logical_paths) = lvs(&device.volume_group) {
                 for path in logical_paths {
                     let length = get_size(&path).unwrap_or(0);
@@ -641,7 +638,7 @@ impl Disks {
         for device in &mut self.logical {
             for partition in &mut device.partitions {
                 // ... unless it is populated, due to existing beforehand.
-                if !partition.is_source {
+                if partition.is_source {
                     continue;
                 }
                 let label = partition.name.as_ref().unwrap();
@@ -655,8 +652,12 @@ impl Disks {
 
         // Now we will apply the logical layout.
         for device in &self.logical {
+            eprintln!("DEBUG: Logical Device: {:?}", device);
+
             // Only create the device if it does not exist.
-            if !device.is_source {
+            if device.is_source {
+                device.activate_volumes()?
+            } else {
                 let volumes: Vec<(&Path, &Path)> = self.find_volume_paths(&device.volume_group);
                 let mut device_path = None;
 

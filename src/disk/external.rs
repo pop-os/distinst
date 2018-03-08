@@ -337,7 +337,13 @@ pub(crate) fn cryptsetup_close(device: &Path) -> io::Result<()> {
 }
 
 /// Deactivates all logical volumes in the supplied volume group
-pub(crate) fn deactivate_volumes(volume_group: &str) -> io::Result<()> {
+pub(crate) fn vgactivate(volume_group: &str) -> io::Result<()> {
+    let args = &["-ffyay".into(), volume_group.into()];
+    exec("vgchange", None, None, args)
+}
+
+/// Deactivates all logical volumes in the supplied volume group
+pub(crate) fn vgdeactivate(volume_group: &str) -> io::Result<()> {
     let args = &["-ffyan".into(), volume_group.into()];
     exec("vgchange", None, None, args)
 }

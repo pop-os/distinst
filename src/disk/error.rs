@@ -45,6 +45,8 @@ pub enum DiskError {
     LayoutChanged,
     #[fail(display = "unable to create logical volume: {}", why)]
     LogicalVolumeCreate { why: io::Error },
+    #[fail(display = "logical partition '{}-{}' does not exist", group, volume)]
+    LogicalPartitionNotFound { group: String, volume: String },
     #[fail(display = "unable to get mount points: {}", why)]
     MountsObtain { why: io::Error },
     #[fail(display = "new partition could not be found")]
@@ -89,6 +91,8 @@ pub enum DiskError {
     Unmount { why: io::Error },
     #[fail(display = "shrinking not supported for this file system")]
     UnsupportedShrinking,
+    #[fail(display = "volume activation failed: {}", why)]
+    VolumeActivation { why: io::Error },
     #[fail(display = "unable to create volume group: {}", why)]
     VolumeGroupCreate { why: io::Error },
     #[fail(display = "volume partition lacks a label")]

@@ -4,7 +4,7 @@ mod encryption;
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
 use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
-use super::super::external::{lvcreate, lvremove, mkfs, vgcreate};
+use super::super::external::{lvcreate, lvremove, mkfs, vgactivate, vgcreate};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -81,6 +81,11 @@ impl LvmDevice {
         Ok(())
     }
 
+    /// Activates existing logical volumes on the volume group.
+    pub(crate) fn activate_volumes(&self) -> Result<(), DiskError> {
+        vgactivate(&self.volume_group).map_err(|why| DiskError::VolumeActivation { why })
+    }
+
     /// Creates the volume group using all of the supplied block devices as members of the
     /// group.
     pub(crate) fn create_volume_group<I, S>(&self, blocks: I) -> Result<(), DiskError>
@@ -103,6 +108,36 @@ impl LvmDevice {
         self.partitions
             .iter_mut()
             .find(|p| p.name.as_ref().unwrap().as_str() == volume)
+    }
+
+    pub fn clear_partitions(&mut self) {
+        let size = &mut self.sectors;
+        let partitions = &mut self.partitions;
+        for partition in partitions {
+            partition.remove();
+            *size -= partition.sectors();
+        }
+    }
+
+    pub fn remove_partition(&mut self, volume: &str) -> Result<(), DiskError> {
+        let size = &mut self.sectors;
+        let partitions = &mut self.partitions;
+        let vg = self.volume_group.as_str();
+
+        match partitions
+            .iter_mut()
+            .find(|p| p.name.as_ref().unwrap().as_str() == volume)
+        {
+            Some(partition) => {
+                partition.remove();
+                *size -= partition.sectors();
+                Ok(())
+            }
+            None => Err(DiskError::LogicalPartitionNotFound {
+                group:  vg.into(),
+                volume: volume.into(),
+            }),
+        }
     }
 
     /// Create & modify all logical volumes on the volume group, and format them.
