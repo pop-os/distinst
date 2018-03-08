@@ -4,7 +4,7 @@ mod encryption;
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
 use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
-use super::super::external::{lvcreate, mkfs, vgcreate};
+use super::super::external::{lvcreate, lvremove, mkfs, vgcreate};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -19,6 +19,8 @@ pub struct LvmDevice {
     pub(crate) sector_size:  u64,
     pub(crate) partitions:   Vec<PartitionInfo>,
     pub(crate) encryption:   Option<LvmEncryption>,
+    pub(crate) is_source:    bool,
+    pub(crate) remove:       bool,
 }
 
 impl DiskExt for LvmDevice {
@@ -50,6 +52,7 @@ impl LvmDevice {
         encryption: Option<LvmEncryption>,
         sectors: u64,
         sector_size: u64,
+        is_source: bool,
     ) -> LvmDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group));
         LvmDevice {
@@ -60,6 +63,8 @@ impl LvmDevice {
             sector_size,
             partitions: Vec::new(),
             encryption,
+            is_source,
+            remove: false,
         }
     }
 
@@ -86,30 +91,50 @@ impl LvmDevice {
         vgcreate(&self.volume_group, blocks).map_err(|why| DiskError::VolumeGroupCreate { why })
     }
 
-    /// Create all logical volumes on the volume group, and format them.
-    pub(crate) fn create_partitions(&self) -> Result<(), DiskError> {
+    /// Obtains a partition by it's volume, with shared access.
+    pub fn get_partition(&self, volume: &str) -> Option<&PartitionInfo> {
+        self.partitions
+            .iter()
+            .find(|p| p.name.as_ref().unwrap().as_str() == volume)
+    }
+
+    /// Obtains a partition by it's volume, with unique access.
+    pub fn get_partition_mut(&mut self, volume: &str) -> Option<&mut PartitionInfo> {
+        self.partitions
+            .iter_mut()
+            .find(|p| p.name.as_ref().unwrap().as_str() == volume)
+    }
+
+    /// Create & modify all logical volumes on the volume group, and format them.
+    pub(crate) fn modify_partitions(&self) -> Result<(), DiskError> {
         if self.partitions.is_empty() {
             return Ok(());
         }
         let nparts = self.partitions.len() - 1;
         for (id, partition) in self.partitions.iter().enumerate() {
-            let label = partition.name.as_ref().unwrap();
+            let label = partition.name.as_ref().unwrap().as_str();
 
-            // Create the new logical volume on the volume group.
-            lvcreate(
-                &self.volume_group,
-                &label,
-                if id == nparts {
-                    None
-                } else {
-                    Some(partition.sectors() * self.sector_size)
-                },
-            ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
+            // Don't create a partition if it already exists.
+            if !partition.is_source {
+                lvcreate(
+                    &self.volume_group,
+                    label,
+                    if id == nparts {
+                        None
+                    } else {
+                        Some(partition.sectors() * self.sector_size)
+                    },
+                ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
+            }
 
-            // Then format the newly-created logical volume
-            if let Some(fs) = partition.filesystem.as_ref() {
-                mkfs(&partition.device_path, fs.clone())
-                    .map_err(|why| DiskError::PartitionFormat { why })?;
+            if partition.remove {
+                lvremove(&self.volume_group, label)
+                    .map_err(|why| DiskError::PartitionRemove { partition: -1, why })?;
+            } else if partition.format {
+                if let Some(fs) = partition.filesystem.as_ref() {
+                    mkfs(&partition.device_path, fs.clone())
+                        .map_err(|why| DiskError::PartitionFormat { why })?;
+                }
             }
         }
 

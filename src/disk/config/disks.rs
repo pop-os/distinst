@@ -516,6 +516,7 @@ impl Disks {
                             lvm.1.clone(),
                             partition.sectors(),
                             sector_size,
+                            false,
                         ));
                     }
                 }
@@ -524,19 +525,6 @@ impl Disks {
 
         Ok(())
     }
-
-    // /// Assigns a partition whose logical volume will contain a LUKS/LVM partition itself.
-    // ///
-    // /// The `logical_volume` parameter denotes the name of a logical partition that
-    // /// will be assigned. The `from_group` parameter is the volume group which the logical
-    // /// partition belongs to. The `to_group` parameter is the name of the volume group
-    // /// that the partition is either creating or being added to.
-    // pub fn assign_volume(
-    //     &mut self,
-    //     logical_volume: &str
-    //     from_group: &str,
-    //     to_group: &str,
-    // )
 
     /// Loads existing logical volume data into memory, excluding encrypted volumes.
     pub fn load_existing_logical_volumes(&mut self) -> Result<(), DiskError> {
@@ -563,6 +551,7 @@ impl Disks {
                             None,
                             partition.sectors(),
                             sector_size,
+                            true,
                         ));
                     }
                 }
@@ -603,8 +592,6 @@ impl Disks {
                         key_id: None,
                     };
 
-                    eprintln!("DEBUG: Logical Volume: {:?}", partition);
-
                     start_sector += length + 1;
 
                     device.partitions.push(partition);
@@ -615,6 +602,24 @@ impl Disks {
         self.logical = existing_devices;
 
         Ok(())
+    }
+
+    pub fn remove_logical_device(&mut self, volume: &str) {
+        let mut remove_id = None;
+        for (id, device) in self.logical.iter_mut().enumerate() {
+            if &device.volume_group == volume {
+                if device.is_source {
+                    device.remove = true;
+                } else {
+                    remove_id = Some(id);
+                }
+                break;
+            }
+        }
+
+        if let Some(id) = remove_id {
+            let _ = self.logical.remove(id);
+        }
     }
 
     /// Applies all logical device operations, which are to be performed after all physical disk
@@ -635,6 +640,10 @@ impl Disks {
         // By default, the `device_path` field is not populated, so let's fix that.
         for device in &mut self.logical {
             for partition in &mut device.partitions {
+                // ... unless it is populated, due to existing beforehand.
+                if !partition.is_source {
+                    continue;
+                }
                 let label = partition.name.as_ref().unwrap();
                 partition.device_path =
                     PathBuf::from(format!("/dev/mapper/{}-{}", device.volume_group, label));
@@ -646,28 +655,32 @@ impl Disks {
 
         // Now we will apply the logical layout.
         for device in &self.logical {
-            let volumes: Vec<(&Path, &Path)> = self.find_volume_paths(&device.volume_group);
-            let mut device_path = None;
+            // Only create the device if it does not exist.
+            if !device.is_source {
+                let volumes: Vec<(&Path, &Path)> = self.find_volume_paths(&device.volume_group);
+                let mut device_path = None;
 
-            if let Some(encryption) = device.encryption.as_ref() {
-                encryption.encrypt(volumes[0].1)?;
-                encryption.open(volumes[0].1)?;
-                encryption.create_physical_volume()?;
-                device_path = Some(PathBuf::from(
-                    ["/dev/mapper/", &encryption.physical_volume].concat(),
-                ));
+                if let Some(encryption) = device.encryption.as_ref() {
+                    encryption.encrypt(volumes[0].1)?;
+                    encryption.open(volumes[0].1)?;
+                    encryption.create_physical_volume()?;
+                    device_path = Some(PathBuf::from(
+                        ["/dev/mapper/", &encryption.physical_volume].concat(),
+                    ));
+                }
+
+                // Obtains an iterator which may produce one or more device paths.
+                let volumes: Box<Iterator<Item = &Path>> = match device_path.as_ref() {
+                    // There will be only one volume, which we obtained from encryption.
+                    Some(path) => Box::new(iter::once(path.as_path())),
+                    // There may be more than one volume within a unencrypted LVM config.
+                    None => Box::new(volumes.into_iter().map(|(_, part)| part)),
+                };
+
+                device.create_volume_group(volumes)?;
             }
 
-            // Obtains an iterator which may produce one or more device paths.
-            let volumes: Box<Iterator<Item = &Path>> = match device_path.as_ref() {
-                // There will be only one volume, which we obtained from encryption.
-                Some(path) => Box::new(iter::once(path.as_path())),
-                // There may be more than one volume within a unencrypted LVM config.
-                None => Box::new(volumes.into_iter().map(|(_, part)| part)),
-            };
-
-            device.create_volume_group(volumes)?;
-            device.create_partitions()?;
+            device.modify_partitions()?;
         }
 
         Ok(())

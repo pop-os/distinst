@@ -214,6 +214,15 @@ pub(crate) fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result
     )
 }
 
+pub(crate) fn lvremove(group: &str, name: &str) -> io::Result<()> {
+    exec(
+        "lvremove",
+        None,
+        None,
+        &[["/dev/mapper/", group, "-", name].concat().into()],
+    )
+}
+
 /// Append a newline to the input (used for the password)
 fn append_newline(input: &[u8]) -> Vec<u8> {
     let mut input = input.to_owned();

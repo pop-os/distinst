@@ -258,10 +258,18 @@ impl PartitionInfo {
     }
 
     /// Defines that a new file system will be applied to this partition.
+    /// NOTE: this will also unset the partition's name.
     pub fn format_with(&mut self, fs: FileSystemType) {
         self.format = true;
         self.filesystem = Some(fs);
         self.name = None;
+    }
+
+    /// Defines that a new file system will be applied to this partition.
+    /// Unlike `format_with`, this will not remove the name.
+    pub fn format_and_keep_name(&mut self, fs: FileSystemType) {
+        self.format = true;
+        self.filesystem = Some(fs);
     }
 
     /// Returns the number of used sectors on the file system that belongs to
