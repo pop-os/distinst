@@ -156,12 +156,11 @@ fn parse_fsck_field<R: Iterator<Item = io::Result<String>>>(
 fn parse_fsck_cluster_summary<R: Iterator<Item = io::Result<String>>>(
     reader: &mut R,
 ) -> io::Result<(u64, u64)> {
-    let mut summary_found = false;
     loop {
         match reader.next() {
             Some(line) => {
                 let line = line?;
-                if summary_found {
+                if line.split_whitespace().next().map_or(false, |word| word.ends_with(':')) {
                     if let Some(stats) = line.split_whitespace().skip(3).next() {
                         if let Some(id) = stats.find('/') {
                             if stats.len() > id + 1 {
@@ -175,8 +174,6 @@ fn parse_fsck_cluster_summary<R: Iterator<Item = io::Result<String>>>(
                     }
 
                     break Err(io::Error::new(io::ErrorKind::Other, "invalid dump output"));
-                } else if line.starts_with("Checking free cluster") {
-                    summary_found = true;
                 }
             }
             None => {
@@ -302,6 +299,28 @@ Checking free cluster summary.
 /dev/sda1: 31 files, 66356/130812 clusters
 "#;
 
+    const FAT3_INPUT: &str = r#"fsck.fat 4.1 (2017-01-24)
+Checking we can access the last sector of the filesystem
+Boot sector contents:
+System ID "mkfs.fat"
+Media byte 0xf8 (hard disk)
+       512 bytes per logical sector
+      8192 bytes per cluster
+        16 reserved sectors
+First FAT starts at byte 8192 (sector 16)
+         2 FATs, 16 bit entries
+    131072 bytes per FAT (= 256 sectors)
+Root directory starts at byte 270336 (sector 528)
+       512 root directory entries
+Data area starts at byte 286720 (sector 560)
+     65501 data clusters (536584192 bytes)
+63 sectors/track, 255 heads
+      2048 hidden sectors
+   1048576 sectors total
+Checking for unused clusters.
+/dev/sda1: 35 files, 24176/65501 clusters
+"#;
+
     #[test]
     fn fat_parsing() {
         let mut reader = FAT_INPUT.lines().map(|x| Ok(x.into()));
@@ -329,6 +348,19 @@ Checking free cluster summary.
     }
 
     #[test]
+    fn fat_parsing3() {
+        let mut reader = FAT3_INPUT.lines().map(|x| Ok(x.into()));
+        assert_eq!(
+            parse_fsck_field(&mut reader, "bytes per cluster").unwrap(),
+            8192
+        );
+        assert_eq!(
+            parse_fsck_cluster_summary(&mut reader).unwrap(),
+            (24176, 65501)
+        );
+    }
+
+    #[test]
     fn fat_usage() {
         assert_eq!(
             get_fat_usage(FAT_INPUT.lines().map(|x| Ok(x.into())), 512).unwrap(),
@@ -341,6 +373,14 @@ Checking free cluster summary.
         assert_eq!(
             get_fat_usage(FAT2_INPUT.lines().map(|x| Ok(x.into())), 512).unwrap(),
             530848
+        );
+    }
+
+    #[test]
+    fn fat_usage3() {
+        assert_eq!(
+            get_fat_usage(FAT3_INPUT.lines().map(|x| Ok(x.into())), 512).unwrap(),
+            386816
         );
     }
 
