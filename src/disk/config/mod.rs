@@ -19,8 +19,8 @@ pub use self::sector::Sector;
 use super::{Bootloader, DiskError};
 use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType};
 use std::collections::BTreeMap;
-use std::fs::File;
 use std::ffi::OsString;
+use std::fs::File;
 use std::fs::read_dir;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -97,7 +97,7 @@ pub(crate) fn sync(device: &mut Device) -> Result<(), DiskError> {
     device.sync().map_err(|why| DiskError::DiskSync { why })
 }
 
-/// Obtains the size of the device, in sectors, from a given block device.
+/// Obtains the size of the device, in bytes, from a given block device.
 /// Note: This is only to be used with getting partition sizes of logical volumes.
 pub(crate) fn get_size(path: &Path) -> Option<u64> {
     let name: String = match path.canonicalize() {
@@ -109,9 +109,9 @@ pub(crate) fn get_size(path: &Path) -> Option<u64> {
         .ok()
         .and_then(|mut file| {
             let mut buffer = String::new();
-            file.read_to_string(&mut buffer).ok().and_then(|_| {
-                buffer.trim().parse::<u64>().ok().map(|v| v / 2)
-            })
+            file.read_to_string(&mut buffer)
+                .ok()
+                .and_then(|_| buffer.trim().parse::<u64>().ok())
         })
 }
 

@@ -160,7 +160,10 @@ fn parse_fsck_cluster_summary<R: Iterator<Item = io::Result<String>>>(
         match reader.next() {
             Some(line) => {
                 let line = line?;
-                if line.split_whitespace().next().map_or(false, |word| word.ends_with(':')) {
+                if line.split_whitespace()
+                    .next()
+                    .map_or(false, |word| word.ends_with(':'))
+                {
                     if let Some(stats) = line.split_whitespace().skip(3).next() {
                         if let Some(id) = stats.find('/') {
                             if stats.len() > id + 1 {

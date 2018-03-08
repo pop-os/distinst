@@ -1,9 +1,7 @@
 use super::{get_size, get_uuid, Disk};
 use super::find_partition;
-use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag,
-                   PartitionInfo, PartitionType};
-use super::super::external::{blkid_partition, cryptsetup_close, deactivate_volumes,
-                             lvs, pvremove, pvs, vgremove};
+use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
+use super::super::external::{blkid_partition, cryptsetup_close, deactivate_volumes, lvs, pvremove, pvs, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::umount;
 use super::super::mounts::Mounts;
@@ -140,7 +138,8 @@ impl Disks {
             match device.type_() {
                 DeviceType::PED_DEVICE_UNKNOWN
                 | DeviceType::PED_DEVICE_LOOP
-                | DeviceType::PED_DEVICE_FILE => continue,
+                | DeviceType::PED_DEVICE_FILE
+                | DeviceType::PED_DEVICE_DM => continue,
                 _ => disks.add(Disk::new(&mut device)?),
             }
         }
@@ -549,7 +548,7 @@ impl Disks {
                 if let Some(ref vg) = partition.original_vg {
                     // TODO: NLL
                     let mut found = false;
-                    
+
                     if let Some(ref mut device) = existing_devices
                         .iter_mut()
                         .find(|d| d.volume_group.as_str() == vg.as_str())
@@ -589,12 +588,13 @@ impl Disks {
                         // TODO: Figure out flags?
                         flags: vec![],
                         filesystem: blkid_partition(&path),
-                        // TODO: Parse from path
-                        name: None,
+                        name: {
+                            let dev = path.file_name().unwrap().to_str().unwrap();
+                            let value = dev.find('-').map_or(0, |v| v + 1);
+                            Some(dev.split_at(value).1.into())
+                        },
                         device_path: path,
-                        // TODO: Check if it is mounted?
                         mount_point: None,
-                        // TODO: Check if swapped?
                         swapped: false,
                         target: None,
                         original_vg: None,

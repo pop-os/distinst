@@ -357,7 +357,7 @@ pub(crate) fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystemType>
             info!("libdistinst: blkid found '{}'", type_);
             let length = type_.len();
             if length > 7 {
-                type_[6..length-1].parse::<FileSystemType>().ok()
+                type_[6..length - 1].parse::<FileSystemType>().ok()
             } else {
                 None
             }
