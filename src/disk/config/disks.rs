@@ -1,4 +1,4 @@
-use super::{get_uuid, Disk};
+use super::{get_size, get_uuid, Disk};
 use super::find_partition;
 use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag,
                    PartitionInfo, PartitionType};
@@ -574,8 +574,7 @@ impl Disks {
         for device in &mut existing_devices {
             if let Ok(logical_paths) = lvs(&device.volume_group) {
                 for path in logical_paths {
-                    // TODO: Get size from ???
-                    let length = 0;
+                    let length = get_size(&path).unwrap_or(0);
                     let partition = PartitionInfo {
                         is_source: true,
                         remove: false,
@@ -603,6 +602,8 @@ impl Disks {
                         volume_group: None,
                         key_id: None,
                     };
+
+                    eprintln!("DEBUG: Logical Volume: {:?}", partition);
 
                     start_sector += length + 1;
 
