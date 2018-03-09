@@ -23,7 +23,7 @@ for file in "$FS" "$REMOVE"; do
     fi
 done
 
-set -x
+set -e -x
 
 sudo target/debug/distinst \
     -s "${FS}" \

@@ -26,6 +26,8 @@ use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
+use std::thread::sleep;
+use std::time::Duration;
 use tempdir::TempDir;
 
 pub use automatic::{InstallOption, InstallOptions};
@@ -271,11 +273,14 @@ impl Installer {
             callback(100);
         }
 
+        // This collection of physical volumes and their optional volume groups
+        // will be used to obtain a list of volume groups associated with our
+        // modified partitions.
         let pvs = pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
 
-        // TODO: Make this a method?
-
-        // Obtain a list of volume groups in the configuration.
+        // Utilizes the physical volume collection to generate a vector of volume
+        // groups which we will need to deactivate pre=`blockdev`, and will be
+        // reactivated post-`blockdev`.
         let vgs = disks
             .get_physical_devices()
             .iter()
@@ -291,22 +296,28 @@ impl Installer {
             .collect::<Vec<String>>();
 
         // Deactivate logical volumes so that blockdev will not fail.
-        for vg in &vgs {
-            vgdeactivate(vg);
-        }
+        vgs.iter()
+            .map(|vg| vgdeactivate(vg))
+            .collect::<io::Result<()>>()?;
+
+        // Ensure that the logical volumes have had time to deactivate.
+        sleep(Duration::from_secs(1));
 
         // This is to ensure that everything's been written and the OS is ready to
         // proceed.
-        ::std::thread::sleep(::std::time::Duration::from_secs(1));
-        for disk in disks.get_physical_devices() {
-            blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
-        }
-        ::std::thread::sleep(::std::time::Duration::from_secs(1));
+        disks
+            .get_physical_devices()
+            .iter()
+            .map(|disk| blockdev(&disk.path(), &["--flushbufs", "--rereadpt"]))
+            .collect::<io::Result<()>>()?;
+
+        // Give a bit of time to ensure that logical volumes can be re-activated.
+        sleep(Duration::from_secs(1));
 
         // Reactivate the logical volumes.
-        for vg in vgs {
-            vgactivate(&vg);
-        }
+        vgs.iter()
+            .map(|vg| vgactivate(vg))
+            .collect::<io::Result<()>>()?;
 
         disks
             .commit_logical_partitions()

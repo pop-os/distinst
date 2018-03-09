@@ -1,7 +1,7 @@
 #!/bin/sh
 FS="tests/filesystem.squashfs"
 REMOVE="tests/filesystem.manifest-remove"
-RUNS=3
+RUNS=1
 
 if ! test -e "target/debug/distinst"; then
     cargo build --manifest-path cli/Cargo.toml
@@ -24,7 +24,7 @@ for file in "$FS" "$REMOVE"; do
     fi
 done
 
-set -x
+set -e -x
 
 echo 'Running LVM on LUKS test'
 index=0; while test ${index} -ne ${RUNS}; do
@@ -37,10 +37,10 @@ index=0; while test ${index} -ne ${RUNS}; do
         -b "$1" \
         -t "$1:gpt" \
         -n "$1:primary:start:512M:fat32:mount=/boot/efi:flags=esp" \
-        -n "$1:primary:512M:2048M:lvm=data" \
-        -n "$1:primary:2048M:end:lvm=data" \
-        --logical "data:root:-4096M:ext4:mount=/" \
-        --logical "data:swap:4096M:swap"
+        -n "$1:primary:512M:2048M:lvm=data2" \
+        -n "$1:primary:2048M:end:lvm=data2" \
+        --logical "data2:root:-4096M:ext4:mount=/" \
+        --logical "data2:swap:4096M:swap"
 
     index=$((index + 1))
 done

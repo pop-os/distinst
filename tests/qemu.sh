@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -x
+set -e -x
 
 DISK="tests/loopback.bin"
 

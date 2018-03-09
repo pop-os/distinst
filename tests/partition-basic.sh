@@ -24,7 +24,7 @@ for file in "$FS" "$REMOVE"; do
     fi
 done
 
-set -x
+set -e -x
 
 echo 'Running new partitioning tests'
 index=0; while test ${index} -ne ${RUNS}; do

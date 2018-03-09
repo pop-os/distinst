@@ -219,7 +219,10 @@ pub(crate) fn lvremove(group: &str, name: &str) -> io::Result<()> {
         "lvremove",
         None,
         None,
-        &[["/dev/mapper/", group, "-", name].concat().into()],
+        &[
+            "-y".into(),
+            ["/dev/mapper/", group, "-", name].concat().into(),
+        ],
     )
 }
 

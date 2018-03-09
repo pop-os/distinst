@@ -26,7 +26,7 @@ for file in "$FS" "$REMOVE"; do
     fi
 done
 
-set -x
+set -e -x
 
 # If the disk path ends with a number, add a p.
 if test "${1:-1}" -eq "${1:-1}"; then

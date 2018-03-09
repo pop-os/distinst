@@ -26,7 +26,7 @@ for file in "$FS" "$REMOVE"; do
     fi
 done
 
-set -x
+set -e -x
 
 echo 'Running LVM on LUKS test'
 index=0; while test ${index} -ne ${RUNS}; do

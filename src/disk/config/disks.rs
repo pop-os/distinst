@@ -194,13 +194,21 @@ impl Disks {
         find_partition(&self.physical, target).or(find_partition(&self.logical, target))
     }
 
+    /// Returns a list of disk & partition paths that match a volume group.
     pub fn find_volume_paths<'a>(&'a self, volume_group: &str) -> Vec<(&'a Path, &'a Path)> {
         let mut volumes = Vec::new();
 
         for disk in &self.physical {
             for partition in disk.get_partitions() {
-                if let Some(ref pvolume_group) = partition.volume_group {
-                    if pvolume_group.0 == volume_group {
+                // The volume group may be stored in either the `original_vg`
+                // or `volume_group` fields. This combines the optionals.
+                let vg: Option<&String> = partition
+                    .original_vg
+                    .as_ref()
+                    .or(partition.volume_group.as_ref().map(|x| &x.0));
+
+                if let Some(ref pvg) = vg {
+                    if pvg.as_str() == volume_group {
                         volumes.push((disk.get_device_path(), partition.get_device_path()));
                     }
                 }
@@ -652,9 +660,7 @@ impl Disks {
         // Now we will apply the logical layout.
         for device in &self.logical {
             // Only create the device if it does not exist.
-            if device.is_source {
-                device.activate_volumes()?
-            } else {
+            if !device.is_source {
                 let volumes: Vec<(&Path, &Path)> = self.find_volume_paths(&device.volume_group);
                 let mut device_path = None;
 
