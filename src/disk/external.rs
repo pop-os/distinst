@@ -72,29 +72,13 @@ pub(crate) fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S
     disk: P,
     args: I,
 ) -> io::Result<()> {
-    let disk = disk.as_ref();
-    let vg = pvs().ok().and_then(|pvs| match pvs.get(disk) {
-        Some(&Some(ref vg)) => Some(vg.clone()),
-        _ => None,
-    });
-
-    if let Some(vg) = vg.as_ref() {
-        vgdeactivate(&vg)?
-    }
-
     exec("blockdev", None, None, &{
         let mut args = args.into_iter()
             .map(|x| x.as_ref().into())
             .collect::<Vec<OsString>>();
-        args.push(disk.into());
+        args.push(disk.as_ref().into());
         args
-    })?;
-
-    if let Some(vg) = vg.as_ref() {
-        vgactivate(&vg)?
-    }
-
-    Ok(())
+    })
 }
 
 /// Formats the supplied `part` device with the file system specified.

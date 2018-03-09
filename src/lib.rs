@@ -14,7 +14,8 @@ extern crate libparted;
 extern crate log;
 extern crate tempdir;
 
-use disk::external::blockdev;
+use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
+use itertools::Itertools;
 use std::{fs, io};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -269,11 +270,41 @@ impl Installer {
             callback(100);
         }
 
+        let pvs = pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
+
+        // TODO: Make this a method?
+
+        // Obtain a list of volume groups in the configuration.
+        let vgs = disks
+            .get_physical_devices()
+            .iter()
+            .flat_map(|disk| {
+                disk.get_partitions()
+                    .iter()
+                    .filter_map(|part| match pvs.get(&part.device_path) {
+                        Some(&Some(ref vg)) => Some(vg.clone()),
+                        _ => None,
+                    })
+            })
+            .unique()
+            .collect::<Vec<String>>();
+
+        // Deactivate logical volumes so that blockdev will not fail.
+        for vg in &vgs {
+            vgdeactivate(vg);
+        }
+
         // This is to ensure that everything's been written and the OS is ready to
         // proceed.
         ::std::thread::sleep(::std::time::Duration::from_secs(1));
         for disk in disks.get_physical_devices() {
             blockdev(&disk.path(), &["--flushbufs", "--rereadpt"])?;
+        }
+        ::std::thread::sleep(::std::time::Duration::from_secs(1));
+
+        // Reactivate the logical volumes.
+        for vg in vgs {
+            vgactivate(&vg);
         }
 
         disks
