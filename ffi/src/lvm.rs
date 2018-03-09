@@ -78,6 +78,19 @@ pub unsafe extern "C" fn distinst_lvm_device_get_sector(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_get_volume(
+    device: *mut DistinstLvmDevice,
+    volume: *const libc::c_char,
+) -> *mut DistinstPartition {
+    get_str(volume, "distinst_lvm_device_get_volume")
+        .ok()
+        .map_or(ptr::null_mut(), |volume| {
+            let disk = &mut *(device as *mut LvmDevice);
+            disk.get_partition_mut(volume).as_mut_ptr() as *mut DistinstPartition
+        })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_add_partition(
     device: *mut DistinstLvmDevice,
     partition: *mut DistinstPartitionBuilder,

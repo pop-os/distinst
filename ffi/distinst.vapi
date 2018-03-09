@@ -408,6 +408,16 @@ namespace Distinst {
         public string? get_model ();
 
         /**
+         * Gets the actual sector position from a `Sector` unit.
+         */
+        public uint64 get_sector (ref Sector sector);
+
+        /**
+         * Gets a logical volume by the volume name.
+         */
+        public unowned Partition? get_volume (string volume);
+
+        /**
          * Returns a slice of all partitions on this volume.
          */
         public unowned Partition[] list_partitions ();
@@ -417,11 +427,6 @@ namespace Distinst {
          * sector of the last partition.
          */
         public uint64 last_used_sector ();
-
-        /**
-         * Gets the actual sector position from a `Sector` unit.
-         */
-        public uint64 get_sector (ref Sector sector);
 
         /**
          * Adds a new partition to the physical device from a partition builder.
