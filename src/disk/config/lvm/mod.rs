@@ -4,7 +4,7 @@ mod encryption;
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
 use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
-use super::super::external::{lvcreate, lvremove, mkfs, vgactivate, vgcreate};
+use super::super::external::{lvcreate, lvremove, mkfs, vgcreate};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -81,11 +81,6 @@ impl LvmDevice {
         }
 
         Ok(())
-    }
-
-    /// Activates existing logical volumes on the volume group.
-    pub(crate) fn activate_volumes(&self) -> Result<(), DiskError> {
-        vgactivate(&self.volume_group).map_err(|why| DiskError::VolumeActivation { why })
     }
 
     /// Creates the volume group using all of the supplied block devices as members of the

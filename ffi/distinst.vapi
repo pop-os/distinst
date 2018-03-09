@@ -171,6 +171,15 @@ namespace Distinst {
 
         /**
          * Marks to format the partition with the provided file system.
+         * 
+         * Retains the partiton's name.
+        */
+        public int format_and_keep_name (FileSystemType fs);
+
+        /**
+         * Marks to format the partition with the provided file system.
+         * 
+         * Also removes the partition's name in the process.
         */
         public int format_with (FileSystemType fs);
 
@@ -391,17 +400,17 @@ namespace Distinst {
 
     [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
     public class LvmDevice {
-        public unowned uint8[] get_device_path();
+        public unowned uint8[] get_device_path ();
 
         /**
          * Returns the model name of the device in the format of "LVM <VG>"
          */
-        public string? get_model();
+        public string? get_model ();
 
         /**
          * Returns a slice of all partitions on this volume.
          */
-        public unowned Partition[] list_partitions();
+        public unowned Partition[] list_partitions ();
         
         /**
          * Partitions are assigned left to right, so this will get the end
@@ -418,6 +427,22 @@ namespace Distinst {
          * Adds a new partition to the physical device from a partition builder.
          */
         public int add_partition (PartitionBuilder partition);
+
+        /**
+         * Sets the remove bit on the specified logical volume
+         * 
+         * # Return Values
+         * 
+         * - `0` means that there was no error.
+         * - `1` means that the provided string was not UTF-8.
+         * - `2` means that the partition could not be found.
+         */
+        public int remove_partition (string volume);
+
+        /**
+         * For each logical volume in the LVM device, this will set the remove bit.
+         */
+        public void clear_partitions ();
     }
 
     /**
@@ -461,6 +486,14 @@ namespace Distinst {
          * Returns a slice of logical devices in the configuration.
          */
         public unowned LvmDevice[] list_logical();
+
+        /**
+         * Obtains the logical device with the specified volume group.
+         * 
+         * Will return a null value if the input string is not UTF-8,
+         * or the logical device could not be found.
+         */
+        public unowned LvmDevice? get_logical_device (string volume_group);
 
         /**
          * To be used after configuring all physical partitions on physical disks,

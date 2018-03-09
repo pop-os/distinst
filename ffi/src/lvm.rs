@@ -2,7 +2,7 @@ use distinst::{DiskExt, Disks, LvmDevice, PartitionBuilder, PartitionInfo, Secto
 use ffi::AsMutPtr;
 use libc;
 
-use super::{DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
+use super::{get_str, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
 use std::ffi::{CStr, CString};
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
@@ -90,6 +90,25 @@ pub unsafe extern "C" fn distinst_lvm_device_add_partition(
     } else {
         0
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_remove_partition(
+    device: *mut DistinstLvmDevice,
+    volume: *const libc::c_char,
+) -> libc::c_int {
+    get_str(volume, "distinst_lvm_device_remove_partition")
+        .ok()
+        .map_or(1, |volume| {
+            let disk = &mut *(device as *mut LvmDevice);
+            disk.remove_partition(volume).ok().map_or(2, |_| 0)
+        })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_clear_partitions(device: *mut DistinstLvmDevice) {
+    let disk = &mut *(device as *mut LvmDevice);
+    disk.clear_partitions();
 }
 
 #[no_mangle]

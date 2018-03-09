@@ -9,6 +9,7 @@ use distinst::{
     PartitionTable, Sector,
 };
 
+use super::get_str;
 use ffi::AsMutPtr;
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use gen_object_ptr;
@@ -309,6 +310,22 @@ pub unsafe extern "C" fn distinst_disks_list(
 
     *len = output.len() as libc::c_int;
     Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstDisk
+}
+
+pub unsafe extern "C" fn distinst_disks_get_logical_device(
+    disks: *mut DistinstDisks,
+    volume_group: *const libc::c_char,
+) -> *mut LvmDevice {
+    match get_str(volume_group, "distinst_partition_builder") {
+        Ok(vg) => {
+            let disks = &mut *(disks as *mut Disks);
+            disks.get_logical_device_mut(vg).as_mut_ptr()
+        }
+        Err(why) => {
+            eprintln!("libdistinst: volume_group is not UTF-8: {}", why);
+            ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]

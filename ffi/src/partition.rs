@@ -373,6 +373,19 @@ pub unsafe extern "C" fn distinst_partition_set_flags(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_format_and_keep_name(
+    partition: *mut DistinstPartition,
+    fs: DISTINST_FILE_SYSTEM_TYPE,
+) -> libc::c_int {
+    let part = &mut *(partition as *mut PartitionInfo);
+    part.format_and_keep_name(match fs.into() {
+        Some(fs) => fs,
+        None => return -1,
+    });
+    0
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_format_with(
     partition: *mut DistinstPartition,
     fs: DISTINST_FILE_SYSTEM_TYPE,
