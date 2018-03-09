@@ -39,6 +39,7 @@ pub use disk::mount::{Mount, Mounts};
 mod automatic;
 mod chroot;
 mod disk;
+mod hostname;
 mod logger;
 mod squashfs;
 
@@ -679,6 +680,13 @@ impl Installer {
     /// applied before installation. The `config` field provides configuration details that
     /// will be applied when configuring the new installation.
     pub fn install(&mut self, mut disks: Disks, config: &Config) -> io::Result<()> {
+        if !hostname::is_valid(&config.hostname) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "hostname is not valid",
+            ));
+        }
+
         let bootloader = Bootloader::detect();
         disks.verify_partitions(bootloader)?;
 
