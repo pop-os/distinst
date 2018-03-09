@@ -72,13 +72,29 @@ pub(crate) fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S
     disk: P,
     args: I,
 ) -> io::Result<()> {
+    let disk = disk.as_ref();
+    let vg = pvs().ok().and_then(|pvs| match pvs.get(disk) {
+        Some(&Some(ref vg)) => Some(vg.clone()),
+        _ => None,
+    });
+
+    if let Some(vg) = vg.as_ref() {
+        vgdeactivate(&vg)?
+    }
+
     exec("blockdev", None, None, &{
         let mut args = args.into_iter()
             .map(|x| x.as_ref().into())
             .collect::<Vec<OsString>>();
-        args.push(disk.as_ref().into());
+        args.push(disk.into());
         args
-    })
+    })?;
+
+    if let Some(vg) = vg.as_ref() {
+        vgactivate(&vg)?
+    }
+
+    Ok(())
 }
 
 /// Formats the supplied `part` device with the file system specified.
@@ -338,12 +354,14 @@ pub(crate) fn cryptsetup_close(device: &Path) -> io::Result<()> {
 
 /// Deactivates all logical volumes in the supplied volume group
 pub(crate) fn vgactivate(volume_group: &str) -> io::Result<()> {
+    info!("libdistinst: activating '{}'", volume_group);
     let args = &["-ffyay".into(), volume_group.into()];
     exec("vgchange", None, None, args)
 }
 
 /// Deactivates all logical volumes in the supplied volume group
 pub(crate) fn vgdeactivate(volume_group: &str) -> io::Result<()> {
+    info!("libdistinst: deactivating '{}'", volume_group);
     let args = &["-ffyan".into(), volume_group.into()];
     exec("vgchange", None, None, args)
 }
@@ -387,6 +405,7 @@ pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
 
     let mut reader = BufReader::new(
         Command::new("lvs")
+            .arg(vg)
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()?
@@ -418,7 +437,7 @@ pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
 /// Obtains a map of physical volume paths and their optionally-assigned volume
 /// groups.
 pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
-    info!("libdistinst: obtaining BTreeMap<PV, VG>");
+    info!("libdistinst: obtaining list of physical volumes");
     let mut current_line = String::with_capacity(64);
     let mut output = BTreeMap::new();
 

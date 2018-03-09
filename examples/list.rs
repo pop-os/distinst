@@ -6,7 +6,7 @@ use std::process;
 
 fn list() -> Result<()> {
     let mut disks = Disks::probe_devices()?;
-    let _ = disks.load_existing_logical_volumes();
+    let _ = disks.initialize_volume_groups();
 
     for disk in disks.get_physical_devices() {
         let sector_size = disk.get_sector_size();

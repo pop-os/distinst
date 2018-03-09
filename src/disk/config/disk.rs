@@ -45,6 +45,8 @@ pub struct Disk {
 }
 
 impl DiskExt for Disk {
+    const LOGICAL: bool = false;
+
     fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn get_model(&self) -> &str { &self.model_name }

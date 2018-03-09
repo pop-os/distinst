@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 
 /// Contains methods that are shared between physical and logical disk devices.
 pub trait DiskExt {
+    const LOGICAL: bool;
+
     /// Returns the path to the block device in the system.
     fn get_device_path(&self) -> &Path;
 
@@ -69,6 +71,14 @@ pub trait DiskExt {
             .map(|part| part.number)
     }
 
+    fn get_used(&self) -> u64 {
+        self.get_partitions()
+            .iter()
+            .filter(|p| !p.remove)
+            .map(|p| p.sectors())
+            .sum()
+    }
+
     #[allow(cast_lossless)]
     /// Calculates the requested sector from a given `Sector` variant.
     fn get_sector(&self, sector: Sector) -> u64 {
@@ -104,12 +114,20 @@ pub trait DiskExt {
         );
 
         // Ensure that the values aren't already contained within an existing partition.
-        if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
-            return Err(DiskError::SectorOverlaps { id });
+        if !Self::LOGICAL {
+            if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
+                return Err(DiskError::SectorOverlaps { id });
+            }
         }
 
         // And that the end can fit onto the disk.
-        if self.get_sectors() < builder.end_sector as u64 {
+        if Self::LOGICAL {
+            let sectors = self.get_sectors();
+            let estimated_size = self.get_used() + (builder.end_sector - builder.start_sector);
+            if sectors < estimated_size {
+                return Err(DiskError::PartitionOOB);
+            }
+        } else if self.get_sectors() < builder.end_sector {
             return Err(DiskError::PartitionOOB);
         }
 

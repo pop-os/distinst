@@ -590,7 +590,6 @@ impl Disks {
                     };
 
                     start_sector += length + 1;
-
                     device.partitions.push(partition);
                 }
             }
@@ -652,8 +651,6 @@ impl Disks {
 
         // Now we will apply the logical layout.
         for device in &self.logical {
-            eprintln!("DEBUG: Logical Device: {:?}", device);
-
             // Only create the device if it does not exist.
             if device.is_source {
                 device.activate_volumes()?

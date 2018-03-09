@@ -794,7 +794,6 @@ fn configure_lvm(
             }
 
             let (group, volume) = (values[0], values[1]);
-
             let device = disks.get_logical_device_mut(group).ok_or(
                 DistinstError::LogicalDeviceNotFound {
                     group: group.into(),
@@ -860,17 +859,12 @@ fn configure_lvm(
         parse_logical(logical, |args| {
             match disks.find_logical_disk_mut(&args.group) {
                 Some(lvm_device) => {
-                    let start = match lvm_device.get_partitions().iter().last() {
-                        Some(partition) => partition.end_sector + 1,
-                        None => 0,
-                    };
-
+                    let start = lvm_device.get_last_sector();
                     let end = start + lvm_device.get_sector(args.size);
                     let mut builder =
                         PartitionBuilder::new(start, end, args.fs).name(args.name.clone());
 
                     if let Some(mount) = args.mount.as_ref() {
-                        eprintln!("{} was specified as mount", mount.display());
                         builder = builder.mount(mount.clone());
                     }
 

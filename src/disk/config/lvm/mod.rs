@@ -24,6 +24,8 @@ pub struct LvmDevice {
 }
 
 impl DiskExt for LvmDevice {
+    const LOGICAL: bool = true;
+
     fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn get_model(&self) -> &str { &self.model_name }
@@ -96,6 +98,14 @@ impl LvmDevice {
         vgcreate(&self.volume_group, blocks).map_err(|why| DiskError::VolumeGroupCreate { why })
     }
 
+    pub fn get_last_sector(&self) -> u64 {
+        self.get_partitions()
+            .iter()
+            .rev()
+            .find(|p| !p.remove)
+            .map_or(0, |p| p.end_sector)
+    }
+
     /// Obtains a partition by it's volume, with shared access.
     pub fn get_partition(&self, volume: &str) -> Option<&PartitionInfo> {
         self.partitions
@@ -111,16 +121,12 @@ impl LvmDevice {
     }
 
     pub fn clear_partitions(&mut self) {
-        let size = &mut self.sectors;
-        let partitions = &mut self.partitions;
-        for partition in partitions {
+        for partition in &mut self.partitions {
             partition.remove();
-            *size -= partition.sectors();
         }
     }
 
     pub fn remove_partition(&mut self, volume: &str) -> Result<(), DiskError> {
-        let size = &mut self.sectors;
         let partitions = &mut self.partitions;
         let vg = self.volume_group.as_str();
 
@@ -130,7 +136,6 @@ impl LvmDevice {
         {
             Some(partition) => {
                 partition.remove();
-                *size -= partition.sectors();
                 Ok(())
             }
             None => Err(DiskError::LogicalPartitionNotFound {
