@@ -68,6 +68,11 @@ namespace Distinst {
      */
     public unowned string strfilesys(FileSystemType fs);
 
+    /**
+     * Determines if the given hostname is valid or not
+     */
+    public bool validate_hostname(string hostname);
+
     [CCode (cname = "DISTINST_PARTITION_FLAG", has_type_id = false)]
     public enum PartitionFlag {
         BOOT,

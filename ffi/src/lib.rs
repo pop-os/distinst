@@ -56,6 +56,12 @@ pub fn to_cstr(string: String) -> *mut libc::c_char {
         .unwrap_or(ptr::null_mut())
 }
 
+pub unsafe extern "C" fn distinst_validate_hostname(hostname: *const libc::c_char) -> bool {
+    get_str(hostname, "")
+        .ok()
+        .map_or(false, |hostname| distinst::hostname::is_valid(hostname))
+}
+
 /// Log level
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]

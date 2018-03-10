@@ -41,7 +41,7 @@ pub use disk::mount::{Mount, Mounts};
 mod automatic;
 mod chroot;
 mod disk;
-mod hostname;
+pub mod hostname;
 mod logger;
 mod squashfs;
 

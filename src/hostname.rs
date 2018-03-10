@@ -1,4 +1,4 @@
-pub(crate) fn is_valid(hostname: &str) -> bool {
+pub fn is_valid(hostname: &str) -> bool {
     fn is_alphanumeric(byte: u8) -> bool {
         (byte >= b'a' && byte <= b'z') || (byte >= b'A' && byte <= b'Z')
             || (byte >= b'0' && byte <= b'9') || byte == b'-'
