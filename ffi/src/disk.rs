@@ -5,7 +5,10 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
 
-use distinst::{LvmEncryption, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
+use distinst::{
+    Disk, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder,
+    PartitionInfo, PartitionTable, Sector,
+};
 
 use super::get_str;
 use ffi::AsMutPtr;
