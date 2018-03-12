@@ -689,57 +689,35 @@ impl Disk {
             self.path().display()
         );
 
-        // TODO: Collect less
-
-        // Ensure that mount targets are carried over in the new data.
-        let mounts: Vec<(u64, PathBuf)> = self.partitions
+        // Back up any fields that need to be carried over after reloading disk data.
+        let collected = self.partitions
             .iter()
-            .filter_map(|p| match p.target {
-                Some(ref path) => Some((p.start_sector, path.to_path_buf())),
-                None => None,
+            .filter_map(|partition| {
+                let start = partition.start_sector;
+                let mount = partition.target.as_ref().map(|ref path| path.to_path_buf());
+                let vg = partition.volume_group.as_ref().map(|vg| vg.clone());
+                let keyid = partition.key_id.as_ref().map(|id| id.clone());
+                if mount.is_some() || vg.is_some() || keyid.is_some() {
+                    Some((start, mount, vg, keyid))
+                } else {
+                    None
+                }
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        // Ensure that volume groups are carried over in the new data.
-        let vol_groups: Vec<(u64, (String, Option<LvmEncryption>))> = self.partitions
-            .iter()
-            .filter_map(|p| {
-                p.volume_group
-                    .as_ref()
-                    .map(|vg| (p.start_sector, vg.clone()))
-            })
-            .collect();
-
-        // Same for key IDs
-        let key_ids: Vec<(u64, String)> = self.partitions
-            .iter()
-            .filter_map(|p| p.key_id.as_ref().map(|id| (p.start_sector, id.clone())))
-            .collect();
-
+        // Reload the disk data by re-probing and replacing `self` with the new data.
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
 
-        for (sector, mount) in mounts {
+        // Then re-add the critical information which was lost.
+        for (sector, mount, vg, keyid) in collected {
             info!("libdistinst: checking for mount target at {}", sector);
             let part = self.get_partition_at(sector)
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
-            part.target = Some(mount);
-        }
 
-        for (sector, volgroup) in vol_groups {
-            info!("libdistinst: checking for mount target at {}", sector);
-            let part = self.get_partition_at(sector)
-                .and_then(|num| self.get_partition_mut(num))
-                .expect("partition sectors are off");
-            part.volume_group = Some(volgroup);
-        }
-
-        for (sector, id) in key_ids {
-            info!("libdistinst: checking for mount target at {}", sector);
-            let part = self.get_partition_at(sector)
-                .and_then(|num| self.get_partition_mut(num))
-                .expect("partition sectors are off");
-            part.key_id = Some(id);
+            part.target = mount;
+            part.volume_group = vg;
+            part.key_id = keyid;
         }
 
         Ok(())
