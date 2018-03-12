@@ -5,6 +5,10 @@ use std::path::PathBuf;
 #[cfg_attr(rustfmt, rustfmt_skip)]
 #[derive(Debug, Fail)]
 pub enum DiskError {
+    #[fail(display = "failed to decrypt '{:?}': {}", device, why)]
+    Decryption { device: PathBuf, why: io::Error },
+    #[fail(display = "decrypted partition, '{:?}', lacks volume group", device)]
+    DecryptedLacksVG { device: PathBuf },
     #[fail(display = "unable to get device: {}", why)]
     DeviceGet { why: io::Error },
     #[fail(display = "unable to probe for devices")]
@@ -47,6 +51,8 @@ pub enum DiskError {
     LogicalVolumeCreate { why: io::Error },
     #[fail(display = "logical partition '{}-{}' does not exist", group, volume)]
     LogicalPartitionNotFound { group: String, volume: String },
+    #[fail(display = "LUKS partition at '{:?}' was not found", device)]
+    LuksNotFound { device: PathBuf },
     #[fail(display = "unable to get mount points: {}", why)]
     MountsObtain { why: io::Error },
     #[fail(display = "new partition could not be found")]

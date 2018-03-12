@@ -1,8 +1,8 @@
-use super::{get_size, get_uuid, Disk};
+use super::{get_size, get_uuid, Disk, LvmEncryption};
 use super::find_partition;
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
-use super::super::external::{blkid_partition, cryptsetup_close, lvs, pvremove, pvs, vgdeactivate, vgremove};
+use super::super::external::{blkid_partition, cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
 use super::super::mounts::Mounts;
@@ -147,6 +147,63 @@ impl Disks {
         }
 
         Ok(())
+    }
+
+    /// Attempts to deactivate the
+    pub fn decrypt_partition(&mut self, path: &Path, enc: LvmEncryption) -> Result<(), DiskError> {
+        // An intermediary value that can avoid the borrowck issue.
+        let mut new_device = None;
+
+        // Attempt to find the device in the configuration.
+        for device in &mut self.physical {
+            for partition in &mut device.partitions {
+                if &partition.device_path == path {
+                    // Attempt to decrypt the device.
+                    cryptsetup_open(path, &enc).map_err(|why| DiskError::Decryption {
+                        device: path.to_path_buf(),
+                        why,
+                    })?;
+
+                    // Determine which VG the newly-decrypted device belongs to.
+                    match pvs().unwrap().remove(&PathBuf::from(
+                        ["/dev/mapper/", &enc.physical_volume].concat(),
+                    )) {
+                        Some(Some(vg)) => {
+                            // Set values in the device's partition.
+                            partition.volume_group = Some((vg.clone(), Some(enc.clone())));
+
+                            // Create a new LvmDevice structure.
+                            new_device = Some(LvmDevice::new(
+                                vg,
+                                Some(enc.clone()),
+                                partition.sectors(),
+                                device.sector_size,
+                                true,
+                            ));
+
+                            break;
+                        }
+                        _ => {
+                            // NOTE: Should we handle this in some way?
+                            return Err(DiskError::DecryptedLacksVG {
+                                device: path.to_path_buf(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        match new_device {
+            // Add the new LVM device to the disk configuration
+            Some(device) => {
+                self.logical.push(device);
+                Ok(())
+            }
+            None => Err(DiskError::LuksNotFound {
+                device: path.to_path_buf(),
+            }),
+        }
     }
 
     /// Sometimes, physical devices themselves may be mounted directly.

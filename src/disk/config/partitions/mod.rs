@@ -143,6 +143,7 @@ pub struct PartitionInfo {
     /// The pre-existing volume group assigned to this partition.
     pub original_vg: Option<String>,
     /// The volume group & LUKS configuration to associate with this device.
+    // TODO: Separate the tuple?
     pub volume_group: Option<(String, Option<LvmEncryption>)>,
     /// If the partition is associated with a keyfile, this will name the key.
     pub key_id: Option<String>,

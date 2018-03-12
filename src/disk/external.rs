@@ -283,12 +283,13 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
     }
 }
 
-/// Opens an encrypted partition and maps it to the group name.
-pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -> io::Result<()> {
+/// Opens an encrypted partition and maps it to the pv name.
+pub(crate) fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
+    let pv = &enc.physical_volume;
     info!(
-        "libdistinst: cryptsetup is opening {} with group {} and {:?}",
+        "libdistinst: cryptsetup is opening {} with pv {} and {:?}",
         device.display(),
-        group,
+        pv,
         enc
     );
     match (enc.password.as_ref(), enc.keydata.as_ref()) {
@@ -297,7 +298,7 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
             "cryptsetup",
             Some(&append_newline(password.as_bytes())),
             None,
-            &["open".into(), device.into(), group.into()],
+            &["open".into(), device.into(), pv.into()],
         ),
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
@@ -313,7 +314,7 @@ pub(crate) fn cryptsetup_open(device: &Path, group: &str, enc: &LvmEncryption) -
                 &[
                     "open".into(),
                     device.into(),
-                    group.into(),
+                    pv.into(),
                     "--key-file".into(),
                     keypath.into(),
                 ],
