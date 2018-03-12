@@ -204,6 +204,12 @@ impl Installer {
             return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
         }
 
+        // Unmount any mounted devices.
+        if let Err(why) = disks.ummount_devices() {
+            error!("device unmount error: {}", why);
+            return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
+        }
+
         let squashfs = match Path::new(&config.squashfs).canonicalize() {
             Ok(squashfs) => if squashfs.exists() {
                 info!("config.squashfs: found at {}", squashfs.display());

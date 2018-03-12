@@ -4,7 +4,7 @@ use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
 use super::super::external::{blkid_partition, cryptsetup_close, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
-use super::super::mount::umount;
+use super::super::mount::{self, umount};
 use super::super::mounts::Mounts;
 use libparted::{Device, DeviceType};
 
@@ -136,6 +136,22 @@ impl Disks {
         {
             if let Some(ref vg) = *entry {
                 vgremove(vg).map_err(|why| DiskError::ExternalCommand { why })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Sometimes, physical devices themselves may be mounted directly.
+    pub fn ummount_devices(&self) -> Result<(), DiskError> {
+        let mounts = Mounts::new().unwrap();
+        for device in self.get_physical_devices() {
+            if let Some(mount) = mounts.get_mount_point(&device.get_device_path()) {
+                info!(
+                    "libdistinst: unmounting device mounted at {}",
+                    mount.display()
+                );
+                mount::umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
             }
         }
 
