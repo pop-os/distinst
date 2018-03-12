@@ -513,6 +513,19 @@ namespace Distinst {
         public int initialize_volume_groups ();
 
         /**
+         * Decrypts the specified LUKS partition by its device path.
+         * 
+         * # Return Values
+         * 
+         * - 0 means success
+         * - 1 means that critical input values were null
+         * - 2 indicates that a UTF-8 error occurred
+         * - 3 indicates that neither a password or keydata was supplied
+         * - 4 indicates an error when decrypting the partition -- likely an invalid password.
+         */
+        public int decrypt_partition (string path, LvmEncryption encryption);
+
+        /**
          * Finds the logical device which is associated with the given volume group.
          */
         public unowned LvmDevice find_logical_volume (string volume_group);

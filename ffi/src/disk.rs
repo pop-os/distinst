@@ -2,18 +2,19 @@ use libc;
 
 use std::ffi::{CStr, CString, OsStr};
 use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::ptr;
 
 use distinst::{
-    Disk, DiskExt, Disks, FileSystemType, LvmDevice, PartitionBuilder, PartitionInfo,
-    PartitionTable, Sector,
+    Disk, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder,
+    PartitionInfo, PartitionTable, Sector,
 };
 
 use super::get_str;
 use ffi::AsMutPtr;
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use gen_object_ptr;
-use lvm::DistinstLvmDevice;
+use lvm::{DistinstLvmDevice, DistinstLvmEncryption};
 use partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
 use sector::DistinstSector;
 
@@ -342,6 +343,34 @@ pub unsafe extern "C" fn distinst_disks_list_logical(
 
     *len = output.len() as libc::c_int;
     Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstLvmDevice
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_decrypt_partition(
+    disks: *mut DistinstDisks,
+    path: *const libc::c_char,
+    enc: *mut DistinstLvmEncryption,
+) -> libc::c_int {
+    if enc.is_null() || path.is_null() || (*enc).physical_volume.is_null() {
+        return 1;
+    }
+
+    get_str(path, "").ok().map_or(2, |path| {
+        get_str((*enc).physical_volume, "").ok().map_or(3, |pv| {
+            let password = get_str((*enc).password, "").ok().map(String::from);
+            let keydata = get_str((*enc).keydata, "").ok().map(String::from);
+            if password.is_none() && keydata.is_none() {
+                4
+            } else {
+                let enc = LvmEncryption::new(pv.into(), password, keydata);
+                let disks = &mut *(disks as *mut Disks);
+                disks
+                    .decrypt_partition(&Path::new(path), enc)
+                    .ok()
+                    .map_or(5, |_| 0)
+            }
+        })
+    })
 }
 
 #[no_mangle]
