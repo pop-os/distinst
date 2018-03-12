@@ -149,7 +149,11 @@ impl Disks {
         Ok(())
     }
 
-    /// Attempts to deactivate the
+    /// Attempts to decrypt the specified partition.
+    ///
+    /// If successful, the new device will be added as a logical disk.
+    /// At the moment, only LVM on LUKS configurations are supported here.
+    /// LUKS on LUKS, or Something on LUKS, will simply error.
     pub fn decrypt_partition(&mut self, path: &Path, enc: LvmEncryption) -> Result<(), DiskError> {
         // An intermediary value that can avoid the borrowck issue.
         let mut new_device = None;
@@ -165,9 +169,8 @@ impl Disks {
                     })?;
 
                     // Determine which VG the newly-decrypted device belongs to.
-                    match pvs().unwrap().remove(&PathBuf::from(
-                        ["/dev/mapper/", &enc.physical_volume].concat(),
-                    )) {
+                    let pv = &PathBuf::from(["/dev/mapper/", &enc.physical_volume].concat());
+                    match pvs().unwrap().remove(pv) {
                         Some(Some(vg)) => {
                             // Set values in the device's partition.
                             partition.volume_group = Some((vg.clone(), Some(enc.clone())));
@@ -184,6 +187,9 @@ impl Disks {
                             break;
                         }
                         _ => {
+                            // Attempt to close the device as we've failed to find a VG.
+                            let _ = cryptsetup_close(pv);
+
                             // NOTE: Should we handle this in some way?
                             return Err(DiskError::DecryptedLacksVG {
                                 device: path.to_path_buf(),

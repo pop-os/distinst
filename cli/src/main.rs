@@ -31,6 +31,8 @@ enum DistinstError {
     InvalidTable { table: String },
     #[fail(display = "partition type must be either 'primary' or 'logical'")]
     InvalidPartitionType,
+    #[fail(display = "decryption argument requires four values")]
+    DecryptArgs,
     #[fail(display = "disk at '{}' could not be found", disk)]
     DiskNotFound { disk: String },
     #[fail(display = "no block argument provided")]
@@ -186,30 +188,37 @@ fn main() {
         )
         .arg(
             Arg::with_name("logical")
-                .long("--logical")
+                .long("logical")
                 .help("creates a partition on a LVM volume group")
                 .takes_value(true)
                 .multiple(true),
         )
         .arg(
             Arg::with_name("logical-modify")
-                .long("--logical-modify")
+                .long("logical-modify")
                 .help("modifies an existing LVM volume group")
                 .takes_value(true)
                 .multiple(true),
         )
         .arg(
             Arg::with_name("logical-remove")
-                .long("--logical-remove")
+                .long("logical-remove")
                 .help("removes an existing LVM logical volume")
                 .takes_value(true)
                 .multiple(true),
         )
         .arg(
             Arg::with_name("logical-remove-all")
-                .long("--logical-remove-all")
+                .long("logical-remove-all")
                 .help("TODO")
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("decrypt")
+                .long("decrypt")
+                .help("decrypts an existing LUKS partition")
+                .takes_value(true)
+                .multiple(true),
         )
         .get_matches();
 
@@ -346,6 +355,32 @@ enum PartType {
     Lvm(String, Option<LvmEncryption>),
 }
 
+fn parse_key(
+    key: &str,
+    pass: &mut Option<String>,
+    keydata: &mut Option<String>,
+) -> Result<(), DistinstError> {
+    if key.starts_with("pass=") {
+        let passval = &key[5..];
+        if passval.is_empty() {
+            return Err(DistinstError::EmptyPassword);
+        }
+
+        *pass = Some(passval.into());
+    } else if key.starts_with("keyfile=") {
+        let keyval = &key[8..];
+        if keyval.is_empty() {
+            return Err(DistinstError::EmptyKeyValue);
+        }
+
+        *keydata = Some(keyval.into());
+    } else {
+        return Err(DistinstError::InvalidField { field: key.into() });
+    }
+
+    Ok(())
+}
+
 fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
     if fs.starts_with("enc=") {
         let (mut pass, mut keydata) = (None, None);
@@ -362,25 +397,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
             .ok_or(DistinstError::NoVolumeGroup)?;
 
         for field in fields {
-            if field.starts_with("pass=") {
-                let passval = &field[5..];
-                if passval.is_empty() {
-                    return Err(DistinstError::EmptyPassword);
-                }
-
-                pass = Some(passval.into());
-            } else if field.starts_with("keyfile=") {
-                let keyval = &field[8..];
-                if keyval.is_empty() {
-                    return Err(DistinstError::EmptyKeyValue);
-                }
-
-                keydata = Some(keyval.into());
-            } else {
-                return Err(DistinstError::InvalidField {
-                    field: field.into(),
-                });
-            }
+            parse_key(field, &mut pass, &mut keydata);
         }
 
         Ok(PartType::Lvm(
@@ -886,6 +903,26 @@ fn configure_lvm(
     Ok(())
 }
 
+fn configure_decrypt(disks: &mut Disks, decrypt: Option<Values>) -> Result<(), DistinstError> {
+    if let Some(decrypt) = decrypt {
+        for device in decrypt {
+            let values: Vec<&str> = device.split(':').collect();
+            if values.len() != 3 {
+                return Err(DistinstError::DecryptArgs);
+            }
+
+            let (device, pv) = (Path::new(values[0]), values[1].into());
+
+            let (mut pass, mut keydata) = (None, None);
+            parse_key(&values[2], &mut pass, &mut keydata)?;
+
+            disks.decrypt_partition(device, LvmEncryption::new(pv, pass, keydata));
+        }
+    }
+
+    Ok(())
+}
+
 fn configure_disks(matches: &ArgMatches) -> Result<Disks, DistinstError> {
     let mut disks = Disks::new();
 
@@ -906,6 +943,8 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DistinstError> {
     disks
         .initialize_volume_groups()
         .map_err(|why| DistinstError::InitializeVolumes { why })?;
+    eprintln!("distinst: handling pre-existing LUKS partitions");
+    configure_decrypt(&mut disks, matches.values_of("decrypt"))?;
     eprintln!("distinst: configuring LVM devices");
     configure_lvm(
         &mut disks,
