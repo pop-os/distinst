@@ -33,7 +33,7 @@ use tempdir::TempDir;
 pub use automatic::{InstallOption, InstallOptions};
 pub use chroot::Chroot;
 pub use disk::{
-    Bootloader, Disk, DiskError, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption,
+    Bootloader, Disk, DiskError, DiskExt, Disks, DecryptionError, FileSystemType, LvmDevice, LvmEncryption,
     PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 pub use disk::mount::{Mount, Mounts};

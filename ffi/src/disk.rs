@@ -6,7 +6,7 @@ use std::path::Path;
 use std::ptr;
 
 use distinst::{
-    Disk, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder,
+    Disk, DiskExt, DecryptionError, Disks, FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder,
     PartitionInfo, PartitionTable, Sector,
 };
 
@@ -364,10 +364,17 @@ pub unsafe extern "C" fn distinst_disks_decrypt_partition(
             } else {
                 let enc = LvmEncryption::new(pv.into(), password, keydata);
                 let disks = &mut *(disks as *mut Disks);
-                disks
-                    .decrypt_partition(&Path::new(path), enc)
-                    .ok()
-                    .map_or(4, |_| 0)
+                match disks.decrypt_partition(&Path::new(path), enc) {
+                    Ok(_) => 0,
+                    Err(why) => {
+                        error!("decryption error: {}", why);
+                        match why {
+                            DecryptionError::Open { .. } => 4,
+                            DecryptionError::DecryptedLacksVG { .. } => 5,
+                            DecryptionError::LuksNotFound { .. } => 6,
+                        }
+                    }
+                }
             }
         })
     })

@@ -1,7 +1,7 @@
 use super::{get_size, get_uuid, Disk, LvmEncryption};
 use super::find_partition;
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
+use super::super::{Bootloader, DiskError, DiskExt, DecryptionError, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
 use super::super::external::{blkid_partition, cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
@@ -154,7 +154,7 @@ impl Disks {
     /// If successful, the new device will be added as a logical disk.
     /// At the moment, only LVM on LUKS configurations are supported here.
     /// LUKS on LUKS, or Something on LUKS, will simply error.
-    pub fn decrypt_partition(&mut self, path: &Path, enc: LvmEncryption) -> Result<(), DiskError> {
+    pub fn decrypt_partition(&mut self, path: &Path, enc: LvmEncryption) -> Result<(), DecryptionError> {
         // An intermediary value that can avoid the borrowck issue.
         let mut new_device = None;
 
@@ -163,7 +163,7 @@ impl Disks {
             for partition in &mut device.partitions {
                 if &partition.device_path == path {
                     // Attempt to decrypt the device.
-                    cryptsetup_open(path, &enc).map_err(|why| DiskError::Decryption {
+                    cryptsetup_open(path, &enc).map_err(|why| DecryptionError::Open {
                         device: path.to_path_buf(),
                         why,
                     })?;
@@ -191,7 +191,7 @@ impl Disks {
                             let _ = cryptsetup_close(pv);
 
                             // NOTE: Should we handle this in some way?
-                            return Err(DiskError::DecryptedLacksVG {
+                            return Err(DecryptionError::DecryptedLacksVG {
                                 device: path.to_path_buf(),
                             });
                         }
@@ -206,7 +206,7 @@ impl Disks {
                 self.logical.push(device);
                 Ok(())
             }
-            None => Err(DiskError::LuksNotFound {
+            None => Err(DecryptionError::LuksNotFound {
                 device: path.to_path_buf(),
             }),
         }

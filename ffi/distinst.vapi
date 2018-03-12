@@ -521,7 +521,9 @@ namespace Distinst {
          * - 1 means that critical input values were null
          * - 2 indicates that a UTF-8 error occurred
          * - 3 indicates that neither a password or keydata was supplied
-         * - 4 indicates an error when decrypting the partition -- likely an invalid password.
+         * - 4 indicates an error when decrypting the partition -- likely an invalid password
+         * - 5 indicates that the decrypted partition lacks a LVM volume group
+         * - 6 indicates that the specified LUKS partition at `path` was not found
          */
         public int decrypt_partition (string path, LvmEncryption encryption);
 
