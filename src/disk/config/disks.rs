@@ -4,8 +4,9 @@ use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
 use super::super::external::{blkid_partition, cryptsetup_close, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
-use super::super::mount::{self, umount};
+use super::super::mount::{self, swapoff, umount};
 use super::super::mounts::Mounts;
+use super::super::swaps::Swaps;
 use libparted::{Device, DeviceType};
 
 use itertools::Itertools;
@@ -90,14 +91,20 @@ impl Disks {
     /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
         let mounts = Mounts::new().unwrap();
+        let swaps = Swaps::new().unwrap();
         let umount = move |vg: &str| -> Result<(), DiskError> {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
+                eprintln!("LV: {:?}", lv);
                 if let Some(mount) = mounts.get_mount_point(&lv) {
                     info!(
                         "libdistinst: unmounting logical volume mounted at {}",
                         mount.display()
                     );
                     umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
+                } else if let Ok(lv) = lv.canonicalize() {
+                    if swaps.get_swapped(&lv) {
+                        swapoff(&lv).map_err(|why| DiskError::Unmount { why })?;
+                    }
                 }
             }
 
