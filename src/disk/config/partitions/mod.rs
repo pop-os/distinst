@@ -96,23 +96,23 @@ pub enum PartitionType {
     Logical,
 }
 
-// TODO: Compress boolean fields into a single byte.
+// Defines that this partition exists in the source.
+pub(crate) const SOURCE: u8 = 0b000001;
+// Defines that this partition will be removed.
+pub(crate) const REMOVE: u8 = 0b000010;
+// Defines that this partition will be formatted.
+pub(crate) const FORMAT: u8 = 0b000100;
+// Defines that this partition is currently active.
+pub(crate) const ACTIVE: u8 = 0b001000;
+// Defines that this partition is currently busy.
+pub(crate) const BUSY: u8 = 0b010000;
+// Defines that this partition is currently swapped.
+pub(crate) const SWAPPED: u8 = 0b100000;
 
 /// Contains relevant information about a certain partition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PartitionInfo {
-    /// If set to true, this is a source partition, which means it currently exists on the
-    /// disk.
-    pub(crate) is_source: bool,
-    /// Source partitions will set this field. If set, this partition will be
-    /// removed.
-    pub(crate) remove: bool,
-    /// Whether the filesystem should be formatted or not.
-    pub format: bool,
-    /// If the partition is currently active, this will be true.
-    pub active: bool,
-    /// If the partition is currently busy, this will be true.
-    pub busy: bool,
+    pub(crate) bitflags: u8,
     /// The partition number is the numeric value that follows the disk's device path.
     /// IE: _/dev/sda1_
     pub number: i32,
@@ -138,8 +138,6 @@ pub struct PartitionInfo {
     pub device_path: PathBuf,
     /// Where this partition is mounted in the file system, if at all.
     pub mount_point: Option<PathBuf>,
-    /// True if the partition is currently used for swap
-    pub swapped: bool,
     /// Where this partition will be mounted in the future
     pub target: Option<PathBuf>,
     /// The pre-existing volume group assigned to this partition.
@@ -185,24 +183,25 @@ impl PartitionInfo {
         }
 
         Ok(Some(PartitionInfo {
-            is_source: true,
-            remove: false,
-            format: false,
+            bitflags: SOURCE | if partition.is_active() { ACTIVE } else { 0 }
+                | if partition.is_busy() { BUSY } else { 0 }
+                | if swaps.get_swapped(&device_path) {
+                    SWAPPED
+                } else {
+                    0
+                },
             part_type: match partition.type_get_name() {
                 "primary" => PartitionType::Primary,
                 "logical" => PartitionType::Logical,
                 _ => return Ok(None),
             },
             mount_point: mounts.get_mount_point(&device_path),
-            swapped: swaps.get_swapped(&device_path),
             target: None,
             filesystem,
             flags: get_flags(partition),
             number: partition.num(),
             name: filesystem.and_then(|fs| get_label(&device_path, fs)),
             device_path,
-            active: partition.is_active(),
-            busy: partition.is_busy(),
             start_sector: partition.geom_start() as u64,
             end_sector: partition.geom_end() as u64,
             original_vg,
@@ -210,6 +209,10 @@ impl PartitionInfo {
             key_id: None,
         }))
     }
+
+    pub(crate) fn flag_is_enabled(&self, flag: u8) -> bool { self.bitflags & flag != 0 }
+
+    pub(crate) fn flag_disable(&mut self, flag: u8) { self.bitflags &= 255 ^ flag; }
 
     /// Assigns the partition to a keyfile ID.
     pub fn associate_keyfile(&mut self, id: String) {
@@ -234,7 +237,8 @@ impl PartitionInfo {
     pub fn get_device_path(&self) -> &Path { &self.device_path }
 
     pub(crate) fn requires_changes(&self, other: &PartitionInfo) -> bool {
-        self.sectors_differ_from(other) || self.filesystem != other.filesystem || other.format
+        self.sectors_differ_from(other) || self.filesystem != other.filesystem
+            || other.flag_is_enabled(FORMAT)
     }
 
     pub(crate) fn sectors_differ_from(&self, other: &PartitionInfo) -> bool {
@@ -242,7 +246,7 @@ impl PartitionInfo {
     }
 
     pub(crate) fn is_same_partition_as(&self, other: &PartitionInfo) -> bool {
-        self.is_source && other.is_source && self.number == other.number
+        self.flag_is_enabled(SOURCE) && other.flag_is_enabled(SOURCE) && self.number == other.number
     }
 
     /// Defines a mount target for this partition.
@@ -260,7 +264,7 @@ impl PartitionInfo {
     /// Defines that a new file system will be applied to this partition.
     /// NOTE: this will also unset the partition's name.
     pub fn format_with(&mut self, fs: FileSystemType) {
-        self.format = true;
+        self.bitflags |= FORMAT;
         self.filesystem = Some(fs);
         self.name = None;
     }
@@ -268,7 +272,7 @@ impl PartitionInfo {
     /// Defines that a new file system will be applied to this partition.
     /// Unlike `format_with`, this will not remove the name.
     pub fn format_and_keep_name(&mut self, fs: FileSystemType) {
-        self.format = true;
+        self.bitflags |= FORMAT;
         self.filesystem = Some(fs);
     }
 
@@ -290,7 +294,7 @@ impl PartitionInfo {
     }
 
     /// Specifies to delete this partition from the partition table.
-    pub fn remove(&mut self) { self.remove = true; }
+    pub fn remove(&mut self) { self.bitflags |= REMOVE; }
 
     /// Obtains bock information for the partition, if possible, for use with
     /// generating entries in "/etc/fstab".

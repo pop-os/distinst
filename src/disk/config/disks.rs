@@ -1,5 +1,6 @@
 use super::{get_size, get_uuid, Disk};
 use super::find_partition;
+use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::{Bootloader, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
 use super::super::external::{blkid_partition, cryptsetup_close, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
@@ -72,7 +73,9 @@ impl Disks {
             } else {
                 for part in dev.get_partitions()
                     .iter()
-                    .filter(|part| part.is_source && (part.remove || part.format))
+                    .filter(|part| {
+                        part.flag_is_enabled(SOURCE) && part.flag_is_enabled(REMOVE | FORMAT)
+                    })
                     .map(|part| part.get_device_path())
                 {
                     output.push(part.to_path_buf());
@@ -569,11 +572,7 @@ impl Disks {
                 for path in logical_paths {
                     let length = get_size(&path).unwrap_or(0);
                     let partition = PartitionInfo {
-                        is_source: true,
-                        remove: false,
-                        format: false,
-                        active: false,
-                        busy: false,
+                        bitflags: SOURCE,
                         // This value doesn't matter to a logical volume.
                         number: -1,
                         start_sector,
@@ -589,7 +588,6 @@ impl Disks {
                         },
                         device_path: path,
                         mount_point: None,
-                        swapped: false,
                         target: None,
                         original_vg: None,
                         // TODO: Check if this partition is assigned to a VG?
@@ -645,7 +643,7 @@ impl Disks {
         for device in &mut self.logical {
             for partition in &mut device.partitions {
                 // ... unless it is populated, due to existing beforehand.
-                if partition.is_source {
+                if partition.flag_is_enabled(SOURCE) {
                     continue;
                 }
                 let label = partition.name.as_ref().unwrap();

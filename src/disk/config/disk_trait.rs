@@ -1,4 +1,4 @@
-use super::partitions::check_partition_size;
+use super::partitions::{check_partition_size, REMOVE};
 use super::super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector};
 use std::fs::File;
 use std::io::Read;
@@ -59,7 +59,7 @@ pub trait DiskExt {
     fn overlaps_region(&self, start: u64, end: u64) -> Option<i32> {
         self.get_partitions().iter()
             // Only consider partitions which are not set to be removed.
-            .filter(|part| !part.remove)
+            .filter(|part| !part.flag_is_enabled(REMOVE))
             // Return upon the first partition where the sector is within the partition.
             .find(|part|
                 !(
@@ -74,7 +74,7 @@ pub trait DiskExt {
     fn get_used(&self) -> u64 {
         self.get_partitions()
             .iter()
-            .filter(|p| !p.remove)
+            .filter(|p| !p.flag_is_enabled(REMOVE))
             .map(|p| p.sectors())
             .sum()
     }

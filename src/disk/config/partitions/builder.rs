@@ -1,4 +1,4 @@
-use super::{FileSystemType, LvmEncryption, PartitionFlag, PartitionInfo, PartitionType};
+use super::{FileSystemType, LvmEncryption, PartitionFlag, PartitionInfo, PartitionType, FORMAT};
 use std::path::PathBuf;
 
 /// Partition builders are supplied as inputs to `Disk::add_partition`.
@@ -81,11 +81,7 @@ impl PartitionBuilder {
     /// Builds a brand new Partition from the current state of the builder.
     pub fn build(self) -> PartitionInfo {
         PartitionInfo {
-            is_source:    false,
-            remove:       false,
-            format:       true,
-            active:       false,
-            busy:         false,
+            bitflags:     FORMAT,
             number:       -1,
             start_sector: self.start_sector,
             end_sector:   self.end_sector,
@@ -103,7 +99,6 @@ impl PartitionBuilder {
             name:         self.name,
             device_path:  PathBuf::new(),
             mount_point:  None,
-            swapped:      false,
             target:       self.mount,
             original_vg:  None,
             volume_group: self.volume_group.clone(),

@@ -3,7 +3,7 @@ mod encryption;
 
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
-use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType};
+use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE};
 use super::super::external::{lvcreate, lvremove, mkfs, vgcreate};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -97,7 +97,7 @@ impl LvmDevice {
         self.get_partitions()
             .iter()
             .rev()
-            .find(|p| !p.remove)
+            .find(|p| !p.flag_is_enabled(REMOVE))
             .map_or(0, |p| p.end_sector)
     }
 
@@ -150,7 +150,7 @@ impl LvmDevice {
             let label = partition.name.as_ref().unwrap().as_str();
 
             // Don't create a partition if it already exists.
-            if !partition.is_source {
+            if !partition.flag_is_enabled(SOURCE) {
                 lvcreate(
                     &self.volume_group,
                     label,
@@ -162,10 +162,10 @@ impl LvmDevice {
                 ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
             }
 
-            if partition.remove {
+            if partition.flag_is_enabled(REMOVE) {
                 lvremove(&self.volume_group, label)
                     .map_err(|why| DiskError::PartitionRemove { partition: -1, why })?;
-            } else if partition.format {
+            } else if partition.flag_is_enabled(FORMAT) {
                 if let Some(fs) = partition.filesystem.as_ref() {
                     mkfs(&partition.device_path, fs.clone())
                         .map_err(|why| DiskError::PartitionFormat { why })?;

@@ -1,9 +1,9 @@
 use super::{get_device, open_disk, Disks};
+use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::super::{
     check_partition_size, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
     PartitionTable, PartitionType,
 };
-use super::super::lvm::LvmEncryption;
 use super::super::mount::{swapoff, umount};
 use super::super::operations::*;
 use super::super::serial::get_serial;
@@ -231,7 +231,7 @@ impl Disk {
 
             partition.mount_point = None;
 
-            if partition.swapped {
+            if partition.flag_is_enabled(SWAPPED) {
                 info!(
                     "libdistinst: unswapping '{}'",
                     partition.get_device_path().display(),
@@ -239,7 +239,7 @@ impl Disk {
                 swapoff(&partition.get_device_path())?;
             }
 
-            partition.swapped = false;
+            partition.flag_disable(SWAPPED);
         }
 
         Ok(())
@@ -278,8 +278,8 @@ impl Disk {
             .find(|&(_, ref p)| p.number == partition)
             .ok_or(DiskError::PartitionNotFound { partition })
             .map(|(id, p)| {
-                if p.is_source {
-                    p.remove = true;
+                if p.flag_is_enabled(SOURCE) {
+                    p.bitflags |= REMOVE;
                     0
                 } else {
                     id
@@ -443,7 +443,7 @@ impl Disk {
     fn get_partition_at(&self, sector: u64) -> Option<i32> {
         self.partitions.iter()
             // Only consider partitions which are not set to be removed.
-            .filter(|part| !part.remove)
+            .filter(|part| !part.flag_is_enabled(REMOVE))
             // Return upon the first partition where the sector is within the partition.
             .find(|part| sector >= part.start_sector && sector <= part.end_sector)
             // If found, return the partition number.
@@ -458,7 +458,7 @@ impl Disk {
         self.partitions.iter()
             // Only consider partitions which are not set to be removed,
             // and are not to be excluded.
-            .filter(|part| !part.remove && part.number != exclude)
+            .filter(|part| !part.flag_is_enabled(REMOVE) && part.number != exclude)
             // Return upon the first partition where the sector is within the partition.
             .find(|part|
                 !(
@@ -578,7 +578,7 @@ impl Disk {
                     let next_part = new_part.take().or_else(|| new_parts.next());
                     if let Some(new) = next_part {
                         // Source partitions may be removed or changed.
-                        if new.is_source {
+                        if new.flag_is_enabled(SOURCE) {
                             if source.number != new.number {
                                 unreachable!(
                                     "layout validation: wrong number: {} != {}",
@@ -586,13 +586,15 @@ impl Disk {
                                 );
                             }
 
-                            if new.remove {
+                            if new.flag_is_enabled(REMOVE) {
                                 remove_partitions.push(new.number);
                                 continue 'outer;
                             }
 
                             if source.requires_changes(new) {
-                                if new.format || source.filesystem == Some(FileSystemType::Swap) {
+                                if new.flag_is_enabled(FORMAT)
+                                    || source.filesystem == Some(FileSystemType::Swap)
+                                {
                                     remove_partitions.push(new.number);
                                     create_partitions.push(PartitionCreate {
                                         path:         self.device_path.clone(),
@@ -638,7 +640,7 @@ impl Disk {
 
         // Handle all of the non-source partitions, which are to be added to the disk.
         for partition in new_parts {
-            if partition.is_source {
+            if partition.flag_is_enabled(SOURCE) {
                 unreachable!("layout validation: extra sources")
             }
 
