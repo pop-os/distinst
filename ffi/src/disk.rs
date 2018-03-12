@@ -5,10 +5,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
 
-use distinst::{
-    Disk, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder,
-    PartitionInfo, PartitionTable, Sector,
-};
+use distinst::{LvmEncryption, PartitionBuilder, PartitionInfo, PartitionTable, Sector};
 
 use super::get_str;
 use ffi::AsMutPtr;
@@ -356,36 +353,19 @@ pub unsafe extern "C" fn distinst_disks_decrypt_partition(
     }
 
     get_str(path, "").ok().map_or(2, |path| {
-        get_str((*enc).physical_volume, "").ok().map_or(3, |pv| {
+        get_str((*enc).physical_volume, "").ok().map_or(2, |pv| {
             let password = get_str((*enc).password, "").ok().map(String::from);
             let keydata = get_str((*enc).keydata, "").ok().map(String::from);
             if password.is_none() && keydata.is_none() {
-                4
+                3
             } else {
                 let enc = LvmEncryption::new(pv.into(), password, keydata);
                 let disks = &mut *(disks as *mut Disks);
                 disks
                     .decrypt_partition(&Path::new(path), enc)
                     .ok()
-                    .map_or(5, |_| 0)
+                    .map_or(4, |_| 0)
             }
         })
     })
-}
-
-#[no_mangle]
-/// TODO: This is to be used with vectors returned from `distinst_disks_list`.
-pub unsafe extern "C" fn distinst_disks_list_destroy(list: *mut DistinstDisk, len: libc::size_t) {
-    drop(Vec::from_raw_parts(list, len, len))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *mut DistinstDisk) {
-    (&mut *(disks as *mut Disks)).add(*Box::from_raw(disk as *mut Disk))
-}
-
-/// The deconstructor for a `DistinstDisks`.
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
-    drop(Box::from_raw(disks as *mut Disks))
 }
