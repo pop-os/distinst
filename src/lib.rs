@@ -500,7 +500,7 @@ impl Installer {
                 Command::new("mount")
                     .arg("--bind")
                     .arg("/cdrom")
-                    .arg(&mount_dir.join("tmp/cdrom"))
+                    .arg(&mount_dir.join("cdrom"))
                     .status()
                     .map_err(|why| DiskError::ExternalCommand { why })?;
             }

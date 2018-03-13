@@ -25,9 +25,9 @@ do
 done
 
 # Add the cdrom to APT, if it exists.
-if [ -d "/tmp/cdrom" ]
+if [ -d "/cdrom" ]
 then
-    apt-cdrom -d "/tmp/cdrom" -r
+    apt-cdrom --cdrom "/cdrom" add
 fi
 
 # Set the hostname
