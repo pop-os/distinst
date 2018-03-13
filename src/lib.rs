@@ -33,8 +33,9 @@ use tempdir::TempDir;
 pub use automatic::{InstallOption, InstallOptions};
 pub use chroot::Chroot;
 pub use disk::{
-    Bootloader, Disk, DiskError, DiskExt, Disks, DecryptionError, FileSystemType, LvmDevice, LvmEncryption,
-    PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector,
+    Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks, FileSystemType, LvmDevice,
+    LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
+    Sector,
 };
 pub use disk::mount::{Mount, Mounts};
 
@@ -494,19 +495,19 @@ impl Installer {
         callback(60);
 
         {
-            // Mount the cdrom to $CHROOT/tmp/cdrom, if it exists.
-            use ::std::process::Command;
-            if Path::new("/cdrom").exists() {
-                Command::new("mount")
-                    .arg("--bind")
-                    .arg("/cdrom")
-                    .arg(&mount_dir.join("cdrom"))
-                    .status()
-                    .map_err(|why| DiskError::ExternalCommand { why })?;
-            }
-        }
+            let cdrom_target = mount_dir.join("cdrom");
+            let cdrom_mount = {
+                let source = Path::new("/cdrom");
+                if source.exists() {
+                    info!("libdistinst: mounting cdrom");
+                    use disk::external::{ExternalMount, BIND};
+                    Some(ExternalMount::new(source, &cdrom_target, BIND)
+                        .map_err(|why| DiskError::ExternalCommand { why })?)
+                } else {
+                    None
+                }
+            };
 
-        {
             info!(
                 "libdistinst: chrooting into target on {}",
                 mount_dir.display()
@@ -597,6 +598,8 @@ impl Installer {
                 ));
             }
 
+            // Ensure that the cdrom binding is unmounted before the chroot.
+            drop(cdrom_mount);
             chroot.unmount(false)?;
         }
 

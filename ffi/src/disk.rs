@@ -6,8 +6,8 @@ use std::path::Path;
 use std::ptr;
 
 use distinst::{
-    Disk, DiskExt, DecryptionError, Disks, FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder,
-    PartitionInfo, PartitionTable, Sector,
+    DecryptionError, Disk, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption,
+    PartitionBuilder, PartitionInfo, PartitionTable, Sector,
 };
 
 use super::get_str;
