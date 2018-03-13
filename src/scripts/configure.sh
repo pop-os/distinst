@@ -45,12 +45,12 @@ update-locale --reset "LANG=${LANG}"
 # Set keyboard
 localectl set-keymap "${KBD}"
 
+# Install grub packages
+apt-get install -y "${INSTALL_PKGS[@]}"
+
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"
 apt-get autoremove -y --purge
-
-# Install grub packages
-apt-get install -y "${INSTALL_PKGS[@]}"
 
 echo "ROOT_UUID = $ROOT_UUID"
 
