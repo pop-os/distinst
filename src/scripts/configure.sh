@@ -24,6 +24,12 @@ do
     fi
 done
 
+# Add the cdrom to APT, if it exists.
+if [ -d "/tmp/cdrom" ]
+then
+    apt-cdrom -d "/tmp/cdrom" -r
+fi
+
 # Set the hostname
 echo "${HOSTNAME}" > "/etc/hostname"
 

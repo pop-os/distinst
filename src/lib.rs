@@ -494,6 +494,19 @@ impl Installer {
         callback(60);
 
         {
+            // Mount the cdrom to $CHROOT/tmp/cdrom, if it exists.
+            use ::std::process::Command;
+            if Path::new("/cdrom").exists() {
+                Command::new("mount")
+                    .arg("--bind")
+                    .arg("/cdrom")
+                    .arg(&mount_dir.join("tmp/cdrom"))
+                    .status()
+                    .map_err(|why| DiskError::ExternalCommand { why })?;
+            }
+        }
+
+        {
             info!(
                 "libdistinst: chrooting into target on {}",
                 mount_dir.display()
