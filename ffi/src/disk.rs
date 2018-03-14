@@ -284,10 +284,10 @@ pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *mut DistinstDisk) {
+pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *const DistinstDisk) {
     let disks = &mut *(disks as *mut Disks);
-    let disk = disk as *mut Disk;
-    disks.add(disk.read());
+    let disk = &*(disk as *const Disk);
+    disks.add(disk.clone());
 }
 
 /// Probes the disk for information about every disk in the device.
