@@ -260,7 +260,7 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let _mount = ExternalMount::new(&keydata.0, tmpfs.path())?;
+            let _mount = ExternalMount::new(&keydata.0, tmpfs.path(), LAZY)?;
             let keypath = tmpfs.path().join(&enc.physical_volume);
 
             generate_keyfile(&keypath)?;
@@ -303,7 +303,7 @@ pub(crate) fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let _mount = ExternalMount::new(&keydata.0, tmpfs.path())?;
+            let _mount = ExternalMount::new(&keydata.0, tmpfs.path(), LAZY)?;
             let keypath = tmpfs.path().join(&enc.physical_volume);
             info!("libdistinst: keypath exists: {}", keypath.is_file());
 
@@ -482,17 +482,34 @@ fn generate_keyfile(path: &Path) -> io::Result<()> {
     keyfile.sync_all()
 }
 
-// TODO: Don't require this
-struct ExternalMount<'a> {
-    dest: &'a Path,
+pub(crate) const BIND: u8 = 0b01;
+pub(crate) const LAZY: u8 = 0b10;
+
+pub(crate) struct ExternalMount<'a> {
+    dest:  &'a Path,
+    flags: u8,
 }
 
 impl<'a> ExternalMount<'a> {
-    fn new(src: &'a Path, dest: &'a Path) -> io::Result<ExternalMount<'a>> {
-        exec("mount", None, None, &[src.into(), dest.into()]).map(|_| ExternalMount { dest })
+    pub(crate) fn new(src: &'a Path, dest: &'a Path, flags: u8) -> io::Result<ExternalMount<'a>> {
+        let args = if flags & BIND != 0 {
+            vec!["--bind".into(), src.into(), dest.into()]
+        } else {
+            vec![src.into(), dest.into()]
+        };
+
+        exec("mount", None, None, &args).map(|_| ExternalMount { dest, flags })
     }
 }
 
 impl<'a> Drop for ExternalMount<'a> {
-    fn drop(&mut self) { let _ = exec("umount", None, None, &["-l".into(), self.dest.into()]); }
+    fn drop(&mut self) {
+        let args = if self.flags & LAZY != 0 {
+            vec!["-l".into(), self.dest.into()]
+        } else {
+            vec![self.dest.into()]
+        };
+
+        let _ = exec("umount", None, None, &args);
+    }
 }
