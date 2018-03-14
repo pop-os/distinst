@@ -496,6 +496,7 @@ impl Installer {
 
         {
             let cdrom_target = mount_dir.join("cdrom");
+            let _ = fs::create_dir(&cdrom_target);
             let cdrom_mount = {
                 let source = Path::new("/cdrom");
                 if source.exists() {
@@ -600,6 +601,7 @@ impl Installer {
 
             // Ensure that the cdrom binding is unmounted before the chroot.
             drop(cdrom_mount);
+            let _ = fs::remove_dir(&cdrom_target);
             chroot.unmount(false)?;
         }
 
