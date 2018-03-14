@@ -283,6 +283,12 @@ pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
     Box::into_raw(Box::new(Disks::new())) as *mut DistinstDisks
 }
 
+/// A destructor for a `DistinstDisks`
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
+    drop(Box::from_raw(disks as *mut Disks))
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *const DistinstDisk) {
     let disks = &mut *(disks as *mut Disks);

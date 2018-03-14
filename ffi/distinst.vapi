@@ -309,7 +309,8 @@ namespace Distinst {
         public static Sector percent(uint16 value);
     }
 
-    [CCode (has_type_id = false, destroy_function = "distinst_disk_destroy", unref_function = "")]
+    [CCode (free_function = "distinst_disk_destroy", has_type_id = false)]
+    [Compact]
     public class Disk {
         public Disk (string path);
         public unowned uint8[] get_device_path();
@@ -481,7 +482,8 @@ namespace Distinst {
     /**
      * This object will contain all physical and logical disk configurations for the installer.
      */
-    [CCode (has_type_id = false, destroy_function = "distinst_disks_destroy", free_function = "", unref_function = "")]
+    [CCode (free_function = "distinst_disks_destroy", has_type_id = false)]
+    [Compact]
     public class Disks {
         public static Disks probe();
         public Disks ();
