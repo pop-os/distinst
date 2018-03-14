@@ -6,8 +6,8 @@ use std::path::Path;
 use std::ptr;
 
 use distinst::{
-    Disk, DiskExt, DecryptionError, Disks, FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder,
-    PartitionInfo, PartitionTable, Sector,
+    DecryptionError, Disk, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption,
+    PartitionBuilder, PartitionInfo, PartitionTable, Sector,
 };
 
 use super::get_str;
@@ -281,6 +281,13 @@ pub struct DistinstDisks;
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
     Box::into_raw(Box::new(Disks::new())) as *mut DistinstDisks
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *mut DistinstDisk) {
+    let disks = &mut *(disks as *mut Disks);
+    let disk = disk as *mut Disk;
+    disks.add(disk.read());
 }
 
 /// Probes the disk for information about every disk in the device.
