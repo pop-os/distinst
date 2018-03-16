@@ -113,9 +113,7 @@ pub enum DecryptionError {
 }
 
 impl From<DecryptionError> for DiskError {
-    fn from(why: DecryptionError) -> DiskError {
-        DiskError::Decryption { why }
-    }
+    fn from(why: DecryptionError) -> DiskError { DiskError::Decryption { why } }
 }
 
 impl From<DiskError> for io::Error {

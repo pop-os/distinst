@@ -1,7 +1,10 @@
 use super::{get_size, get_uuid, Disk, LvmEncryption};
 use super::find_partition;
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::super::{Bootloader, DiskError, DiskExt, DecryptionError, FileSystemType, PartitionFlag, PartitionInfo, PartitionType};
+use super::super::{
+    Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
+    PartitionType,
+};
 use super::super::external::{blkid_partition, cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
@@ -154,7 +157,11 @@ impl Disks {
     /// If successful, the new device will be added as a logical disk.
     /// At the moment, only LVM on LUKS configurations are supported here.
     /// LUKS on LUKS, or Something on LUKS, will simply error.
-    pub fn decrypt_partition(&mut self, path: &Path, enc: LvmEncryption) -> Result<(), DecryptionError> {
+    pub fn decrypt_partition(
+        &mut self,
+        path: &Path,
+        enc: LvmEncryption,
+    ) -> Result<(), DecryptionError> {
         // An intermediary value that can avoid the borrowck issue.
         let mut new_device = None;
 
