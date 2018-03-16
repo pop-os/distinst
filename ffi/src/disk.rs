@@ -89,11 +89,14 @@ pub unsafe extern "C" fn distinst_disk_get_partition(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_contains_root(
+pub unsafe extern "C" fn distinst_disk_contains_mount(
     disk: *const DistinstDisk,
+    mount: *const libc::c_char,
 ) -> bool {
-    let disk = &mut *(disk as *mut Disk);
-    disk.contains_root()
+    get_str(mount, "").ok().map_or(false, |mount| {
+        let disk = &mut *(disk as *mut Disk);
+        disk.contains_mount(mount)
+    })
 }
 
 #[no_mangle]

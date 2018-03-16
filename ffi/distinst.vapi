@@ -362,9 +362,9 @@ namespace Distinst {
         public uint64 get_sector (ref Sector sector);
 
         /**
-         * Returns true if the device contains a partition mounted at root.
+         * Returns true if the device contains a partition mounted at the specified target.
          */
-        public bool contains_root ();
+        public bool contains_mount (string mount);
 
         /**
          * Returns true if the device is a removable device.
@@ -429,9 +429,9 @@ namespace Distinst {
         public unowned Partition? get_volume (string volume);
 
         /**
-         * Returns true if the device contains a partition mounted at root.
+         * Returns true if the device contains a partition mounted at the specified target.
          */
-        public bool contains_root ();
+        public bool contains_mount (string mount);
 
         /**
          * Returns a slice of all partitions on this volume.

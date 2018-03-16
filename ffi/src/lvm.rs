@@ -141,11 +141,14 @@ pub unsafe extern "C" fn distinst_lvm_device_list_partitions(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_lvm_device_contains_root(
+pub unsafe extern "C" fn distinst_lvm_device_contains_mount(
     disk: *const DistinstLvmDevice,
+    mount: *const libc::c_char,
 ) -> bool {
-    let disk = &mut *(disk as *mut LvmDevice);
-    disk.contains_root()
+    get_str(mount, "").ok().map_or(false, |mount| {
+        let disk = &mut *(disk as *mut LvmDevice);
+        disk.contains_mount(mount)
+    })
 }
 
 #[repr(C)]
