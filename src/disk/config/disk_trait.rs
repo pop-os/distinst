@@ -29,6 +29,11 @@ pub trait DiskExt {
     /// The partition table that is on the device.
     fn get_table_type(&self) -> Option<PartitionTable>;
 
+    /// Returns true if this partition is mounted at root.
+    fn contains_root(&self) -> bool {
+        self.get_partitions().iter().any(|partition| partition.mount_point == Some("/".into()))
+    }
+
     /// Checks if the drive is a removable drive.
     fn is_removable(&self) -> bool {
         let path = {

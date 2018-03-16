@@ -316,16 +316,6 @@ namespace Distinst {
         public unowned uint8[] get_device_path();
 
         /**
-         * Returns the model name of the device, ie: (ATA Samsung 850 EVO)
-         */
-        public string? get_model();
-
-        /**
-         * Returns the serial of the device, ie: (Samsung_SSD_850_EVO_500GB_S21HNXAG806916N)
-         */
-        public string? get_serial();
-
-        /**
          * Gets the partition at the specified location.
          */
         public unowned Partition get_partition(int partition);
@@ -347,6 +337,16 @@ namespace Distinst {
         public int format_partition (int partition, FileSystemType fs);
 
         /**
+         * Returns the model name of the device, ie: (ATA Samsung 850 EVO)
+         */
+        public string? get_model();
+
+        /**
+         * Returns the serial of the device, ie: (Samsung_SSD_850_EVO_500GB_S21HNXAG806916N)
+         */
+        public string? get_serial();
+
+        /**
          * Returns the size of the device, in sectors.
          */
         public uint64 get_sectors ();
@@ -362,7 +362,12 @@ namespace Distinst {
         public uint64 get_sector (ref Sector sector);
 
         /**
-         *  Returns true if the device is a removable device.
+         * Returns true if the device contains a partition mounted at root.
+         */
+        public bool contains_root ();
+
+        /**
+         * Returns true if the device is a removable device.
          */
         public bool is_removable ();
 
@@ -422,6 +427,11 @@ namespace Distinst {
          * Gets a logical volume by the volume name.
          */
         public unowned Partition? get_volume (string volume);
+
+        /**
+         * Returns true if the device contains a partition mounted at root.
+         */
+        public bool contains_root ();
 
         /**
          * Returns a slice of all partitions on this volume.

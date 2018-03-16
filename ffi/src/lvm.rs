@@ -140,6 +140,14 @@ pub unsafe extern "C" fn distinst_lvm_device_list_partitions(
     Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstPartition
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_contains_root(
+    disk: *const DistinstLvmDevice,
+) -> bool {
+    let disk = &mut *(disk as *mut LvmDevice);
+    disk.contains_root()
+}
+
 #[repr(C)]
 pub struct DistinstLvmEncryption {
     /// The PV field is not optional

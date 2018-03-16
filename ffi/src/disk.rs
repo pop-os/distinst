@@ -89,6 +89,14 @@ pub unsafe extern "C" fn distinst_disk_get_partition(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disk_contains_root(
+    disk: *const DistinstDisk,
+) -> bool {
+    let disk = &mut *(disk as *mut Disk);
+    disk.contains_root()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disk_is_removable(disk: *mut DistinstDisk) -> bool {
     let disk = &mut *(disk as *mut Disk);
     disk.is_removable()
