@@ -145,7 +145,8 @@ impl Disks {
             .unique()
         {
             if let Some(ref vg) = *entry {
-                vgremove(vg).map_err(|why| DiskError::ExternalCommand { why })?;
+                umount(vg)
+                    .and_then(|_| vgremove(vg).map_err(|why| DiskError::ExternalCommand { why }))?;
             }
         }
 
