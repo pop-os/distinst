@@ -31,7 +31,9 @@ pub trait DiskExt {
 
     /// Returns true if this partition is mounted at root.
     fn contains_mount(&self, mount: &str) -> bool {
-        self.get_partitions().iter().any(|partition| partition.mount_point == Some(mount.into()))
+        self.get_partitions()
+            .iter()
+            .any(|partition| partition.mount_point == Some(mount.into()))
     }
 
     /// Checks if the drive is a removable drive.
