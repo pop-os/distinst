@@ -17,6 +17,7 @@ use std::collections::HashSet;
 use std::ffi::OsString;
 use std::io;
 use std::iter::{self, FromIterator};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -97,7 +98,6 @@ impl Disks {
         let swaps = Swaps::new().unwrap();
         let umount = move |vg: &str| -> Result<(), DiskError> {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
-                eprintln!("LV: {:?}", lv);
                 if let Some(mount) = mounts.get_mount_point(&lv) {
                     info!(
                         "libdistinst: unmounting logical volume mounted at {}",
@@ -221,10 +221,10 @@ impl Disks {
     }
 
     /// Sometimes, physical devices themselves may be mounted directly.
-    pub fn ummount_devices(&self) -> Result<(), DiskError> {
+    pub fn unmount_devices(&self) -> Result<(), DiskError> {
         let mounts = Mounts::new().unwrap();
         for device in self.get_physical_devices() {
-            if let Some(mount) = mounts.get_mount_point(&device.get_device_path()) {
+            for mount in mounts.starts_with(device.get_device_path().as_os_str().as_bytes()) {
                 info!(
                     "libdistinst: unmounting device mounted at {}",
                     mount.display()

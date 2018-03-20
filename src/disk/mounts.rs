@@ -2,21 +2,21 @@ use std::char;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
-use std::os::unix::ffi::OsStringExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 
 /// A mount entry which contains information regarding how and where a device
 /// is mounted.
-pub struct MountInfo {
-    pub source:  PathBuf,
-    pub dest:    PathBuf,
-    pub fs:      OsString,
-    pub options: OsString,
-    pub dump:    OsString,
-    pub pass:    OsString,
+pub(crate) struct MountInfo {
+    pub(crate) source:  PathBuf,
+    pub(crate) dest:    PathBuf,
+    pub(crate) fs:      OsString,
+    pub(crate) options: OsString,
+    pub(crate) dump:    OsString,
+    pub(crate) pass:    OsString,
 }
 
-pub struct Mounts(Vec<MountInfo>);
+pub(crate) struct Mounts(Vec<MountInfo>);
 
 impl Mounts {
     fn parse_value(value: &str) -> Result<OsString> {
@@ -79,7 +79,7 @@ impl Mounts {
         })
     }
 
-    pub fn new() -> Result<Mounts> {
+    pub(crate) fn new() -> Result<Mounts> {
         let mut ret = Vec::new();
 
         let file = BufReader::new(File::open("/proc/mounts")?);
@@ -91,10 +91,19 @@ impl Mounts {
         Ok(Mounts(ret))
     }
 
-    pub fn get_mount_point(&self, path: &Path) -> Option<PathBuf> {
+    pub(crate) fn get_mount_point(&self, path: &Path) -> Option<PathBuf> {
         self.0
             .iter()
             .find(|mount| mount.source == path)
             .map(|mount| mount.dest.clone())
+    }
+
+    pub(crate) fn starts_with(&self, path: &[u8]) -> Vec<PathBuf> {
+        self.0
+            .iter()
+            .filter(|mount| mount.source.as_os_str().len() >= path.len())
+            .filter(|mount| &mount.source.as_os_str().as_bytes()[..path.len()] == path)
+            .map(|mount| mount.dest.clone())
+            .collect::<Vec<_>>()
     }
 }

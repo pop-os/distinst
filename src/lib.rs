@@ -227,7 +227,7 @@ impl Installer {
         }
 
         // Unmount any mounted devices.
-        if let Err(why) = disks.ummount_devices() {
+        if let Err(why) = disks.unmount_devices() {
             error!("device unmount error: {}", why);
             return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
         }
