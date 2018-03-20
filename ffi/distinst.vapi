@@ -68,6 +68,14 @@ namespace Distinst {
      */
     public unowned string strfilesys(FileSystemType fs);
 
+    /** Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
+     * return a default value.
+     * 
+     * If the value in `filesystem.size` is lower than that of the default, the
+     * default will be returned instead.
+     */
+    public uint64 minimum_disk_size(uint64 size);
+
     /**
      * Determines if the given hostname is valid or not
      */

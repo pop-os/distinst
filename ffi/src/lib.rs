@@ -62,6 +62,9 @@ pub unsafe extern "C" fn distinst_validate_hostname(hostname: *const libc::c_cha
         .map_or(false, |hostname| distinst::hostname::is_valid(hostname))
 }
 
+#[no_mangle]
+pub extern "C" fn distinst_minimum_disk_size(size: u64) -> u64 { distinst::minimum_disk_size(size) }
+
 /// Log level
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]

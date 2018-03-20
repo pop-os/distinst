@@ -16,11 +16,10 @@ extern crate tempdir;
 
 use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
 use itertools::Itertools;
-use std::{fs, io};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::fs::{File, Permissions};
-use std::io::{BufRead, Write};
+use std::fs::{self, File, Permissions};
+use std::io::{self, BufRead, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::PermissionsExt;
@@ -76,6 +75,24 @@ pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
         }
         Err(err) => Err(err),
     }
+}
+
+/// Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
+/// return a default value.
+///
+/// If the value in `filesystem.size` is lower than that of the default, the
+/// default will be returned instead.
+pub fn minimum_disk_size(default: u64) -> u64 {
+    File::open("/cdrom/casper/filesystem.size")
+        .ok()
+        .and_then(|mut file| {
+            let capacity = file.metadata().ok().map_or(0, |m| m.len());
+            let mut buffer = String::with_capacity(capacity as usize);
+            file.read_to_string(&mut buffer)
+                .ok()
+                .and_then(|_| buffer[..buffer.len() - 1].parse::<u64>().ok())
+        })
+        .map_or(default, |size| size.max(default))
 }
 
 /// Installation step
