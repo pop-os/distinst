@@ -110,8 +110,12 @@ pub enum Step {
 pub struct Config {
     /// Hostname to assign to the installed system.
     pub hostname: String,
-    /// Keyboard configuration to set for the installed system.
-    pub keyboard: String,
+    /// The keyboard layout to use with the installed system (such as "us").
+    pub keyboard_layout: String,
+    /// An optional keyboard model (such as "pc105") to define the keyboard's model.
+    pub keyboard_model: Option<String>,
+    /// An optional variant of the keyboard (such as "dvorak").
+    pub keyboard_variant: Option<String>,
     /// The locale to use for the installed system.
     pub lang: String,
     /// The file that contains a list of packages to remove.
@@ -583,7 +587,15 @@ impl Installer {
                 args.push(format!("LANG={}", config.lang));
 
                 // Set preferred keyboard layout
-                args.push(format!("KBD={}", config.keyboard));
+                args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
+
+                if let Some(ref model) = config.keyboard_model {
+                    args.push(format!("KBD_MODEL={}", model));
+                }
+
+                if let Some(ref variant) = config.keyboard_variant {
+                    args.push(format!("KBD_VARIANT={}", variant));
+                }
 
                 // Set root UUID
                 args.push(format!("ROOT_UUID={}", root_entry.uuid.to_str().unwrap()));

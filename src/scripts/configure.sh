@@ -48,8 +48,8 @@ ln -sf "../run/resolvconf/resolv.conf" "/etc/resolv.conf"
 locale-gen --purge "${LANG}"
 update-locale --reset "LANG=${LANG}"
 
-# Set keyboard
-localectl set-keymap "${KBD}"
+# Set keyboard settings system-wide
+localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
 
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"

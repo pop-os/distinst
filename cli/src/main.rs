@@ -111,6 +111,8 @@ fn main() {
                 .long("keyboard")
                 .help("define the keyboard configuration to use")
                 .takes_value(true)
+                .min_values(1)
+                .max_values(3)
                 .default_value("us"),
         )
         .arg(
@@ -230,7 +232,7 @@ fn main() {
 
     let squashfs = matches.value_of("squashfs").unwrap();
     let hostname = matches.value_of("hostname").unwrap();
-    let keyboard = matches.value_of("keyboard").unwrap();
+    let mut keyboard = matches.values_of("keyboard").unwrap();
     let lang = matches.value_of("lang").unwrap();
     let remove = matches.value_of("remove").unwrap();
 
@@ -293,14 +295,22 @@ fn main() {
             PARTITIONING_TEST.store(true, Ordering::SeqCst);
         }
 
+        fn take_optional_string(argument: Option<&str>) -> Option<String> {
+            argument
+                .map(String::from)
+                .and_then(|x| if x.is_empty() { None } else { Some(x) })
+        }
+
         installer.install(
             disks,
             &Config {
-                hostname: hostname.into(),
-                keyboard: keyboard.into(),
-                lang:     lang.into(),
-                remove:   remove.into(),
-                squashfs: squashfs.into(),
+                hostname:         hostname.into(),
+                keyboard_layout:  keyboard.next().map(String::from).unwrap(),
+                keyboard_model:   take_optional_string(keyboard.next()),
+                keyboard_variant: take_optional_string(keyboard.next()),
+                lang:             lang.into(),
+                remove:           remove.into(),
+                squashfs:         squashfs.into(),
             },
         )
     };
