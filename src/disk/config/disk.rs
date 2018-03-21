@@ -94,8 +94,9 @@ impl Disk {
         let serial = match device.type_() {
             // Encrypted devices do not have serials
             DeviceType::PED_DEVICE_DM | DeviceType::PED_DEVICE_LOOP => "".into(),
-            _ => get_serial(&device_path).map_err(|why| DiskError::SerialGet { why })?,
+            _ => get_serial(&device_path).unwrap_or("".into()),
         };
+        
         let size = device.length();
         let sector_size = device.sector_size();
         let device_type = format!("{:?}", device.type_());

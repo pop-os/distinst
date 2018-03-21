@@ -170,7 +170,7 @@ impl PartitionInfo {
 
         let original_vg = unsafe {
             if PVS.is_none() {
-                PVS = Some(pvs().unwrap());
+                PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
             }
 
             PVS.as_ref()
