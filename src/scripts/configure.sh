@@ -24,12 +24,6 @@ do
     fi
 done
 
-# Add the cdrom to APT, if it exists.
-if [ -d "/cdrom" ]
-then
-    apt-cdrom --cdrom "/cdrom" add
-fi
-
 # Set the hostname
 echo "${HOSTNAME}" > "/etc/hostname"
 
@@ -55,8 +49,18 @@ localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
 apt-get purge -y "${PURGE_PKGS[@]}"
 apt-get autoremove -y --purge
 
-# Install grub packages
-apt-get install -y "${INSTALL_PKGS[@]}"
+# Add the cdrom to APT, if it exists.
+APT_OPTIONS=()
+if [ -d "/cdrom" ]
+then
+    APT_OPTIONS+=(-o "Acquire::cdrom::AutoDetect=0")
+    APT_OPTIONS+=(-o "Acquire::cdrom::mount=/cdrom")
+    APT_OPTIONS+=(-o "APT::CDROM::NoMount=1")
+    apt-cdrom "${APT_OPTIONS[@]}" add
+fi
+
+# Install bootloader packages
+apt-get install -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
 
 echo "ROOT_UUID = $ROOT_UUID"
 
