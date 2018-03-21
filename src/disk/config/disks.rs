@@ -300,9 +300,10 @@ impl Disks {
                 // The volume group may be stored in either the `original_vg`
                 // or `volume_group` fields. This combines the optionals.
                 let vg: Option<&String> = partition
-                    .original_vg
+                    .volume_group
                     .as_ref()
-                    .or(partition.volume_group.as_ref().map(|x| &x.0));
+                    .map(|x| &x.0)
+                    .or(partition.original_vg.as_ref());
 
                 if let Some(ref pvg) = vg {
                     if pvg.as_str() == volume_group {
