@@ -16,11 +16,12 @@ public static string level_name (Distinst.LogLevel level) {
 }
 
 public static int main (string[] args) {
-    //  Distinst.log((level, message) => {
-    //      stderr.printf ("Log: %s %s\r\n", level_name (level), message);
-    //  });
+    Distinst.log((level, message) => {
+        stderr.printf ("Log: %s %s\r\n", level_name (level), message);
+    });
 
     Distinst.Disks disks = Distinst.Disks.probe ();
+    disks.initialize_volume_groups ();
     foreach (unowned Distinst.Disk disk in disks.list()) {
         uint8[] disk_path = disk.get_device_path();
         uint64 disk_sectors = disk.get_sectors();
