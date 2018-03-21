@@ -19,3 +19,6 @@ cbindgen = "0.4"
 distinst = { path = ".." }
 libc = "0.2"
 log = "0.3"
+
+[profile.release]
+debug = true
