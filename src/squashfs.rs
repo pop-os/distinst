@@ -25,7 +25,7 @@ pub fn getpty(columns: u32, lines: u32) -> (RawFd, String) {
     let master_fd = OpenOptions::new()
         .read(true)
         .write(true)
-        .custom_flags(libc::O_CLOEXEC | libc::O_NONBLOCK)
+        .custom_flags(libc::O_CLOEXEC)
         .open("/dev/ptmx")
         .unwrap()
         .into_raw_fd();
