@@ -63,7 +63,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
         .arg(command)
         .arg("/dev/null")
         .stdout(output)
-        .stderr(Stdio::piped())
+        .stderr(Stdio::null())
         .spawn()?;
 
     let mut last_progress = 0;
