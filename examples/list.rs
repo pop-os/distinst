@@ -22,6 +22,7 @@ fn list() -> Result<()> {
 
         for part in disk.get_partitions() {
             println!("  {}:", part.device_path.display());
+            println!("    mount:   {:?}", part.mount_point);
             println!("    label:   {:?}", part.name);
             println!("    fs:      {:?}", part.filesystem);
             println!(
@@ -80,6 +81,7 @@ fn list() -> Result<()> {
 
         for part in disk.get_partitions() {
             println!("  {}:", part.device_path.display());
+            println!("    mount:   {:?}", part.mount_point);
             println!("    label:   {:?}", part.name);
             println!("    fs:      {:?}", part.filesystem);
             println!(
