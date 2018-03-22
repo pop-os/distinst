@@ -130,8 +130,9 @@ pub(crate) fn transform<DELETE, CREATE>(
 ) -> Result<(), DiskError>
 where
     DELETE: FnMut(u32) -> Result<(), DiskError>,
-    CREATE: FnMut(u64, u64, Option<FileSystemType>, Vec<PartitionFlag>, Option<String>, PartitionType)
-        -> Result<(i32, PathBuf), DiskError>,
+    CREATE:
+        FnMut(u64, u64, Option<FileSystemType>, Vec<PartitionFlag>, Option<String>, PartitionType)
+            -> Result<(i32, PathBuf), DiskError>,
 {
     let mut moving = resize.is_moving();
     let shrinking = resize.is_shrinking();

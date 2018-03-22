@@ -5,6 +5,7 @@ pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
 use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE};
 use super::super::external::{lvcreate, lvremove, mkfs, vgcreate};
+use super::super::mounts::Mounts;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -15,6 +16,7 @@ pub struct LvmDevice {
     pub(crate) model_name:   String,
     pub(crate) volume_group: String,
     pub(crate) device_path:  PathBuf,
+    pub(crate) mount_point:  Option<PathBuf>,
     pub(crate) sectors:      u64,
     pub(crate) sector_size:  u64,
     pub(crate) partitions:   Vec<PartitionInfo>,
@@ -29,6 +31,8 @@ impl DiskExt for LvmDevice {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn get_model(&self) -> &str { &self.model_name }
+
+    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
 
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
@@ -57,8 +61,13 @@ impl LvmDevice {
         is_source: bool,
     ) -> LvmDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group));
+
+        // TODO: Optimize this so it's not called for each disk.
+        let mounts = Mounts::new().unwrap();
+
         LvmDevice {
             model_name: ["LVM ", &volume_group].concat(),
+            mount_point: mounts.get_mount_point(&device_path),
             volume_group,
             device_path,
             sectors,

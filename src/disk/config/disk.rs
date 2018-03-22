@@ -5,6 +5,7 @@ use super::super::{
     PartitionTable, PartitionType,
 };
 use super::super::mount::{swapoff, umount};
+use super::super::mounts::Mounts;
 use super::super::operations::*;
 use super::super::serial::get_serial;
 use libparted::{Device, DeviceType};
@@ -27,6 +28,8 @@ pub struct Disk {
     pub(crate) serial: String,
     /// The location in the file system where the block device is located.
     pub(crate) device_path: PathBuf,
+    /// Where the device is mounted, if mounted at all.
+    pub(crate) mount_point: Option<PathBuf>,
     /// The size of the disk in sectors.
     pub(crate) size: u64,
     /// The size of sectors on the disk.
@@ -50,6 +53,8 @@ impl DiskExt for Disk {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn get_model(&self) -> &str { &self.model_name }
+
+    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
 
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
@@ -96,7 +101,7 @@ impl Disk {
             DeviceType::PED_DEVICE_DM | DeviceType::PED_DEVICE_LOOP => "".into(),
             _ => get_serial(&device_path).unwrap_or("".into()),
         };
-        
+
         let size = device.length();
         let sector_size = device.sector_size();
         let device_type = format!("{:?}", device.type_());
@@ -113,8 +118,12 @@ impl Disk {
             _ => None,
         });
 
+        // TODO: Optimize this so it's not called for each disk.
+        let mounts = Mounts::new().unwrap();
+
         Ok(Disk {
             model_name,
+            mount_point: mounts.get_mount_point(&device_path),
             device_path,
             serial,
             size,

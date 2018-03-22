@@ -14,6 +14,8 @@ pub trait DiskExt {
     /// Returns the model of the device.
     fn get_model(&self) -> &str;
 
+    fn get_mount_point(&self) -> Option<&Path>;
+
     /// Returns a slice of all partitions in the device.
     fn get_partitions(&self) -> &[PartitionInfo];
 
@@ -31,6 +33,12 @@ pub trait DiskExt {
 
     /// Returns true if this partition is mounted at root.
     fn contains_mount(&self, mount: &str) -> bool {
+        if self.get_mount_point()
+            .map_or(false, |m| m == Path::new(mount))
+        {
+            return true;
+        }
+
         self.get_partitions()
             .iter()
             .any(|partition| partition.mount_point == Some(mount.into()))
