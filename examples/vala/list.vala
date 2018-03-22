@@ -46,9 +46,16 @@ public static int main (string[] args) {
             Distinst.PartitionUsage usage = partition.sectors_used(disk_sector_size);
             Distinst.FileSystemType fs = partition.get_file_system();
             string? label = partition.get_label();
+            string? mount_point = partition.get_mount_point();
 
             stdout.printf("  %.*s:\n", part_path.length, (string) part_path);
-            
+
+            if (mount_point == null) {
+                stdout.printf("    Mount: None\n");
+            } else {
+                stdout.printf("    Mount: Some(%s)\n", mount_point);
+            }
+
             if (label == null) {
                 stdout.printf("    Label: None\n");
             } else {
@@ -63,7 +70,7 @@ public static int main (string[] args) {
                 (ulong) (part_size / 1000000),
                 (ulong) (part_size / 1048576)
             );
-            
+
             if (usage.tag == 1) {
                 uint64 used = usage.value * disk_sector_size;
                 stdout.printf(

@@ -313,6 +313,18 @@ pub unsafe extern "C" fn distinst_partition_get_label(
         .unwrap_or(ptr::null_mut())
 }
 
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_get_mount_point(
+    partition: *const DistinstPartition,
+) -> *mut libc::c_char {
+    let part = &*(partition as *const PartitionInfo);
+    part.mount_point
+        .clone()
+        .and_then(|path| CString::new(path.as_os_str().as_bytes()).ok().map(|string| string.into_raw()))
+        .unwrap_or(ptr::null_mut())
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_start_sector(
     partition: *const DistinstPartition,

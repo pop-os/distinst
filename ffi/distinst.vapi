@@ -72,7 +72,7 @@ namespace Distinst {
 
     /** Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
      * return a default value.
-     * 
+     *
      * If the value in `filesystem.size` is lower than that of the default, the
      * default will be returned instead.
      */
@@ -130,7 +130,7 @@ namespace Distinst {
          * Defines if the partition is either primary or logical.
          */
         public PartitionBuilder partition_type (PartitionType part_type);
-        
+
         /**
          * Adds a partition flag to the new partition.
          */
@@ -186,14 +186,14 @@ namespace Distinst {
 
         /**
          * Marks to format the partition with the provided file system.
-         * 
+         *
          * Retains the partiton's name.
         */
         public int format_and_keep_name (FileSystemType fs);
 
         /**
          * Marks to format the partition with the provided file system.
-         * 
+         *
          * Also removes the partition's name in the process.
         */
         public int format_with (FileSystemType fs);
@@ -212,6 +212,11 @@ namespace Distinst {
          * Gets the name of the partition.
         */
         public string? get_label ();
+
+        /**
+         * Gets the mount point of the partition.
+        */
+        public string? get_mount_point ();
 
         /**
          * Returns the file system which the partition is formatted with
@@ -363,7 +368,7 @@ namespace Distinst {
 
         /**
          * Returns the size of a sector, in bytes.
-         */ 
+         */
         public uint64 get_sector_size ();
 
         /**
@@ -447,7 +452,7 @@ namespace Distinst {
          * Returns a slice of all partitions on this volume.
          */
         public unowned Partition[] list_partitions ();
-        
+
         /**
          * Partitions are assigned left to right, so this will get the end
          * sector of the last partition.
@@ -461,9 +466,9 @@ namespace Distinst {
 
         /**
          * Sets the remove bit on the specified logical volume
-         * 
+         *
          * # Return Values
-         * 
+         *
          * - `0` means that there was no error.
          * - `1` means that the provided string was not UTF-8.
          * - `2` means that the partition could not be found.
@@ -521,7 +526,7 @@ namespace Distinst {
 
         /**
          * Obtains the logical device with the specified volume group.
-         * 
+         *
          * Will return a null value if the input string is not UTF-8,
          * or the logical device could not be found.
          */
@@ -536,9 +541,9 @@ namespace Distinst {
 
         /**
          * Decrypts the specified LUKS partition by its device path.
-         * 
+         *
          * # Return Values
-         * 
+         *
          * - 0 means success
          * - 1 means that critical input values were null
          * - 2 indicates that a UTF-8 error occurred
