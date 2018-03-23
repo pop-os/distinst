@@ -188,8 +188,11 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
     let master = unsafe { File::from_raw_fd(master_fd) };
     match handle(master, callback) {
         Ok(()) => (),
-        Err(err) => {
-            error!("handle error: {}", err);
+        Err(err) => match err.raw_os_error() {
+            // EIO happens when slave end is closed
+            Some(libc::EIO) => (),
+            // Log other errors, use status code below to return
+            _ => error!("handle error: {}", err)
         }
     }
 
