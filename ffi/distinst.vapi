@@ -21,6 +21,8 @@ namespace Distinst {
         BOOTLOADER
     }
 
+    public const uint8 MODIFY_BOOT_ORDER;
+
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
         string hostname;
