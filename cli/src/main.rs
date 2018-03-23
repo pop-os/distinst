@@ -291,7 +291,9 @@ fn main() {
         };
 
         configure_signal_handling();
-        if matches.occurrences_of("test") != 0 {
+
+        let testing = matches.occurrences_of("test") != 0;
+        if testing {
             PARTITIONING_TEST.store(true, Ordering::SeqCst);
         }
 
@@ -304,6 +306,11 @@ fn main() {
         installer.install(
             disks,
             &Config {
+                flags:            if testing {
+                    0
+                } else {
+                    distinst::MODIFY_BOOT_ORDER
+                },
                 hostname:         hostname.into(),
                 keyboard_layout:  keyboard.next().map(String::from).unwrap(),
                 keyboard_model:   take_optional_string(keyboard.next()),

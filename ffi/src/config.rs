@@ -1,8 +1,6 @@
+use distinst::Config;
 use libc;
-
 use std::io;
-
-use distinst::{Config, MODIFY_BOOT_ORDER};
 
 use get_str;
 
@@ -10,7 +8,6 @@ use get_str;
 #[repr(C)]
 #[derive(Debug)]
 pub struct DistinstConfig {
-    flags:            u8,
     hostname:         *const libc::c_char,
     keyboard_layout:  *const libc::c_char,
     keyboard_model:   *const libc::c_char,
@@ -18,12 +15,12 @@ pub struct DistinstConfig {
     lang:             *const libc::c_char,
     remove:           *const libc::c_char,
     squashfs:         *const libc::c_char,
+    flags:            u8,
 }
 
 impl DistinstConfig {
     pub unsafe fn as_config(&self) -> Result<Config, io::Error> {
         Ok(Config {
-            flags:            MODIFY_BOOT_ORDER,
             squashfs:         get_str(self.squashfs, "config.squashfs")?.to_string(),
             hostname:         get_str(self.hostname, "config.hostname")?.to_string(),
             lang:             get_str(self.lang, "config.lang")?.to_string(),
@@ -31,6 +28,7 @@ impl DistinstConfig {
             keyboard_model:   get_str(self.keyboard_model, "").ok().map(String::from),
             keyboard_variant: get_str(self.keyboard_variant, "").ok().map(String::from),
             remove:           get_str(self.remove, "config.remove")?.to_string(),
+            flags:            self.flags,
         })
     }
 }

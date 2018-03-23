@@ -110,8 +110,6 @@ pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 /// Installer configuration
 #[derive(Debug)]
 pub struct Config {
-    /// Some flags to control the behavior of the installation.
-    pub flags: u8,
     /// Hostname to assign to the installed system.
     pub hostname: String,
     /// The keyboard layout to use with the installed system (such as "us").
@@ -126,6 +124,8 @@ pub struct Config {
     pub remove: String,
     /// The archive (`tar` or `squashfs`) which contains the base system.
     pub squashfs: String,
+    /// Some flags to control the behavior of the installation.
+    pub flags: u8,
 }
 
 /// Installer error
