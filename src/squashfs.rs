@@ -8,7 +8,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str;
 
-pub fn getpty(columns: u32, lines: u32) -> (RawFd, String) {
+fn getpty(columns: u32, lines: u32) -> (RawFd, String) {
     use libc;
     use std::ffi::CStr;
     use std::fs::OpenOptions;
@@ -58,7 +58,7 @@ pub fn getpty(columns: u32, lines: u32) -> (RawFd, String) {
     (master_fd, tty_path)
 }
 
-pub fn slave_stdio(tty_path: &str) -> Result<(File, File, File)> {
+fn slave_stdio(tty_path: &str) -> Result<(File, File, File)> {
     use libc::{self, O_CLOEXEC, O_RDONLY, O_WRONLY};
     use std::ffi::CString;
 
@@ -81,7 +81,7 @@ pub fn slave_stdio(tty_path: &str) -> Result<(File, File, File)> {
     Ok((stdin, stdout, stderr))
 }
 
-pub fn before_exec() -> Result<()> {
+fn before_exec() -> Result<()> {
     use libc;
 
     unsafe {
@@ -189,9 +189,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
     match handle(master, callback) {
         Ok(()) => (),
         Err(err) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(err);
+            error!("handle error: {}", err);
         }
     }
 
