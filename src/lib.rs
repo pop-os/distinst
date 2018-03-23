@@ -105,9 +105,13 @@ pub enum Step {
     Bootloader,
 }
 
+pub const MODIFY_BOOT_ORDER: u8 = 0b01;
+
 /// Installer configuration
 #[derive(Debug)]
 pub struct Config {
+    /// Some flags to control the behavior of the installation.
+    pub flags: u8,
     /// Hostname to assign to the installed system.
     pub hostname: String,
     /// The keyboard layout to use with the installed system (such as "us").
@@ -646,6 +650,7 @@ impl Installer {
         disks: &Disks,
         mount_dir: &Path,
         bootloader: Bootloader,
+        config: &Config,
         mut callback: F,
     ) -> io::Result<()> {
         // Obtain the root device & partition, with an optional EFI device & partition.
@@ -709,15 +714,23 @@ impl Installer {
                     Bootloader::Efi => {
                         let status = chroot.command(
                             "bootctl",
-                            &[
-                                // Install systemd-boot
-                                "install",
-                                // Provide path to ESP
-                                "--path=/boot/efi",
-                                // Do not set EFI variables
-                                // TODO: Add configuration for this option
-                                // "--no-variables",
-                            ],
+                            if config.flags & MODIFY_BOOT_ORDER != 0 {
+                                &[
+                                    // Install systemd-boot
+                                    "install",
+                                    // Provide path to ESP
+                                    "--path=/boot/efi",
+                                ][..]
+                            } else {
+                                &[
+                                    // Install systemd-boot
+                                    "install",
+                                    // Provide path to ESP
+                                    "--path=/boot/efi",
+                                    // Do not set EFI variables
+                                    "--no-variables",
+                                ][..]
+                            },
                         )?;
 
                         if !status.success() {
@@ -849,7 +862,7 @@ impl Installer {
                 });
 
                 apply_step!(Step::Bootloader, "bootloader", {
-                    Installer::bootloader(&disks, mount_dir.path(), bootloader, percent!())
+                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, percent!())
                 });
 
                 mounts.unmount(false)?;

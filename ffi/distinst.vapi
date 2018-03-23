@@ -23,6 +23,7 @@ namespace Distinst {
 
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
+        uint8 flags;
         string hostname;
         string keyboard_layout;
         string? keyboard_model;
