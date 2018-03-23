@@ -715,8 +715,8 @@ impl Installer {
                                 // Provide path to ESP
                                 "--path=/boot/efi",
                                 // Do not set EFI variables
-                                // TODO: Remove this option
-                                "--no-variables",
+                                // TODO: Add configuration for this option
+                                // "--no-variables",
                             ],
                         )?;
 
