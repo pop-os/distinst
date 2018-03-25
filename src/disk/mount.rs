@@ -88,6 +88,12 @@ impl Mount {
         flags: c_ulong,
         options: Option<&str>,
     ) -> Result<Mount> {
+        info!(
+            "libdistinst: mounting {} to {}",
+            src.as_ref().display(),
+            target.display(),
+        );
+
         let c_src = CString::new(src.as_ref().as_os_str().as_bytes().to_owned());
         let c_target = CString::new(target.as_os_str().as_bytes().to_owned());
         let c_fstype = CString::new(fstype.to_owned());

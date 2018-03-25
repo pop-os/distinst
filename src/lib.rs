@@ -521,11 +521,11 @@ impl Installer {
 
         {
             let cdrom_target = mount_dir.join("cdrom");
-            let _ = fs::create_dir(&cdrom_target);
+
             let cdrom_mount = {
                 let source = Path::new("/cdrom");
                 if source.exists() {
-                    info!("libdistinst: mounting cdrom");
+                    let _ = fs::create_dir_all(&cdrom_target);
                     use disk::external::{ExternalMount, BIND};
                     Some(ExternalMount::new(source, &cdrom_target, BIND)
                         .map_err(|why| DiskError::ExternalCommand { why })?)
@@ -539,6 +539,7 @@ impl Installer {
                 mount_dir.display()
             );
             let mut chroot = Chroot::new(&mount_dir)?;
+            let efivars_mount = mount_efivars(&mount_dir)?;
             let configure_chroot = configure.strip_prefix(&mount_dir).map_err(|err| {
                 io::Error::new(
                     io::ErrorKind::Other,
@@ -634,6 +635,7 @@ impl Installer {
 
             // Ensure that the cdrom binding is unmounted before the chroot.
             drop(cdrom_mount);
+            drop(efivars_mount);
             let _ = fs::remove_dir(&cdrom_target);
             chroot.unmount(false)?;
         }
@@ -689,6 +691,7 @@ impl Installer {
 
             {
                 let mut chroot = Chroot::new(mount_dir)?;
+                let efivars_mount = mount_efivars(&mount_dir)?;
 
                 match bootloader {
                     Bootloader::Bios => {
@@ -742,6 +745,7 @@ impl Installer {
                     }
                 }
 
+                drop(efivars_mount);
                 chroot.unmount(false)?;
             }
         }
@@ -885,5 +889,23 @@ impl Installer {
         info!("libdistinst: probing disks on system");
         Disks::probe_devices()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
+    }
+}
+
+fn mount_efivars(chroot: &Path) -> io::Result<Option<Mount>> {
+    use disk::mount::BIND;
+    let source = Path::new("/sys/firmware/efi/efivars");
+    if source.exists() {
+        let efivars_target = chroot.join("sys/firmware/efi/efivars");
+        let _ = fs::create_dir_all(&efivars_target);
+        Ok(Some(Mount::new(
+            &source,
+            &efivars_target,
+            "none",
+            BIND,
+            None,
+        )?))
+    } else {
+        Ok(None)
     }
 }
