@@ -2,6 +2,7 @@ use libc;
 
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::ptr;
 
@@ -413,14 +414,44 @@ pub unsafe extern "C" fn distinst_partition_format_with(
     0
 }
 
+#[repr(C)]
+pub struct DistinstOsInfo {
+    path: *mut libc::c_char,
+    home: *mut libc::c_char,
+}
+
+impl Default for DistinstOsInfo {
+    fn default() -> DistinstOsInfo {
+        DistinstOsInfo {
+            path: ptr::null_mut(),
+            home: ptr::null_mut(),
+        }
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_probe_os(
     partition: *const DistinstPartition,
-) -> *mut libc::c_char {
+) -> DistinstOsInfo {
     let part = &*(partition as *const PartitionInfo);
-    part.probe_os()
-        .and_then(|osstr| CString::new(osstr).ok().map(|string| string.into_raw()))
-        .unwrap_or(ptr::null_mut())
+
+    let (os_str, home_path) = match part.probe_os() {
+        Some(info) => info,
+        None => {
+            return DistinstOsInfo::default();
+        }
+    };
+
+    DistinstOsInfo {
+        path: CString::new(os_str)
+            .ok()
+            .map(|string| string.into_raw())
+            .unwrap_or(ptr::null_mut()),
+        home: home_path
+            .and_then(|path| CString::new(path.into_os_string().into_vec()).ok())
+            .map(|string| string.into_raw())
+            .unwrap_or(ptr::null_mut()),
+    }
 }
 
 #[repr(C)]

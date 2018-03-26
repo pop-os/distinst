@@ -64,7 +64,7 @@ impl InstallOptions {
                     Some(_) if is_physical => match partition.sectors_used(sector_size) {
                         Some(Ok(used)) => match partition.probe_os() {
                             // Ensure the other OS has at least 5GB of headroom
-                            Some(os) => {
+                            Some((os, home)) => {
                                 // The size that the OS partition could be shrunk to
                                 let shrink_to = used + (5242880 / sector_size);
                                 // The maximum size that we can allocate to the new
@@ -72,10 +72,12 @@ impl InstallOptions {
                                 let install_size = partition.sectors() - shrink_to;
                                 // Whether there is enough room or not in the install.
                                 if install_size > required_space {
+                                    let path: PathBuf = partition.get_device_path().into();
                                     Some(InstallOption {
                                         install_size,
                                         kind: InstallKind::Os {
-                                            path: partition.get_device_path().into(),
+                                            home: home.unwrap_or_else(|| path.clone()),
+                                            path,
                                             os,
                                             shrink_to,
                                         },
@@ -159,6 +161,7 @@ pub enum InstallKind {
     Os {
         path:      PathBuf,
         os:        String,
+        home:      PathBuf,
         shrink_to: u64,
     },
     Partition {
