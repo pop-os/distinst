@@ -50,6 +50,19 @@ fn get_uuid(path: &Path) -> Option<OsString> {
     None
 }
 
+fn from_uuid(uuid: &str) -> Option<PathBuf> {
+    let uuid_dir = read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
+
+    for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
+        let uuid_entry = uuid_entry.path();
+        if uuid_entry.as_os_str() == uuid {
+            return Some(uuid_entry.to_path_buf());
+        }
+    }
+
+    None
+}
+
 /// Gets a `libparted::Device` from the given name.
 pub(crate) fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
     info!("libdistinst: getting device at {}", name.as_ref().display());

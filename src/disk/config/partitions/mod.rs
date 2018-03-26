@@ -289,7 +289,7 @@ impl PartitionInfo {
 
     /// Detects if an OS is installed to this partition, and if so, what the OS
     /// is named.
-    pub fn probe_os(&self) -> Option<String> {
+    pub fn probe_os(&self) -> Option<(String, Option<PathBuf>)> {
         self.filesystem
             .and_then(|fs| detect_os(self.get_device_path(), fs))
     }

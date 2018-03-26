@@ -1,8 +1,9 @@
 use super::FileSystemType;
+use super::super::from_uuid;
 use super::super::super::mount::Mount;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempdir::TempDir;
 
 /// Adds a new map method for boolean types.
@@ -22,7 +23,10 @@ impl BoolExt for bool {
 
 /// Mounts the partition to a temporary directory and checks for the existence of an
 /// installed operating system.
-pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<String> {
+///
+/// If the installed operating system is Linux, it will also report back the location
+/// of the home partition.
+pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<(String, Option<PathBuf>)> {
     let fs = match fs {
         FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
         fs => fs.into(),
@@ -36,10 +40,54 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<String> {
             .ok()
             .and_then(|_mount| {
                 detect_linux(base)
-                    .or(detect_windows(base))
-                    .or(detect_macos(base))
+                    .map(|name| (name, find_linux_home(base)))
+                    .or(detect_windows(base).map(|name| (name, None)))
+                    .or(detect_macos(base).map(|name| (name, None)))
             })
     })
+}
+
+fn find_linux_home(base: &Path) -> Option<PathBuf> {
+    let parse_fstab_mount = move |mount: &str| -> Option<PathBuf> {
+        if mount.starts_with('/') {
+            Some(PathBuf::from(mount))
+        } else if mount.starts_with("UUID") {
+            let (_, uuid) = mount.split_at(4);
+            from_uuid(uuid)
+        } else {
+            error!("unsupported mount type: {}", mount);
+            None
+        }
+    };
+
+    let parse_fstab = |fstab: File| -> Option<PathBuf> {
+        for entry in BufReader::new(fstab).lines() {
+            let entry = entry.ok()?;
+            let entry = entry.trim();
+
+            if entry.starts_with('#') {
+                continue;
+            }
+
+            let mut fields = entry.split_whitespace();
+            let source = fields.next();
+            let target = fields.next();
+
+            if let Some(target) = target {
+                if target == "/home" {
+                    if let Some(path) = parse_fstab_mount(source.unwrap()) {
+                        return Some(path);
+                    }
+                }
+            }
+        }
+
+        None
+    };
+
+    File::open(base.join("etc/fstab"))
+        .ok()
+        .and_then(parse_fstab)
 }
 
 fn detect_linux(base: &Path) -> Option<String> {

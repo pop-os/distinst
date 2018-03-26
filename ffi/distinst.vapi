@@ -159,6 +159,13 @@ namespace Distinst {
 
     [SimpleType]
     [CCode (has_type_id = false)]
+    public struct OsInfo {
+        string? path;
+        string? home;
+    }
+
+    [SimpleType]
+    [CCode (has_type_id = false)]
     public struct PartitionUsage {
         /**
          * None = 0; Some(usage) = 1;
@@ -229,7 +236,7 @@ namespace Distinst {
         /**
          * Returns the name of the OS which is installed here
         */
-        public string? probe_os ();
+        public OsInfo probe_os ();
 
         /**
          * Returns the number of sectors that are used in the file system
