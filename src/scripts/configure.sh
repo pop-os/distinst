@@ -65,7 +65,7 @@ apt-get install -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
 echo "ROOT_UUID = $ROOT_UUID"
 
 # Update bootloader configuration
-if [ -d "/boot/efi" ]
+if hash kernelstub
 then
     kernelstub \
         --esp-path "/boot/efi" \
