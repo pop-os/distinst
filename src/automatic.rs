@@ -24,13 +24,7 @@ impl InstallOptions {
             let partitions = disks
                 .get_physical_devices()
                 .iter()
-                .flat_map(|d| d.get_partitions().iter())
-                .chain(
-                    disks
-                        .get_logical_devices()
-                        .iter()
-                        .flat_map(|d| d.get_partitions().iter()),
-                );
+                .flat_map(|d| d.get_partitions().iter());
 
             Some(
                 partitions
@@ -51,23 +45,23 @@ impl InstallOptions {
             .iter()
             .flat_map(|disk| {
                 let ss: u64 = disk.get_sector_size();
-                disk.get_partitions().iter().map(move |p| (ss, p))
+                disk.get_partitions().iter().map(move |p| (true, ss, p))
             })
             // Then obtain logical partitions and their sector sizes.
             .chain(disks.get_logical_devices().iter().flat_map(|disk| {
                 let ss = disk.get_sector_size();
-                disk.get_partitions().iter().map(move |p| (ss, p))
+                disk.get_partitions().iter().map(move |p| (false, ss, p))
             }));
 
         let options = devices
-            .filter_map(move |(sector_size, partition)| {
+            .filter_map(move |(is_physical, sector_size, partition)| {
                 match partition.filesystem {
                     // Ignore partitions that are used as swap
                     Some(Swap) => None,
                     // If the partition has a file system, determine if it is
                     // shrinkable, and whether or not it has an OS installed
                     // on it.
-                    Some(_) => match partition.sectors_used(sector_size) {
+                    Some(_) if is_physical => match partition.sectors_used(sector_size) {
                         Some(Ok(used)) => match partition.probe_os() {
                             // Ensure the other OS has at least 5GB of headroom
                             Some(os) => {
@@ -120,7 +114,7 @@ impl InstallOptions {
                         None => None,
                     },
                     // If the partition does not have a file system
-                    None => {
+                    _ => {
                         if partition.sectors() > required_space {
                             Some(InstallOption {
                                 install_size: partition.sectors(),
