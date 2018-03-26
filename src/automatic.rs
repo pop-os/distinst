@@ -24,7 +24,13 @@ impl InstallOptions {
             let partitions = disks
                 .get_physical_devices()
                 .iter()
-                .flat_map(|d| d.get_partitions().iter());
+                .flat_map(|d| d.get_partitions().iter())
+                .chain(
+                    disks
+                        .get_logical_devices()
+                        .iter()
+                        .flat_map(|d| d.get_partitions().iter()),
+                );
 
             Some(
                 partitions
@@ -39,86 +45,94 @@ impl InstallOptions {
             None
         };
 
-        let options = disks
+        let devices = disks
+            // Obtain physical partitions and sector sizes.
             .get_physical_devices()
             .iter()
             .flat_map(|disk| {
-                let sector_size = disk.get_sector_size();
+                let ss: u64 = disk.get_sector_size();
+                disk.get_partitions().iter().map(move |p| (ss, p))
+            })
+            // Then obtain logical partitions and their sector sizes.
+            .chain(disks.get_logical_devices().iter().flat_map(|disk| {
+                let ss = disk.get_sector_size();
+                disk.get_partitions().iter().map(move |p| (ss, p))
+            }));
 
-                disk.get_partitions().iter().filter_map(move |partition| {
-                    match partition.filesystem {
-                        // Ignore partitions that are used as swap
-                        Some(Swap) => None,
-                        // If the partition has a file system, determine if it is
-                        // shrinkable, and whether or not it has an OS installed
-                        // on it.
-                        Some(_) => match partition.sectors_used(sector_size) {
-                            Some(Ok(used)) => match partition.probe_os() {
-                                // Ensure the other OS has at least 5GB of headroom
-                                Some(os) => {
-                                    // The size that the OS partition could be shrunk to
-                                    let shrink_to = used + (5242880 / sector_size);
-                                    // The maximum size that we can allocate to the new
-                                    // install
-                                    let install_size = partition.sectors() - shrink_to;
-                                    // Whether there is enough room or not in the install.
-                                    if install_size > required_space {
-                                        Some(InstallOption {
-                                            install_size,
-                                            kind: InstallKind::Os {
-                                                path: partition.get_device_path().into(),
-                                                os,
-                                                shrink_to,
-                                            },
-                                        })
-                                    } else {
-                                        None
-                                    }
+        let options = devices
+            .filter_map(move |(sector_size, partition)| {
+                match partition.filesystem {
+                    // Ignore partitions that are used as swap
+                    Some(Swap) => None,
+                    // If the partition has a file system, determine if it is
+                    // shrinkable, and whether or not it has an OS installed
+                    // on it.
+                    Some(_) => match partition.sectors_used(sector_size) {
+                        Some(Ok(used)) => match partition.probe_os() {
+                            // Ensure the other OS has at least 5GB of headroom
+                            Some(os) => {
+                                // The size that the OS partition could be shrunk to
+                                let shrink_to = used + (5242880 / sector_size);
+                                // The maximum size that we can allocate to the new
+                                // install
+                                let install_size = partition.sectors() - shrink_to;
+                                // Whether there is enough room or not in the install.
+                                if install_size > required_space {
+                                    Some(InstallOption {
+                                        install_size,
+                                        kind: InstallKind::Os {
+                                            path: partition.get_device_path().into(),
+                                            os,
+                                            shrink_to,
+                                        },
+                                    })
+                                } else {
+                                    None
                                 }
-                                // If it's just a data partition, ensure it has at least
-                                // 1GB of headroom
-                                None => {
-                                    let shrink_to = used + (1048576 / sector_size);
-                                    let install_size = partition.sectors() - shrink_to;
-                                    if install_size > required_space {
-                                        Some(InstallOption {
-                                            install_size,
-                                            kind: InstallKind::Partition {
-                                                path: partition.get_device_path().into(),
-                                                shrink_to,
-                                            },
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                }
-                            },
-                            Some(Err(why)) => {
-                                error!(
-                                    "unable to get usage for {}: {}. skipping partition",
-                                    partition.device_path.display(),
-                                    why
-                                );
-                                None
                             }
-                            // The partition doesn't support shrinking, so we will skip it.
-                            None => None,
+                            // If it's just a data partition, ensure it has at least
+                            // 1GB of headroom
+                            None => {
+                                let shrink_to = used + (1048576 / sector_size);
+                                let install_size = partition.sectors() - shrink_to;
+                                if install_size > required_space {
+                                    Some(InstallOption {
+                                        install_size,
+                                        kind: InstallKind::Partition {
+                                            path: partition.get_device_path().into(),
+                                            shrink_to,
+                                        },
+                                    })
+                                } else {
+                                    None
+                                }
+                            }
                         },
-                        // If the partition does not have a file system
-                        None => {
-                            if partition.sectors() > required_space {
-                                Some(InstallOption {
-                                    install_size: partition.sectors(),
-                                    kind:         InstallKind::Overwrite {
-                                        path: partition.get_device_path().into(),
-                                    },
-                                })
-                            } else {
-                                None
-                            }
+                        Some(Err(why)) => {
+                            error!(
+                                "unable to get usage for {}: {}. skipping partition",
+                                partition.device_path.display(),
+                                why
+                            );
+                            None
+                        }
+                        // The partition doesn't support shrinking, so we will skip it.
+                        None => None,
+                    },
+                    // If the partition does not have a file system
+                    None => {
+                        if partition.sectors() > required_space {
+                            Some(InstallOption {
+                                install_size: partition.sectors(),
+                                kind:         InstallKind::Overwrite {
+                                    path: partition.get_device_path().into(),
+                                },
+                            })
+                        } else {
+                            None
                         }
                     }
-                })
+                }
             })
             .collect::<Vec<InstallOption>>();
 
