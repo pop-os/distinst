@@ -20,10 +20,10 @@ use std::io;
 
 mod config;
 mod disk;
-mod lvm;
 mod ffi;
 mod filesystem;
 mod installer;
+mod lvm;
 mod partition;
 mod sector;
 

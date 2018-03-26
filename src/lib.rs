@@ -31,12 +31,12 @@ use tempdir::TempDir;
 
 pub use automatic::{InstallOption, InstallOptions};
 pub use chroot::Chroot;
+pub use disk::mount::{Mount, Mounts};
 pub use disk::{
     Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks, FileSystemType, LvmDevice,
     LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
     Sector,
 };
-pub use disk::mount::{Mount, Mounts};
 
 mod automatic;
 mod chroot;

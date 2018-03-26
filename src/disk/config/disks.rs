@@ -1,15 +1,15 @@
-use super::{get_size, get_uuid, Disk, LvmEncryption};
 use super::find_partition;
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::super::{
-    Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
-    PartitionType,
-};
 use super::super::external::{blkid_partition, cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
 use super::super::mounts::Mounts;
 use super::super::swaps::Swaps;
+use super::super::{
+    Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
+    PartitionType,
+};
+use super::{get_size, get_uuid, Disk, LvmEncryption};
 use libparted::{Device, DeviceType};
 
 use itertools::Itertools;

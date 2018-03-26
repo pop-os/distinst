@@ -1,7 +1,7 @@
-use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag, PartitionType};
 use super::FileSystemType::*;
 use super::external::{blockdev, fsck};
 use super::mount::Mount;
+use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag, PartitionType};
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};

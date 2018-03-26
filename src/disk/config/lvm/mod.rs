@@ -3,9 +3,9 @@ mod encryption;
 
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
-use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE};
 use super::super::external::{lvcreate, lvremove, mkfs, vgcreate};
 use super::super::mounts::Mounts;
+use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 

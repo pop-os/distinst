@@ -2,11 +2,11 @@
 //! the system.
 
 mod disk;
-mod disks;
 mod disk_trait;
-mod sector;
+mod disks;
 pub(crate) mod lvm;
 pub(crate) mod partitions;
+mod sector;
 
 pub use self::disk::*;
 pub use self::disk_trait::DiskExt;

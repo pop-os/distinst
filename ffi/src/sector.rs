@@ -1,7 +1,7 @@
-use {get_str, to_cstr};
 use distinst::Sector;
 use libc;
 use std::ptr;
+use {get_str, to_cstr};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
