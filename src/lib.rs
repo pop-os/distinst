@@ -646,9 +646,9 @@ impl Installer {
         mut callback: F,
     ) -> io::Result<()> {
         // Obtain the root device & partition, with an optional EFI device & partition.
-        let ((root_dev, _), efi_opt) = disks.get_base_partitions(bootloader);
+        let ((root_dev, _), boot_opt) = disks.get_base_partitions(bootloader);
 
-        let bootloader_dev = match efi_opt {
+        let bootloader_dev = match boot_opt {
             Some((dev, _)) => dev,
             None => root_dev,
         };
@@ -675,7 +675,7 @@ impl Installer {
             };
 
             // Also ensure that the /boot/efi directory is created.
-            if efi_opt.is_some() {
+            if bootloader == Bootloader::Efi && boot_opt.is_some() {
                 fs::create_dir_all(&efi_path)?;
             }
 

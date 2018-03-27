@@ -347,11 +347,13 @@ impl Disks {
     ) -> ((&Path, &PartitionInfo), Option<(&Path, &PartitionInfo)>) {
         match bootloader {
             Bootloader::Bios => {
+                let boot = self.find_partition(Path::new("/boot"));
+
                 let root = self.find_partition(Path::new("/")).expect(
                     "verify_partitions() should have ensured that a root partition was created",
                 );
 
-                (root, None)
+                (root, boot)
             }
             Bootloader::Efi => {
                 let efi = self.find_partition(Path::new("/boot/efi")).expect(
