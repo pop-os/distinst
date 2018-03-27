@@ -1,4 +1,3 @@
-use super::find_partition;
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::external::{blkid_partition, cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
@@ -10,6 +9,7 @@ use super::super::{
     PartitionType,
 };
 use super::{get_size, get_uuid, Disk, LvmEncryption};
+use super::{find_partition, find_partition_mut};
 use libparted::{Device, DeviceType};
 
 use itertools::Itertools;
@@ -289,6 +289,16 @@ impl Disks {
     /// the given target mount point. Scans both physical and logical partitions.
     pub fn find_partition<'a>(&'a self, target: &Path) -> Option<(&'a Path, &'a PartitionInfo)> {
         find_partition(&self.physical, target).or(find_partition(&self.logical, target))
+    }
+
+    /// Finds the partition block path and associated partition information that is associated with
+    /// the given target mount point. Scans both physical and logical partitions. Mutable variant.
+    pub fn find_partition_mut<'a>(
+        &'a mut self,
+        target: &Path,
+    ) -> Option<(PathBuf, &'a mut PartitionInfo)> {
+        find_partition_mut(&mut self.physical, target)
+            .or(find_partition_mut(&mut self.logical, target))
     }
 
     /// Returns a list of disk & partition paths that match a volume group.

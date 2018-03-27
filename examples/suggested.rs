@@ -7,8 +7,8 @@ use std::process;
 fn list() -> Result<()> {
     let mut disks = Disks::probe_devices()?;
     let _ = disks.initialize_volume_groups();
-
     let recommended = InstallOptions::detect(&disks, 5_000_000_000 / 512).unwrap();
+
     println!("Recommended Install Options:");
     println!("    largest size: {}", recommended.largest_available);
     println!("    largest option: {}", recommended.largest_option);
@@ -22,7 +22,12 @@ fn list() -> Result<()> {
 
     println!("    Install Locations:");
     for option in &recommended.options {
-        println!("        {}: {:?}", option.install_size, option.kind);
+        println!(
+            "        {} ({} sectors): {:?}",
+            option.path.display(),
+            option.install_size,
+            option.kind
+        );
     }
 
     Ok(())

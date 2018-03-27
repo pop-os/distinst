@@ -1,7 +1,8 @@
-use super::{Bootloader, DiskExt, Disks};
+use super::{Bootloader, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionError, PartitionInfo};
+use FileSystemType::*;
 use libparted::PartitionFlag;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct InstallOptions {
@@ -18,8 +19,6 @@ pub struct InstallOptions {
 impl InstallOptions {
     /// Obtains a list of possible installation options
     pub fn detect(disks: &Disks, required_space: u64) -> io::Result<InstallOptions> {
-        use FileSystemType::*;
-
         let efi_partitions = if Bootloader::detect() == Bootloader::Efi {
             let partitions = disks
                 .get_physical_devices()
@@ -73,11 +72,12 @@ impl InstallOptions {
                                 // Whether there is enough room or not in the install.
                                 if install_size > required_space {
                                     let path: PathBuf = partition.get_device_path().into();
+                                    let home = home.unwrap_or_else(|| path.clone());
                                     Some(InstallOption {
                                         install_size,
-                                        kind: InstallKind::Os {
-                                            home: home.unwrap_or_else(|| path.clone()),
-                                            path,
+                                        path,
+                                        kind: InstallKind::AlongsideOS {
+                                            home,
                                             os,
                                             shrink_to,
                                         },
@@ -94,10 +94,8 @@ impl InstallOptions {
                                 if install_size > required_space {
                                     Some(InstallOption {
                                         install_size,
-                                        kind: InstallKind::Partition {
-                                            path: partition.get_device_path().into(),
-                                            shrink_to,
-                                        },
+                                        path: partition.get_device_path().into(),
+                                        kind: InstallKind::Partition { shrink_to },
                                     })
                                 } else {
                                     None
@@ -120,9 +118,8 @@ impl InstallOptions {
                         if partition.sectors() > required_space {
                             Some(InstallOption {
                                 install_size: partition.sectors(),
-                                kind:         InstallKind::Overwrite {
-                                    path: partition.get_device_path().into(),
-                                },
+                                path:         partition.get_device_path().into(),
+                                kind:         InstallKind::Overwrite,
                             })
                         } else {
                             None
@@ -150,25 +147,80 @@ impl InstallOptions {
     }
 }
 
+pub enum AutomaticError {
+    PartitionNotFound,
+    Partition { why: PartitionError },
+}
+
 #[derive(Debug)]
 pub struct InstallOption {
     pub install_size: u64,
+    pub path:         PathBuf,
     pub kind:         InstallKind,
+}
+
+impl InstallOption {
+    pub fn apply(&mut self, disks: &mut Disks, efi: Option<&Path>) -> Result<(), AutomaticError> {
+        // Shrinks the partition at the given path, then
+        // creates a root partition within the new empty space.
+        fn shrink_and_insert(
+            disks: &mut Disks,
+            path: &Path,
+            shrink_to: u64,
+            install_size: u64,
+        ) -> Result<(), AutomaticError> {
+            let (root_device, start_sector) = {
+                let (device, existing) = disks
+                    .find_partition_mut(path)
+                    .ok_or(AutomaticError::PartitionNotFound)?;
+
+                existing
+                    .shrink_to(shrink_to)
+                    .map_err(|why| AutomaticError::Partition { why })?;
+
+                (device, existing.end_sector + 1)
+            };
+
+            let end_sector = start_sector + install_size;
+            let root_device = disks.find_disk_mut(&root_device).unwrap();
+            root_device.push_partition(
+                PartitionBuilder::new(start_sector, end_sector, Luks)
+                    .mount(PathBuf::from("/"))
+                    .build(),
+            );
+
+            Ok(())
+        }
+
+        match self.kind {
+            InstallKind::AlongsideOS { shrink_to, .. } => {
+                shrink_and_insert(disks, &self.path, shrink_to, self.install_size)?;
+            }
+            InstallKind::Partition { shrink_to } => {
+                shrink_and_insert(disks, &self.path, shrink_to, self.install_size)?;
+            }
+            InstallKind::Overwrite => {
+                let (_device, root) = disks
+                    .find_partition_mut(&self.path)
+                    .ok_or(AutomaticError::PartitionNotFound)?;
+                root.set_mount(PathBuf::from("/"));
+                root.format_with(FileSystemType::Ext4);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
 pub enum InstallKind {
-    Os {
-        path:      PathBuf,
+    AlongsideOS {
         os:        String,
         home:      PathBuf,
         shrink_to: u64,
     },
     Partition {
-        path:      PathBuf,
         shrink_to: u64,
     },
-    Overwrite {
-        path: PathBuf,
-    },
+    Overwrite,
 }

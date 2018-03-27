@@ -175,3 +175,28 @@ pub(crate) fn find_partition<'a, T: DiskExt>(
     }
     None
 }
+
+/// Finds the partition block path and associated partition information that is associated with
+/// the given target mount point. Mutable variant
+pub(crate) fn find_partition_mut<'a, T: DiskExt>(
+    disks: &'a mut [T],
+    target: &Path,
+) -> Option<(PathBuf, &'a mut PartitionInfo)> {
+    for disk in disks {
+        let path = disk.get_device_path().to_path_buf();
+        for partition in disk.get_partitions_mut() {
+            // TODO: NLL
+            let mut found = false;
+            if let Some(ref ptarget) = partition.target {
+                if ptarget == target {
+                    found = true;
+                }
+            }
+
+            if found {
+                return Some((path, partition));
+            }
+        }
+    }
+    None
+}

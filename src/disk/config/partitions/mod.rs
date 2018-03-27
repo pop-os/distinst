@@ -17,6 +17,11 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+#[derive(Debug)]
+pub enum PartitionError {
+    ShrinkValueTooHigh,
+}
+
 /// Specifies which file system format to use.
 #[derive(Debug, PartialEq, Copy, Clone, Hash)]
 pub enum FileSystemType {
@@ -260,6 +265,16 @@ impl PartitionInfo {
     /// device will be assigned to the encrypted partition.
     pub fn set_volume_group(&mut self, group: String, encryption: Option<LvmEncryption>) {
         self.volume_group = Some((group.clone(), encryption));
+    }
+
+    /// Shrinks the partition, if possible.
+    pub fn shrink_to(&mut self, sectors: u64) -> Result<(), PartitionError> {
+        if self.end_sector - self.start_sector < sectors {
+            Err(PartitionError::ShrinkValueTooHigh)
+        } else {
+            self.end_sector -= sectors;
+            Ok(())
+        }
     }
 
     /// Defines that a new file system will be applied to this partition.
