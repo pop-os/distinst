@@ -29,7 +29,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tempdir::TempDir;
 
-pub use automatic::{InstallOption, InstallOptions};
+pub use automatic::{AutomaticError, Config as AutomaticConfig, InstallOption, InstallOptions};
 pub use chroot::Chroot;
 pub use disk::mount::{Mount, Mounts};
 pub use disk::{

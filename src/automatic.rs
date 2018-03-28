@@ -1,4 +1,7 @@
-use super::{Bootloader, DiskExt, Disks, FileSystemType, PartitionBuilder, PartitionError, PartitionInfo};
+use super::{
+    Bootloader, Disk, DiskExt, Disks, FileSystemType, LvmEncryption, PartitionBuilder,
+    PartitionError, PartitionInfo,
+};
 use FileSystemType::*;
 use libparted::PartitionFlag;
 use std::io;
@@ -152,6 +155,33 @@ pub enum AutomaticError {
     Partition { why: PartitionError },
 }
 
+fn shrink<F: FnMut(&mut Disk, u64, u64)>(
+    disks: &mut Disks,
+    path: &Path,
+    shrink_to: u64,
+    install_size: u64,
+    mut configure_unused: F,
+) -> Result<(), AutomaticError> {
+    let (root_device, start_sector) = {
+        let (device, existing) = disks
+            .find_partition_mut(path)
+            .ok_or(AutomaticError::PartitionNotFound)?;
+
+        existing
+            .shrink_to(shrink_to)
+            .map_err(|why| AutomaticError::Partition { why })?;
+
+        (device, existing.end_sector + 1)
+    };
+
+    // Allow the caller decide what happens with the unused space.
+    let end_sector = start_sector + install_size;
+    let root_device = disks.find_disk_mut(&root_device).unwrap();
+    configure_unused(root_device, start_sector, end_sector);
+
+    Ok(())
+}
+
 #[derive(Debug)]
 pub struct InstallOption {
     pub install_size: u64,
@@ -159,53 +189,100 @@ pub struct InstallOption {
     pub kind:         InstallKind,
 }
 
+pub struct Config<'a> {
+    boot:       Option<&'a Path>,
+    encryption: Option<(&'a str, Option<LvmEncryption>)>,
+    root_fs:    FileSystemType,
+}
+
+fn create_boot_partition(disk: &mut Disk, is_efi: bool, start: u64, end: u64) {
+    disk.push_partition(
+        PartitionBuilder::new(start, end, Fat32)
+            .mount(PathBuf::from(if is_efi { "/boot/efi" } else { "/boot" }))
+            .flag(PartitionFlag::PED_PARTITION_ESP)
+            .build(),
+    );
+}
+
+fn create_logical_partition(
+    disk: &mut Disk,
+    logical: &mut (&str, Option<LvmEncryption>),
+    start: u64,
+    end: u64,
+) {
+    disk.push_partition(
+        PartitionBuilder::new(start, end, if logical.1.is_some() { Luks } else { Lvm })
+            .logical_volume((*logical.0).into(), logical.1.take())
+            .build(),
+    );
+}
+
 impl InstallOption {
-    pub fn apply(&mut self, disks: &mut Disks, efi: Option<&Path>) -> Result<(), AutomaticError> {
-        // Shrinks the partition at the given path, then
-        // creates a root partition within the new empty space.
-        fn shrink_and_insert(
-            disks: &mut Disks,
-            path: &Path,
-            shrink_to: u64,
-            install_size: u64,
-        ) -> Result<(), AutomaticError> {
-            let (root_device, start_sector) = {
-                let (device, existing) = disks
-                    .find_partition_mut(path)
-                    .ok_or(AutomaticError::PartitionNotFound)?;
-
-                existing
-                    .shrink_to(shrink_to)
-                    .map_err(|why| AutomaticError::Partition { why })?;
-
-                (device, existing.end_sector + 1)
-            };
-
-            let end_sector = start_sector + install_size;
-            let root_device = disks.find_disk_mut(&root_device).unwrap();
-            root_device.push_partition(
-                PartitionBuilder::new(start_sector, end_sector, Luks)
-                    .mount(PathBuf::from("/"))
-                    .build(),
-            );
-
-            Ok(())
-        }
+    pub fn apply(&mut self, disks: &mut Disks, mut config: Config) -> Result<(), AutomaticError> {
+        let is_efi = Bootloader::detect() == Bootloader::Efi;
+        let boot_required = is_efi || config.encryption.is_some();
+        let create_boot = boot_required && config.boot.is_none();
+        let mut logical_length = 0;
 
         match self.kind {
-            InstallKind::AlongsideOS { shrink_to, .. } => {
-                shrink_and_insert(disks, &self.path, shrink_to, self.install_size)?;
-            }
-            InstallKind::Partition { shrink_to } => {
-                shrink_and_insert(disks, &self.path, shrink_to, self.install_size)?;
+            InstallKind::AlongsideOS { shrink_to, .. } | InstallKind::Partition { shrink_to } => {
+                shrink(
+                    disks,
+                    &self.path,
+                    shrink_to,
+                    self.install_size,
+                    |disk, mut start, end| {
+                        if create_boot {
+                            let x = start;
+                            start += 1000;
+                            create_boot_partition(disk, is_efi, x, start);
+                        }
+
+                        match config.encryption.as_mut() {
+                            Some(ref mut logical_parameters) => {
+                                create_logical_partition(disk, logical_parameters, start, end);
+                                logical_length = end - start;
+                            }
+                            None => {
+                                disk.push_partition(
+                                    PartitionBuilder::new(start, end, config.root_fs)
+                                        .mount(PathBuf::from("/"))
+                                        .build(),
+                                );
+                            }
+                        }
+                    },
+                )?;
             }
             InstallKind::Overwrite => {
-                let (_device, root) = disks
-                    .find_partition_mut(&self.path)
-                    .ok_or(AutomaticError::PartitionNotFound)?;
-                root.set_mount(PathBuf::from("/"));
-                root.format_with(FileSystemType::Ext4);
+                if create_boot {
+                    unimplemented!()
+                } else {
+                    // Don't make changes to the partition table, just format and configure.
+                    let (_device, partition) = disks
+                        .find_partition_mut(&self.path)
+                        .ok_or(AutomaticError::PartitionNotFound)?;
+
+                    match config.encryption.as_mut() {
+                        Some(&mut (ref mut group, ref mut encryption)) => {
+                            partition.format_with(if encryption.is_some() { Luks } else { Lvm });
+                            partition.set_volume_group((*group).into(), encryption.take());
+                        }
+                        None => {
+                            partition.format_with(config.root_fs);
+                            partition.set_mount(PathBuf::from("/"));
+                        }
+                    }
+                }
             }
+        }
+
+        disks.initialize_volume_groups();
+        if let Some((group, _)) = config.encryption {
+            let logical_disk = disks.get_logical_device_mut(group).unwrap();
+            logical_disk.add_partition(
+                PartitionBuilder::new(0, logical_length, config.root_fs).mount(PathBuf::from("/")),
+            );
         }
 
         Ok(())
