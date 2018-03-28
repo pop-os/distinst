@@ -8,12 +8,8 @@ use std::path::{Path, PathBuf};
 /// A mount entry which contains information regarding how and where a device
 /// is mounted.
 pub(crate) struct MountInfo {
-    pub(crate) source:  PathBuf,
-    pub(crate) dest:    PathBuf,
-    pub(crate) fs:      OsString,
-    pub(crate) options: OsString,
-    pub(crate) dump:    OsString,
-    pub(crate) pass:    OsString,
+    pub(crate) source: PathBuf,
+    pub(crate) dest:   PathBuf,
 }
 
 pub(crate) struct Mounts(Vec<MountInfo>);
@@ -56,26 +52,10 @@ impl Mounts {
         let dest = parts
             .next()
             .ok_or_else(|| Error::new(ErrorKind::Other, "Missing dest"))?;
-        let fs = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing fs"))?;
-        let options = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing options"))?;
-        let dump = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing dump"))?;
-        let pass = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing pass"))?;
 
         Ok(MountInfo {
-            source:  PathBuf::from(Self::parse_value(source)?),
-            dest:    PathBuf::from(Self::parse_value(dest)?),
-            fs:      Self::parse_value(fs)?,
-            options: Self::parse_value(options)?,
-            dump:    Self::parse_value(dump)?,
-            pass:    Self::parse_value(pass)?,
+            source: PathBuf::from(Self::parse_value(source)?),
+            dest:   PathBuf::from(Self::parse_value(dest)?),
         })
     }
 

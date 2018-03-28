@@ -970,7 +970,7 @@ fn configure_disks(matches: &ArgMatches) -> Result<Disks, DistinstError> {
         matches.values_of("logical-remove"),
         matches.is_present("logical-remove-all"),
     )?;
-    eprintln!("distisnt: disks configured");
+    eprintln!("distinst: disks configured");
 
     Ok(disks)
 }

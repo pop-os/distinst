@@ -457,10 +457,20 @@ impl Disks {
         Ok(())
     }
 
-    /// Ensures that EFI installs contain a `/boot/efi` and `/` partition, whereas MBR installs
-    /// contain a `/` partition. Additionally, the EFI partition must have the ESP flag set.
+    fn device_is_logical(&self, device: &Path) -> bool {
+        self.get_logical_devices()
+            .iter()
+            .any(|d| d.get_device_path() == device)
+    }
+
+    /// Validates that partitions are configured correctly.
+    ///
+    /// - EFI installs must contain a `/boot/efi` partition as Fat16 / Fat32
+    /// - MBR installs on logical devices must have a `/boot` partition
+    /// - Boot partitions must not be on a logical volume
+    /// - EFI boot partitions must have the ESP flag set
     pub fn verify_partitions(&self, bootloader: Bootloader) -> io::Result<()> {
-        let (_, root) = self.find_partition(Path::new("/")).ok_or_else(|| {
+        let (root_device, root) = self.find_partition(Path::new("/")).ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "root partition was not defined",
@@ -484,37 +494,58 @@ impl Disks {
             }
         }
 
-        if bootloader == Bootloader::Efi {
-            let (_, efi) = self.find_partition(Path::new("/boot/efi")).ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidInput, "EFI partition was not defined")
-            })?;
+        let boot_partition = if bootloader == Bootloader::Efi {
+            Some(("/boot/efi", "EFI", true))
+        } else if self.device_is_logical(root_device) {
+            Some(("/boot", "boot", false))
+        } else {
+            None
+        };
 
-            if !efi.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
+        if let Some((partition, kind, is_efi)) = boot_partition {
+            let device = {
+                let (device, boot) = self.find_partition(Path::new(partition)).ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("{} partition was not defined", kind),
+                    )
+                })?;
+
+                if is_efi {
+                    if !boot.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("{} partition did not have ESP flag set", kind),
+                        ));
+                    }
+
+                    match boot.filesystem {
+                        Some(Fat16) | Some(Fat32) => (),
+                        Some(_) => {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                format!("{} partition has invalid file system", kind),
+                            ));
+                        }
+                        None => {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                format!("{} partition does not have a file system", kind),
+                            ));
+                        }
+                    }
+                }
+
+                device
+            };
+
+            if self.device_is_logical(device) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "EFI partition did not have ESP flag set",
+                    format!("{} partition cannot be on logical device", kind),
                 ));
             }
-
-            match efi.filesystem {
-                Some(Fat16) | Some(Fat32) => (),
-                Some(_) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "efi partition has invalid file system",
-                    ));
-                }
-                None => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "efi partition does not have a file system",
-                    ));
-                }
-            }
         }
-
-        // TODO: Verify that encrypted partitions with a keyfile ID have one
-        // partition match with the same keyfile ID.
 
         Ok(())
     }

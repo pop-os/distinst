@@ -1,6 +1,6 @@
 use super::{
     Bootloader, Disk, DiskExt, Disks, FileSystemType, LvmEncryption, PartitionBuilder,
-    PartitionError, PartitionInfo,
+    PartitionError,
 };
 use FileSystemType::*;
 use libparted::PartitionFlag;
