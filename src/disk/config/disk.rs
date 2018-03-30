@@ -1,4 +1,3 @@
-use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::super::mount::{swapoff, umount};
 use super::super::mounts::Mounts;
 use super::super::operations::*;
@@ -7,6 +6,7 @@ use super::super::{
     check_partition_size, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
     PartitionTable, PartitionType,
 };
+use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::{get_device, open_disk, Disks};
 use libparted::{Device, DeviceType};
 
@@ -705,12 +705,13 @@ impl Disk {
         let collected = self.partitions
             .iter()
             .filter_map(|partition| {
+                let is_swap = partition.is_swap();
                 let start = partition.start_sector;
                 let mount = partition.target.as_ref().map(|ref path| path.to_path_buf());
                 let vg = partition.volume_group.as_ref().map(|vg| vg.clone());
                 let keyid = partition.key_id.as_ref().map(|id| id.clone());
-                if mount.is_some() || vg.is_some() || keyid.is_some() {
-                    Some((start, mount, vg, keyid))
+                if is_swap || mount.is_some() || vg.is_some() || keyid.is_some() {
+                    Some((is_swap, start, mount, vg, keyid))
                 } else {
                     None
                 }
@@ -721,11 +722,15 @@ impl Disk {
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
 
         // Then re-add the critical information which was lost.
-        for (sector, mount, vg, keyid) in collected {
+        for (is_swap, sector, mount, vg, keyid) in collected {
             info!("libdistinst: checking for mount target at {}", sector);
             let part = self.get_partition_at(sector)
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
+
+            if is_swap {
+                part.bitflags |= super::partitions::WILL_SWAP;
+            }
 
             part.target = mount;
             part.volume_group = vg;

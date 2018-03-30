@@ -81,7 +81,11 @@ impl PartitionBuilder {
     /// Builds a brand new Partition from the current state of the builder.
     pub fn build(self) -> PartitionInfo {
         PartitionInfo {
-            bitflags:     FORMAT,
+            bitflags:     FORMAT + if self.filesystem == FileSystemType::Swap {
+                super::WILL_SWAP
+            } else {
+                0
+            },
             number:       -1,
             start_sector: self.start_sector,
             end_sector:   self.end_sector,

@@ -82,8 +82,14 @@ pub(crate) fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S
 }
 
 /// Formats the supplied `part` device with the file system specified.
-pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
+pub(crate) fn mkfs<P: AsRef<Path>>(
+    part: P,
+    is_unencrypted: bool,
+    kind: FileSystemType,
+) -> io::Result<()> {
     use FileSystemType::*;
+    let part = part.as_ref();
+
     let (cmd, args): (&'static str, &'static [&'static str]) = match kind {
         Btrfs => ("mkfs.btrfs", &["-f"]),
         Exfat => ("mkfs.exfat", &[]),
@@ -94,14 +100,24 @@ pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<
         Fat16 => ("mkfs.fat", &["-F", "16"]),
         Fat32 => ("mkfs.fat", &["-F", "32"]),
         Ntfs => ("mkfs.ntfs", &["-FQ", "-q"]),
-        Swap => ("mkswap", &["-f"]),
+        Swap => if is_unencrypted {
+            // https://wiki.archlinux.org/index.php/Dm-crypt/Swap_encryption#UUID_and_LABEL
+            ("mkfs.ext2", &["-F", "-q"])
+        } else {
+            ("mkswap", &["-f"])
+        },
         Xfs => ("mkfs.xfs", &["-f"]),
         Luks | Lvm => return Ok(()),
     };
 
     exec(cmd, None, None, &{
         let mut args = args.into_iter().map(Into::into).collect::<Vec<OsString>>();
-        args.push(part.as_ref().into());
+        args.push(part.into());
+
+        if kind == Swap && is_unencrypted {
+            args.push("1M".into());
+        }
+
         args
     })
 }

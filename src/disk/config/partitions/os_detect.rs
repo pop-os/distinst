@@ -1,6 +1,6 @@
-use super::FileSystemType;
-use super::super::from_uuid;
 use super::super::super::mount::Mount;
+use super::super::from_uuid;
+use super::FileSystemType;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};

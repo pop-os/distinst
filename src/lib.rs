@@ -12,8 +12,8 @@ extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
-extern crate tempdir;
 extern crate rand;
+extern crate tempdir;
 
 use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
 use itertools::Itertools;
@@ -770,7 +770,7 @@ impl Installer {
         macro_rules! apply_step {
             // When a step is provided, that step will be set. This branch will then invoke a
             // second call to the macro, which will execute the branch below this one.
-            ($step: expr, $msg: expr, $action: expr) => {{
+            ($step:expr, $msg:expr, $action:expr) => {{
                 unsafe {
                     libc::sync();
                 }
@@ -786,7 +786,7 @@ impl Installer {
                 apply_step!($msg, $action);
             }};
             // When a step is not provided, the program will simply
-            ($msg: expr, $action: expr) => {{
+            ($msg:expr, $action:expr) => {{
                 info!("libdistinst: starting {} step", $msg);
                 match $action {
                     Ok(value) => value,

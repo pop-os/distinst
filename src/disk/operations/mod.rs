@@ -384,7 +384,7 @@ impl FormatPartitions {
         info!("libdistinst: executing format operations");
         for (part, fs) in self.0 {
             info!("libdistinst: formatting {} with {:?}", part.display(), fs);
-            mkfs(&part, fs).map_err(|why| DiskError::PartitionFormat { why })?;
+            mkfs(&part, true, fs).map_err(|why| DiskError::PartitionFormat { why })?;
         }
         Ok(())
     }

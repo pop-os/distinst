@@ -1,5 +1,5 @@
-use super::partitions::{check_partition_size, REMOVE};
 use super::super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector};
+use super::partitions::{check_partition_size, REMOVE};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -14,6 +14,7 @@ pub trait DiskExt {
     /// Returns the model of the device.
     fn get_model(&self) -> &str;
 
+    /// Get the mount point of the device.
     fn get_mount_point(&self) -> Option<&Path>;
 
     /// Returns a slice of all partitions in the device.

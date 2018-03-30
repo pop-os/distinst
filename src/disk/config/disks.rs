@@ -1,6 +1,5 @@
-use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::external::{blkid_partition, cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
-use super::super::lvm::{self, LvmDevice};
+use super::super::lvm::{self, generate_unique_id, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
 use super::super::mounts::Mounts;
 use super::super::swaps::Swaps;
@@ -8,12 +7,15 @@ use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
     PartitionType,
 };
+use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::{get_size, get_uuid, Disk, LvmEncryption};
 use super::{find_partition, find_partition_mut};
 use libparted::{Device, DeviceType};
 
 use itertools::Itertools;
+use std::borrow::Cow;
 use std::collections::HashSet;
+use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::io;
 use std::iter::{self, FromIterator};
@@ -599,13 +601,14 @@ impl Disks {
 
         let partitions = self.physical
             .iter()
-            .flat_map(|x| x.get_partitions().iter())
-            .chain(self.logical.iter().flat_map(|x| x.get_partitions().iter()));
+            .flat_map(|x| x.get_partitions().iter().map(|p| (false, p)))
+            .chain(self.logical.iter().flat_map(|x| {
+                let is_unencrypted: bool = x.encryption.is_none();
+                x.get_partitions().iter().map(move |p| (is_unencrypted, p))
+            }));
 
         // <PV> <UUID> <Pass> <Options>
-        use std::borrow::Cow;
-        use std::ffi::OsStr;
-        for partition in partitions {
+        for (is_unencrypted, partition) in partitions {
             if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
                 let password: Cow<'static, OsStr> =
                     match (enc.password.is_some(), enc.keydata.as_ref()) {
@@ -629,6 +632,22 @@ impl Disks {
                         crypttab.push(" ");
                         crypttab.push(&password);
                         crypttab.push(" luks\n");
+                    }
+                    None => error!(
+                        "unable to find UUID for {} -- skipping",
+                        partition.device_path.display()
+                    ),
+                }
+            } else if partition.is_swap() && is_unencrypted {
+                match get_uuid(&partition.device_path) {
+                    Some(uuid) => {
+                        crypttab
+                            .push(&generate_unique_id("cryptswap").unwrap_or("cryptswap".into()));
+                        crypttab.push(" UUID=");
+                        crypttab.push(&uuid);
+                        crypttab.push(
+                            " /dev/urandom swap,offset=2048,cipher=aes-xts-plain64,size=512\n",
+                        );
                     }
                     None => error!(
                         "unable to find UUID for {} -- skipping",

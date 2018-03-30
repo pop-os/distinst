@@ -6,21 +6,18 @@ pub use self::encryption::LvmEncryption;
 use super::super::external::{dmlist, lvcreate, lvremove, mkfs, vgcreate};
 use super::super::mounts::Mounts;
 use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE};
+use rand::{self, Rng};
 use std::ffi::OsStr;
 use std::io;
 use std::path::{Path, PathBuf};
-use rand::{self, Rng};
 
 pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     let dmlist = dmlist()?;
     loop {
-        let id: String = rand::thread_rng()
-            .gen_ascii_chars()
-            .take(5)
-            .collect();
+        let id: String = rand::thread_rng().gen_ascii_chars().take(5).collect();
         let id = [prefix, "-", &id].concat();
         if dmlist.contains(&id) {
-            continue
+            continue;
         }
         return Ok(id);
     }
@@ -193,8 +190,11 @@ impl LvmDevice {
                     .map_err(|why| DiskError::PartitionRemove { partition: -1, why })?;
             } else if partition.flag_is_enabled(FORMAT) {
                 if let Some(fs) = partition.filesystem.as_ref() {
-                    mkfs(&partition.device_path, fs.clone())
-                        .map_err(|why| DiskError::PartitionFormat { why })?;
+                    mkfs(
+                        &partition.device_path,
+                        self.encryption.is_none(),
+                        fs.clone(),
+                    ).map_err(|why| DiskError::PartitionFormat { why })?;
                 }
             }
         }
