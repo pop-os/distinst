@@ -13,6 +13,7 @@ extern crate libparted;
 #[macro_use]
 extern crate log;
 extern crate tempdir;
+extern crate rand;
 
 use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
 use itertools::Itertools;

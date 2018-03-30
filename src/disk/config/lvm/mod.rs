@@ -3,11 +3,28 @@ mod encryption;
 
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
-use super::super::external::{lvcreate, lvremove, mkfs, vgcreate};
+use super::super::external::{dmlist, lvcreate, lvremove, mkfs, vgcreate};
 use super::super::mounts::Mounts;
 use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE};
 use std::ffi::OsStr;
+use std::io;
 use std::path::{Path, PathBuf};
+use rand::{self, Rng};
+
+pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
+    let dmlist = dmlist()?;
+    loop {
+        let id: String = rand::thread_rng()
+            .gen_ascii_chars()
+            .take(5)
+            .collect();
+        let id = [prefix, "-", &id].concat();
+        if dmlist.contains(&id) {
+            continue
+        }
+        return Ok(id);
+    }
+}
 
 /// An LVM device acts similar to a Disk, but consists of one more block devices
 /// that comprise a volume group, and may optionally be encrypted.

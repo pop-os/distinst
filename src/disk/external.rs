@@ -156,6 +156,38 @@ pub(crate) fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option
     Some(output)
 }
 
+pub(crate) fn dmlist() -> io::Result<Vec<String>> {
+    let mut current_line = String::with_capacity(64);
+    let mut output = Vec::new();
+
+    let mut reader = BufReader::new(
+        Command::new("dmsetup")
+            .arg("ls")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?
+            .stdout
+            .unwrap(),
+    );
+
+    // Skip the first line of output
+    let _ = reader.read_line(&mut current_line);
+    current_line.clear();
+
+    while reader.read_line(&mut current_line)? != 0 {
+        {
+            let mut fields = current_line.split_whitespace();
+            if let Some(dm) = fields.next() {
+                output.push(dm.into());
+            }
+        }
+
+        current_line.clear();
+    }
+
+    Ok(output)
+}
+
 /// Used to create a physical volume on a LUKS partition.
 pub(crate) fn pvcreate<P: AsRef<Path>>(device: P) -> io::Result<()> {
     exec(
