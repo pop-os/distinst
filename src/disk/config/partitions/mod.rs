@@ -297,7 +297,7 @@ impl PartitionInfo {
     pub fn sectors_used(&self, sector_size: u64) -> Option<io::Result<u64>> {
         use FileSystemType::*;
         self.filesystem.and_then(|fs| match fs {
-            Swap | Lvm | Xfs | F2fs | Exfat => None,
+            Swap | Lvm | Luks | Xfs | F2fs | Exfat => None,
             _ => Some(get_used_sectors(self.get_device_path(), fs, sector_size)),
         })
     }

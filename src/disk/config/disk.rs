@@ -1,4 +1,3 @@
-use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::super::mount::{swapoff, umount};
 use super::super::mounts::Mounts;
 use super::super::operations::*;
@@ -7,6 +6,7 @@ use super::super::{
     check_partition_size, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
     PartitionTable, PartitionType,
 };
+use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::{get_device, open_disk, Disks};
 use libparted::{Device, DeviceType};
 

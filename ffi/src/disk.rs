@@ -15,7 +15,10 @@ use ffi::AsMutPtr;
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use gen_object_ptr;
 use lvm::{DistinstLvmDevice, DistinstLvmEncryption};
-use partition::{DistinstPartition, DistinstPartitionBuilder, DISTINST_PARTITION_TABLE};
+use partition::{
+    DistinstPartition, DistinstPartitionAndDiskPath, DistinstPartitionBuilder,
+    DISTINST_PARTITION_TABLE,
+};
 use sector::DistinstSector;
 
 #[repr(C)]
@@ -86,6 +89,23 @@ pub unsafe extern "C" fn distinst_disk_get_partition(
 ) -> *mut DistinstPartition {
     let disk = &mut *(disk as *mut Disk);
     disk.get_partition_mut(partition as i32).as_mut_ptr() as *mut DistinstPartition
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_partition_by_path(
+    disk: *mut DistinstDisk,
+    path: *const libc::c_char,
+) -> *mut DistinstPartition {
+    get_str(path, "")
+        .ok()
+        .and_then(|path| {
+            let path = Path::new(&path);
+            let disk = &mut *(disk as *mut Disk);
+            disk.get_partitions_mut()
+                .iter_mut()
+                .find(|d| d.get_device_path() == path)
+        })
+        .as_mut_ptr() as *mut DistinstPartition
 }
 
 #[no_mangle]
@@ -337,14 +357,32 @@ pub unsafe extern "C" fn distinst_disks_list(
     Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstDisk
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_get_physical_device(
+    disks: *mut DistinstDisks,
+    path: *const libc::c_char,
+) -> *mut DistinstDisk {
+    match get_str(path, "distinst_disks_get_logical_device") {
+        Ok(path) => {
+            let disks = &mut *(disks as *mut Disks);
+            disks.get_physical_device_mut(path).as_mut_ptr() as *mut DistinstDisk
+        }
+        Err(why) => {
+            eprintln!("libdistinst: path is not UTF-8: {}", why);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disks_get_logical_device(
     disks: *mut DistinstDisks,
     volume_group: *const libc::c_char,
-) -> *mut LvmDevice {
+) -> *mut DistinstLvmDevice {
     match get_str(volume_group, "distinst_partition_builder") {
         Ok(vg) => {
             let disks = &mut *(disks as *mut Disks);
-            disks.get_logical_device_mut(vg).as_mut_ptr()
+            disks.get_logical_device_mut(vg).as_mut_ptr() as *mut DistinstLvmDevice
         }
         Err(why) => {
             eprintln!("libdistinst: volume_group is not UTF-8: {}", why);
@@ -367,6 +405,36 @@ pub unsafe extern "C" fn distinst_disks_list_logical(
 
     *len = output.len() as libc::c_int;
     Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstLvmDevice
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_find_partition(
+    disks: *mut DistinstDisks,
+    path: *const libc::c_char,
+) -> *mut DistinstPartitionAndDiskPath {
+    let disks = &mut *(disks as *mut Disks);
+    let path = match get_str(path, "") {
+        Ok(path) => path,
+        Err(_) => {
+            return ptr::null_mut();
+        }
+    };
+
+    disks
+        .find_partition_mut(Path::new(&path))
+        .and_then(|(device_path, partition)| {
+            CString::new(device_path.as_os_str().as_bytes())
+                .ok()
+                .map(|disk_path| {
+                    let disk_path = disk_path.into_raw();
+                    let partition = &mut *partition as *mut PartitionInfo as *mut DistinstPartition;
+                    gen_object_ptr(DistinstPartitionAndDiskPath {
+                        disk_path,
+                        partition,
+                    })
+                })
+        })
+        .unwrap_or(ptr::null_mut())
 }
 
 #[no_mangle]

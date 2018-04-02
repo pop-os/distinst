@@ -1,4 +1,3 @@
-use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::external::{blkid_partition, cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
@@ -8,6 +7,7 @@ use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
     PartitionType,
 };
+use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::{get_size, get_uuid, Disk, LvmEncryption};
 use super::{find_partition, find_partition_mut};
 use libparted::{Device, DeviceType};
@@ -37,6 +37,18 @@ impl Disks {
 
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) { self.physical.push(disk); }
+
+    pub fn get_physical_device<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
+        self.physical
+            .iter()
+            .find(|d| d.get_device_path() == path.as_ref())
+    }
+
+    pub fn get_physical_device_mut<P: AsRef<Path>>(&mut self, path: P) -> Option<&mut Disk> {
+        self.physical
+            .iter_mut()
+            .find(|d| d.get_device_path() == path.as_ref())
+    }
 
     /// Returns a slice of physical disks stored within the configuration.
     pub fn get_physical_devices(&self) -> &[Disk] { &self.physical }

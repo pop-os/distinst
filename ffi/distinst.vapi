@@ -160,7 +160,7 @@ namespace Distinst {
     [SimpleType]
     [CCode (has_type_id = false)]
     public struct OsInfo {
-        string? path;
+        string? os;
         string? home;
     }
 
@@ -177,6 +177,12 @@ namespace Distinst {
         public uint64 value;
     }
 
+    [CCode (has_type_id = false, unref_function = "", destroy_function = "distinst_partition_and_disk_path_destroy")]
+    public class PartitionAndDiskPath {
+        public string disk_path;
+        public unowned Partition partition;
+    }
+
     [CCode (has_type_id = false, unref_function = "")]
     public class Partition {
         /**
@@ -187,7 +193,7 @@ namespace Distinst {
         /**
          * Sets the flags that will be assigned to this partition.
         */
-        public void set_flags (PartitionFlag[] flags, size_t len);
+        public void set_flags (PartitionFlag[] flags);
 
         /**
          * Sets the mount target for this partition.
@@ -344,6 +350,11 @@ namespace Distinst {
          * Gets the partition at the specified location.
          */
         public unowned Partition get_partition(int partition);
+
+        /**
+         * Gets the partition by the partition path.
+         */
+        public unowned Partition get_partition_by_path(string path);
 
         /**
          * Returns a slice of all partitions on this disk.
@@ -520,19 +531,27 @@ namespace Distinst {
     [CCode (free_function = "distinst_disks_destroy", has_type_id = false)]
     [Compact]
     public class Disks {
-        public static Disks probe();
+        public static Disks probe ();
         public Disks ();
-        public void push(Disk disk);
+        public void push (Disk disk);
 
         /**
          * Returns a slice of physical devices in the configuration.
          */
-        public unowned Disk[] list();
+        public unowned Disk[] list ();
 
         /**
          * Returns a slice of logical devices in the configuration.
          */
-        public unowned LvmDevice[] list_logical();
+        public unowned LvmDevice[] list_logical ();
+
+        /**
+         * Obtains the physical device at the specified path.
+         *
+         * Will return a null value if the input string is not UTF-8,
+         * or the physical device could not be found.
+         */
+        public unowned Disk? get_physical_device (string path);
 
         /**
          * Obtains the logical device with the specified volume group.
@@ -568,6 +587,13 @@ namespace Distinst {
          * Finds the logical device which is associated with the given volume group.
          */
         public unowned LvmDevice find_logical_volume (string volume_group);
+
+        /**
+         * Finds the partition block path and associated partition information
+         * that is associated with the given target mount point. Scans both physical
+         * and logical partitions.
+         */
+        public PartitionAndDiskPath find_partition (string target);
     }
 
     [CCode (has_type_id = false)]
