@@ -5,6 +5,7 @@ use libc;
 use super::{get_str, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
 use std::ffi::{CStr, CString};
 use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::ptr;
 
 // Initializes the initial volume groups within the disks object.
@@ -70,6 +71,22 @@ pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_get_sectors(
+    disk: *const DistinstLvmDevice,
+) -> libc::uint64_t {
+    let disk = &*(disk as *const LvmDevice);
+    disk.get_sectors()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_get_sector_size(
+    disk: *const DistinstLvmDevice,
+) -> libc::uint64_t {
+    let disk = &*(disk as *const LvmDevice);
+    disk.get_sector_size()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_sector(
     device: *mut DistinstLvmDevice,
     sector: *const DistinstSector,
@@ -88,6 +105,23 @@ pub unsafe extern "C" fn distinst_lvm_device_get_volume(
             let disk = &mut *(device as *mut LvmDevice);
             disk.get_partition_mut(volume).as_mut_ptr() as *mut DistinstPartition
         })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_get_partition_by_path(
+    disk: *mut DistinstLvmDevice,
+    path: *const libc::c_char,
+) -> *mut DistinstPartition {
+    get_str(path, "")
+        .ok()
+        .and_then(|path| {
+            let path = Path::new(&path);
+            let disk = &mut *(disk as *mut LvmDevice);
+            disk.get_partitions_mut()
+                .iter_mut()
+                .find(|d| d.get_device_path() == path)
+        })
+        .as_mut_ptr() as *mut DistinstPartition
 }
 
 #[no_mangle]

@@ -455,6 +455,16 @@ namespace Distinst {
         public string? get_model ();
 
         /**
+         * Returns the size of the device, in sectors.
+         */
+        public uint64 get_sectors ();
+
+        /**
+         * Returns the size of a sector, in bytes.
+         */
+        public uint64 get_sector_size ();
+
+        /**
          * Gets the actual sector position from a `Sector` unit.
          */
         public uint64 get_sector (ref Sector sector);
@@ -479,6 +489,11 @@ namespace Distinst {
          * sector of the last partition.
          */
         public uint64 last_used_sector ();
+
+        /**
+         * Gets the partition by the partition path.
+         */
+        public unowned Partition get_partition_by_path (string path);
 
         /**
          * Adds a new partition to the physical device from a partition builder.
