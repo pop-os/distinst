@@ -119,7 +119,7 @@ impl Disk {
         });
 
         // TODO: Optimize this so it's not called for each disk.
-        let mounts = Mounts::new().unwrap();
+        let mounts = Mounts::new().expect("panic at {}", line!());
 
         Ok(Disk {
             model_name,
@@ -209,9 +209,9 @@ impl Disk {
                 "/sys/class/block/",
                 self.get_device_path()
                     .file_name()
-                    .unwrap()
+                    .expect("panic at {}", line!())
                     .to_str()
-                    .unwrap(),
+                    .expect("panic at {}", line!()),
             ].concat(),
         );
 
@@ -351,7 +351,7 @@ impl Disk {
 
         // Ensure that the new dimensions are not overlapping.
         if let Some(id) = self.overlaps_region_excluding(start, end, num) {
-            let partition = self.get_partition_mut(partition).unwrap();
+            let partition = self.get_partition_mut(partition).expect("panic at {}", line!());
             partition.end_sector = backup;
             return Err(DiskError::SectorOverlaps { id });
         }
@@ -387,7 +387,7 @@ impl Disk {
             return Err(DiskError::SectorOverlaps { id });
         }
 
-        let partition = self.get_partition_mut(partition).unwrap();
+        let partition = self.get_partition_mut(partition).expect("panic at {}", line!());
 
         partition.start_sector = start;
         partition.end_sector = end;
@@ -530,8 +530,8 @@ impl Disk {
                         {
                             if old_part.number != -1 && partition.end_sector > old_part.start_sector
                             {
-                                new_sorted.push(partition_iter.next().unwrap());
-                                old_sorted.push(old_iter.next().unwrap());
+                                new_sorted.push(partition_iter.next().expect("new partition was expected"));
+                                old_sorted.push(old_iter.next().expect("old partition was expected"));
                             }
                         }
                     }
@@ -611,7 +611,7 @@ impl Disk {
                                         start_sector: new.start_sector,
                                         end_sector:   new.end_sector,
                                         format:       true,
-                                        file_system:  Some(new.filesystem.clone().unwrap()),
+                                        file_system:  Some(new.filesystem.clone().expect("panic at {}", line!())),
                                         kind:         new.part_type,
                                         flags:        new.flags.clone(),
                                         label:        new.name.clone(),
@@ -659,7 +659,7 @@ impl Disk {
                 start_sector: partition.start_sector,
                 end_sector:   partition.end_sector,
                 format:       true,
-                file_system:  Some(partition.filesystem.clone().unwrap()),
+                file_system:  Some(partition.filesystem.clone().expect("panic at {}", line!())),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
                 label:        partition.name.clone(),
