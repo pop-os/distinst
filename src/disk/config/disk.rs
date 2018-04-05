@@ -119,7 +119,7 @@ impl Disk {
         });
 
         // TODO: Optimize this so it's not called for each disk.
-        let mounts = Mounts::new().expect("panic at {}", line!());
+        let mounts = Mounts::new().expect(&format!("panic at {}", line!()));
 
         Ok(Disk {
             model_name,
@@ -209,9 +209,9 @@ impl Disk {
                 "/sys/class/block/",
                 self.get_device_path()
                     .file_name()
-                    .expect("panic at {}", line!())
+                    .expect(&format!("panic at {}", line!()))
                     .to_str()
-                    .expect("panic at {}", line!()),
+                    .expect(&format!("panic at {}", line!())),
             ].concat(),
         );
 
@@ -351,7 +351,7 @@ impl Disk {
 
         // Ensure that the new dimensions are not overlapping.
         if let Some(id) = self.overlaps_region_excluding(start, end, num) {
-            let partition = self.get_partition_mut(partition).expect("panic at {}", line!());
+            let partition = self.get_partition_mut(partition).expect(&format!("panic at {}", line!()));
             partition.end_sector = backup;
             return Err(DiskError::SectorOverlaps { id });
         }
@@ -387,7 +387,7 @@ impl Disk {
             return Err(DiskError::SectorOverlaps { id });
         }
 
-        let partition = self.get_partition_mut(partition).expect("panic at {}", line!());
+        let partition = self.get_partition_mut(partition).expect(&format!("panic at {}", line!()));
 
         partition.start_sector = start;
         partition.end_sector = end;
@@ -611,7 +611,7 @@ impl Disk {
                                         start_sector: new.start_sector,
                                         end_sector:   new.end_sector,
                                         format:       true,
-                                        file_system:  Some(new.filesystem.clone().expect("panic at {}", line!())),
+                                        file_system:  Some(new.filesystem.clone().expect(&format!("panic at {}", line!()))),
                                         kind:         new.part_type,
                                         flags:        new.flags.clone(),
                                         label:        new.name.clone(),
@@ -659,7 +659,7 @@ impl Disk {
                 start_sector: partition.start_sector,
                 end_sector:   partition.end_sector,
                 format:       true,
-                file_system:  Some(partition.filesystem.clone().expect("panic at {}", line!())),
+                file_system:  Some(partition.filesystem.clone().expect(&format!("panic at {}", line!()))),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
                 label:        partition.name.clone(),
