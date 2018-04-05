@@ -416,14 +416,14 @@ pub unsafe extern "C" fn distinst_partition_format_with(
 
 #[repr(C)]
 pub struct DistinstOsInfo {
-    path: *mut libc::c_char,
+    os:   *mut libc::c_char,
     home: *mut libc::c_char,
 }
 
 impl Default for DistinstOsInfo {
     fn default() -> DistinstOsInfo {
         DistinstOsInfo {
-            path: ptr::null_mut(),
+            os:   ptr::null_mut(),
             home: ptr::null_mut(),
         }
     }
@@ -443,7 +443,7 @@ pub unsafe extern "C" fn distinst_partition_probe_os(
     };
 
     DistinstOsInfo {
-        path: CString::new(os_str)
+        os:   CString::new(os_str)
             .ok()
             .map(|string| string.into_raw())
             .unwrap_or(ptr::null_mut()),
@@ -452,6 +452,19 @@ pub unsafe extern "C" fn distinst_partition_probe_os(
             .map(|string| string.into_raw())
             .unwrap_or(ptr::null_mut()),
     }
+}
+
+#[repr(C)]
+pub struct DistinstPartitionAndDiskPath {
+    pub disk_path: *mut libc::c_char,
+    pub partition: *mut DistinstPartition,
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_and_disk_path_destroy(
+    object: *mut DistinstPartitionAndDiskPath,
+) {
+    CString::from_raw(Box::from_raw(object).disk_path);
 }
 
 #[repr(C)]

@@ -40,6 +40,18 @@ impl Disks {
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) { self.physical.push(disk); }
 
+    pub fn get_physical_device<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
+        self.physical
+            .iter()
+            .find(|d| d.get_device_path() == path.as_ref())
+    }
+
+    pub fn get_physical_device_mut<P: AsRef<Path>>(&mut self, path: P) -> Option<&mut Disk> {
+        self.physical
+            .iter_mut()
+            .find(|d| d.get_device_path() == path.as_ref())
+    }
+
     /// Returns a slice of physical disks stored within the configuration.
     pub fn get_physical_devices(&self) -> &[Disk] { &self.physical }
 

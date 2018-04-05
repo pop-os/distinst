@@ -71,7 +71,7 @@ then
         --esp-path "/boot/efi" \
         --kernel-path "/vmlinuz" \
         --initrd-path "/initrd.img" \
-        --options "quiet loglevel=0 vga=current" \
+        --options "quiet loglevel=0 vga=current systemd.show_status=false" \
         --loader \
         --manage-only \
         --verbose
