@@ -113,6 +113,8 @@ pub(crate) const ACTIVE: u8 = 0b001000;
 pub(crate) const BUSY: u8 = 0b010000;
 // Defines that this partition is currently swapped.
 pub(crate) const SWAPPED: u8 = 0b100000;
+// This partition will be configured as swap.
+pub(crate) const WILL_SWAP: u8 = 0b1000000;
 
 /// Contains relevant information about a certain partition.
 #[derive(Debug, Clone, PartialEq)]
@@ -233,11 +235,7 @@ impl PartitionInfo {
     pub fn is_encrypted(&self) -> bool { is_encrypted(self.get_device_path()) }
 
     /// Returns true if the partition is a swap partition.
-    pub fn is_swap(&self) -> bool {
-        self.filesystem
-            .clone()
-            .map_or(false, |fs| fs == FileSystemType::Swap)
-    }
+    pub fn is_swap(&self) -> bool { self.bitflags & WILL_SWAP != 0 }
 
     /// Returns the path to this device in the system.
     pub fn get_device_path(&self) -> &Path { &self.device_path }
@@ -280,15 +278,22 @@ impl PartitionInfo {
     /// Defines that a new file system will be applied to this partition.
     /// NOTE: this will also unset the partition's name.
     pub fn format_with(&mut self, fs: FileSystemType) {
-        self.bitflags |= FORMAT;
+        self.bitflags |= FORMAT + if fs == FileSystemType::Swap {
+            WILL_SWAP
+        } else {
+            0
+        };
         self.filesystem = Some(fs);
-        self.name = None;
     }
 
     /// Defines that a new file system will be applied to this partition.
     /// Unlike `format_with`, this will not remove the name.
     pub fn format_and_keep_name(&mut self, fs: FileSystemType) {
-        self.bitflags |= FORMAT;
+        self.bitflags |= FORMAT + if fs == FileSystemType::Swap {
+            WILL_SWAP
+        } else {
+            0
+        };
         self.filesystem = Some(fs);
     }
 

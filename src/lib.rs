@@ -12,6 +12,7 @@ extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
+extern crate rand;
 extern crate tempdir;
 
 use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
