@@ -121,6 +121,8 @@ pub struct PartitionInfo {
     /// The partition number is the numeric value that follows the disk's device path.
     /// IE: _/dev/sda1_
     pub number: i32,
+    /// The physical order of the partition on the disk, as partition numbers may not be in order.
+    pub ordering: i32,
     /// The initial sector where the partition currently, or will, reside.
     pub start_sector: u64,
     /// The final sector where the partition currently, or will, reside.
@@ -206,6 +208,7 @@ impl PartitionInfo {
             filesystem,
             flags: get_flags(partition),
             number: partition.num(),
+            ordering: -1,
             name: filesystem.and_then(|fs| get_label(&device_path, fs)),
             device_path,
             start_sector: partition.geom_start() as u64,

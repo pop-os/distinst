@@ -3,11 +3,14 @@ mod encryption;
 
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
-use super::super::external::{lvcreate, lvremove, mkfs, vgcreate};
+use super::super::external::{blkid_partition, lvcreate, lvremove, lvs, mkfs, vgcreate};
 use super::super::mounts::Mounts;
 use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE};
+use super::get_size;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 
 /// An LVM device acts similar to a Disk, but consists of one more block devices
 /// that comprise a volume group, and may optionally be encrypted.
@@ -122,6 +125,46 @@ impl LvmDevice {
         self.partitions
             .iter_mut()
             .find(|p| p.name.as_ref().unwrap().as_str() == volume)
+    }
+
+    pub fn add_partitions(&mut self) {
+        let mut start_sector = 0;
+        if let Ok(logical_paths) = lvs(&self.volume_group) {
+            for path in logical_paths {
+                // Wait for the device to be initialized, with a 3 second timeout.
+                let mut nth = 0;
+                while !path.exists() || nth > 3 {
+                    nth += 1;
+                    thread::sleep(Duration::from_millis(1000));
+                }
+
+                let length = get_size(&path).unwrap();
+                let partition = PartitionInfo {
+                    bitflags: SOURCE,
+                    number: -1,
+                    ordering: -1,
+                    start_sector,
+                    end_sector: start_sector + length,
+                    part_type: PartitionType::Primary,
+                    flags: vec![],
+                    filesystem: blkid_partition(&path),
+                    name: {
+                        let dev = path.file_name().unwrap().to_str().unwrap();
+                        let value = dev.find('-').map_or(0, |v| v + 1);
+                        Some(dev.split_at(value).1.into())
+                    },
+                    device_path: path,
+                    mount_point: None,
+                    target: None,
+                    original_vg: None,
+                    volume_group: None,
+                    key_id: None,
+                };
+
+                start_sector += length + 1;
+                self.partitions.push(partition);
+            }
+        }
     }
 
     pub fn clear_partitions(&mut self) {

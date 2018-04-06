@@ -1,14 +1,11 @@
-use super::super::external::{blkid_partition, cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
+use super::super::external::{cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
 use super::super::mounts::Mounts;
 use super::super::swaps::Swaps;
-use super::super::{
-    Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
-    PartitionType,
-};
+use super::super::{Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo};
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::{get_size, get_uuid, Disk, LvmEncryption};
+use super::{get_uuid, Disk, LvmEncryption};
 use super::{find_partition, find_partition_mut};
 use libparted::{Device, DeviceType};
 
@@ -222,7 +219,8 @@ impl Disks {
 
         match new_device {
             // Add the new LVM device to the disk configuration
-            Some(device) => {
+            Some(mut device) => {
+                device.add_partitions();
                 self.logical.push(device);
                 Ok(())
             }
@@ -713,42 +711,12 @@ impl Disks {
             }
         }
 
-        let mut start_sector = 0;
         for device in &mut existing_devices {
             if !device.is_source {
                 continue;
             }
-            if let Ok(logical_paths) = lvs(&device.volume_group) {
-                for path in logical_paths {
-                    let length = get_size(&path).unwrap_or(0);
-                    let partition = PartitionInfo {
-                        bitflags: SOURCE,
-                        // This value doesn't matter to a logical volume.
-                        number: -1,
-                        start_sector,
-                        end_sector: start_sector + length,
-                        part_type: PartitionType::Primary,
-                        // TODO: Figure out flags?
-                        flags: vec![],
-                        filesystem: blkid_partition(&path),
-                        name: {
-                            let dev = path.file_name().unwrap().to_str().unwrap();
-                            let value = dev.find('-').map_or(0, |v| v + 1);
-                            Some(dev.split_at(value).1.into())
-                        },
-                        device_path: path,
-                        mount_point: None,
-                        target: None,
-                        original_vg: None,
-                        // TODO: Check if this partition is assigned to a VG?
-                        volume_group: None,
-                        key_id: None,
-                    };
 
-                    start_sector += length + 1;
-                    device.partitions.push(partition);
-                }
-            }
+            device.add_partitions();
         }
 
         self.logical = existing_devices;

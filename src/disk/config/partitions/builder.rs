@@ -99,6 +99,7 @@ impl PartitionBuilder {
             name:         self.name,
             device_path:  PathBuf::new(),
             mount_point:  None,
+            ordering:     -1,
             target:       self.mount,
             original_vg:  None,
             volume_group: self.volume_group.clone(),
