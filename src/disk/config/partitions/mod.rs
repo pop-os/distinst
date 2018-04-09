@@ -169,10 +169,12 @@ impl PartitionInfo {
         let filesystem = partition
             .fs_type_name()
             .and_then(|name| FileSystemType::from_str(name).ok())
-            .or(if is_encrypted(&device_path) {
-                Some(FileSystemType::Luks)
-            } else {
-                None
+            .or_else(|| {
+                if is_encrypted(&device_path) {
+                    Some(FileSystemType::Luks)
+                } else {
+                    None
+                }
             });
 
         let original_vg = unsafe {

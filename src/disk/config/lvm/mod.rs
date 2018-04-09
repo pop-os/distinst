@@ -1,6 +1,8 @@
+mod deactivate;
 mod detect;
 mod encryption;
 
+pub(crate) use self::deactivate::deactivate_devices;
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
 use super::super::external::{blkid_partition, lvcreate, lvremove, lvs, mkfs, vgcreate};
@@ -131,9 +133,9 @@ impl LvmDevice {
         let mut start_sector = 0;
         if let Ok(logical_paths) = lvs(&self.volume_group) {
             for path in logical_paths {
-                // Wait for the device to be initialized, with a 3 second timeout.
+                // Wait for the device to be initialized, with a 5 second timeout.
                 let mut nth = 0;
-                while !path.exists() || nth > 3 {
+                while !path.exists() || nth > 5 {
                     nth += 1;
                     thread::sleep(Duration::from_millis(1000));
                 }

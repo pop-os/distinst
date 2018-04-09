@@ -1,5 +1,6 @@
 //! A collection of external commands used throughout the program.
 
+use super::config::lvm::deactivate_devices;
 use super::{FileSystemType, LvmEncryption};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
@@ -285,6 +286,7 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
 
 /// Opens an encrypted partition and maps it to the pv name.
 pub(crate) fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
+    deactivate_devices(&[device])?;
     let pv = &enc.physical_volume;
     info!(
         "libdistinst: cryptsetup is opening {} with pv {} and {:?}",

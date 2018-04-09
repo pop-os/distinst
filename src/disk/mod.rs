@@ -12,8 +12,7 @@ pub use self::config::*;
 pub use self::error::{DecryptionError, DiskError, PartitionSizeError};
 pub use self::swaps::Swaps;
 pub use libparted::PartitionFlag;
-
-use self::mounts::Mounts;
+pub(crate) use self::mounts::Mounts;
 use libparted::{Device, DiskType as PedDiskType};
 use std::path::{Path, PathBuf};
 
