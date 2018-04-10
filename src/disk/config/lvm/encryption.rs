@@ -1,5 +1,5 @@
-use disk::DiskError;
 use disk::external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
+use disk::DiskError;
 use std::path::{Path, PathBuf};
 
 /// A structure which contains the encryption settings for a physical volume.

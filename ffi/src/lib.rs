@@ -91,8 +91,8 @@ pub unsafe extern "C" fn distinst_log(
     callback: DistinstLogCallback,
     user_data: *mut libc::c_void,
 ) -> libc::c_int {
-    use DISTINST_LOG_LEVEL::*;
     use log::LogLevel;
+    use DISTINST_LOG_LEVEL::*;
 
     let user_data_sync = user_data as usize;
     match distinst::log(move |level, message| {

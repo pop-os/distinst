@@ -90,7 +90,7 @@ pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<
         Exfat => ("mkfs.exfat", &[]),
         Ext2 => ("mkfs.ext2", &["-F", "-q"]),
         Ext3 => ("mkfs.ext3", &["-F", "-q"]),
-        Ext4 => ("mkfs.ext4", &["-F", "-q"]),
+        Ext4 => ("mkfs.ext4", &["-F", "-q", "-E", "lazy_itable_init"]),
         F2fs => ("mkfs.f2fs", &["-q"]),
         Fat16 => ("mkfs.fat", &["-F", "16"]),
         Fat32 => ("mkfs.fat", &["-F", "32"]),

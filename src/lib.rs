@@ -311,7 +311,7 @@ impl Installer {
         let pvs = pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
 
         // Utilizes the physical volume collection to generate a vector of volume
-        // groups which we will need to deactivate pre=`blockdev`, and will be
+        // groups which we will need to deactivate pre-`blockdev`, and will be
         // reactivated post-`blockdev`.
         let vgs = disks
             .get_physical_devices()
@@ -337,11 +337,9 @@ impl Installer {
 
         // This is to ensure that everything's been written and the OS is ready to
         // proceed.
-        disks
-            .get_physical_devices()
-            .iter()
-            .map(|disk| blockdev(&disk.path(), &["--flushbufs", "--rereadpt"]))
-            .collect::<io::Result<()>>()?;
+        for disk in disks.get_physical_devices() {
+            let _ = blockdev(&disk.path(), &["--flushbufs", "--rereadpt"]);
+        }
 
         // Give a bit of time to ensure that logical volumes can be re-activated.
         sleep(Duration::from_secs(1));

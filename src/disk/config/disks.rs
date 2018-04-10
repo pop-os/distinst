@@ -1,12 +1,16 @@
-use super::super::external::{cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove};
+use super::super::external::{
+    cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove,
+};
 use super::super::lvm::{self, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
 use super::super::mounts::Mounts;
 use super::super::swaps::Swaps;
-use super::super::{Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo};
+use super::super::{
+    Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
+};
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::{get_uuid, Disk, LvmEncryption};
 use super::{find_partition, find_partition_mut};
+use super::{get_uuid, Disk, LvmEncryption};
 use libparted::{Device, DeviceType};
 
 use itertools::Itertools;
@@ -17,6 +21,8 @@ use std::iter::{self, FromIterator};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
+use std::thread;
+use std::time::Duration;
 
 /// A configuration of disks, both physical and logical.
 pub struct Disks {
@@ -187,6 +193,12 @@ impl Disks {
 
                     // Determine which VG the newly-decrypted device belongs to.
                     let pv = &PathBuf::from(["/dev/mapper/", &enc.physical_volume].concat());
+                    let mut attempt = 0;
+                    while !pv.exists() && attempt < 10 {
+                        attempt += 1;
+                        thread::sleep(Duration::from_millis(1000));
+                    }
+
                     match pvs().unwrap().remove(pv) {
                         Some(Some(vg)) => {
                             // Set values in the device's partition.

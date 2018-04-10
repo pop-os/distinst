@@ -2,10 +2,10 @@ use super::{
     Bootloader, Disk, DiskExt, Disks, FileSystemType, LvmEncryption, PartitionBuilder,
     PartitionError,
 };
-use FileSystemType::*;
 use libparted::PartitionFlag;
 use std::io;
 use std::path::{Path, PathBuf};
+use FileSystemType::*;
 
 #[derive(Debug)]
 pub struct InstallOptions {

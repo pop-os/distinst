@@ -1,6 +1,6 @@
-use super::FileSystemType::*;
 use super::external::{blockdev, fsck};
 use super::mount::Mount;
+use super::FileSystemType::*;
 use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag, PartitionType};
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};

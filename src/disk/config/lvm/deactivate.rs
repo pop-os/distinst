@@ -1,7 +1,7 @@
 use super::physical_volumes_to_deactivate;
+use disk::external::{cryptsetup_close, lvs, pvs, vgdeactivate};
+use disk::mount::{swapoff, umount};
 use disk::{Mounts, Swaps};
-use disk::external::{pvs, lvs, vgdeactivate, cryptsetup_close};
-use disk::mount::{umount, swapoff};
 use std::io;
 use std::path::Path;
 

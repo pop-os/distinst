@@ -7,7 +7,9 @@ pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
 use super::super::external::{blkid_partition, lvcreate, lvremove, lvs, mkfs, vgcreate};
 use super::super::mounts::Mounts;
-use super::super::{DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE};
+use super::super::{
+    DiskError, DiskExt, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE,
+};
 use super::get_size;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

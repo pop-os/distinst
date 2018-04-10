@@ -6,7 +6,9 @@ use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::ptr;
 
-use distinst::{Bootloader, LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType};
+use distinst::{
+    Bootloader, LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
+};
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use {gen_object_ptr, get_str, DistinstLvmEncryption};
 

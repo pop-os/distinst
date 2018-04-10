@@ -1,4 +1,6 @@
-use super::super::{DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector};
+use super::super::{
+    DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector,
+};
 use super::partitions::{check_partition_size, REMOVE};
 use std::fs::File;
 use std::io::Read;
