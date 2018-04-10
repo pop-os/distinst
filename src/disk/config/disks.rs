@@ -734,6 +734,7 @@ impl Disks {
             }
 
             device.add_partitions();
+            device.parent = &*self as *const Disks;
         }
 
         self.logical = existing_devices;
