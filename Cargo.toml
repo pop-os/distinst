@@ -21,6 +21,7 @@ log = "0.3"
 tempdir = "0.3"
 itertools = "0.7.6"
 derive-new = "0.5.0"
+rand = "0.4.2"
 
 [dependencies.failure]
 version = "0.1.1"

@@ -69,6 +69,11 @@ namespace Distinst {
     }
 
     /**
+     * Generates a unique volume group name.
+     */
+    public string? generate_unique_id (string prefix);
+
+    /**
      * Obtains the string variant of a file system type.
      */
     public unowned string strfilesys(FileSystemType fs);

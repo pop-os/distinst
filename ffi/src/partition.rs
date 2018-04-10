@@ -294,7 +294,6 @@ pub unsafe extern "C" fn distinst_partition_get_current_lvm_volume_group(
         .unwrap_or(ptr::null_mut())
 }
 
-
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_device_path(
     partition: *const DistinstPartition,

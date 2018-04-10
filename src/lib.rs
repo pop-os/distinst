@@ -12,6 +12,7 @@ extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
+extern crate rand;
 extern crate tempdir;
 
 use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
@@ -33,9 +34,9 @@ pub use automatic::{AutomaticError, Config as AutomaticConfig, InstallOption, In
 pub use chroot::Chroot;
 pub use disk::mount::{Mount, Mounts};
 pub use disk::{
-    Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks, FileSystemType, LvmDevice,
-    LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag, PartitionInfo, PartitionTable,
-    PartitionType, Sector,
+    generate_unique_id, Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks,
+    FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag,
+    PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 
 mod automatic;

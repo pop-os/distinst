@@ -12,7 +12,7 @@ pub use self::disk::*;
 pub use self::disk_trait::DiskExt;
 pub(crate) use self::disk_trait::{find_partition, find_partition_mut};
 pub use self::disks::*;
-pub use self::lvm::{LvmDevice, LvmEncryption};
+pub use self::lvm::{generate_unique_id, LvmDevice, LvmEncryption};
 pub use self::partitions::*;
 pub use self::sector::Sector;
 

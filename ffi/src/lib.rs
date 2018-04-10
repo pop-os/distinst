@@ -58,6 +58,17 @@ pub fn to_cstr(string: String) -> *mut libc::c_char {
         .unwrap_or(ptr::null_mut())
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn distinst_generate_unique_id(
+    prefix: *const libc::c_char,
+) -> *mut libc::c_char {
+    get_str(prefix, "")
+        .ok()
+        .and_then(|prefix| distinst::generate_unique_id(prefix).ok().map(to_cstr))
+        .unwrap_or(ptr::null_mut())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_validate_hostname(hostname: *const libc::c_char) -> bool {
     get_str(hostname, "")
         .ok()
