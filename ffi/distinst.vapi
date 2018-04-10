@@ -548,7 +548,7 @@ namespace Distinst {
     public class Disks {
         public static Disks probe ();
         public Disks ();
-        public void push (Disk disk);
+        public void push (owned Disk disk);
 
         /**
          * Returns a slice of physical devices in the configuration.

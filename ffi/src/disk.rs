@@ -323,8 +323,7 @@ pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *const DistinstDisk) {
     let disks = &mut *(disks as *mut Disks);
-    let disk = &*(disk as *const Disk);
-    disks.add(disk.clone());
+    disks.add(ptr::read(disk as *const Disk));
 }
 
 /// Probes the disk for information about every disk in the device.

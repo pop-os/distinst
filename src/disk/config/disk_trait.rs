@@ -1,5 +1,5 @@
 use super::super::{
-    DiskError, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector,
+    DiskError, Disks, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 use super::partitions::{check_partition_size, REMOVE};
 use std::fs::File;
@@ -18,6 +18,8 @@ pub trait DiskExt {
 
     fn get_mount_point(&self) -> Option<&Path>;
 
+    fn get_parent<'a>(&'a self) -> Option<&'a Disks>;
+
     /// Returns a slice of all partitions in the device.
     fn get_partitions(&self) -> &[PartitionInfo];
 
@@ -35,15 +37,27 @@ pub trait DiskExt {
 
     /// Returns true if this partition is mounted at root.
     fn contains_mount(&self, mount: &str) -> bool {
-        if self.get_mount_point()
-            .map_or(false, |m| m == Path::new(mount))
-        {
-            return true;
-        }
+        let check_partitions = || {
+            self.get_partitions().iter().any(|partition| {
+                if partition.mount_point == Some(mount.into()) {
+                    return true;
+                }
 
-        self.get_partitions()
-            .iter()
-            .any(|partition| partition.mount_point == Some(mount.into()))
+                partition
+                    .volume_group
+                    .as_ref()
+                    .map_or(false, |&(ref vg, _)| {
+                        self.get_parent().map_or(false, |disks| {
+                            disks
+                                .get_logical_device(vg)
+                                .map_or(false, |d| d.contains_mount(mount))
+                        })
+                    })
+            })
+        };
+
+        self.get_mount_point()
+            .map_or_else(check_partitions, |m| m == Path::new(mount))
     }
 
     /// Checks if the drive is a removable drive.

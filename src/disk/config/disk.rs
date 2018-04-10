@@ -3,16 +3,17 @@ use super::super::mounts::Mounts;
 use super::super::operations::*;
 use super::super::serial::get_serial;
 use super::super::{
-    check_partition_size, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
+    check_partition_size, DiskError, DiskExt, Disks, FileSystemType, PartitionFlag, PartitionInfo,
     PartitionTable, PartitionType,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
-use super::{get_device, open_disk, Disks};
+use super::{get_device, open_disk};
 use libparted::{Device, DeviceType};
 
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::ptr;
 use std::str;
 
 /// Contains all of the information relevant to a given device.
@@ -20,7 +21,7 @@ use std::str;
 /// # Note
 ///
 /// The `device_path` field may be used for identification of the device in the system.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Disk {
     /// The model name of the device, assigned by the manufacturer.
     pub(crate) model_name: String,
@@ -45,6 +46,8 @@ pub struct Disk {
     pub(crate) mklabel: bool,
     /// The partitions that are stored on the device.
     pub(crate) partitions: Vec<PartitionInfo>,
+    /// A pointer back to the parent which owns this disk. Use caution.
+    pub(crate) parent: *const Disks,
 }
 
 impl DiskExt for Disk {
@@ -55,6 +58,14 @@ impl DiskExt for Disk {
     fn get_model(&self) -> &str { &self.model_name }
 
     fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
+
+    fn get_parent<'a>(&'a self) -> Option<&'a Disks> {
+        if self.parent.is_null() {
+            None
+        } else {
+            Some(unsafe { &*self.parent })
+        }
+    }
 
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
@@ -147,6 +158,7 @@ impl Disk {
             } else {
                 Vec::new()
             },
+            parent: ptr::null(),
         })
     }
 

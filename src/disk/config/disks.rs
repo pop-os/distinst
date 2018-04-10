@@ -25,6 +25,7 @@ use std::thread;
 use std::time::Duration;
 
 /// A configuration of disks, both physical and logical.
+#[derive(Debug, PartialEq)]
 pub struct Disks {
     pub(crate) physical: Vec<Disk>,
     pub(crate) logical:  Vec<LvmDevice>,
@@ -39,7 +40,10 @@ impl Disks {
     }
 
     /// Adds a disk to the disks configuration.
-    pub fn add(&mut self, disk: Disk) { self.physical.push(disk); }
+    pub fn add(&mut self, mut disk: Disk) {
+        disk.parent = &*self as *const Disks;
+        self.physical.push(disk);
+    }
 
     pub fn get_physical_device<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
         self.physical
@@ -233,6 +237,7 @@ impl Disks {
             // Add the new LVM device to the disk configuration
             Some(mut device) => {
                 device.add_partitions();
+                device.parent = &*self as *const Disks;
                 self.logical.push(device);
                 Ok(())
             }
