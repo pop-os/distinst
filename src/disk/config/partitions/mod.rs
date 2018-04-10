@@ -166,17 +166,6 @@ impl PartitionInfo {
         let mounts = Mounts::new()?;
         let swaps = Swaps::new()?;
 
-        let filesystem = partition
-            .fs_type_name()
-            .and_then(|name| FileSystemType::from_str(name).ok())
-            .or_else(|| {
-                if is_encrypted(&device_path) {
-                    Some(FileSystemType::Luks)
-                } else {
-                    None
-                }
-            });
-
         let original_vg = unsafe {
             if PVS.is_none() {
                 PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
@@ -191,6 +180,19 @@ impl PartitionInfo {
         if let Some(ref vg) = original_vg.as_ref() {
             info!("libdistinst: partition belongs to volume group '{}'", vg);
         }
+
+        let filesystem = partition
+            .fs_type_name()
+            .and_then(|name| FileSystemType::from_str(name).ok())
+            .or_else(|| {
+                if is_encrypted(&device_path) {
+                    Some(FileSystemType::Luks)
+                } else if original_vg.is_some() {
+                    Some(FileSystemType::Lvm)
+                } else {
+                    None
+                }
+            });
 
         Ok(Some(PartitionInfo {
             bitflags: SOURCE | if partition.is_active() { ACTIVE } else { 0 }
