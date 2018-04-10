@@ -284,6 +284,18 @@ pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
 pub struct DistinstPartition;
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_get_current_lvm_volume_group(
+    partition: *const DistinstPartition,
+) -> *mut libc::c_char {
+    let part = &*(partition as *const PartitionInfo);
+    part.get_current_lvm_volume_group()
+        .clone()
+        .and_then(|osstr| CString::new(osstr).ok().map(|string| string.into_raw()))
+        .unwrap_or(ptr::null_mut())
+}
+
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_device_path(
     partition: *const DistinstPartition,
     len: *mut libc::c_int,

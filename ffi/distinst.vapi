@@ -215,6 +215,11 @@ namespace Distinst {
         public int format_with (FileSystemType fs);
 
         /**
+         * If a pre-existing LVM volume group has been assigned, this will return that group's name.
+         */
+        public string get_current_lvm_volume_group ();
+
+        /**
          * Gets the start sector where this partition lies on the disk.
         */
         public uint64 get_start_sector ();

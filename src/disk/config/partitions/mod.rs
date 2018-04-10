@@ -246,6 +246,10 @@ impl PartitionInfo {
             .map_or(false, |fs| fs == FileSystemType::Swap)
     }
 
+    pub fn get_current_lvm_volume_group(&self) -> Option<&str> {
+        self.original_vg.as_ref().map(|x| x.as_str())
+    }
+
     /// Returns the path to this device in the system.
     pub fn get_device_path(&self) -> &Path { &self.device_path }
 
