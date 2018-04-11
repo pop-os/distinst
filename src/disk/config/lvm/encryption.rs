@@ -1,13 +1,24 @@
 use disk::external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
 use disk::DiskError;
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// A structure which contains the encryption settings for a physical volume.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct LvmEncryption {
     pub(crate) physical_volume: String,
     pub(crate) password:        Option<String>,
     pub(crate) keydata:         Option<(String, Option<(PathBuf, PathBuf)>)>,
+}
+
+impl fmt::Debug for LvmEncryption {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "LvmEncryption {{ physical_volume: {}, password: hidden, keydata: {:?} }}",
+            self.physical_volume, self.keydata
+        )
+    }
 }
 
 impl LvmEncryption {
