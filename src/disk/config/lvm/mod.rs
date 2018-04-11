@@ -23,7 +23,7 @@ pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     let dmlist = dmlist()?;
     loop {
         let id: String = rand::thread_rng().gen_ascii_chars().take(5).collect();
-        let id = [prefix, "-", &id].concat();
+        let id = [prefix, "_", &id].concat();
         if dmlist.contains(&id) {
             continue;
         }
