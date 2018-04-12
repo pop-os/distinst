@@ -88,8 +88,8 @@ fi
 # Prepare recovery partition, if it exists
 if [ -d "/boot/efi" -a -d "/cdrom" -a -d "/recovery" ]
 then
-    EFI_UUID="$(findmnt /boot/efi -o UUID)"
-    RECOVERY_UUID="$(findmnt /recovery -o UUID)"
+    EFI_UUID="$(findmnt -n -o UUID /boot/efi)"
+    RECOVERY_UUID="$(findmnt -n -o UUID /recovery)"
 
     CASPER="casper-${RECOVERY_UUID}"
     RECOVERY="Recovery-${RECOVERY_UUID}"
