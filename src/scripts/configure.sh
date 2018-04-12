@@ -88,8 +88,11 @@ fi
 # Prepare recovery partition, if it exists
 if [ -d "/boot/efi" -a -d "/cdrom" -a -d "/recovery" ]
 then
-    CASPER="casper-${ROOT_UUID}"
-    RECOVERY="Recovery-${ROOT_UUID}"
+    EFI_UUID="$(findmnt /boot/efi -o UUID)"
+    RECOVERY_UUID="$(findmnt /recovery -o UUID)"
+
+    CASPER="casper-${RECOVERY_UUID}"
+    RECOVERY="Recovery-${RECOVERY_UUID}"
 
     # Copy .disk, dists, and pool
     cp -rv --dereference "/cdrom/.disk" "/cdrom/dists" "/cdrom/pool" "/recovery"
@@ -104,6 +107,8 @@ LANG=${LANG}
 KBD_LAYOUT=${KBD_LAYOUT}
 KBD_MODEL=${KBD_MODEL}
 KBD_VARIANT=${KBD_VARIANT}
+EFI_UUID=${EFI_UUID}
+RECOVERY_UUID=${RECOVERY_UUID}
 ROOT_UUID=${ROOT_UUID}
 EOF
 
