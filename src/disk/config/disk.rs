@@ -263,6 +263,43 @@ impl Disk {
         Ok(())
     }
 
+    /// Unmounts all partitions on the device with a target
+    pub fn unmount_all_partitions_with_target(&mut self) -> Result<(), io::Error> {
+        info!(
+            "libdistinst: unmount all partitions on {}",
+            self.path().display()
+        );
+
+        for partition in &mut self.partitions {
+            if let Some(ref target) = partition.target {
+                if let Some(ref mount) = partition.mount_point {
+                    info!(
+                        "libdistinst: unmounting {}, which is mounted at {} and has a target of {}",
+                        partition.get_device_path().display(),
+                        mount.display(),
+                        target.display()
+                    );
+
+                    umount(mount, false)?;
+                }
+
+                partition.mount_point = None;
+            }
+
+            if partition.flag_is_enabled(SWAPPED) {
+                info!(
+                    "libdistinst: unswapping '{}'",
+                    partition.get_device_path().display(),
+                );
+                swapoff(&partition.get_device_path())?;
+            }
+
+            partition.flag_disable(SWAPPED);
+        }
+
+        Ok(())
+    }
+
     /// Drops all partitions in the in-memory disk representation, and marks that a new
     /// partition table should be written to the disk during the disk operations phase.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
