@@ -269,6 +269,9 @@ impl PartitionInfo {
     /// Defines a mount target for this partition.
     pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
+    /// Removes a mount target for this partition.
+    pub fn unset_mount(&mut self) { self.target = None; }
+
     /// Defines that the partition belongs to a given volume group.
     ///
     /// Optionally, this partition may be encrypted, in which you will also need to

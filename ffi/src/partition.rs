@@ -381,6 +381,14 @@ pub unsafe extern "C" fn distinst_partition_set_mount(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_unset_mount(
+    partition: *mut DistinstPartition,
+) {
+    let part = &mut *(partition as *mut PartitionInfo);
+    part.unset_mount();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_associate_keyfile(
     partition: *mut DistinstPartition,
     keyid: *const libc::c_char,
