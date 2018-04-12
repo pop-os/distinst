@@ -86,4 +86,12 @@ impl Mounts {
             .map(|mount| mount.dest.clone())
             .collect::<Vec<_>>()
     }
+
+    pub(crate) fn exactly(&self, path: &[u8]) -> Vec<PathBuf> {
+        self.0
+            .iter()
+            .filter(|mount| mount.source.as_os_str().as_bytes() == path)
+            .map(|mount| mount.dest.clone())
+            .collect::<Vec<_>>()
+    }
 }

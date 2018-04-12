@@ -211,11 +211,6 @@ namespace Distinst {
         public void set_mount (string target);
 
         /**
-         * Unsets the mount target for this partition.
-        */
-        public void unset_mount ();
-
-        /**
          * Marks to format the partition with the provided file system.
          *
          * Retains the partiton's name.
