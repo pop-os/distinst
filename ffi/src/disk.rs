@@ -361,7 +361,7 @@ pub unsafe extern "C" fn distinst_disks_get_physical_device(
     disks: *mut DistinstDisks,
     path: *const libc::c_char,
 ) -> *mut DistinstDisk {
-    match get_str(path, "distinst_disks_get_logical_device") {
+    match get_str(path, "distinst_disks_get_physical_device") {
         Ok(path) => {
             let disks = &mut *(disks as *mut Disks);
             disks.get_physical_device_mut(path).as_mut_ptr() as *mut DistinstDisk
@@ -378,9 +378,10 @@ pub unsafe extern "C" fn distinst_disks_get_logical_device(
     disks: *mut DistinstDisks,
     volume_group: *const libc::c_char,
 ) -> *mut DistinstLvmDevice {
-    match get_str(volume_group, "distinst_partition_builder") {
+    match get_str(volume_group, "distinst_disks_get_logical_device") {
         Ok(vg) => {
             let disks = &mut *(disks as *mut Disks);
+            info!("getting logical device");
             disks.get_logical_device_mut(vg).as_mut_ptr() as *mut DistinstLvmDevice
         }
         Err(why) => {

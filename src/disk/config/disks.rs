@@ -69,7 +69,10 @@ impl Disks {
     }
 
     pub fn get_logical_device_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
-        self.logical.iter_mut().find(|d| &d.volume_group == group)
+        self.logical.iter_mut().find(|d| {
+            info!("DEBUG: logical device: {:?} == {:?}", d.volume_group, group);
+            &d.volume_group == group
+        })
     }
 
     /// Returns a slice of logical disks stored within the configuration.

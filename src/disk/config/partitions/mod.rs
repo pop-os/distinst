@@ -255,7 +255,7 @@ impl PartitionInfo {
 
     pub(crate) fn requires_changes(&self, other: &PartitionInfo) -> bool {
         self.sectors_differ_from(other) || self.filesystem != other.filesystem
-            || other.flag_is_enabled(FORMAT)
+            || self.flags != other.flags || other.flag_is_enabled(FORMAT)
     }
 
     pub(crate) fn sectors_differ_from(&self, other: &PartitionInfo) -> bool {
