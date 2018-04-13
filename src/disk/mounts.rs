@@ -87,6 +87,15 @@ impl Mounts {
             .collect::<Vec<_>>()
     }
 
+    pub(crate) fn mount_starts_with(&self, path: &[u8]) -> Vec<PathBuf> {
+        self.0
+            .iter()
+            .filter(|mount| mount.dest.as_os_str().len() >= path.len())
+            .filter(|mount| &mount.dest.as_os_str().as_bytes()[..path.len()] == path)
+            .map(|mount| mount.dest.clone())
+            .collect::<Vec<_>>()
+    }
+
     pub(crate) fn exactly(&self, path: &[u8]) -> Vec<PathBuf> {
         self.0
             .iter()
