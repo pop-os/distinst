@@ -191,6 +191,11 @@ namespace Distinst {
     [CCode (has_type_id = false, unref_function = "")]
     public class Partition {
         /**
+         * Returns the partition's number.
+        */
+        public int get_number ();
+
+        /**
          * Returns the partition's device path.
         */
         public unowned uint8[] get_device_path ();

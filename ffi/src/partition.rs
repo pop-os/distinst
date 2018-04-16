@@ -295,6 +295,14 @@ pub unsafe extern "C" fn distinst_partition_get_current_lvm_volume_group(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_get_number(
+    partition: *const DistinstPartition,
+) -> libc::int32_t {
+    let part = &*(partition as *const PartitionInfo);
+    part.number
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_device_path(
     partition: *const DistinstPartition,
     len: *mut libc::c_int,
