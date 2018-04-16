@@ -62,6 +62,12 @@ fi
 # Install bootloader packages
 apt-get install -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
 
+# Disable APT cdrom
+if [ -d "/cdrom" ]
+then
+    sed -i 's/deb cdrom:/# deb cdrom:/g' /etc/apt/sources.list
+fi
+
 echo "ROOT_UUID = $ROOT_UUID"
 
 # Update bootloader configuration
