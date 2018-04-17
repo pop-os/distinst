@@ -254,7 +254,7 @@ impl Disks {
     pub fn unmount_devices(&self) -> Result<(), DiskError> {
         let mounts = Mounts::new().unwrap();
         for device in self.get_physical_devices() {
-            for mount in mounts.starts_with(device.get_device_path().as_os_str().as_bytes()) {
+            if let Some(mount) = device.get_mount_point() {
                 info!(
                     "libdistinst: unmounting device mounted at {}",
                     mount.display()

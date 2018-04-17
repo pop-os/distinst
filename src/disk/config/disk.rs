@@ -10,8 +10,10 @@ use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::{get_device, open_disk};
 use libparted::{Device, DeviceType};
 
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::{self, Read};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::ptr;
 use std::str;
@@ -258,6 +260,52 @@ impl Disk {
             }
 
             partition.flag_disable(SWAPPED);
+        }
+
+        Ok(())
+    }
+
+    /// Unmounts all partitions on the device with a target
+    pub fn unmount_all_partitions_with_target(&mut self) -> Result<(), io::Error> {
+        info!(
+            "libdistinst: unmount all partitions with a target on {}",
+            self.path().display()
+        );
+
+        let mut mounts = BTreeSet::new();
+        let mountstab = Mounts::new().unwrap();
+
+        for partition in &mut self.partitions {
+            if let Some(ref target) = partition.target {
+                if let Some(ref mount) = partition.mount_point {
+                    for mount in mountstab.mount_starts_with(mount.as_os_str().as_bytes()) {
+                        info!(
+                            "libdistinst: marking {} to be unmounted, which is mounted at {} and has a target of {}",
+                            partition.get_device_path().display(),
+                            mount.display(),
+                            target.display()
+                        );
+                        mounts.insert(mount.clone());
+                    }
+                }
+
+                partition.mount_point = None;
+            }
+
+            if partition.flag_is_enabled(SWAPPED) {
+                info!(
+                    "libdistinst: unswapping '{}'",
+                    partition.get_device_path().display(),
+                );
+                swapoff(&partition.get_device_path())?;
+            }
+
+            partition.flag_disable(SWAPPED);
+        }
+
+        for mount in mounts.into_iter().rev() {
+            info!("libdistinst: unmounting {}", mount.display());
+            umount(mount, false)?;
         }
 
         Ok(())

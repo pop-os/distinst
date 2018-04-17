@@ -84,3 +84,45 @@ then
 else
     update-grub
 fi
+
+# Prepare recovery partition, if it exists
+if [ -d "/boot/efi" -a -d "/cdrom" -a -d "/recovery" ]
+then
+    EFI_UUID="$(findmnt -n -o UUID /boot/efi)"
+    RECOVERY_UUID="$(findmnt -n -o UUID /recovery)"
+
+    CASPER="casper-${RECOVERY_UUID}"
+    RECOVERY="Recovery-${RECOVERY_UUID}"
+
+    # Copy .disk, dists, and pool
+    cp -rv --dereference "/cdrom/.disk" "/cdrom/dists" "/cdrom/pool" "/recovery"
+
+    # Copy casper to special path
+    cp -rv "/cdrom/casper" "/recovery/${CASPER}"
+
+    # Create configuration file
+    cat > "/recovery/recovery.conf" << EOF
+HOSTNAME=${HOSTNAME}
+LANG=${LANG}
+KBD_LAYOUT=${KBD_LAYOUT}
+KBD_MODEL=${KBD_MODEL}
+KBD_VARIANT=${KBD_VARIANT}
+EFI_UUID=${EFI_UUID}
+RECOVERY_UUID=${RECOVERY_UUID}
+ROOT_UUID=${ROOT_UUID}
+EOF
+
+    # Copy initrd and vmlinuz to EFI partition
+    mkdir -p "/boot/efi/EFI/${RECOVERY}"
+    cp -v "/recovery/${CASPER}/initrd.gz" "/boot/efi/EFI/${RECOVERY}/initrd.gz"
+    cp -v "/recovery/${CASPER}/vmlinuz.efi" "/boot/efi/EFI/${RECOVERY}/vmlinuz.efi"
+
+    # Create bootloader configuration
+    cat > "/boot/efi/loader/entries/${RECOVERY}.conf" << EOF
+title ${NAME} Recovery
+linux /EFI/${RECOVERY}/vmlinuz.efi
+initrd /EFI/${RECOVERY}/initrd.gz
+options boot=casper hostname=recovery userfullname=Recovery username=recovery live-media-path=/${CASPER} noprompt
+EOF
+
+fi
