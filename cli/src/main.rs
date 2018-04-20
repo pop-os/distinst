@@ -309,7 +309,7 @@ fn main() {
                 flags:            if testing {
                     0
                 } else {
-                    distinst::MODIFY_BOOT_ORDER
+                    distinst::MODIFY_BOOT_ORDER | distinst::INSTALL_HARDWARE_SUPPORT
                 },
                 hostname:         hostname.into(),
                 keyboard_layout:  keyboard.next().map(String::from).unwrap(),

@@ -13,10 +13,12 @@ extern crate libparted;
 #[macro_use]
 extern crate log;
 extern crate rand;
+extern crate raw_cpuid;
 extern crate tempdir;
 
 use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
 use itertools::Itertools;
+use raw_cpuid::CpuId;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{self, File, Permissions};
@@ -107,6 +109,7 @@ pub enum Step {
 }
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
+pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
 
 /// Installer configuration
 #[derive(Debug)]
@@ -557,10 +560,40 @@ impl Installer {
                     ))?
             };
 
-            let install_pkgs: &[&str] = match bootloader {
-                Bootloader::Bios => &["grub-pc"],
-                Bootloader::Efi => &["kernelstub"],
+            let mut install_pkgs: Vec<&str> = match bootloader {
+                Bootloader::Bios => vec!["grub-pc"],
+                Bootloader::Efi => vec!["kernelstub"],
             };
+
+            if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
+                // Check for AuthenticAMD or GenuineIntel
+                {
+                    let cpuid = CpuId::new();
+
+                    match cpuid.get_vendor_info() {
+                        Some(vf) => match vf.as_string() {
+                            "AuthenticAMD" => {
+                                install_pkgs.push("amd64-microcode");
+                            },
+                            "GenuineIntel" => {
+                                install_pkgs.push("intel-microcode");
+                            },
+                            _ => ()
+                        },
+                        None => ()
+                    }
+                }
+
+                // Check for system76-driver
+                if let Ok(mut file) = File::open("/sys/class/dmi/id/sys_vendor") {
+                    let mut string = String::new();
+                    if let Ok(_) = file.read_to_string(&mut string) {
+                        if string.trim().starts_with("System76") {
+                            install_pkgs.push("system76-driver");
+                        }
+                    }
+                }
+            }
 
             info!(
                 "libdistinst: will install {:?} bootloader packages",

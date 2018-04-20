@@ -15,6 +15,7 @@ pub use self::partition::*;
 pub use self::sector::*;
 
 pub const DISTINST_MODIFY_BOOT_ORDER: u8 = 0b01;
+pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
 
 use std::io;
 

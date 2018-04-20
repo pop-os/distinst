@@ -1,6 +1,6 @@
 #!/bin/sh
-FS="tests/filesystem.squashfs"
-REMOVE="tests/filesystem.manifest-remove"
+FS="/cdrom/casper/filesystem.squashfs"
+REMOVE="/cdrom/casper/filesystem.manifest-remove"
 
 if ! test -e "target/debug/distinst"; then
     cargo build --manifest-path cli/Cargo.toml
