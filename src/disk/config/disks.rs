@@ -1,7 +1,7 @@
 use super::super::external::{
     cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove,
 };
-use super::super::lvm::{self, LvmDevice};
+use super::super::lvm::{self, generate_unique_id, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
 use super::super::mounts::Mounts;
 use super::super::swaps::Swaps;
@@ -18,7 +18,6 @@ use std::collections::HashSet;
 use std::ffi::OsString;
 use std::io;
 use std::iter::{self, FromIterator};
-use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::thread;
@@ -252,7 +251,6 @@ impl Disks {
 
     /// Sometimes, physical devices themselves may be mounted directly.
     pub fn unmount_devices(&self) -> Result<(), DiskError> {
-        let mounts = Mounts::new().unwrap();
         for device in self.get_physical_devices() {
             if let Some(mount) = device.get_mount_point() {
                 info!(
@@ -629,13 +627,16 @@ impl Disks {
 
         let partitions = self.physical
             .iter()
-            .flat_map(|x| x.get_partitions().iter())
-            .chain(self.logical.iter().flat_map(|x| x.get_partitions().iter()));
+            .flat_map(|x| x.get_partitions().iter().map(|p| (true, p)))
+            .chain(self.logical.iter().flat_map(|x| {
+                let is_unencrypted: bool = x.encryption.is_none();
+                x.get_partitions().iter().map(move |p| (is_unencrypted, p))
+            }));
 
         // <PV> <UUID> <Pass> <Options>
         use std::borrow::Cow;
         use std::ffi::OsStr;
-        for partition in partitions {
+        for (is_unencrypted, partition) in partitions {
             if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
                 let password: Cow<'static, OsStr> =
                     match (enc.password.is_some(), enc.keydata.as_ref()) {
@@ -659,6 +660,22 @@ impl Disks {
                         crypttab.push(" ");
                         crypttab.push(&password);
                         crypttab.push(" luks\n");
+                    }
+                    None => error!(
+                        "unable to find UUID for {} -- skipping",
+                        partition.device_path.display()
+                    ),
+                }
+            } else if is_unencrypted && partition.filesystem == Some(FileSystemType::Swap) {
+                match get_uuid(&partition.device_path) {
+                    Some(uuid) => {
+                        crypttab
+                            .push(&generate_unique_id("cryptswap").unwrap_or("cryptswap".into()));
+                        crypttab.push(" UUID=");
+                        crypttab.push(&uuid);
+                        crypttab.push(
+                            " /dev/urandom swap,offset=1024,cipher=aes-xts-plain64,size=512\n",
+                        );
                     }
                     None => error!(
                         "unable to find UUID for {} -- skipping",
@@ -707,6 +724,7 @@ impl Disks {
                         ));
                     }
                 } else if let Some(ref vg) = partition.original_vg {
+                    eprintln!("libdistinst: found existing LVM device on {:?}", partition.get_device_path());
                     // TODO: NLL
                     let mut found = false;
 
