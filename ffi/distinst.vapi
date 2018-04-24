@@ -593,6 +593,15 @@ namespace Distinst {
         public unowned LvmDevice? get_logical_device (string volume_group);
 
         /**
+         * Obtains the logical device that is within the specified LUKS
+         * physical volume name.
+         *
+         * Will return a null value if the input string is not UTF-8,
+         * or the logical device could not be found.
+         */
+        public unowned LvmDevice? get_logical_device_within_pv (string volume_group);
+
+        /**
          * To be used after configuring all physical partitions on physical disks,
          * this method will initialize all of the logical devices within the `Disks`
          * object.
@@ -613,11 +622,6 @@ namespace Distinst {
          * - 6 indicates that the specified LUKS partition at `path` was not found
          */
         public int decrypt_partition (string path, LvmEncryption encryption);
-
-        /**
-         * Finds the logical device which is associated with the given volume group.
-         */
-        public unowned LvmDevice find_logical_volume (string volume_group);
 
         /**
          * Finds the partition block path and associated partition information

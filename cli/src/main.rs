@@ -891,7 +891,7 @@ fn configure_lvm(
 
     if let Some(logical) = logical {
         parse_logical(logical, |args| {
-            match disks.find_logical_disk_mut(&args.group) {
+            match disks.get_logical_device_mut(&args.group) {
                 Some(lvm_device) => {
                     let start = lvm_device.get_last_sector();
                     let end = start + lvm_device.get_sector(args.size);

@@ -374,24 +374,6 @@ pub unsafe extern "C" fn distinst_disks_get_physical_device(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disks_get_logical_device(
-    disks: *mut DistinstDisks,
-    volume_group: *const libc::c_char,
-) -> *mut DistinstLvmDevice {
-    match get_str(volume_group, "distinst_disks_get_logical_device") {
-        Ok(vg) => {
-            let disks = &mut *(disks as *mut Disks);
-            info!("getting logical device");
-            disks.get_logical_device_mut(vg).as_mut_ptr() as *mut DistinstLvmDevice
-        }
-        Err(why) => {
-            eprintln!("libdistinst: volume_group is not UTF-8: {}", why);
-            ptr::null_mut()
-        }
-    }
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn distinst_disks_list_logical(
     disks: *mut DistinstDisks,
     len: *mut libc::c_int,

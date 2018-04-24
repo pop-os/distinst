@@ -3,7 +3,7 @@ use ffi::AsMutPtr;
 use libc;
 
 use super::{get_str, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
@@ -23,15 +23,39 @@ pub unsafe extern "C" fn distinst_disks_initialize_volume_groups(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disks_find_logical_volume(
+pub unsafe extern "C" fn distinst_disks_get_logical_device(
     disks: *mut DistinstDisks,
-    group: *const libc::c_char,
+    volume_group: *const libc::c_char,
 ) -> *mut DistinstLvmDevice {
-    CStr::from_ptr(group)
-        .to_str()
-        .ok()
-        .and_then(|group| (&mut *(disks as *mut Disks)).find_logical_disk_mut(group))
-        .as_mut_ptr() as *mut DistinstLvmDevice
+    match get_str(volume_group, "distinst_disks_get_logical_device") {
+        Ok(vg) => {
+            let disks = &mut *(disks as *mut Disks);
+            info!("getting logical device");
+            disks.get_logical_device_mut(vg).as_mut_ptr() as *mut DistinstLvmDevice
+        }
+        Err(why) => {
+            eprintln!("libdistinst: volume_group is not UTF-8: {}", why);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_get_logical_device_within_pv(
+    disks: *mut DistinstDisks,
+    pv: *const libc::c_char,
+) -> *mut DistinstLvmDevice {
+    match get_str(pv, "distinst_disks_get_logical_device_within_pv") {
+        Ok(pv) => {
+            let disks = &mut *(disks as *mut Disks);
+            info!("getting logical device");
+            disks.get_logical_device_within_pv_mut(pv).as_mut_ptr() as *mut DistinstLvmDevice
+        }
+        Err(why) => {
+            eprintln!("libdistinst: volume_group is not UTF-8: {}", why);
+            ptr::null_mut()
+        }
+    }
 }
 
 #[repr(C)]

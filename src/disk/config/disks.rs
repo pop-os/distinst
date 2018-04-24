@@ -63,14 +63,31 @@ impl Disks {
     /// configuration.
     pub fn get_physical_devices_mut(&mut self) -> &mut [Disk] { &mut self.physical }
 
+    /// Searches for a LVM device by the LVM volume group name.
     pub fn get_logical_device(&self, group: &str) -> Option<&LvmDevice> {
         self.logical.iter().find(|d| &d.volume_group == group)
     }
 
+    /// Searches for a LVM device by the LVM volume group name.
     pub fn get_logical_device_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
+        self.logical.iter_mut().find(|d| &d.volume_group == group)
+    }
+
+    /// Searches for a LVM device which is inside of the given LUKS physical volume name.
+    pub fn get_logical_device_within_pv(&self, pv: &str) -> Option<&LvmDevice> {
+        self.logical.iter().find(|d| {
+            d.encryption
+                .as_ref()
+                .map_or(false, |enc| &enc.physical_volume == pv)
+        })
+    }
+
+    /// Searches for a LVM device which is inside of the given LUKS physical volume name.
+    pub fn get_logical_device_within_pv_mut(&mut self, pv: &str) -> Option<&mut LvmDevice> {
         self.logical.iter_mut().find(|d| {
-            info!("DEBUG: logical device: {:?} == {:?}", d.volume_group, group);
-            &d.volume_group == group
+            d.encryption
+                .as_ref()
+                .map_or(false, |enc| &enc.physical_volume == pv)
         })
     }
 
@@ -296,22 +313,6 @@ impl Disks {
         self.physical
             .iter_mut()
             .find(|disk| &disk.device_path == path.as_ref())
-    }
-
-    /// Returns an immutable reference to the disk specified by its path, if it
-    /// exists.
-    pub fn find_logical_disk(&self, group: &str) -> Option<&LvmDevice> {
-        self.logical
-            .iter()
-            .find(|device| &device.volume_group == group)
-    }
-
-    /// Returns a mutable reference to the disk specified by its path, if it
-    /// exists.
-    pub fn find_logical_disk_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
-        self.logical
-            .iter_mut()
-            .find(|device| &device.volume_group == group)
     }
 
     /// Finds the partition block path and associated partition information that is associated with
