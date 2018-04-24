@@ -20,7 +20,7 @@ use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
 use itertools::Itertools;
 use raw_cpuid::CpuId;
 use std::collections::BTreeMap;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
 use std::io::{self, BufRead, Read, Write};
 use std::os::unix::ffi::OsStrExt;
@@ -674,10 +674,14 @@ impl Installer {
         mut callback: F,
     ) -> io::Result<()> {
         // Obtain the root device & partition, with an optional EFI device & partition.
-        let ((root_dev, _), boot_opt) = disks.get_base_partitions(bootloader);
+        let ((root_dev, _root_part), boot_opt) = disks.get_base_partitions(bootloader);
 
+        let mut efi_part_num = 0;
         let bootloader_dev = match boot_opt {
-            Some((dev, _)) => dev,
+            Some((dev, dev_part)) => {
+                efi_part_num = dev_part.number;
+                dev
+            }
             None => root_dev,
         };
 
@@ -735,23 +739,14 @@ impl Installer {
                     Bootloader::Efi => {
                         let status = chroot.command(
                             "bootctl",
-                            if config.flags & MODIFY_BOOT_ORDER != 0 {
-                                &[
-                                    // Install systemd-boot
-                                    "install",
-                                    // Provide path to ESP
-                                    "--path=/boot/efi",
-                                ][..]
-                            } else {
-                                &[
-                                    // Install systemd-boot
-                                    "install",
-                                    // Provide path to ESP
-                                    "--path=/boot/efi",
-                                    // Do not set EFI variables
-                                    "--no-variables",
-                                ][..]
-                            },
+                            &[
+                                // Install systemd-boot
+                                "install",
+                                // Provide path to ESP
+                                "--path=/boot/efi",
+                                // Do not set EFI variables
+                                "--no-variables",
+                            ][..],
                         )?;
 
                         if !status.success() {
@@ -759,6 +754,31 @@ impl Installer {
                                 io::ErrorKind::Other,
                                 format!("bootctl failed with status: {}", status),
                             ));
+                        }
+
+                        if config.flags & MODIFY_BOOT_ORDER != 0 {
+                            let efi_part_num = efi_part_num.to_string();
+                            let args: &[&OsStr] = &[
+                                "--create".as_ref(),
+                                "--disk".as_ref(),
+                                bootloader_dev.as_ref(),
+                                "--part".as_ref(),
+                                efi_part_num.as_ref(),
+                                "--write-signature".as_ref(),
+                                "--label".as_ref(),
+                                "Linux Boot Manager (systemd-boot)".as_ref(),
+                                "--loader".as_ref(),
+                                "\\EFI\\systemd\\systemd-bootx64.efi".as_ref(),
+                            ][..];
+
+                            let status = chroot.command("efibootmgr", args)?;
+
+                            if !status.success() {
+                                return Err(io::Error::new(
+                                    io::ErrorKind::Other,
+                                    format!("efibootmgr failed with status: {}", status),
+                                ));
+                            }
                         }
                     }
                 }
