@@ -776,7 +776,7 @@ impl Installer {
                             if !status.success() {
                                 return Err(io::Error::new(
                                     io::ErrorKind::Other,
-                                    format!("bootctl failed with status: {}", status),
+                                    format!("efibootmgr failed with status: {}", status),
                                 ));
                             }
                         }
