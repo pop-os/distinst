@@ -499,23 +499,19 @@ impl Installer {
         callback(30);
 
         {
-            // Generate and write all of the file system mount targets to the new install.
-            info!("libdistinst: writing /etc/fstab");
-            let fstab = mount_dir.join("etc/fstab");
-            let mut file = File::create(&fstab)?;
-            file.write_all(FSTAB_HEADER)?;
-            file.write_all(disks.generate_fstab().as_bytes())?;
-            file.sync_all()?;
-        }
+            let (crypttab, fstab) = disks.generate_fstabs();
 
-        callback(45);
-
-        {
-            // Do the same for generating any encryption entries needed by the install.
             info!("libdistinst: writing /etc/crypttab");
-            let crypttab = mount_dir.join("etc/crypttab");
-            let mut file = File::create(&crypttab)?;
-            file.write_all(disks.generate_crypttab().as_bytes())?;
+            let crypttab_path = mount_dir.join("etc/crypttab");
+            let mut file = File::create(&crypttab_path)?;
+            file.write_all(crypttab.as_bytes())?;
+            file.sync_all()?;
+
+            info!("libdistinst: writing /etc/fstab");
+            let fstab_path = mount_dir.join("etc/fstab");
+            let mut file = File::create(&fstab_path)?;
+            file.write_all(FSTAB_HEADER)?;
+            file.write_all(fstab.as_bytes())?;
             file.sync_all()?;
         }
 
@@ -574,13 +570,13 @@ impl Installer {
                         Some(vf) => match vf.as_string() {
                             "AuthenticAMD" => {
                                 install_pkgs.push("amd64-microcode");
-                            },
+                            }
                             "GenuineIntel" => {
                                 install_pkgs.push("intel-microcode");
-                            },
-                            _ => ()
+                            }
+                            _ => (),
                         },
-                        None => ()
+                        None => (),
                     }
                 }
 
