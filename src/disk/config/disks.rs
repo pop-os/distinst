@@ -184,6 +184,7 @@ impl Disks {
         path: &Path,
         enc: LvmEncryption,
     ) -> Result<(), DecryptionError> {
+        info!("libdistinst: decrypting partition at {:?}", path);
         // An intermediary value that can avoid the borrowck issue.
         let mut new_device = None;
 
@@ -201,6 +202,7 @@ impl Disks {
                     let pv = &PathBuf::from(["/dev/mapper/", &enc.physical_volume].concat());
                     let mut attempt = 0;
                     while !pv.exists() && attempt < 10 {
+                        info!("libdistinst: waiting 1 second for {:?} to activate", pv);
                         attempt += 1;
                         thread::sleep(Duration::from_millis(1000));
                     }
@@ -277,7 +279,6 @@ impl Disks {
             }
         }
 
-        // TODO: Also collect LVM devices
         Ok(disks)
     }
 

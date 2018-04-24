@@ -5,7 +5,9 @@ mod encryption;
 pub(crate) use self::deactivate::deactivate_devices;
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
-use super::super::external::{blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgcreate};
+use super::super::external::{
+    blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
+};
 use super::super::mounts::Mounts;
 use super::super::{
     DiskError, DiskExt, Disks, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE,
@@ -157,12 +159,21 @@ impl LvmDevice {
     }
 
     pub fn add_partitions(&mut self) {
+        info!("libdistinst: adding partitions to LVM device");
         let mut start_sector = 0;
+        let _ = vgactivate(&self.volume_group);
         if let Ok(logical_paths) = lvs(&self.volume_group) {
             for path in logical_paths {
                 // Wait for the device to be initialized, with a 5 second timeout.
                 let mut nth = 0;
-                while !path.exists() || nth > 5 {
+                while !path.exists() {
+                    info!(
+                        "libdistinst: waiting 1 second because {:?} does not exist yet",
+                        path
+                    );
+                    if nth == 5 {
+                        break;
+                    }
                     nth += 1;
                     thread::sleep(Duration::from_millis(1000));
                 }

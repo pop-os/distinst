@@ -280,7 +280,8 @@ impl Disk {
                 if let Some(ref mount) = partition.mount_point {
                     for mount in mountstab.mount_starts_with(mount.as_os_str().as_bytes()) {
                         info!(
-                            "libdistinst: marking {} to be unmounted, which is mounted at {} and has a target of {}",
+                            "libdistinst: marking {} to be unmounted, which is mounted at {} and \
+                             has a target of {}",
                             partition.get_device_path().display(),
                             mount.display(),
                             target.display()
