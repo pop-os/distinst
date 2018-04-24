@@ -758,7 +758,7 @@ impl Installer {
                             },
                         )?;
 
-                        if status.code().map_or(false, |code| code != 0 && code != 1) {
+                        if !status.success() {
                             return Err(io::Error::new(
                                 io::ErrorKind::Other,
                                 format!("bootctl failed with status: {}", status),
