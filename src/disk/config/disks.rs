@@ -578,52 +578,11 @@ impl Disks {
         Ok(())
     }
 
-    /// Generates fstab entries in memory
-    pub(crate) fn generate_fstab(&self) -> OsString {
-        info!("libdistinst: generating fstab in memory");
-        let mut fstab = OsString::with_capacity(1024);
-
-        let fs_entries = self.physical
-            .iter()
-            .flat_map(|disk| disk.partitions.iter())
-            .filter_map(|part| part.get_block_info());
-
-        let logical_entries = self.logical
-            .iter()
-            .flat_map(|disk| disk.partitions.iter())
-            .filter_map(|part| part.get_block_info());
-
-        // <file system>  <mount point>  <type>  <options>  <dump>  <pass>
-        for entry in fs_entries.chain(logical_entries) {
-            fstab.reserve_exact(entry.len() + 16);
-            fstab.push("UUID=");
-            fstab.push(&entry.uuid);
-            fstab.push("  ");
-            fstab.push(entry.mount());
-            fstab.push("  ");
-            fstab.push(&entry.fs);
-            fstab.push("  ");
-            fstab.push(&entry.options);
-            fstab.push("  ");
-            fstab.push(if entry.dump { "1" } else { "0" });
-            fstab.push("  ");
-            fstab.push(if entry.pass { "1" } else { "0" });
-            fstab.push("\n");
-        }
-
-        info!(
-            "libdistinst: generated the following fstab data:\n{}\n",
-            fstab.to_string_lossy(),
-        );
-
-        fstab.shrink_to_fit();
-        fstab
-    }
-
     /// Similar to `generate_fstab`, but for the crypttab file.
-    pub(crate) fn generate_crypttab(&self) -> OsString {
-        info!("libdistinst: generating crypttab in memory");
+    pub(crate) fn generate_fstabs(&self) -> (OsString, OsString) {
+        info!("libdistinst: generating /etc/crypttab & /etc/fstab in memory");
         let mut crypttab = OsString::with_capacity(1024);
+        let mut fstab = OsString::with_capacity(1024);
 
         let partitions = self.physical
             .iter()
@@ -632,6 +591,25 @@ impl Disks {
                 let is_unencrypted: bool = x.encryption.is_none();
                 x.get_partitions().iter().map(move |p| (is_unencrypted, p))
             }));
+
+        fn write_fstab(fstab: &mut OsString, partition: &PartitionInfo) {
+            if let Some(entry) = partition.get_block_info() {
+                fstab.reserve_exact(entry.len() + 16);
+                fstab.push("UUID=");
+                fstab.push(&entry.uuid);
+                fstab.push("  ");
+                fstab.push(entry.mount());
+                fstab.push("  ");
+                fstab.push(&entry.fs);
+                fstab.push("  ");
+                fstab.push(&entry.options);
+                fstab.push("  ");
+                fstab.push(if entry.dump { "1" } else { "0" });
+                fstab.push("  ");
+                fstab.push(if entry.pass { "1" } else { "0" });
+                fstab.push("\n");
+            }
+        }
 
         // <PV> <UUID> <Pass> <Options>
         use std::borrow::Cow;
@@ -660,38 +638,59 @@ impl Disks {
                         crypttab.push(" ");
                         crypttab.push(&password);
                         crypttab.push(" luks\n");
+                        write_fstab(&mut fstab, &partition);
                     }
                     None => error!(
                         "unable to find UUID for {} -- skipping",
                         partition.device_path.display()
                     ),
                 }
-            } else if is_unencrypted && partition.filesystem == Some(FileSystemType::Swap) {
-                match get_uuid(&partition.device_path) {
-                    Some(uuid) => {
-                        crypttab
-                            .push(&generate_unique_id("cryptswap").unwrap_or("cryptswap".into()));
-                        crypttab.push(" UUID=");
-                        crypttab.push(&uuid);
-                        crypttab.push(
-                            " /dev/urandom swap,offset=1024,cipher=aes-xts-plain64,size=512\n",
-                        );
+            } else if partition.filesystem == Some(FileSystemType::Swap) {
+                if is_unencrypted {
+                    match get_uuid(&partition.device_path) {
+                        Some(uuid) => {
+                            let unique_id =
+                                generate_unique_id("cryptswap").unwrap_or("cryptswap".into());
+                            crypttab.push(&unique_id);
+                            crypttab.push(" UUID=");
+                            crypttab.push(&uuid);
+                            crypttab.push(
+                                " /dev/urandom swap,offset=1024,cipher=aes-xts-plain64,size=512\n",
+                            );
+
+                            fstab.push(&[
+                                "/dev/mapper/",
+                                &unique_id,
+                                "  none  swap  defaults  0  0\n",
+                            ].concat());
+                        }
+                        None => error!(
+                            "unable to find UUID for {} -- skipping",
+                            partition.device_path.display()
+                        ),
                     }
-                    None => error!(
-                        "unable to find UUID for {} -- skipping",
-                        partition.device_path.display()
-                    ),
+                } else {
+                    fstab.push(partition.get_device_path());
+                    fstab.push("  none  swap  defaults  0  0\n");
                 }
+            } else {
+                write_fstab(&mut fstab, &partition);
             }
         }
 
         info!(
-            "libdistinst: generated the following crypttab data:\n{}\n",
+            "libdistinst: generated the following crypttab data:\n{}",
             crypttab.to_string_lossy(),
         );
 
+        info!(
+            "libdistinst: generated the following fstab data:\n{}",
+            fstab.to_string_lossy()
+        );
+
         crypttab.shrink_to_fit();
-        crypttab
+        fstab.shrink_to_fit();
+        (crypttab, fstab)
     }
 
     /// Loads existing logical volume data into memory, excluding encrypted volumes.
@@ -724,7 +723,10 @@ impl Disks {
                         ));
                     }
                 } else if let Some(ref vg) = partition.original_vg {
-                    eprintln!("libdistinst: found existing LVM device on {:?}", partition.get_device_path());
+                    eprintln!(
+                        "libdistinst: found existing LVM device on {:?}",
+                        partition.get_device_path()
+                    );
                     // TODO: NLL
                     let mut found = false;
 
