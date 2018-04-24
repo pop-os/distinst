@@ -93,16 +93,8 @@ fn find_linux_home(base: &Path) -> Option<PathBuf> {
 fn detect_linux(base: &Path) -> Option<String> {
     File::open(base.join("etc/os-release"))
         .ok()
-        .and_then(|file| parse_osrelease(BufReader::new(file)))
+        .and_then(|file| ::os_release::parse(BufReader::new(file)))
         .or_else(|| base.join("etc").exists().map(|| "Unknown Linux".into()))
-}
-
-fn parse_osrelease<R: BufRead>(file: R) -> Option<String> {
-    const FIELD: &str = "PRETTY_NAME=";
-    file.lines()
-        .flat_map(|line| line)
-        .find(|line| line.starts_with(FIELD))
-        .map(|line| line[FIELD.len() + 1..line.len() - 1].into())
 }
 
 fn detect_windows(base: &Path) -> Option<String> {
