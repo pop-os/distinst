@@ -564,6 +564,16 @@ impl Disks {
                             ));
                         }
                     }
+
+                    // 256 MiB should be the minimal size of the ESP partition.
+                    const REQUIRED_SECTORS: u64 = 524288;
+
+                    if boot.sectors() < REQUIRED_SECTORS {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "the ESP partition must be at least 256 MiB in size"
+                        ));
+                    }
                 }
 
                 device
