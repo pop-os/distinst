@@ -70,6 +70,8 @@ fi
 
 echo "ROOT_UUID = $ROOT_UUID"
 
+BOOT_OPTIONS="quiet loglevel=0 vga=current systemd.show_status=false"
+
 # Update bootloader configuration
 if hash kernelstub
 then
@@ -77,7 +79,7 @@ then
         --esp-path "/boot/efi" \
         --kernel-path "/vmlinuz" \
         --initrd-path "/initrd.img" \
-        --options "quiet loglevel=0 vga=current systemd.show_status=false" \
+        --options "${BOOT_OPTIONS}" \
         --loader \
         --manage-only \
         --verbose
@@ -122,7 +124,7 @@ EOF
 title ${NAME} Recovery
 linux /EFI/${RECOVERY}/vmlinuz.efi
 initrd /EFI/${RECOVERY}/initrd.gz
-options boot=casper hostname=recovery userfullname=Recovery username=recovery live-media-path=/${CASPER} noprompt
+options ${BOOT_OPTIONS} boot=casper hostname=recovery userfullname=Recovery username=recovery live-media-path=/${CASPER} noprompt
 EOF
 
 fi
