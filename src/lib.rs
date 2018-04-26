@@ -911,6 +911,12 @@ impl Installer {
                     Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, percent!())
                 });
 
+                let recovery_conf = mount_dir.path().join("recovery/recovery.conf");
+                if recovery_conf.exists() {
+                    info!("libdistinst: removing recovery.conf");
+                    fs::remove_file(recovery_conf)?;
+                }
+
                 mounts.unmount(false)?;
             }
 
