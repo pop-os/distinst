@@ -16,7 +16,7 @@ extern crate rand;
 extern crate raw_cpuid;
 extern crate tempdir;
 
-use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
+use disk::external::{blockdev, pvs, remount_rw, vgactivate, vgdeactivate};
 use itertools::Itertools;
 use raw_cpuid::CpuId;
 use std::collections::BTreeMap;
@@ -44,10 +44,13 @@ pub use disk::{
 mod automatic;
 mod chroot;
 mod disk;
+mod envfile;
 pub mod hostname;
 mod logger;
 mod os_release;
 mod squashfs;
+
+use envfile::EnvFile;
 
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
@@ -557,6 +560,8 @@ impl Installer {
                     ))?
             };
 
+            let root_uuid = root_entry.uuid.to_str().unwrap();
+
             let mut install_pkgs: Vec<&str> = match bootloader {
                 Bootloader::Bios => vec!["grub-pc"],
                 Bootloader::Efi => vec!["kernelstub"],
@@ -621,7 +626,7 @@ impl Installer {
                 }
 
                 // Set root UUID
-                args.push(format!("ROOT_UUID={}", root_entry.uuid.to_str().unwrap()));
+                args.push(format!("ROOT_UUID={}", root_uuid));
 
                 // Run configure script with bash
                 args.push("bash".to_string());
@@ -657,6 +662,7 @@ impl Installer {
 
             cdrom_target.map(|target| fs::remove_dir(&target));
             chroot.unmount(false)?;
+            update_recovery_config(root_uuid)?;
         }
 
         configure_dir.close()?;
@@ -911,12 +917,6 @@ impl Installer {
                     Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, percent!())
                 });
 
-                let recovery_conf = mount_dir.path().join("recovery/recovery.conf");
-                if recovery_conf.exists() {
-                    info!("libdistinst: removing recovery.conf");
-                    fs::remove_file(recovery_conf)?;
-                }
-
                 mounts.unmount(false)?;
             }
 
@@ -938,6 +938,17 @@ impl Installer {
         Disks::probe_devices()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
+}
+
+fn update_recovery_config(root_uuid: &str) -> io::Result<()> {
+    let recovery_conf = EnvFile::new(Path::new("/cdrom/recovery.conf"));
+    if recovery_conf.exists() {
+        remount_rw("/cdrom")
+            .and_then(|_| recovery_conf.update("OEM_MODE", "0"))
+            .and_then(|_| recovery_conf.update("ROOT_UUID", root_uuid))?;
+    }
+
+    Ok(())
 }
 
 fn mount_cdrom(mount_dir: &Path) -> io::Result<Option<Mount>> {
