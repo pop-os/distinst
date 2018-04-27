@@ -101,6 +101,10 @@ then
 
     # Copy casper to special path
     cp -rv "/cdrom/casper" "/recovery/${CASPER}"
+    #
+    # # Make a note that the device is a recovery partition
+    # # The installer will check for this file's existence.
+    # touch "/recovery/recovery"
 
     # Create configuration file
     cat > "/recovery/recovery.conf" << EOF
@@ -112,6 +116,7 @@ KBD_VARIANT=${KBD_VARIANT}
 EFI_UUID=${EFI_UUID}
 RECOVERY_UUID=${RECOVERY_UUID}
 ROOT_UUID=${ROOT_UUID}
+OEM_MODE=0
 EOF
 
     # Copy initrd and vmlinuz to EFI partition

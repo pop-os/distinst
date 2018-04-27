@@ -547,3 +547,7 @@ impl<'a> Drop for ExternalMount<'a> {
         let _ = exec("umount", None, None, &args);
     }
 }
+
+pub(crate) fn remount_rw<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    exec("mount", None, None, &[path.as_ref().into(), "-o".into(), "remount,rw".into()])
+}
