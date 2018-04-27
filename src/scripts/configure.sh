@@ -45,9 +45,6 @@ update-locale --reset "LANG=${LANG}"
 # Set keyboard settings system-wide
 localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
 
-# Enable i386 so that steam is installable out of the box
-dpkg --add-architecture i386
-
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"
 apt-get autoremove -y --purge
