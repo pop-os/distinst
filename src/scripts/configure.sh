@@ -82,6 +82,7 @@ then
         --options "${BOOT_OPTIONS}" \
         --loader \
         --manage-only \
+        --force-update \
         --verbose
 else
     update-grub
