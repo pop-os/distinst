@@ -561,6 +561,7 @@ impl Installer {
             };
 
             let root_uuid = root_entry.uuid.to_str().unwrap();
+            update_recovery_config(&mount_dir, &root_uuid)?;
 
             let mut install_pkgs: Vec<&str> = match bootloader {
                 Bootloader::Bios => vec!["grub-pc"],
@@ -647,8 +648,6 @@ impl Installer {
                 args
             };
 
-            remove_old_boot_files(&mount_dir)?;
-
             let status = chroot.command("/usr/bin/env", args.iter())?;
 
             if !status.success() {
@@ -657,8 +656,6 @@ impl Installer {
                     format!("configure.sh failed with status: {}", status),
                 ));
             }
-
-            update_recovery_config(&root_uuid)?;
 
             // Ensure that the cdrom binding is unmounted before the chroot.
             drop(cdrom_mount);
@@ -943,18 +940,7 @@ impl Installer {
     }
 }
 
-fn update_recovery_config(root_uuid: &str) -> io::Result<()> {
-    let recovery_conf = EnvFile::new(Path::new("/cdrom/recovery.conf"));
-    if recovery_conf.exists() {
-        remount_rw("/cdrom")
-            .and_then(|_| recovery_conf.update("OEM_MODE", "0"))
-            .and_then(|_| recovery_conf.update("ROOT_UUID", root_uuid))?;
-    }
-
-    Ok(())
-}
-
-fn remove_old_boot_files(mount: &Path) -> io::Result<()> {
+fn update_recovery_config(mount: &Path, root_uuid: &str) -> io::Result<()> {
     fn remove_boot(mount: &Path, uuid: &str) -> io::Result<()> {
         for directory in mount.join("boot/efi/EFI").read_dir()? {
             let entry = directory?;
@@ -972,7 +958,11 @@ fn remove_old_boot_files(mount: &Path) -> io::Result<()> {
 
     let recovery_conf = EnvFile::new(Path::new("/cdrom/recovery.conf"));
     if recovery_conf.exists() {
-        recovery_conf.get("ROOT_UUID").and_then(|ref old_uuid| remove_boot(mount, old_uuid))?
+        remount_rw("/cdrom")
+            .and_then(|_| recovery_conf.update("OEM_MODE", "0"))
+            .and_then(|_| recovery_conf.get("ROOT_UUID"))
+            .and_then(|ref old_uuid| remove_boot(mount, old_uuid))
+            .and_then(|_| recovery_conf.update("ROOT_UUID", root_uuid))?;
     }
 
     Ok(())
