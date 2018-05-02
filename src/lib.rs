@@ -647,6 +647,8 @@ impl Installer {
                 args
             };
 
+            remove_old_boot_files(&mount_dir)?;
+
             let status = chroot.command("/usr/bin/env", args.iter())?;
 
             if !status.success() {
@@ -656,13 +658,14 @@ impl Installer {
                 ));
             }
 
+            update_recovery_config(&root_uuid)?;
+
             // Ensure that the cdrom binding is unmounted before the chroot.
             drop(cdrom_mount);
             drop(efivars_mount);
 
             cdrom_target.map(|target| fs::remove_dir(&target));
             chroot.unmount(false)?;
-            update_recovery_config(root_uuid)?;
         }
 
         configure_dir.close()?;
@@ -946,6 +949,30 @@ fn update_recovery_config(root_uuid: &str) -> io::Result<()> {
         remount_rw("/cdrom")
             .and_then(|_| recovery_conf.update("OEM_MODE", "0"))
             .and_then(|_| recovery_conf.update("ROOT_UUID", root_uuid))?;
+    }
+
+    Ok(())
+}
+
+fn remove_old_boot_files(mount: &Path) -> io::Result<()> {
+    fn remove_boot(mount: &Path, uuid: &str) -> io::Result<()> {
+        for directory in mount.join("boot/efi/EFI").read_dir()? {
+            let entry = directory?;
+            let full_path = entry.path();
+            if let Some(path) = entry.file_name().to_str() {
+                if path.ends_with(uuid) {
+                    info!("libdistinst: removing old boot files for {}", path);
+                    fs::remove_dir_all(&full_path)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    let recovery_conf = EnvFile::new(Path::new("/cdrom/recovery.conf"));
+    if recovery_conf.exists() {
+        recovery_conf.get("ROOT_UUID").and_then(|ref old_uuid| remove_boot(mount, old_uuid))?
     }
 
     Ok(())

@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{self, BufRead, Cursor, Read, Write};
 use std::path::Path;
+use std::str;
 
 pub(crate) struct EnvFile<'a>(&'a Path);
 
@@ -10,12 +11,29 @@ impl<'a> EnvFile<'a> {
     }
 
     pub fn update(&self, key: &str, value: &str) -> io::Result<()> {
+        info!("libdistinst: updating {} with {} in env file", key, value);
         read(self.0)
             .and_then(|data| replace_env(data, key, value))
             .and_then(|ref new_data| write(self.0, new_data))
     }
 
+    pub fn get(&self, key: &str) -> io::Result<String> {
+        info!("libdistinst: getting {} from env file", key);
+        read(self.0).and_then(|data| get_env(data, key))
+    }
+
     pub fn exists(&self) -> bool { self.0.exists() }
+}
+
+fn get_env(buffer: Vec<u8>, key: &str) -> io::Result<String> {
+    for line in Cursor::new(buffer).lines() {
+        let line = line?;
+        if line.starts_with(&[key, "="].concat()) {
+            return Ok(line[key.len() + 1..].into())
+        }
+    }
+
+    Err(io::Error::new(io::ErrorKind::NotFound, "key not found in env file"))
 }
 
 fn replace_env(buffer: Vec<u8>, key: &str, value: &str) -> io::Result<Vec<u8>> {
