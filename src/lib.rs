@@ -18,7 +18,6 @@ extern crate tempdir;
 
 use disk::external::{blockdev, pvs, remount_rw, vgactivate, vgdeactivate};
 use itertools::Itertools;
-use raw_cpuid::CpuId;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
@@ -44,6 +43,7 @@ pub use disk::{
 mod automatic;
 mod chroot;
 mod disk;
+mod hardware_support;
 mod envfile;
 pub mod hostname;
 mod logger;
@@ -67,6 +67,21 @@ const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
 #
 # <file system>  <mount point>  <type>  <options>  <dump>  <pass>
 ";
+
+macro_rules! file_create {
+    ($path:expr, $perm:expr, [ $($data:expr),+ ]) => {{
+        let mut file = File::create($path)?;
+        $(file.write_all($data)?;)+
+        file.set_permissions(Permissions::from_mode($perm))?;
+        file.sync_all()?;
+    }};
+
+    ($path:expr, [ $($data:expr),+ ]) => {{
+        let mut file = File::create($path)?;
+        $(file.write_all($data)?;)+
+        file.sync_all()?;
+    }};
+}
 
 /// Initialize logging
 pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
@@ -482,9 +497,7 @@ impl Installer {
         {
             // Write the installer's intallation script to the chroot's temporary directory.
             info!("libdistinst: writing /tmp/configure.sh");
-            let mut file = File::create(&configure)?;
-            file.write_all(include_bytes!("scripts/configure.sh"))?;
-            file.sync_all()?;
+            file_create!(&configure, [include_bytes!("scripts/configure.sh")]);
         }
 
         callback(15);
@@ -494,10 +507,7 @@ impl Installer {
             info!("libdistinst: applying LVM initramfs autodetect workaround");
             fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
             let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
-            let mut file = File::create(&lvm_fix)?;
-            file.write_all(include_bytes!("scripts/lvm-workaround.sh"))?;
-            file.set_permissions(Permissions::from_mode(0o1755))?;
-            file.sync_all()?;
+            file_create!(lvm_fix, 0o1755, [include_bytes!("scripts/lvm-workaround.sh")])
         }
 
         callback(30);
@@ -506,17 +516,10 @@ impl Installer {
             let (crypttab, fstab) = disks.generate_fstabs();
 
             info!("libdistinst: writing /etc/crypttab");
-            let crypttab_path = mount_dir.join("etc/crypttab");
-            let mut file = File::create(&crypttab_path)?;
-            file.write_all(crypttab.as_bytes())?;
-            file.sync_all()?;
+            file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
 
             info!("libdistinst: writing /etc/fstab");
-            let fstab_path = mount_dir.join("etc/fstab");
-            let mut file = File::create(&fstab_path)?;
-            file.write_all(FSTAB_HEADER)?;
-            file.write_all(fstab.as_bytes())?;
-            file.sync_all()?;
+            file_create!(mount_dir.join("etc/fstab"), [FSTAB_HEADER, fstab.as_bytes()]);
         }
 
         callback(60);
@@ -569,33 +572,7 @@ impl Installer {
             };
 
             if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                // Check for AuthenticAMD or GenuineIntel
-                {
-                    let cpuid = CpuId::new();
-
-                    match cpuid.get_vendor_info() {
-                        Some(vf) => match vf.as_string() {
-                            "AuthenticAMD" => {
-                                install_pkgs.push("amd64-microcode");
-                            }
-                            "GenuineIntel" => {
-                                install_pkgs.push("intel-microcode");
-                            }
-                            _ => (),
-                        },
-                        None => (),
-                    }
-                }
-
-                // Check for system76-driver
-                if let Ok(mut file) = File::open("/sys/class/dmi/id/sys_vendor") {
-                    let mut string = String::new();
-                    if let Ok(_) = file.read_to_string(&mut string) {
-                        if string.trim().starts_with("System76") {
-                            install_pkgs.push("system76-driver");
-                        }
-                    }
-                }
+                hardware_support::append_packages(&mut install_pkgs);
             }
 
             info!(
