@@ -17,6 +17,9 @@ extern crate log;
 extern crate rand;
 extern crate raw_cpuid;
 extern crate tempdir;
+extern crate gettextrs;
+extern crate isolang;
+extern crate iso3166_1;
 
 use disk::external::{blockdev, pvs, remount_rw, vgactivate, vgdeactivate};
 use itertools::Itertools;

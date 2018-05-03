@@ -4,17 +4,17 @@
 
 use std::io::{self, BufRead, BufReader};
 use std::fs::File;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
+use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::path::Path;
 
 lazy_static! {
     pub static ref LOCALES: Locales = parse_locales().unwrap();
 }
 
-pub type Locales = HashMap<String, (Vec<Option<String>>, Vec<Option<(String, bool)>>)>;
+pub type Locales = BTreeMap<String, (Vec<Option<String>>, Vec<Option<(String, bool)>>)>;
 
-pub fn get_default(lang: &String) -> Option<String> {
+pub fn get_default(lang: &str) -> Option<String> {
     LOCALES.get(lang)
         .map(|value| {
             let mut countries = value.0.iter();
@@ -25,7 +25,7 @@ pub fn get_default(lang: &String) -> Option<String> {
             for country in countries {
                 id += 1;
                 if let Some(ref country) = *country {
-                    if country.to_lowercase() == lang.as_str() {
+                    if country.to_lowercase() == lang {
                         country_value = Some(country.as_str());
                         index = id;
                         break
@@ -50,25 +50,27 @@ pub fn get_default(lang: &String) -> Option<String> {
                     format!("{} {}", lang, unicode)
                 }
                 _ => {
-                    lang.clone()
+                    lang.into()
                 }
             }
         })
 }
 
-pub fn get_countries(lang: &String) -> Vec<String> {
+pub fn get_language_codes() -> Vec<&'static str> {
+    LOCALES.keys().map(|x| x.as_str()).collect()
+}
+
+pub fn get_countries(lang: &str) -> Vec<&'static str> {
     match LOCALES.get(lang) {
         Some(value) => {
-            value.1.iter()
-                .filter_map(|country| country.clone().map(|x| x.0))
-                .collect()
+            value.0.iter().filter_map(|x| x.as_ref().map(|x| x.as_str())).collect()
         }
         None => Vec::new()
     }
 }
 
 pub fn parse_locales() -> io::Result<Locales> {
-    let mut locales = HashMap::new();
+    let mut locales = BTreeMap::new();
     for file in &[Path::new("/usr/share/i18n/SUPPORTED"), Path::new("/usr/local/share/i18n/SUPPORTED")] {
         if !file.exists() {
             continue

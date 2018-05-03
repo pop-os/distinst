@@ -75,9 +75,35 @@ namespace Distinst {
     public string? locale_get_default (string lang);
 
     /**
+     * Obtains a list of available language locales.
+     */
+    public unowned string[] locale_get_language_codes ();
+
+    /**
      * Obtains a list of countries associated with a language
      */
-    public unowned string[]? locale_get_countries (string lang);
+    public unowned string[]? locale_get_country_codes (string lang);
+
+    /**
+     * Get the name of a language by the ISO 639 language code.
+     */
+    public string locale_get_language_name (string code);
+
+    /**
+     * Get the translated name of a language by the ISO 639 language code.
+     */
+    public string locale_get_language_name_translated (string code);
+
+    /**
+     * Get the name of a country by the ISO 3166 country code.
+     */
+    public string locale_get_country_name (string code);
+
+    /**
+     * Get the translated name of a country by the ISO 3166 country code,
+     * and the ISO 639 language code.
+     */
+    public string locale_get_country_name_translated (string country, string lang);
 
     /**
      * Generates a unique volume group name.
