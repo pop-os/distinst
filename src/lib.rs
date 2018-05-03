@@ -23,7 +23,7 @@ use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::PermissionsExt;
@@ -50,7 +50,7 @@ mod envfile;
 pub mod hostname;
 pub mod locale;
 mod logger;
-mod os_release;
+pub mod os_release;
 mod squashfs;
 
 use envfile::EnvFile;
@@ -745,9 +745,6 @@ impl Installer {
 
                         if config.flags & MODIFY_BOOT_ORDER != 0 {
                             let efi_part_num = efi_part_num.to_string();
-                            let os_name = os_release::parse(BufReader::new(File::open("/etc/os-release")?))
-                                .unwrap_or("Linux Boot Manager (systemd-boot)".into());
-
                             let args: &[&OsStr] = &[
                                 "--create".as_ref(),
                                 "--disk".as_ref(),
@@ -756,7 +753,7 @@ impl Installer {
                                 efi_part_num.as_ref(),
                                 "--write-signature".as_ref(),
                                 "--label".as_ref(),
-                                os_name.as_ref(),
+                                os_release::OS_RELEASE.pretty_name.as_ref(),
                                 "--loader".as_ref(),
                                 "\\EFI\\systemd\\systemd-bootx64.efi".as_ref(),
                             ][..];
