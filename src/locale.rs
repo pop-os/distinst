@@ -64,7 +64,9 @@ pub fn get_countries(lang: &String) -> Vec<String> {
 pub fn parse_locales() -> io::Result<Locales> {
     let mut locales = HashMap::new();
     for file in &[Path::new("/usr/share/i18n/SUPPORTED"), Path::new("/usr/local/share/i18n/SUPPORTED")] {
-
+        if !file.exists() {
+            continue
+        }
         for line in BufReader::new(File::open(file)?).lines() {
             let line = line?;
             match parse_entry(&line) {
