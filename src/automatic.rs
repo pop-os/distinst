@@ -1,5 +1,7 @@
+// TODO: This code is under construction for automatically suggesting installation options.
+
 use super::{
-    Bootloader, Disk, DiskExt, Disks, FileSystemType, LvmEncryption, PartitionBuilder,
+    Bootloader, Disk, DiskError, DiskExt, Disks, FileSystemType, LvmEncryption, PartitionBuilder,
     PartitionError,
 };
 use libparted::PartitionFlag;
@@ -153,6 +155,7 @@ impl InstallOptions {
 pub enum AutomaticError {
     PartitionNotFound,
     Partition { why: PartitionError },
+    Disk { why: DiskError },
 }
 
 fn shrink<F: FnMut(&mut Disk, u64, u64)>(
@@ -277,12 +280,14 @@ impl InstallOption {
             }
         }
 
-        disks.initialize_volume_groups();
+        disks.initialize_volume_groups().map_err(|why| AutomaticError::Disk { why })?;
+
         if let Some((group, _)) = config.encryption {
             let logical_disk = disks.get_logical_device_mut(group).unwrap();
-            logical_disk.add_partition(
-                PartitionBuilder::new(0, logical_length, config.root_fs).mount(PathBuf::from("/")),
-            );
+            let partition = PartitionBuilder::new(0, logical_length, config.root_fs)
+                .mount(PathBuf::from("/"));
+            logical_disk.add_partition(partition)
+                .map_err(|why| AutomaticError::Disk { why })?;
         }
 
         Ok(())

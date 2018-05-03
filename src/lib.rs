@@ -8,6 +8,8 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate itertools;
+#[macro_use]
+extern crate lazy_static;
 extern crate libc;
 extern crate libparted;
 #[macro_use]
@@ -31,7 +33,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tempdir::TempDir;
 
-pub use automatic::{AutomaticError, Config as AutomaticConfig, InstallOption, InstallOptions};
+// pub use automatic::{AutomaticError, Config as AutomaticConfig, InstallOption, InstallOptions};
 pub use chroot::Chroot;
 pub use disk::mount::{Mount, Mounts};
 pub use disk::{
@@ -40,12 +42,13 @@ pub use disk::{
     PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 
-mod automatic;
+// mod automatic;
 mod chroot;
 mod disk;
 mod hardware_support;
 mod envfile;
 pub mod hostname;
+pub mod locale;
 mod logger;
 mod os_release;
 mod squashfs;

@@ -70,6 +70,16 @@ namespace Distinst {
     }
 
     /**
+     * Obtains the default locale associated with a language
+     */
+    public string? locale_get_default (string lang);
+
+    /**
+     * Obtains a list of countries associated with a language
+     */
+    public unowned string[]? locale_get_countries (string lang);
+
+    /**
      * Generates a unique volume group name.
      */
     public string? generate_unique_id (string prefix);
@@ -77,7 +87,7 @@ namespace Distinst {
     /**
      * Obtains the string variant of a file system type.
      */
-    public unowned string strfilesys(FileSystemType fs);
+    public unowned string strfilesys (FileSystemType fs);
 
     /** Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
      * return a default value.
@@ -85,12 +95,12 @@ namespace Distinst {
      * If the value in `filesystem.size` is lower than that of the default, the
      * default will be returned instead.
      */
-    public uint64 minimum_disk_size(uint64 size);
+    public uint64 minimum_disk_size (uint64 size);
 
     /**
      * Determines if the given hostname is valid or not
      */
-    public bool validate_hostname(string hostname);
+    public bool validate_hostname (string hostname);
 
     [CCode (cname = "DISTINST_PARTITION_FLAG", has_type_id = false)]
     public enum PartitionFlag {
