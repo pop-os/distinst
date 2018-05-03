@@ -17,30 +17,36 @@ pub type Locales = HashMap<String, (Vec<Option<String>>, Vec<Option<(String, boo
 pub fn get_default(lang: &String) -> Option<String> {
     LOCALES.get(lang)
         .map(|value| {
-            let country_value = match value.0.iter().next() {
-                Some(country) => country,
-                None => {
-                    return lang.clone();
-                }
-            };
+            let mut countries = value.0.iter();
+            let (mut country_value, mut index): (Option<&str>, usize) =
+                (countries.next().and_then(|x| x.as_ref().map(|x| x.as_str())), 0);
 
-            match (country_value, value.1.iter().next()) {
-                (&Some(ref country), Some(&Some((ref unicode, dot)))) if dot => {
+            let mut id = 0;
+            for country in countries {
+                id += 1;
+                if let Some(ref country) = *country {
+                    if country.to_lowercase() == lang.as_str() {
+                        country_value = Some(country.as_str());
+                        index = id;
+                        break
+                    }
+                }
+            }
+
+            match (country_value, &value.1[index]) {
+                (Some(ref country), &Some((ref unicode, dot))) if dot => {
                     format!("{}_{}.{}", lang, country, unicode)
                 }
-                (&Some(ref country), Some(&Some((ref unicode, _)))) => {
+                (Some(ref country), &Some((ref unicode, _))) => {
                     format!("{}_{} {}", lang, country, unicode)
                 }
-                (&Some(ref country), Some(&None)) => {
+                (Some(ref country), &None) => {
                     format!("{}_{}", lang, country)
                 }
-                (&Some(ref country), None) => {
-                    format!("{}_{}", lang, country)
-                }
-                (&None, Some(&Some((ref unicode, dot)))) if dot => {
+                (None, &Some((ref unicode, dot))) if dot => {
                     format!("{}.{}", lang, unicode)
                 }
-                (&None, Some(&Some((ref unicode, _)))) => {
+                (None, &Some((ref unicode, _))) => {
                     format!("{} {}", lang, unicode)
                 }
                 _ => {
