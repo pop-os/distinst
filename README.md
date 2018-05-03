@@ -1,7 +1,5 @@
 # distinst
 
-**Warning!** *This code is not ready for general use. It is not compatible with all Ubuntu-based distributions. Release is targeted for April, 2018.*
-
 Distinst is a Rust-based software library that handles Linux distribution installer installation details. It has been built specifically to be used in the construction of Linux distribution installers, so that installers can spend more time improving their UI, and less time worrying about some of the more complicated implementation details, such as partition management & encryption.
 
 ## Frontends
