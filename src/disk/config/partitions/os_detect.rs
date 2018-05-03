@@ -91,10 +91,11 @@ fn find_linux_home(base: &Path) -> Option<PathBuf> {
 }
 
 fn detect_linux(base: &Path) -> Option<String> {
-    File::open(base.join("etc/os-release"))
-        .ok()
-        .and_then(|file| ::os_release::parse(BufReader::new(file)))
-        .or_else(|| base.join("etc").exists().map(|| "Unknown Linux".into()))
+    if base.join("etc/os-release").exists() {
+        Some(::os_release::OS_RELEASE.pretty_name.clone())
+    } else {
+        None
+    }
 }
 
 fn detect_windows(base: &Path) -> Option<String> {

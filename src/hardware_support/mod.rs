@@ -1,6 +1,7 @@
 use std::fs::File;
 use raw_cpuid::CpuId;
 use std::io::Read;
+use os_release::OS_RELEASE;
 
 #[macro_use]
 mod macros;
@@ -20,8 +21,7 @@ package!(system76_driver {
 });
 
 pub fn append_packages(install_pkgs: &mut Vec<&'static str>) {
-    // TODO: Obtain this from the environment.
-    let distro = "debian";
+    let distro = OS_RELEASE.id_like.as_str();
 
     append_packages!(install_pkgs, distro => {
         processor_support,
