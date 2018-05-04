@@ -70,9 +70,14 @@ namespace Distinst {
     }
 
     /**
-     * Obtains the default locale associated with a language
+     * Obtains the default locale associated with a language.
      */
     public string? locale_get_default (string lang);
+
+    /**
+     * Obtains the main country for a given language code.
+     */
+    public string? locale_get_main_country (string code);
 
     /**
      * Obtains a list of available language locales.

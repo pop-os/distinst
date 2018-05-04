@@ -88,3 +88,14 @@ pub unsafe extern "C" fn distinst_locale_get_country_name_translated(
         .map(to_cstr)
         .unwrap_or(ptr::null_mut())
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_locale_get_main_country(
+    code: *const libc::c_char
+) -> *mut libc::c_char {
+    get_str(code, "")
+        .ok()
+        .and_then(locale::get_main_country)
+        .map(|x| to_cstr(x.into()))
+        .unwrap_or(ptr::null_mut())
+}
