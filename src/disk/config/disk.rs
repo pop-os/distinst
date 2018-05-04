@@ -23,7 +23,7 @@ use std::str;
 /// # Note
 ///
 /// The `device_path` field may be used for identification of the device in the system.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Disk {
     /// The model name of the device, assigned by the manufacturer.
     pub(crate) model_name: String,
