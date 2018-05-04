@@ -92,23 +92,23 @@ namespace Distinst {
     /**
      * Get the name of a language by the ISO 639 language code.
      */
-    public string locale_get_language_name (string code);
+    public string? locale_get_language_name (string code);
 
     /**
      * Get the translated name of a language by the ISO 639 language code.
      */
-    public string locale_get_language_name_translated (string code);
+    public string? locale_get_language_name_translated (string code);
 
     /**
      * Get the name of a country by the ISO 3166 country code.
      */
-    public string locale_get_country_name (string code);
+    public string? locale_get_country_name (string code);
 
     /**
      * Get the translated name of a country by the ISO 3166 country code,
      * and the ISO 639 language code.
      */
-    public string locale_get_country_name_translated (string country, string lang);
+    public string? locale_get_country_name_translated (string country, string lang);
 
     /**
      * Generates a unique volume group name.

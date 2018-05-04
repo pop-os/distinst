@@ -7,50 +7,59 @@ use std::fs::File;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::path::Path;
+use super::get_main_country;
 
 lazy_static! {
     pub static ref LOCALES: Locales = parse_locales().unwrap();
 }
 
-pub type Locales = BTreeMap<String, (Vec<Option<String>>, Vec<Option<(String, bool)>>)>;
+pub type Language = String;
+pub type Locales = BTreeMap<Language, Locale>;
+pub type Locale = BTreeMap<Country, Codesets>;
+pub type Country = Option<String>;
+pub type Codesets = Vec<Option<(String, bool)>>;
 
 pub fn get_default(lang: &str) -> Option<String> {
     LOCALES.get(lang)
         .map(|value| {
-            let mut countries = value.0.iter();
-            let (mut country_value, mut index): (Option<&str>, usize) =
-                (countries.next().and_then(|x| x.as_ref().map(|x| x.as_str())), 0);
-
-            let mut id = 0;
-            for country in countries {
-                id += 1;
-                if let Some(ref country) = *country {
-                    if country.to_lowercase() == lang {
-                        country_value = Some(country.as_str());
-                        index = id;
-                        break
+            if let Some(country) = get_main_country(lang) {
+                return match value.get(&Some(country.into())) {
+                    Some(codeset) => {
+                        if codeset.contains(&Some(("UTF-8".into(), true))) {
+                            format!("{}_{}.UTF-8", lang, country)
+                        } else {
+                            match codeset.first() {
+                                Some(&Some((ref codeset, dot))) if dot => {
+                                    format!("{}_{}.{}", lang, country, codeset)
+                                }
+                                _ => format!("{}_{}", lang, country)
+                            }
+                        }
                     }
-                }
+                    None => format!("{}_{}", lang, country)
+                };
             }
 
-            match (country_value, &value.1[index]) {
-                (Some(ref country), &Some((ref unicode, dot))) if dot => {
-                    format!("{}_{}.{}", lang, country, unicode)
+            let (country, codeset) = match value.iter().next() {
+                Some(value) => value,
+                None => {
+                    return lang.into();
                 }
-                (Some(ref country), &Some((ref unicode, _))) => {
-                    format!("{}_{} {}", lang, country, unicode)
-                }
-                (Some(ref country), &None) => {
-                    format!("{}_{}", lang, country)
-                }
-                (None, &Some((ref unicode, dot))) if dot => {
-                    format!("{}.{}", lang, unicode)
-                }
-                (None, &Some((ref unicode, _))) => {
-                    format!("{} {}", lang, unicode)
-                }
-                _ => {
-                    lang.into()
+            };
+
+            let prefix = match *country {
+                Some(ref country) => format!("{}_{}", lang, country),
+                None => lang.into()
+            };
+
+            if codeset.contains(&Some(("UTF-8".into(), true))) {
+                format!("{}.UTF-8", prefix)
+            } else {
+                match codeset.first() {
+                    Some(&Some((ref codeset, dot))) if dot => {
+                        format!("{}.{}", prefix, codeset)
+                    }
+                    _ => prefix
                 }
             }
         })
@@ -63,7 +72,9 @@ pub fn get_language_codes() -> Vec<&'static str> {
 pub fn get_countries(lang: &str) -> Vec<&'static str> {
     match LOCALES.get(lang) {
         Some(value) => {
-            value.0.iter().filter_map(|x| x.as_ref().map(|x| x.as_str())).collect()
+            value.keys()
+                .flat_map(|c| c.as_ref().map(|x| x.as_str()))
+                .collect()
         }
         None => Vec::new()
     }
@@ -81,12 +92,23 @@ pub fn parse_locales() -> io::Result<Locales> {
                 Some((lang, country, unicode)) => {
                     match locales.entry(lang) {
                         Entry::Occupied(mut entry) => {
-                            let value: &mut (Vec<Option<String>>, Vec<Option<(String, bool)>>) = entry.get_mut();
-                            value.0.push(country);
-                            value.1.push(unicode);
+                            let value: &mut Locale = entry.get_mut();
+                            match value.entry(country) {
+                                Entry::Occupied(mut entry) => {
+                                    let entry = entry.get_mut();
+                                    if !entry.contains(&unicode) {
+                                        entry.push(unicode);
+                                    }
+                                }
+                                Entry::Vacant(entry) => {
+                                    entry.insert(vec![unicode]);
+                                }
+                            }
                         }
                         Entry::Vacant(entry) => {
-                            entry.insert((vec![country], vec![unicode]));
+                            let mut map = BTreeMap::new();
+                            map.insert(country, vec![unicode]);
+                            entry.insert(map);
                         }
                     }
                 }
@@ -114,15 +136,24 @@ fn parse_entry(line: &str) -> Option<(String, Option<String>, Option<(String, bo
                     match (codes.next(), codes.next()) {
                         (None, _) => (lang.into(), None, None),
                         (Some(country), None) => match words.next() {
-                            Some(code) => (lang.into(), Some(country.into()), Some((code.into(), false))),
-                            None => (lang.into(), Some(country.into()), None),
+                            Some(code) => (lang.into(), trim_into(country), Some((code.into(), false))),
+                            None => (lang.into(), trim_into(country), None),
                         },
-                        (Some(country), Some(code)) => (lang.into(), Some(country.into()), Some((code.into(), true)))
+                        (Some(country), Some(code)) => (lang.into(), trim_into(country), Some((code.into(), true)))
                     }
                 }
             })
         }
         None => None
+    }
+}
+
+fn trim_into(input: &str) -> Option<String> {
+    let input = input.trim();
+    if input.is_empty() || input.contains('@') {
+        None
+    } else {
+        Some(input.into())
     }
 }
 
