@@ -73,7 +73,7 @@ pub fn get_countries(lang: &str) -> Vec<&'static str> {
     match LOCALES.get(lang) {
         Some(value) => {
             value.keys()
-                .flat_map(|c| c.as_ref().map(|x| x.as_str()))
+                .map(|c| c.as_ref().map_or("None", |x| x.as_str()))
                 .collect()
         }
         None => Vec::new()
