@@ -69,6 +69,26 @@ namespace Distinst {
         LUKS,
     }
 
+    [CCode (has_type_id = false, unref_function = "")]
+    public class KeyboardVariant {
+        public string get_name ();
+        public string get_description ();
+    }
+
+    [CCode (has_type_id = false, unref_function = "")]
+    public class KeyboardLayout {
+        public string get_name ();
+        public string get_description ();
+        public KeyboardVariant[] get_variants ();
+    }
+
+    [CCode (free_function = "", destroy_function = "distinst_keyboard_layouts_destroy", has_type_id = false)]
+    [Compact]
+    public class KeyboardLayouts {
+        public KeyboardLayouts ();
+        public KeyboardLayout[] get_layouts ();
+    }
+
     /**
      * Obtains the default locale associated with a language.
      */
@@ -82,12 +102,12 @@ namespace Distinst {
     /**
      * Obtains a list of available language locales.
      */
-    public unowned string[] locale_get_language_codes ();
+    public string[] locale_get_language_codes ();
 
     /**
      * Obtains a list of countries associated with a language
      */
-    public unowned string[]? locale_get_country_codes (string lang);
+    public string[]? locale_get_country_codes (string lang);
 
     /**
      * Get the name of a language by the ISO 639 language code.

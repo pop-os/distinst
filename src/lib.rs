@@ -20,6 +20,9 @@ extern crate tempdir;
 extern crate gettextrs;
 extern crate isolang;
 extern crate iso3166_1;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_xml_rs;
 
 use disk::external::{blockdev, pvs, remount_rw, vgactivate, vgdeactivate};
 use itertools::Itertools;
