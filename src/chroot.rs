@@ -2,7 +2,7 @@ use disk::mount::{Mount, BIND};
 use std::ffi::OsStr;
 use std::io::Result;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus};
+use std::process::{Command, ExitStatus, Stdio};
 
 /// Defines the location where a `chroot` will be performed, as well as storing
 /// handles to all of the binding mounts that the chroot requires.
@@ -51,10 +51,15 @@ impl Chroot {
         command.arg(&self.path);
         command.arg(cmd.as_ref());
         command.args(args);
+        command.stderr(Stdio::piped());
+        command.stdout(Stdio::piped());
 
         debug!("{:?}", command);
 
-        command.status()
+        command.output().map(|c| {
+            info!("libdistinst: {}", String::from_utf8_lossy(&c.stderr));
+            c.status
+        })
     }
 
     /// Return true if the filesystem was unmounted, false if it was already
