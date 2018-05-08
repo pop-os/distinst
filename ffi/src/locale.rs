@@ -3,13 +3,26 @@ use distinst::locale;
 use super::{get_str, to_cstr};
 use std::ptr;
 
-#[no_mangle]
-pub unsafe extern "C" fn distinst_locale_get_default(lang: *const libc::c_char) -> *mut libc::c_char {
-    get_str(lang, "")
-        .ok()
-        .and_then(|lang| locale::get_default(lang).map(to_cstr))
-        .unwrap_or(ptr::null_mut())
-}
+cstr_methods!(
+    fn distinst_locale_get_default(code) {
+        locale::get_default(code)
+    }
+
+    fn distinst_locale_get_main_country(code) {
+        locale::get_main_country(code)
+    }
+    fn distinst_locale_get_language_name(code) {
+        locale::get_language_name(code)
+    }
+
+    fn distinst_locale_get_language_name_translated(code) {
+        locale::get_language_name_translated(code)
+    }
+
+    fn distinst_locale_get_country_name(code) {
+        locale::get_country_name(code)
+    }
+);
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_locale_get_country_codes(
@@ -18,13 +31,11 @@ pub unsafe extern "C" fn distinst_locale_get_country_codes(
 ) -> *mut *mut libc::c_char {
     match get_str(lang, "").ok() {
         Some(lang) => {
-            let mut output: Vec<*mut libc::c_char> = Vec::new();
-            for country in locale::get_countries(lang) {
-                output.push(to_cstr(country.into()));
+            cvec_from!{
+                for country in locale::get_countries(lang),
+                    push to_cstr(country.into()),
+                    record len
             }
-
-            *len = output.len() as libc::c_int;
-            Box::into_raw(output.into_boxed_slice()) as *mut *mut libc::c_char
         }
         None => ptr::null_mut()
     }
@@ -34,46 +45,11 @@ pub unsafe extern "C" fn distinst_locale_get_country_codes(
 pub unsafe extern "C" fn distinst_locale_get_language_codes(
     len: *mut libc::c_int
 ) -> *mut *mut libc::c_char {
-    let codes = locale::LOCALES.keys()
-        .cloned()
-        .map(to_cstr)
-        .collect::<Vec<*mut libc::c_char>>();
-
-    *len = codes.len() as libc::c_int;
-    Box::into_raw(codes.into_boxed_slice()) as *mut *mut libc::c_char
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_locale_get_language_name(
-    code: *const libc::c_char
-) -> *mut libc::c_char {
-    get_str(code, "")
-        .ok()
-        .and_then(locale::get_language_name)
-        .map(|x| to_cstr(x.into()))
-        .unwrap_or(ptr::null_mut())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_locale_get_language_name_translated(
-    code: *const libc::c_char
-) -> *mut libc::c_char {
-    get_str(code, "")
-        .ok()
-        .and_then(locale::get_language_name_translated)
-        .map(to_cstr)
-        .unwrap_or(ptr::null_mut())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_locale_get_country_name(
-    code: *const libc::c_char
-) -> *mut libc::c_char {
-    get_str(code, "")
-        .ok()
-        .and_then(locale::get_country_name)
-        .map(|x| to_cstr(x.into()))
-        .unwrap_or(ptr::null_mut())
+    cvec_from!{
+        for code in locale::LOCALES.keys().cloned(),
+            push to_cstr(code),
+            record len
+    }
 }
 
 #[no_mangle]
@@ -86,16 +62,5 @@ pub unsafe extern "C" fn distinst_locale_get_country_name_translated(
         .ok()
         .and_then(|(country, lang)| locale::get_country_name_translated(country, lang))
         .map(to_cstr)
-        .unwrap_or(ptr::null_mut())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_locale_get_main_country(
-    code: *const libc::c_char
-) -> *mut libc::c_char {
-    get_str(code, "")
-        .ok()
-        .and_then(locale::get_main_country)
-        .map(|x| to_cstr(x.into()))
         .unwrap_or(ptr::null_mut())
 }

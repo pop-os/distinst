@@ -1,4 +1,6 @@
 extern crate distinst;
+#[macro_use]
+extern crate distinst_macros;
 extern crate libc;
 #[macro_use]
 extern crate log;
@@ -9,6 +11,7 @@ use std::ptr;
 pub use self::config::*;
 pub use self::disk::*;
 pub use self::filesystem::*;
+pub use self::flags::*;
 pub use self::installer::*;
 pub use self::keyboard_layout::*;
 pub use self::locale::*;
@@ -24,6 +27,7 @@ use std::io;
 mod config;
 mod disk;
 mod ffi;
+mod flags;
 mod filesystem;
 mod installer;
 mod keyboard_layout;
@@ -63,14 +67,10 @@ pub fn to_cstr(string: String) -> *mut libc::c_char {
         .unwrap_or(ptr::null_mut())
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn distinst_generate_unique_id(
-    prefix: *const libc::c_char,
-) -> *mut libc::c_char {
-    get_str(prefix, "")
-        .ok()
-        .and_then(|prefix| distinst::generate_unique_id(prefix).ok().map(to_cstr))
-        .unwrap_or(ptr::null_mut())
+cstr_methods!{
+    fn distinst_generate_unique_id(prefix) {
+        distinst::generate_unique_id(prefix).ok()
+    }
 }
 
 #[no_mangle]

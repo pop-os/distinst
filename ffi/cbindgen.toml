@@ -3,3 +3,8 @@ language = "C"
 
 [enum]
 prefix_with_name = true
+
+[parse]
+parse_deps = false
+include = ["distinst_ffi"]
+expand = ["distinst_ffi"]

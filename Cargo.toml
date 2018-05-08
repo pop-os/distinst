@@ -8,7 +8,7 @@ license = "LGPL-3.0"
 readme = "README.md"
 
 [workspace]
-members = ["cli", "ffi"]
+members = ["cli", "ffi", "macros"]
 
 [lib]
 name = "distinst"
@@ -28,8 +28,8 @@ isolang = "0.2.1"
 iso3166-1 = "1.0.1"
 gettext-rs = "0.3.0"
 serde-xml-rs = "0.2.1"
-serde = "1.0.47"
-serde_derive = "1.0.47"
+serde = "1.0.21"
+serde_derive = "1.0.21"
 
 [dependencies.failure]
 version = "0.1.1"

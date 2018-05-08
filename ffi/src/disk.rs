@@ -10,14 +10,12 @@ use distinst::{
     PartitionBuilder, PartitionInfo, PartitionTable, Sector,
 };
 
-use super::get_str;
+use super::*;
 use ffi::AsMutPtr;
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
-use gen_object_ptr;
 use lvm::{DistinstLvmDevice, DistinstLvmEncryption};
 use partition::{
     DistinstPartition, DistinstPartitionAndDiskPath, DistinstPartitionBuilder,
-    DISTINST_PARTITION_TABLE,
 };
 use sector::DistinstSector;
 
