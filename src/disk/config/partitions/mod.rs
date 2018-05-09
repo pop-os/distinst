@@ -303,6 +303,11 @@ impl PartitionInfo {
         self.filesystem = Some(fs);
     }
 
+    /// Returns true if this partition will be formatted.
+    pub fn will_format(&self) -> bool {
+        self.bitflags & FORMAT != 0
+    }
+
     /// Returns the number of used sectors on the file system that belongs to
     /// this partition.
     pub fn sectors_used(&self, sector_size: u64) -> Option<io::Result<u64>> {

@@ -1,6 +1,7 @@
 use distinst::Config;
 use libc;
 use std::io;
+use std::path::PathBuf;
 
 use get_str;
 
@@ -12,6 +13,7 @@ pub struct DistinstConfig {
     keyboard_layout:  *const libc::c_char,
     keyboard_model:   *const libc::c_char,
     keyboard_variant: *const libc::c_char,
+    old_root:         *const libc::c_char,
     lang:             *const libc::c_char,
     remove:           *const libc::c_char,
     squashfs:         *const libc::c_char,
@@ -27,6 +29,7 @@ impl DistinstConfig {
             keyboard_layout:  get_str(self.keyboard_layout, "config.keyboard_layout")?.to_string(),
             keyboard_model:   get_str(self.keyboard_model, "").ok().map(String::from),
             keyboard_variant: get_str(self.keyboard_variant, "").ok().map(String::from),
+            old_root:         get_str(self.old_root, "").ok().map(String::from).map(PathBuf::from)
             remove:           get_str(self.remove, "config.remove")?.to_string(),
             flags:            self.flags,
         })

@@ -48,6 +48,7 @@ pub use disk::{
     PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 
+pub mod auto;
 mod automatic;
 mod chroot;
 mod disk;
@@ -56,6 +57,7 @@ mod envfile;
 pub mod hostname;
 pub mod locale;
 mod logger;
+mod misc;
 pub mod os_release;
 mod squashfs;
 
@@ -150,6 +152,8 @@ pub struct Config {
     pub keyboard_model: Option<String>,
     /// An optional variant of the keyboard (such as "dvorak").
     pub keyboard_variant: Option<String>,
+    /// The location of the old root partition, useful for reinstalls
+    pub old_root: Option<PathBuf>,
     /// The locale to use for the installed system.
     pub lang: String,
     /// The file that contains a list of packages to remove.

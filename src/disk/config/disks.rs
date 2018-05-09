@@ -129,6 +129,20 @@ impl Disks {
         output
     }
 
+    /// Obtains the partition which contains the given target.
+    pub fn get_partition_with_target(&self, target: &Path) -> Option<&PartitionInfo> {
+        self.get_physical_devices().iter().flat_map(|dev| dev.get_partitions())
+            .chain(self.get_logical_devices().iter().flat_map(|dev| dev.get_partitions()))
+            .find(|part| part.target.as_ref().map_or(false, |p| p.as_path() == target))
+    }
+
+    /// Obtains the partition which contains the given device path
+    pub fn get_partition_by_path(&self, target: &Path) -> Option<&PartitionInfo> {
+        self.get_physical_devices().iter().flat_map(|dev| dev.get_partitions())
+            .chain(self.get_logical_devices().iter().flat_map(|dev| dev.get_partitions()))
+            .find(|part| part.get_device_path() == target)
+    }
+
     /// Deactivates all device maps associated with the inner disks/partitions
     /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {

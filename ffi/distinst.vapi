@@ -30,6 +30,7 @@ namespace Distinst {
         string keyboard_layout;
         string? keyboard_model;
         string? keyboard_variant;
+        string? old_root;
         string lang;
         string remove;
         string squashfs;
@@ -719,5 +720,6 @@ namespace Distinst {
         public void emit_status (Distinst.Status error);
         public void on_status (Distinst.StatusCallback callback);
         public int install (owned Distinst.Disks disks, Distinst.Config config);
+        public int reinstall_retain_home (owned Distinst.Disks disks, Distinst.Config config);
     }
 }

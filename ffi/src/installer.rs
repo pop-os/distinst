@@ -2,7 +2,7 @@ use libc;
 
 use std::io;
 
-use distinst::{Disks, Error, Installer, Status, Step};
+use distinst::{auto, Disks, Error, Installer, Status, Step};
 
 use config::DistinstConfig;
 use disk::DistinstDisks;
@@ -140,6 +140,42 @@ pub unsafe extern "C" fn distinst_installer_on_status(
 }
 
 /// Install using this installer
+#[no_mangle]
+pub unsafe extern "C" fn distinst_installer_reinstall_retain_home(
+    installer: *mut DistinstInstaller,
+    disks: *mut DistinstDisks,
+    config: *const DistinstConfig,
+) -> libc::c_int {
+    let disks = if disks.is_null() {
+        return libc::EIO;
+    } else {
+        *Box::from_raw(disks as *mut Disks)
+    };
+
+    match (*config).as_config() {
+        Ok(config) => {
+            let installer = (*(installer as *mut Installer));
+            match auto::reinstall_retain_home(installer, disks, &config) {
+                Ok(()) => 0,
+                Err(err) => {
+                    info!("Install error: {}", err);
+                    err.raw_os_error().unwrap_or(libc::EIO)
+                }
+            }
+        },
+        Err(err) => {
+            info!("Config error: {}", err);
+            let errno = err.raw_os_error().unwrap_or(libc::EIO);
+            (*(installer as *mut Installer)).emit_error(&Error {
+                step: Step::Init,
+                err,
+            });
+            errno
+        }
+    }
+}
+
+/// Install using this installer, whilst retaining home & user accounts.
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_install(
     installer: *mut DistinstInstaller,
