@@ -83,6 +83,7 @@ impl InstallOptions {
                 }
             }
         }
+
         Ok(InstallOptions { options, efi_partitions, swap_partitions })
     }
 }

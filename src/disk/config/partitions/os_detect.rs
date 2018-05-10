@@ -63,7 +63,7 @@ fn find_linux_parts(base: &Path) -> (Option<PathBuf>, Option<PathBuf>) {
         if mount.starts_with('/') {
             Some(PathBuf::from(mount))
         } else if mount.starts_with("UUID") {
-            let (_, uuid) = mount.split_at(4);
+            let (_, uuid) = mount.split_at(5);
             from_uuid(uuid)
         } else {
             error!("unsupported mount type: {}", mount);
@@ -88,6 +88,7 @@ fn find_linux_parts(base: &Path) -> (Option<PathBuf>, Option<PathBuf>) {
                 let target = fields.next();
 
                 if let Some(target) = target {
+                    eprintln!("target: {}, source: {:?}", target, source);
                     if home.is_none() && target == "/home" {
                         if let Some(path) = parse_fstab_mount(source.unwrap()) {
                             home = Some(path);

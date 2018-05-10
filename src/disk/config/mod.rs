@@ -57,8 +57,12 @@ fn from_uuid(uuid: &str) -> Option<PathBuf> {
 
     for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
         let uuid_entry = uuid_entry.path();
-        if uuid_entry.as_os_str() == uuid {
-            return Some(uuid_entry.to_path_buf());
+        if let Some(name) = uuid_entry.file_name() {
+            if name == uuid {
+                if let Ok(uuid_entry) = uuid_entry.canonicalize() {
+                    return Some(uuid_entry);
+                }
+            }
         }
     }
 
