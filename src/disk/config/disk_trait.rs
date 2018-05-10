@@ -67,11 +67,11 @@ pub trait DiskExt {
             PathBuf::from(match path.read_link() {
                 Ok(resolved) => [
                     "/sys/class/block/",
-                    resolved.file_name().unwrap().to_str().unwrap(),
+                    resolved.file_name().expect("drive does not have a file name").to_str().unwrap(),
                 ].concat(),
                 _ => [
                     "/sys/class/block/",
-                    path.file_name().unwrap().to_str().unwrap(),
+                    path.file_name().expect("drive does not have a file name").to_str().unwrap(),
                 ].concat(),
             })
         };
