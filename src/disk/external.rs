@@ -93,7 +93,7 @@ pub(crate) fn dmlist() -> io::Result<Vec<String>> {
             .stderr(Stdio::null())
             .spawn()?
             .stdout
-            .unwrap(),
+            .expect("failed to execute dmsetup command"),
     );
 
     // Skip the first line of output
@@ -432,7 +432,7 @@ pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
             .stderr(Stdio::null())
             .spawn()?
             .stdout
-            .unwrap(),
+            .expect("failed to execute lvs command"),
     );
 
     // Skip the first line of output
@@ -469,7 +469,7 @@ pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
             .stderr(Stdio::null())
             .spawn()?
             .stdout
-            .unwrap(),
+            .expect("failed to execute pvs command"),
     );
 
     // Skip the first line of output

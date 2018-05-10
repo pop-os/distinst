@@ -6,8 +6,8 @@ use std::io;
 use std::path::Path;
 
 pub(crate) fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
-    let mounts = Mounts::new().unwrap();
-    let swaps = Swaps::new().unwrap();
+    let mounts = Mounts::new().expect("failed to get mounts in deactivate_devices");
+    let swaps = Swaps::new().expect("failed to get swaps in deactivate_devices");
     let umount = move |vg: &str| -> io::Result<()> {
         for lv in lvs(vg)? {
             if let Some(mount) = mounts.get_mount_point(&lv) {

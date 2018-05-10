@@ -132,7 +132,7 @@ impl Disk {
         });
 
         // TODO: Optimize this so it's not called for each disk.
-        let mounts = Mounts::new().unwrap();
+        let mounts = Mounts::new().expect("failed to get mounts in Disk::new");
 
         Ok(Disk {
             model_name,
@@ -219,9 +219,9 @@ impl Disk {
                 "/sys/class/block/",
                 self.get_device_path()
                     .file_name()
-                    .unwrap()
+                    .expect("no file name found for device")
                     .to_str()
-                    .unwrap(),
+                    .expect("device file name is not UTF-8"),
             ].concat(),
         );
 
@@ -273,7 +273,8 @@ impl Disk {
         );
 
         let mut mounts = BTreeSet::new();
-        let mountstab = Mounts::new().unwrap();
+        let mountstab = Mounts::new()
+            .expect("failed to get mounts in unmount_all_partitions_with_target");
 
         for partition in &mut self.partitions {
             if let Some(ref target) = partition.target {
@@ -408,7 +409,8 @@ impl Disk {
 
         // Ensure that the new dimensions are not overlapping.
         if let Some(id) = self.overlaps_region_excluding(start, end, num) {
-            let partition = self.get_partition_mut(partition).unwrap();
+            let partition = self.get_partition_mut(partition)
+                .expect("unable to find partition that should exist");
             partition.end_sector = backup;
             return Err(DiskError::SectorOverlaps { id });
         }
@@ -444,7 +446,8 @@ impl Disk {
             return Err(DiskError::SectorOverlaps { id });
         }
 
-        let partition = self.get_partition_mut(partition).unwrap();
+        let partition = self.get_partition_mut(partition)
+            .expect("unable to find partition that should exist");
 
         partition.start_sector = start;
         partition.end_sector = end;
@@ -672,7 +675,8 @@ impl Disk {
                                         start_sector: new.start_sector,
                                         end_sector:   new.end_sector,
                                         format:       true,
-                                        file_system:  Some(new.filesystem.clone().unwrap()),
+                                        file_system:  Some(new.filesystem.clone()
+                                            .expect("no file system in partition that requires changes")),
                                         kind:         new.part_type,
                                         flags:        new.flags.clone(),
                                         label:        new.name.clone(),
@@ -720,7 +724,8 @@ impl Disk {
                 start_sector: partition.start_sector,
                 end_sector:   partition.end_sector,
                 format:       true,
-                file_system:  Some(partition.filesystem.clone().unwrap()),
+                file_system:  Some(partition.filesystem.clone()
+                    .expect("no filesystem in partition that is being created")),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
                 label:        partition.name.clone(),

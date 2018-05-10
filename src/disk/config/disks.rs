@@ -106,7 +106,8 @@ impl Disks {
             if dev.mklabel {
                 // Devices with this set no longer hold the original source partitions.
                 // TODO: Maybe have a backup field with the old partitions?
-                let disk = Disk::from_name_with_serial(&dev.device_path, &dev.serial).unwrap();
+                let disk = Disk::from_name_with_serial(&dev.device_path, &dev.serial)
+                    .expect("no serial physical device");
                 for part in disk.get_partitions()
                     .iter()
                     .map(|part| part.get_device_path())
@@ -132,8 +133,8 @@ impl Disks {
     /// Deactivates all device maps associated with the inner disks/partitions
     /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
-        let mounts = Mounts::new().unwrap();
-        let swaps = Swaps::new().unwrap();
+        let mounts = Mounts::new().expect("failed to get mounts in deactivate_device_maps");
+        let swaps = Swaps::new().expect("failed to get swaps in deactivate_device_maps");
         let umount = move |vg: &str| -> Result<(), DiskError> {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
                 if let Some(mount) = mounts.get_mount_point(&lv) {
@@ -224,7 +225,7 @@ impl Disks {
                         thread::sleep(Duration::from_millis(1000));
                     }
 
-                    match pvs().unwrap().remove(pv) {
+                    match pvs().expect("pvs() failed in decrypt_partition").remove(pv) {
                         Some(Some(vg)) => {
                             // Set values in the device's partition.
                             partition.volume_group = Some((vg.clone(), Some(enc.clone())));
@@ -817,7 +818,7 @@ impl Disks {
                 if partition.flag_is_enabled(SOURCE) {
                     continue;
                 }
-                let label = partition.name.as_ref().unwrap();
+                let label = partition.name.as_ref().expect("logical partition should have name");
                 partition.device_path =
                     PathBuf::from(format!("/dev/mapper/{}-{}", device.volume_group, label));
             }

@@ -96,7 +96,7 @@ impl LvmDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group));
 
         // TODO: Optimize this so it's not called for each disk.
-        let mounts = Mounts::new().unwrap();
+        let mounts = Mounts::new().expect("unable to get mounts within LvmDevice::new");
 
         LvmDevice {
             model_name: ["LVM ", &volume_group].concat(),
@@ -148,14 +148,14 @@ impl LvmDevice {
     pub fn get_partition(&self, volume: &str) -> Option<&PartitionInfo> {
         self.partitions
             .iter()
-            .find(|p| p.name.as_ref().unwrap().as_str() == volume)
+            .find(|p| p.name.as_ref().expect("logical partitions should have names").as_str() == volume)
     }
 
     /// Obtains a partition by it's volume, with unique access.
     pub fn get_partition_mut(&mut self, volume: &str) -> Option<&mut PartitionInfo> {
         self.partitions
             .iter_mut()
-            .find(|p| p.name.as_ref().unwrap().as_str() == volume)
+            .find(|p| p.name.as_ref().expect("logical partitions should have names").as_str() == volume)
     }
 
     pub fn add_partitions(&mut self) {
@@ -178,7 +178,14 @@ impl LvmDevice {
                     thread::sleep(Duration::from_millis(1000));
                 }
 
-                let length = get_size(&path).unwrap();
+                let length = match get_size(&path) {
+                    Ok(length) => length,
+                    Err(why) => {
+                        eprintln!("unable to get size of LVM device: {}", why);
+                        0
+                    }
+                };
+
                 let partition = PartitionInfo {
                     bitflags: SOURCE,
                     number: -1,
@@ -189,7 +196,7 @@ impl LvmDevice {
                     flags: vec![],
                     filesystem: blkid_partition(&path),
                     name: {
-                        let dev = path.file_name().unwrap().to_str().unwrap();
+                        let dev = path.file_name().expect("logical partitions should have names").to_str().unwrap();
                         let value = dev.find('-').map_or(0, |v| v + 1);
                         Some(dev.split_at(value).1.into())
                     },
@@ -219,7 +226,7 @@ impl LvmDevice {
 
         match partitions
             .iter_mut()
-            .find(|p| p.name.as_ref().unwrap().as_str() == volume)
+            .find(|p| p.name.as_ref().expect("logical partitions should have names").as_str() == volume)
         {
             Some(partition) => {
                 partition.remove();
@@ -239,7 +246,7 @@ impl LvmDevice {
         }
         let nparts = self.partitions.len() - 1;
         for (id, partition) in self.partitions.iter().enumerate() {
-            let label = partition.name.as_ref().unwrap().as_str();
+            let label = partition.name.as_ref().expect("logical partitions should have names").as_str();
 
             // Don't create a partition if it already exists.
             if !partition.flag_is_enabled(SOURCE) {

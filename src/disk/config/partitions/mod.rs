@@ -158,7 +158,9 @@ pub struct PartitionInfo {
 
 impl PartitionInfo {
     pub fn new_from_ped(partition: &Partition) -> io::Result<Option<PartitionInfo>> {
-        let device_path = partition.get_path().unwrap().to_path_buf();
+        let device_path = partition.get_path()
+            .expect("unable to get path from ped partition")
+            .to_path_buf();
         info!(
             "libdistinst: obtaining partition information from {}",
             device_path.display()
@@ -338,13 +340,14 @@ impl PartitionInfo {
         }
 
         let result = get_uuid(&self.device_path).map(|uuid| {
-            let fs = self.filesystem.clone().unwrap();
+            let fs = self.filesystem.clone()
+                .expect("unable to get block info due to lack of file system");
             BlockInfo {
                 uuid,
                 mount: if fs == FileSystemType::Swap {
                     None
                 } else {
-                    Some(self.target.clone().unwrap())
+                    Some(self.target.clone().expect("unable to get block info due to lack of target"))
                 },
                 fs: match fs {
                     FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
