@@ -1,3 +1,5 @@
+//! User account information will be collected here.
+
 use super::super::FileSystemType;
 use super::{ReinstallError, mount_and_then};
 use std::path::Path;

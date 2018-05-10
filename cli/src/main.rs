@@ -315,6 +315,7 @@ fn main() {
                 keyboard_layout:  keyboard.next().map(String::from).unwrap(),
                 keyboard_model:   take_optional_string(keyboard.next()),
                 keyboard_variant: take_optional_string(keyboard.next()),
+                old_root:         None,
                 lang:             lang.into(),
                 remove:           remove.into(),
                 squashfs:         squashfs.into(),

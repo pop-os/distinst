@@ -39,17 +39,15 @@ use std::thread::sleep;
 use std::time::Duration;
 use tempdir::TempDir;
 
-pub use automatic::{AutomaticError, Config as AutomaticConfig, InstallOption, InstallOptions};
 pub use chroot::Chroot;
 pub use disk::mount::{Mount, Mounts};
 pub use disk::{
     generate_unique_id, Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks,
-    FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag,
+    FileSystemType, LvmDevice, LvmEncryption, OS, PartitionBuilder, PartitionError, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 
 pub mod auto;
-mod automatic;
 mod chroot;
 mod disk;
 mod hardware_support;

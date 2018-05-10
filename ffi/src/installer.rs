@@ -154,12 +154,12 @@ pub unsafe extern "C" fn distinst_installer_reinstall_retain_home(
 
     match (*config).as_config() {
         Ok(config) => {
-            let installer = (*(installer as *mut Installer));
+            let installer = &mut *(installer as *mut Installer);
             match auto::reinstall_retain_home(installer, disks, &config) {
                 Ok(()) => 0,
                 Err(err) => {
                     info!("Install error: {}", err);
-                    err.raw_os_error().unwrap_or(libc::EIO)
+                    -1
                 }
             }
         },

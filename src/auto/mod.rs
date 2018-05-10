@@ -1,8 +1,10 @@
-mod account_files;
+mod accounts;
+mod options;
 mod retain;
 
-pub(crate) use self::account_files::{AccountFiles, UserData};
+pub(crate) use self::accounts::{AccountFiles, UserData};
 pub(crate) use self::retain::*;
+pub use self::options::*;
 
 use super::{Config, DiskError, Disks, FileSystemType, Installer, Mount};
 use tempdir::TempDir;

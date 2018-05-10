@@ -29,7 +29,7 @@ impl DistinstConfig {
             keyboard_layout:  get_str(self.keyboard_layout, "config.keyboard_layout")?.to_string(),
             keyboard_model:   get_str(self.keyboard_model, "").ok().map(String::from),
             keyboard_variant: get_str(self.keyboard_variant, "").ok().map(String::from),
-            old_root:         get_str(self.old_root, "").ok().map(String::from).map(PathBuf::from)
+            old_root:         get_str(self.old_root, "").ok().map(String::from).map(PathBuf::from),
             remove:           get_str(self.remove, "config.remove")?.to_string(),
             flags:            self.flags,
         })
