@@ -49,6 +49,10 @@ impl InstallOptions {
             };
 
             for device in disks.get_physical_devices() {
+                if device.contains_mount("/") {
+                    continue
+                }
+
                 if device.get_sectors() >= required_space || required_space == 0 {
                     erase_options.push(EraseAndInstall {
                         device: device.get_device_path().to_path_buf(),
