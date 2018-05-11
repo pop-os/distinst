@@ -88,7 +88,6 @@ fn find_linux_parts(base: &Path) -> (Option<String>, Option<String>) {
                 let target = fields.next();
 
                 if let Some(target) = target {
-                    eprintln!("target: {}, source: {:?}", target, source);
                     if home.is_none() && target == "/home" {
                         if let Some(path) = parse_fstab_mount(source.unwrap()) {
                             home = Some(path);

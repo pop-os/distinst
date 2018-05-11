@@ -30,7 +30,7 @@ pub unsafe extern "C" fn distinst_disks_get_logical_device(
     match get_str(volume_group, "distinst_disks_get_logical_device") {
         Ok(vg) => {
             let disks = &mut *(disks as *mut Disks);
-            info!("getting logical device");
+            info!("getting logical device named '{}'", vg);
             disks.get_logical_device_mut(vg).as_mut_ptr() as *mut DistinstLvmDevice
         }
         Err(why) => {
