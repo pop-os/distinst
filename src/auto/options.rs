@@ -13,72 +13,6 @@ pub struct InstallOptions {
     pub erase_options: Vec<EraseAndInstall>,
 }
 
-#[derive(Debug)]
-pub enum InstallOptionError {
-    PartitionNotFound { uuid: String },
-    DeviceNotFound { path: PathBuf },
-    LogicalDeviceNotFound { vg: String },
-    DiskError { why: DiskError },
-    GenerateID { why: io::Error }
-}
-
-impl From<DiskError> for InstallOptionError {
-    fn from(why: DiskError) -> InstallOptionError {
-        InstallOptionError::DiskError { why }
-    }
-}
-
-#[derive(Debug)]
-pub struct EraseAndInstall {
-    device: PathBuf,
-    sectors: u64
-}
-
-impl fmt::Display for EraseAndInstall {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Erase and Install to {}", self.device.display())
-    }
-}
-
-#[derive(Debug)]
-pub enum InstallOption<'a> {
-    RefreshOption(&'a RefreshOption),
-    EraseAndInstall {
-        option: &'a EraseAndInstall,
-        password: Option<String>,
-    }
-}
-
-#[derive(Debug)]
-pub struct RefreshOption {
-    os_name: String,
-    os_version: String,
-    root_part: String,
-    root_sectors: u64,
-    home_part: Option<String>,
-    efi_part: Option<String>
-}
-
-impl fmt::Display for RefreshOption {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let root_part = match from_uuid(&self.root_part) {
-            Some(uuid) => uuid,
-            None => "None".into()
-        };
-
-        let mut msg = format!("Refresh {} on {:?}", self.os_name, root_part);
-        if let Some(ref efi) = self.efi_part {
-            msg.push_str(&[", /boot/efi on UUID=", efi].concat());
-        }
-
-        if let Some(ref home) = self.home_part {
-            msg.push_str(&[", /home on UUID=", home].concat());
-        }
-
-        write!(f, "{}", msg)
-    }
-}
-
 impl InstallOptions {
     /// Detects existing installations, and suggests new ones.
     ///
@@ -91,7 +25,7 @@ impl InstallOptions {
         {
             let erase_options = &mut erase_options;
             let refresh_options = &mut refresh_options;
-            
+
             let mut check_partition = |part: &PartitionInfo| {
                 if part.is_linux_compatible() {
                     match part.probe_os() {
@@ -136,14 +70,87 @@ impl InstallOptions {
 
         InstallOptions { erase_options, refresh_options }
     }
+}
 
+#[derive(Debug, Fail)]
+pub enum InstallOptionError {
+    #[fail(display = "partition ({}) was not found in disks object", uuid)]
+    PartitionNotFound { uuid: String },
+    #[fail(display = "device ({:?}) was not found in disks object", path)]
+    DeviceNotFound { path: PathBuf },
+    #[fail(display = "logical device was not found by the volume group ({})", vg)]
+    LogicalDeviceNotFound { vg: String },
+    #[fail(display = "error applying changes to disks: {}", why)]
+    DiskError { why: DiskError },
+    #[fail(display = "error generating volume group ID: {}", why)]
+    GenerateID { why: io::Error }
+}
+
+impl From<DiskError> for InstallOptionError {
+    fn from(why: DiskError) -> InstallOptionError {
+        InstallOptionError::DiskError { why }
+    }
+}
+
+#[derive(Debug)]
+pub struct EraseAndInstall {
+    pub device: PathBuf,
+    sectors: u64
+}
+
+impl fmt::Display for EraseAndInstall {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Erase and Install to {}", self.device.display())
+    }
+}
+
+#[derive(Debug)]
+pub struct RefreshOption {
+    os_name: String,
+    os_version: String,
+    root_part: String,
+    root_sectors: u64,
+    home_part: Option<String>,
+    efi_part: Option<String>
+}
+
+impl fmt::Display for RefreshOption {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let root_part = match from_uuid(&self.root_part) {
+            Some(uuid) => uuid,
+            None => "None".into()
+        };
+
+        let mut msg = format!("Refresh {} on {:?}", self.os_name, root_part);
+        if let Some(ref efi) = self.efi_part {
+            msg.push_str(&[", /boot/efi on UUID=", efi].concat());
+        }
+
+        if let Some(ref home) = self.home_part {
+            msg.push_str(&[", /home on UUID=", home].concat());
+        }
+
+        write!(f, "{}", msg)
+    }
+}
+
+#[derive(Debug)]
+pub enum InstallOption<'a> {
+    RefreshOption(&'a RefreshOption),
+    EraseAndInstall {
+        option: &'a EraseAndInstall,
+        password: Option<String>,
+    }
+}
+
+impl<'a> InstallOption<'a> {
     /// Applies a given installation option to the `disks` object.
     ///
     /// If the option is to erase and install, the `disks` object will be replaced with a new one.
-    pub fn apply(&self, disks: &mut Disks, option: InstallOption) -> Result<(), InstallOptionError> {
+    pub fn apply(self, disks: &mut Disks) -> Result<(), InstallOptionError> {
         let bootloader = Bootloader::detect();
 
-        match option {
+        match self {
             // Reuse existing partitions, without making any modifications.
             InstallOption::RefreshOption(option) => {
                 {
