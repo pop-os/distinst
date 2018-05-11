@@ -70,6 +70,41 @@ namespace Distinst {
         LUKS,
     }
 
+    [CCode (cname = "DISTINST_INSTALL_OPTION_VARIANT", has_type_id = false)]
+    public enum InstallOptionVariant {
+        REFRESH,
+        ERASE,
+    }
+
+    [CCode (has_type_id = false, unref_function = "")]
+    public class EraseOption {
+        public string get_device ();
+    }
+
+    [CCode (has_type_id = false, unref_function = "")]
+    public class RefreshOption {
+        public string get_os_name ();
+        public string get_os_version ();
+        public string get_root_part ();
+    }
+
+    [SimpleType]
+    [CCode (has_type_id = false)]
+    public struct InstallOption {
+        InstallOptionVariant tag;
+        RefreshOption refresh_option;
+        EraseOption erase_option;
+        string erase_pass;
+    }
+
+    [CCode (free_function = "distinst_install_options_destroy", has_type_id = false)]
+    [Compact]
+    public class InstallOptions {
+        public InstallOptions (Disks disks, uint64 required);
+        public RefreshOption[] get_refresh_options ();
+        public EraseOption[] get_erase_options ();
+    }
+
     [CCode (has_type_id = false, unref_function = "")]
     public class KeyboardVariant {
         public string get_name ();

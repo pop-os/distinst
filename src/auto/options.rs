@@ -10,7 +10,7 @@ use misc::{get_uuid, from_uuid};
 #[derive(Debug)]
 pub struct InstallOptions {
     pub refresh_options: Vec<RefreshOption>,
-    pub erase_options: Vec<EraseAndInstall>,
+    pub erase_options: Vec<EraseOption>,
 }
 
 impl InstallOptions {
@@ -36,7 +36,6 @@ impl InstallOptions {
                                     os_version: info.version,
                                     root_part: get_uuid(part.get_device_path())
                                         .expect("root device did not have uuid"),
-                                    root_sectors: part.sectors(),
                                     home_part: home,
                                     efi_part: efi,
                                     recovery_part: recovery,
@@ -57,9 +56,8 @@ impl InstallOptions {
                 }
 
                 if device.get_sectors() >= required_space || required_space == 0 {
-                    erase_options.push(EraseAndInstall {
+                    erase_options.push(EraseOption {
                         device: device.get_device_path().to_path_buf(),
-                        sectors: device.get_sectors()
                     })
                 }
 
@@ -100,12 +98,11 @@ impl From<DiskError> for InstallOptionError {
 }
 
 #[derive(Debug)]
-pub struct EraseAndInstall {
+pub struct EraseOption {
     pub device: PathBuf,
-    sectors: u64
 }
 
-impl fmt::Display for EraseAndInstall {
+impl fmt::Display for EraseOption {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Erase and Install to {}", self.device.display())
     }
@@ -113,13 +110,12 @@ impl fmt::Display for EraseAndInstall {
 
 #[derive(Debug)]
 pub struct RefreshOption {
-    os_name: String,
-    os_version: String,
-    root_part: String,
-    root_sectors: u64,
-    home_part: Option<String>,
-    efi_part: Option<String>,
-    recovery_part: Option<String>
+    pub os_name: String,
+    pub os_version: String,
+    pub root_part: String,
+    pub home_part: Option<String>,
+    pub efi_part: Option<String>,
+    pub recovery_part: Option<String>
 }
 
 impl fmt::Display for RefreshOption {
@@ -136,8 +132,8 @@ impl fmt::Display for RefreshOption {
 #[derive(Debug)]
 pub enum InstallOption<'a> {
     RefreshOption(&'a RefreshOption),
-    EraseAndInstall {
-        option: &'a EraseAndInstall,
+    EraseOption {
+        option: &'a EraseOption,
         password: Option<String>,
     }
 }
@@ -177,7 +173,7 @@ impl<'a> InstallOption<'a> {
                 }
             },
             // Reset the `disks` object and designate a disk to be wiped and installed.
-            InstallOption::EraseAndInstall { option, password } => {
+            InstallOption::EraseOption { option, password } => {
                 let mut tmp = Disks::new();
                 mem::swap(&mut tmp, disks);
 

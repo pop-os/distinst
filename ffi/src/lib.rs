@@ -6,6 +6,7 @@ extern crate log;
 use std::ffi::{CStr, CString};
 use std::ptr;
 
+pub use self::auto::*;
 pub use self::config::*;
 pub use self::disk::*;
 pub use self::filesystem::*;
@@ -21,6 +22,7 @@ pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
 
 use std::io;
 
+mod auto;
 mod config;
 mod disk;
 mod ffi;
