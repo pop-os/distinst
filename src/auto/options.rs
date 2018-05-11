@@ -30,7 +30,7 @@ impl InstallOptions {
                 if part.is_linux_compatible() {
                     match part.probe_os() {
                         Some(os) => match os {
-                            OS::Linux { info, home, efi } => {
+                            OS::Linux { info, home, efi, recovery } => {
                                 refresh_options.push(RefreshOption {
                                     os_name: info.pretty_name,
                                     os_version: info.version,
@@ -39,6 +39,7 @@ impl InstallOptions {
                                     root_sectors: part.sectors(),
                                     home_part: home,
                                     efi_part: efi,
+                                    recovery_part: recovery,
                                 })
                             }
                             _ => ()
@@ -49,7 +50,9 @@ impl InstallOptions {
             };
 
             for device in disks.get_physical_devices() {
-                if device.contains_mount("/") {
+                if !Path::new("/cdrom/recovery.conf").exists()
+                    && (device.contains_mount("/") || device.contains_mount("/cdrom"))
+                {
                     continue
                 }
 
@@ -115,26 +118,18 @@ pub struct RefreshOption {
     root_part: String,
     root_sectors: u64,
     home_part: Option<String>,
-    efi_part: Option<String>
+    efi_part: Option<String>,
+    recovery_part: Option<String>
 }
 
 impl fmt::Display for RefreshOption {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let root_part = match from_uuid(&self.root_part) {
-            Some(uuid) => uuid,
+        let root_part: String = match from_uuid(&self.root_part) {
+            Some(uuid) => uuid.to_string_lossy().into(),
             None => "None".into()
         };
 
-        let mut msg = format!("Refresh {} on {:?}", self.os_name, root_part);
-        if let Some(ref efi) = self.efi_part {
-            msg.push_str(&[", /boot/efi on UUID=", efi].concat());
-        }
-
-        if let Some(ref home) = self.home_part {
-            msg.push_str(&[", /home on UUID=", home].concat());
-        }
-
-        write!(f, "{}", msg)
+        write!(f, "Refresh {} on {}", self.os_name, root_part)
     }
 }
 
@@ -173,6 +168,12 @@ impl<'a> InstallOption<'a> {
                     let efi = disks.get_partition_by_uuid_mut(efi)
                         .ok_or(InstallOptionError::PartitionNotFound { uuid: efi.clone() })?;
                     efi.set_mount("/boot/efi".into());
+                }
+
+                if let Some(ref recovery) = option.recovery_part {
+                    let recovery = disks.get_partition_by_uuid_mut(recovery)
+                        .ok_or(InstallOptionError::PartitionNotFound { uuid: recovery.clone() })?;
+                    recovery.set_mount("/recovery".into());
                 }
             },
             // Reset the `disks` object and designate a disk to be wiped and installed.

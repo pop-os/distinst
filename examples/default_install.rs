@@ -133,6 +133,8 @@ fn main() {
         });
     }
 
+    let _ = log(|level, msg| eprintln!("{:?}: {}", level, msg));
+
     let result = installer.install(
         disks,
         &Config {
@@ -142,7 +144,7 @@ fn main() {
             keyboard_model:   None,
             keyboard_variant: None,
             old_root:         None,
-            lang:             "en_US".into(),
+            lang:             "en_US.UTF-8".into(),
             remove:           "/cdrom/casper/filesystem.manifest-remove".into(),
             squashfs:         "/cdrom/casper/filesystem.squashfs".into(),
         },

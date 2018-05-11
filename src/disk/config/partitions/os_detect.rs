@@ -28,7 +28,8 @@ pub enum OS {
     Linux {
         info: OsRelease,
         efi: Option<String>,
-        home: Option<String>
+        home: Option<String>,
+        recovery: Option<String>
     },
     MacOs(String)
 }
@@ -58,7 +59,7 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<OS> {
     })
 }
 
-fn find_linux_parts(base: &Path) -> (Option<String>, Option<String>) {
+fn find_linux_parts(base: &Path) -> (Option<String>, Option<String>, Option<String>) {
     let parse_fstab_mount = move |mount: &str| -> Option<String> {
         if mount.starts_with('/') {
             get_uuid(Path::new(mount))
@@ -73,6 +74,7 @@ fn find_linux_parts(base: &Path) -> (Option<String>, Option<String>) {
 
     let mut home = None;
     let mut efi = None;
+    let mut recovery = None;
 
     if let Ok(fstab) = File::open(base.join("etc/fstab")) {
         for entry in BufReader::new(fstab).lines() {
@@ -96,24 +98,29 @@ fn find_linux_parts(base: &Path) -> (Option<String>, Option<String>) {
                         if let Some(path) = parse_fstab_mount(source.unwrap()) {
                             efi = Some(path);
                         }
+                    } else if recovery.is_none() && target == "/recovery" {
+                        if let Some(path) = parse_fstab_mount(source.unwrap()) {
+                            recovery = Some(path);
+                        }
                     }
                 }
             }
         }
     }
 
-    (home, efi)
+    (home, efi, recovery)
 }
 
 fn detect_linux(base: &Path) -> Option<OS> {
     let path = base.join("etc/os-release");
     if path.exists() {
         if let Ok(os_release) = OsRelease::new_from(path) {
-            let (home, efi) = find_linux_parts(base);
+            let (home, efi, recovery) = find_linux_parts(base);
             return Some(OS::Linux {
                 info: os_release,
                 home,
                 efi,
+                recovery,
             });
         }
     }
