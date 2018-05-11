@@ -1,10 +1,10 @@
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::path::PathBuf;
 
 /// Information that will be used to generate a fstab entry for the given
 /// partition.
 pub(crate) struct BlockInfo {
-    pub uuid:    OsString,
+    pub uuid:    String,
     pub mount:   Option<PathBuf>,
     pub fs:      &'static str,
     pub options: String,

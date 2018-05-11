@@ -574,7 +574,7 @@ impl Installer {
                     ))?
             };
 
-            let root_uuid = root_entry.uuid.to_str().unwrap();
+            let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid)?;
 
             let mut install_pkgs: Vec<&str> = match bootloader {

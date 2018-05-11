@@ -12,12 +12,13 @@ use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
 use super::super::external::{get_label, is_encrypted, pvs};
 use super::super::{LvmEncryption, Mounts, Swaps};
-use super::{get_uuid, PVS};
+use super::PVS;
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use FileSystemType::*;
+use misc::get_uuid;
 
 #[derive(Debug)]
 pub enum PartitionError {

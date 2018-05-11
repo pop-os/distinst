@@ -19,8 +19,6 @@ pub use self::sector::Sector;
 use super::{Bootloader, DiskError};
 use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType};
 use std::collections::BTreeMap;
-use std::ffi::OsString;
-use std::fs::read_dir;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -32,41 +30,6 @@ static mut PVS: Option<BTreeMap<PathBuf, Option<String>>> = None;
 pub enum PartitionTable {
     Msdos,
     Gpt,
-}
-
-/// Obtains the UUID of the given device path by resolving symlinks in `/dev/disk/by-uuid`
-/// until the device is found.
-fn get_uuid(path: &Path) -> Option<OsString> {
-    let uuid_dir = read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
-
-    if let Ok(path) = path.canonicalize() {
-        for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-            if let Ok(ref uuid_path) = uuid_entry.path().canonicalize() {
-                if uuid_path == &path {
-                    return Some(uuid_entry.file_name());
-                }
-            }
-        }
-    }
-
-    None
-}
-
-fn from_uuid(uuid: &str) -> Option<PathBuf> {
-    let uuid_dir = read_dir("/dev/disk/by-uuid").expect("unable to find /dev/disk/by-uuid");
-
-    for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-        let uuid_entry = uuid_entry.path();
-        if let Some(name) = uuid_entry.file_name() {
-            if name == uuid {
-                if let Ok(uuid_entry) = uuid_entry.canonicalize() {
-                    return Some(uuid_entry);
-                }
-            }
-        }
-    }
-
-    None
 }
 
 /// Gets a `libparted::Device` from the given name.

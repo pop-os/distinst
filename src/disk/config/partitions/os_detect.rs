@@ -1,11 +1,11 @@
 use super::super::super::mount::Mount;
-use super::super::from_uuid;
 use super::FileSystemType;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tempdir::TempDir;
 use os_release::OsRelease;
+use misc::get_uuid;
 
 /// Adds a new map method for boolean types.
 pub trait BoolExt {
@@ -27,8 +27,8 @@ pub enum OS {
     Windows(String),
     Linux {
         info: OsRelease,
-        efi: Option<PathBuf>,
-        home: Option<PathBuf>
+        efi: Option<String>,
+        home: Option<String>
     },
     MacOs(String)
 }
@@ -58,13 +58,13 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<OS> {
     })
 }
 
-fn find_linux_parts(base: &Path) -> (Option<PathBuf>, Option<PathBuf>) {
-    let parse_fstab_mount = move |mount: &str| -> Option<PathBuf> {
+fn find_linux_parts(base: &Path) -> (Option<String>, Option<String>) {
+    let parse_fstab_mount = move |mount: &str| -> Option<String> {
         if mount.starts_with('/') {
-            Some(PathBuf::from(mount))
+            get_uuid(Path::new(mount))
         } else if mount.starts_with("UUID") {
             let (_, uuid) = mount.split_at(5);
-            from_uuid(uuid)
+            Some(uuid.into())
         } else {
             error!("unsupported mount type: {}", mount);
             None

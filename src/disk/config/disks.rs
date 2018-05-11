@@ -10,8 +10,9 @@ use super::super::{
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::{find_partition, find_partition_mut};
-use super::{get_uuid, Disk, LvmEncryption};
+use super::{Disk, LvmEncryption};
 use libparted::{Device, DeviceType};
+use misc::{get_uuid, from_uuid};
 
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -138,10 +139,25 @@ impl Disks {
     }
 
     /// Obtains the partition which contains the given device path
-    pub fn get_partition_by_path(&self, target: &Path) -> Option<&PartitionInfo> {
+    pub fn get_partition_by_path<P: AsRef<Path>>(&self, target: P) -> Option<&PartitionInfo> {
         self.get_physical_devices().iter().flat_map(|dev| dev.get_partitions())
             .chain(self.get_logical_devices().iter().flat_map(|dev| dev.get_partitions()))
-            .find(|part| part.get_device_path() == target)
+            .find(|part| part.get_device_path() == target.as_ref())
+    }
+
+    /// Obtains the partition which contains the given device path
+    pub fn get_partition_by_path_mut<P: AsRef<Path>>(&mut self, target: P) -> Option<&mut PartitionInfo> {
+        self.physical.iter_mut().flat_map(|dev| dev.get_partitions_mut())
+            .chain(self.logical.iter_mut().flat_map(|dev| dev.get_partitions_mut()))
+            .find(|part| part.get_device_path() == target.as_ref())
+    }
+
+    pub fn get_partition_by_uuid<U: AsRef<str>>(&self, target: U) -> Option<&PartitionInfo> {
+        from_uuid(target.as_ref()).and_then(|ref target| self.get_partition_by_path(target))
+    }
+
+    pub fn get_partition_by_uuid_mut<U: AsRef<str>>(&mut self, target: U) -> Option<&mut PartitionInfo> {
+        from_uuid(target.as_ref()).and_then(move |ref target| self.get_partition_by_path_mut(target))
     }
 
     /// Deactivates all device maps associated with the inner disks/partitions
