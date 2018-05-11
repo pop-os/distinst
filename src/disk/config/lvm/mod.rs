@@ -93,7 +93,7 @@ impl LvmDevice {
         sector_size: u64,
         is_source: bool,
     ) -> LvmDevice {
-        let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group));
+        let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group.replace("-", "--")));
 
         // TODO: Optimize this so it's not called for each disk.
         let mounts = Mounts::new().expect("unable to get mounts within LvmDevice::new");
@@ -181,7 +181,7 @@ impl LvmDevice {
                 let length = match get_size(&path) {
                     Ok(length) => length,
                     Err(why) => {
-                        eprintln!("unable to get size of LVM device: {}", why);
+                        eprintln!("unable to get size of LVM device {:?}: {}", path, why);
                         0
                     }
                 };

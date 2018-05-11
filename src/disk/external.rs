@@ -444,7 +444,12 @@ pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
             let line = &current_line[2..];
             match line.find(' ') {
                 Some(pos) => output.push(PathBuf::from(
-                    ["/dev/mapper/", vg, "-", &line[..pos]].concat(),
+                    [
+                        "/dev/mapper/",
+                        &vg.replace("-", "--"),
+                        "-",
+                        &(&line[..pos].replace("-", "--"))
+                    ].concat(),
                 )),
                 None => (),
             }
