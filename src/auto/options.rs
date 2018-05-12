@@ -129,12 +129,24 @@ impl fmt::Display for RefreshOption {
     }
 }
 
-#[derive(Debug)]
 pub enum InstallOption<'a> {
     RefreshOption(&'a RefreshOption),
     EraseOption {
         option: &'a EraseOption,
         password: Option<String>,
+    }
+}
+
+impl<'a> fmt::Debug for InstallOption<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            InstallOption::RefreshOption(ref option) => {
+                write!(f, "InstallOption::RefreshOption({:?})", option)
+            }
+            InstallOption::EraseOption { ref option, .. } => {
+                write!(f, "InstallOption::EraseOption {{ option: {:?}, password: hidden }}", option)
+            }
+        }
     }
 }
 
