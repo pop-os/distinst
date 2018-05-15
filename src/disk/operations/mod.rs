@@ -273,7 +273,8 @@ impl<'a> CreatePartitions<'a> {
             // Open a second instance of the disk which we need to get the new partition ID.
             let path = get_partition_id(self.device_path, partition.start_sector as i64)?;
             self.format_partitions
-                .push((path, partition.file_system.clone().unwrap()));
+                .push((path, partition.file_system.clone()
+                    .expect("file system does not exist when creating partition")));
         }
 
         // Attempt to sync three times before returning an error.
@@ -335,7 +336,7 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
     }
 
     // Add the partition, and commit the changes to the disk.
-    let constraint = geometry.exact().unwrap();
+    let constraint = geometry.exact().expect("exact constraint not found");
     disk.add_partition(&mut part, &constraint)
         .map_err(|why| DiskError::PartitionCreate { why })?;
 
@@ -366,13 +367,13 @@ fn get_partition_and<T, F: FnOnce(PedPartition) -> T>(
 
 fn get_partition_id(path: &Path, start_sector: i64) -> Result<PathBuf, DiskError> {
     get_partition_and(path, start_sector, |part| {
-        part.get_path().unwrap().to_path_buf()
+        part.get_path().expect("ped partition does not have path").to_path_buf()
     })
 }
 
 fn get_partition_id_and_path(path: &Path, start_sector: i64) -> Result<(i32, PathBuf), DiskError> {
     get_partition_and(path, start_sector, |part| {
-        (part.num(), part.get_path().unwrap().to_path_buf())
+        (part.num(), part.get_path().expect("ped partition does not have path").to_path_buf())
     })
 }
 

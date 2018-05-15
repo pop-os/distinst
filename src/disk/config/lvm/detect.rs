@@ -27,16 +27,16 @@ pub(crate) fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec
         if let Ok(path) = read_link(pv) {
             let slave_path = concat_osstr(&[
                 "/sys/block/".as_ref(),
-                path.file_name().unwrap(),
+                path.file_name().expect("pv does not have file name"),
                 "/slaves".as_ref(),
             ]);
 
             let _ = read_dirs(&slave_path, |slave| {
                 let slave_path = slave.path();
-                let slave_path = slave_path.file_name().unwrap();
+                let slave_path = slave_path.file_name().expect("slave path does not have file name");
                 if paths
                     .iter()
-                    .any(|p| p.as_ref().file_name().unwrap() == slave_path)
+                    .any(|p| p.as_ref().file_name().expect("slave path does not have file name") == slave_path)
                 {
                     info!("libdistinst: marking to deactivate {}", pv.display());
                     discovered.push(pv.to_path_buf());

@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::read_dir;
 use std::fs::File;
-use std::io::Read;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 static mut PVS: Option<BTreeMap<PathBuf, Option<String>>> = None;
@@ -41,8 +41,10 @@ fn get_uuid(path: &Path) -> Option<OsString> {
 
     if let Ok(path) = path.canonicalize() {
         for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-            if &uuid_entry.path().canonicalize().unwrap() == &path {
-                return Some(uuid_entry.file_name());
+            if let Ok(ref uuid_path) = uuid_entry.path().canonicalize() {
+                if uuid_path == &path {
+                    return Some(uuid_entry.file_name());
+                }
             }
         }
     }
@@ -112,19 +114,22 @@ pub(crate) fn sync(device: &mut Device) -> Result<(), DiskError> {
 
 /// Obtains the size of the device, in bytes, from a given block device.
 /// Note: This is only to be used with getting partition sizes of logical volumes.
-pub(crate) fn get_size(path: &Path) -> Option<u64> {
+pub(crate) fn get_size(path: &Path) -> io::Result<u64> {
     let name: String = match path.canonicalize() {
-        Ok(path) => path.file_name().unwrap().to_str().unwrap().into(),
-        Err(_) => path.file_name().unwrap().to_str().unwrap().into(),
+        Ok(path) => path.file_name().expect("device does not have a file name").to_str().unwrap().into(),
+        Err(_) => path.file_name().expect("device does not have a file name").to_str().unwrap().into(),
     };
 
     File::open(&["/sys/class/block/", &name, "/size"].concat())
-        .ok()
         .and_then(|mut file| {
             let mut buffer = String::new();
             file.read_to_string(&mut buffer)
-                .ok()
-                .and_then(|_| buffer.trim().parse::<u64>().ok())
+                .and_then(|_| {
+                    buffer.trim().parse::<u64>().map_err(|why| io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{}", why)
+                    ))
+                })
         })
 }
 
