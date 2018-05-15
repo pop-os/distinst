@@ -70,7 +70,7 @@ fi
 
 echo "ROOT_UUID = $ROOT_UUID"
 
-BOOT_OPTIONS="quiet loglevel=0 systemd.show_status=false"
+BOOT_OPTIONS="quiet loglevel=0 systemd.show_status=false splash"
 
 # Update bootloader configuration
 if hash kernelstub
