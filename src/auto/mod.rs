@@ -11,7 +11,6 @@ use tempdir::TempDir;
 
 use std::io;
 use std::path::{Path, PathBuf};
-use std::ffi::OsStr;
 
 #[derive(Debug, Fail)]
 pub enum ReinstallError {
@@ -29,14 +28,18 @@ pub enum ReinstallError {
     IO { why: io::Error },
     #[fail(display = "no file system found on partition")]
     NoFilesystem,
-    #[fail(display = "unable to get pre-existing account files: {}", why)]
-    AccountsObtain { why: io::Error },
+    #[fail(display = "unable to {} pre-existing account files: {}", step, why)]
+    AccountsObtain { why: io::Error, step: &'static str },
     #[fail(display = "distinst failed to install: {}", why)]
     Install { why: io::Error },
     #[fail(display = "supplied disk configuration will format /home when it should not")]
     ReformattingHome,
     #[fail(display = "unable to probe existing devices: {}", why)]
-    DiskProbe { why: DiskError }
+    DiskProbe { why: DiskError },
+    #[fail(display = "invalid partition configuration: {}", why)]
+    InvalidPartitionConfiguration { why: io::Error },
+    #[fail(display = "install media at {:?} was not found", path)]
+    MissingSquashfs { path: PathBuf },
 }
 
 pub fn install_and_retain_home(
@@ -44,12 +47,13 @@ pub fn install_and_retain_home(
     disks: Disks,
     config: &Config
 ) -> Result<(), ReinstallError> {
+    info!("libdistinst: installing while retaining home");
     let account_files;
     let root_path;
     let root_fs;
+    let user_data;
 
-    // Get existing user data from the disk.
-    let user_data = {
+    {
         let old_root_uuid = config.old_root.as_ref()
             .ok_or_else(|| ReinstallError::NoOldRoot)?;
         let current_disks = Disks::probe_devices()
@@ -72,13 +76,16 @@ pub fn install_and_retain_home(
         let old_root_fs = old_root.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
         let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
 
-        remove_all_except(home_path, home_fs, &[OsStr::new("home")])?;
-
         account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
-        get_users_on_device(home_path, home_fs, home_is_root)?.iter()
+
+        user_data = get_users_on_device(home_path, home_fs, home_is_root)?.iter()
             .filter_map(|user| account_files.get(user))
-            .collect::<Vec<_>>()
-    };
+            .collect::<Vec<_>>();
+
+        // TODO: Back up specific system configurations, such as datetime?
+
+        validate_before_removing(&disks, &config.squashfs, home_path, home_fs)?;
+    }
 
     // Attempt the installation
     installer.install(disks, config)

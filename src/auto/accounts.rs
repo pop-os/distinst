@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use misc::read;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct AccountFiles {
     passwd: HashMap<Vec<u8>, Vec<u8>>,
     group:  HashMap<Vec<u8>, Vec<u8>>,
@@ -32,6 +32,7 @@ fn lines(input: &[u8]) -> HashMap<Vec<u8>, Vec<u8>> {
 
 impl AccountFiles {
     pub fn new(device: &Path, fs: FileSystemType) -> Result<AccountFiles, ReinstallError> {
+        info!("libdistinst: retrieving user account data");
         mount_and_then(device, fs, |base| {
             read(base.join("etc/passwd"))
                 .and_then(|p| read(base.join("etc/group")).map(|g| (p, g)))
@@ -42,7 +43,7 @@ impl AccountFiles {
                     group: lines(group),
                     shadow: lines(shadow),
                     gshadow: lines(gshadow)
-                }).map_err(|why| ReinstallError::AccountsObtain { why })
+                }).map_err(|why| ReinstallError::AccountsObtain { why, step: "get" })
         })
     }
 
