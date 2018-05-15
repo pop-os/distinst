@@ -141,7 +141,7 @@ pub unsafe extern "C" fn distinst_installer_on_status(
 
 /// Install using this installer
 #[no_mangle]
-pub unsafe extern "C" fn distinst_installer_reinstall_retain_home(
+pub unsafe extern "C" fn distinst_installer_install_and_retain_home(
     installer: *mut DistinstInstaller,
     disks: *mut DistinstDisks,
     config: *const DistinstConfig,
@@ -155,7 +155,7 @@ pub unsafe extern "C" fn distinst_installer_reinstall_retain_home(
     match (*config).as_config() {
         Ok(config) => {
             let installer = &mut *(installer as *mut Installer);
-            match auto::reinstall_retain_home(installer, disks, &config) {
+            match auto::install_and_retain_home(installer, disks, &config) {
                 Ok(()) => 0,
                 Err(err) => {
                     info!("Install error: {}", err);

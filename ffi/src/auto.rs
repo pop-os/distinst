@@ -1,7 +1,8 @@
 use libc;
 
 use std::ptr;
-use super::{gen_object_ptr, get_str, to_cstr, DistinstDisks};
+use std::os::unix::ffi::OsStrExt;
+use super::{gen_object_ptr, get_str, DistinstDisks};
 use distinst::Disks;
 use distinst::auto::{RefreshOption, EraseOption, InstallOption, InstallOptions};
 
@@ -10,37 +11,103 @@ pub struct DistinstRefreshOption;
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_refresh_option_get_os_name(
-    option: *const DistinstRefreshOption
-) -> *mut libc::c_char {
+    option: *const DistinstRefreshOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
     let option = &*(option as *const RefreshOption);
-    to_cstr(option.os_name.clone())
+    let output = option.os_name.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_refresh_option_get_os_version(
-    option: *const DistinstRefreshOption
-) -> *mut libc::c_char {
+    option: *const DistinstRefreshOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
     let option = &*(option as *const RefreshOption);
-    to_cstr(option.os_version.clone())
+    let output = option.os_version.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_refresh_option_get_root_part(
-    option: *const DistinstRefreshOption
-) -> *mut libc::c_char {
+    option: *const DistinstRefreshOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
     let option = &*(option as *const RefreshOption);
-    to_cstr(option.root_part.clone())
+    let output = option.root_part.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
 }
 
 #[repr(C)]
 pub struct DistinstEraseOption;
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_erase_option_get_device(
-    option: *const DistinstEraseOption
-) -> *mut libc::c_char {
+pub unsafe extern "C" fn distinst_erase_option_get_device_path(
+    option: *const DistinstEraseOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
     let option = &*(option as *const EraseOption);
-    to_cstr(option.device.to_str().expect("device path is not UTF-8").into())
+    let output = option.device.as_os_str().as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_erase_option_get_model(
+    option: *const DistinstEraseOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const EraseOption);
+    let output = option.model.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_erase_option_get_linux_icon(
+    option: *const DistinstEraseOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const EraseOption);
+    let output = option.get_linux_icon().as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_erase_option_get_sectors(
+    option: *const DistinstEraseOption
+) -> libc::uint64_t {
+    let option = &*(option as *const EraseOption);
+    option.sectors
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_erase_option_is_rotational(
+    option: *const DistinstEraseOption
+) -> bool {
+    let option = &*(option as *const EraseOption);
+    option.is_rotational()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_erase_option_is_removable(
+    option: *const DistinstEraseOption
+) -> bool {
+    let option = &*(option as *const EraseOption);
+    option.is_removable()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_erase_option_meets_requirements(
+    option: *const DistinstEraseOption
+) -> bool {
+    let option = &*(option as *const EraseOption);
+    option.meets_requirements()
 }
 
 #[repr(C)]
@@ -52,13 +119,13 @@ pub enum DISTINST_INSTALL_OPTION_VARIANT {
 #[repr(C)]
 pub struct DistinstInstallOption {
     tag: DISTINST_INSTALL_OPTION_VARIANT,
-    refresh_option: *mut DistinstRefreshOption,
-    erase_option: *mut DistinstEraseOption,
+    refresh_option: *const DistinstRefreshOption,
+    erase_option: *const DistinstEraseOption,
     erase_pass: *const libc::c_char,
 }
 
-impl<'a> From<DistinstInstallOption> for InstallOption<'a> {
-    fn from(opt: DistinstInstallOption) -> InstallOption<'a> {
+impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
+    fn from(opt: &'a DistinstInstallOption) -> InstallOption<'a> {
         unsafe {
             match opt.tag {
                 DISTINST_INSTALL_OPTION_VARIANT::REFRESH => {
@@ -75,6 +142,35 @@ impl<'a> From<DistinstInstallOption> for InstallOption<'a> {
                     }
                 }
             }
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_option_new() -> *mut DistinstInstallOption {
+    Box::into_raw(Box::new(DistinstInstallOption {
+        tag: DISTINST_INSTALL_OPTION_VARIANT::ERASE,
+        refresh_option: ptr::null(),
+        erase_option: ptr::null(),
+        erase_pass: ptr::null()
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_option_destroy(option: *mut DistinstInstallOption) {
+    Box::from_raw(option);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_option_apply(
+    option: *const DistinstInstallOption,
+    disks: *mut DistinstDisks,
+) -> libc::c_int {
+    match InstallOption::from(&*option).apply(&mut *(disks as *mut Disks)) {
+        Ok(()) => 0,
+        Err(why) => {
+            warn!("failed to apply install option: {}", why);
+            -1
         }
     }
 }

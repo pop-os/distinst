@@ -22,6 +22,18 @@ fn main() {
 
     let options = InstallOptions::new(&disks, 0);
 
+    let mut config = Config {
+        flags: distinst::MODIFY_BOOT_ORDER | distinst::INSTALL_HARDWARE_SUPPORT,
+        hostname:         "pop-testing".into(),
+        keyboard_layout:  "us".into(),
+        keyboard_model:   None,
+        keyboard_variant: None,
+        old_root:         None,
+        lang:             "en_US.UTF-8".into(),
+        remove:           "/cdrom/casper/filesystem.manifest-remove".into(),
+        squashfs:         "/cdrom/casper/filesystem.squashfs".into(),
+    };
+
     match action.as_str() {
         "erase" => {
             let disk = args.next().unwrap();
@@ -29,7 +41,7 @@ fn main() {
 
             match options.erase_options.iter().find(|opt| &opt.device == disk) {
                 Some(option) => {
-                    let option = InstallOption::EraseAndInstall {
+                    let option = InstallOption::EraseOption {
                         option,
                         password: args.next()
                     };
@@ -48,15 +60,15 @@ fn main() {
                 }
             }
         }
-        "refresh" => {
+        "refresh" | "retain" => {
             for (id, option) in options.refresh_options.iter().enumerate() {
                 println!("{}: {}", id, option);
             }
 
             let mut buff = String::new();
             let option = loop {
-                print!("Select an option: ");
-                io::stdout().flush();
+                io::stdout().write_all(b"Select an option: ")
+                    .and_then(|_| io::stdout().flush());
                 let stdin = io::stdin();
                 stdin.lock().read_line(&mut buff);
                 if let Ok(number) = buff[..buff.len()-1].parse::<usize>() {
@@ -68,6 +80,9 @@ fn main() {
 
             match options.refresh_options.get(option) {
                 Some(option) => {
+                    if action.as_str() == "retain" {
+                        config.old_root = Some(option.root_part.clone());
+                    }
                     match InstallOption::RefreshOption(option).apply(&mut disks) {
                         Ok(()) => (),
                         Err(why) => {
@@ -135,25 +150,19 @@ fn main() {
 
     let _ = log(|level, msg| eprintln!("{:?}: {}", level, msg));
 
-    let result = installer.install(
-        disks,
-        &Config {
-            flags: distinst::MODIFY_BOOT_ORDER | distinst::INSTALL_HARDWARE_SUPPORT,
-            hostname:         "pop-testing".into(),
-            keyboard_layout:  "us".into(),
-            keyboard_model:   None,
-            keyboard_variant: None,
-            old_root:         None,
-            lang:             "en_US.UTF-8".into(),
-            remove:           "/cdrom/casper/filesystem.manifest-remove".into(),
-            squashfs:         "/cdrom/casper/filesystem.squashfs".into(),
-        },
-    );
-
-    match result {
-        Ok(()) => (),
-        Err(why) => {
-            eprintln!("install failed: {}", why);
+    if config.old_root.is_some() {
+        match install_and_retain_home(&mut installer, disks, &config) {
+            Ok(()) => (),
+            Err(why) => {
+                eprintln!("install failed: {}", why);
+            }
+        }
+    } else {
+        match installer.install(disks, &config) {
+            Ok(()) => (),
+            Err(why) => {
+                eprintln!("install failed: {}", why);
+            }
         }
     }
 }

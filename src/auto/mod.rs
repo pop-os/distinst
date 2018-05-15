@@ -39,7 +39,7 @@ pub enum ReinstallError {
     DiskProbe { why: DiskError }
 }
 
-pub fn reinstall_retain_home(
+pub fn install_and_retain_home(
     installer: &mut Installer,
     disks: Disks,
     config: &Config
@@ -50,11 +50,11 @@ pub fn reinstall_retain_home(
 
     // Get existing user data from the disk.
     let user_data = {
-        let old_root_path = config.old_root.as_ref()
+        let old_root_uuid = config.old_root.as_ref()
             .ok_or_else(|| ReinstallError::NoOldRoot)?;
         let current_disks = Disks::probe_devices()
             .map_err(|why| ReinstallError::DiskProbe { why })?;
-        let old_root = current_disks.get_partition_by_path(old_root_path)
+        let old_root = current_disks.get_partition_by_uuid(old_root_uuid)
             .ok_or(ReinstallError::NoRootPartition)?;
         let new_root = disks.get_partition_with_target(Path::new("/"))
             .ok_or(ReinstallError::NoRootPartition)?;
@@ -74,7 +74,7 @@ pub fn reinstall_retain_home(
 
         remove_all_except(home_path, home_fs, &[OsStr::new("home")])?;
 
-        account_files = AccountFiles::new(&old_root_path, old_root_fs)?;
+        account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
         get_users_on_device(home_path, home_fs, home_is_root)?.iter()
             .filter_map(|user| account_files.get(user))
             .collect::<Vec<_>>()
@@ -87,11 +87,6 @@ pub fn reinstall_retain_home(
     // Re-add user data
     add_users_on_device(&root_path, root_fs, &user_data)
 }
-
-// pub fn reinstall(disks: &mut Disks) -> Result<(), ReinstallError> {
-//
-//     Ok(())
-// }
 
 fn mount_and_then<T, F>(device: &Path, fs: FileSystemType, mut action: F) -> Result<T, ReinstallError>
     where F: FnMut(&Path) -> Result<T, ReinstallError>

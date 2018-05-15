@@ -150,8 +150,8 @@ pub struct Config {
     pub keyboard_model: Option<String>,
     /// An optional variant of the keyboard (such as "dvorak").
     pub keyboard_variant: Option<String>,
-    /// The location of the old root partition, useful for reinstalls
-    pub old_root: Option<PathBuf>,
+    /// The UUID of the old root partition, for retaining user accounts.
+    pub old_root: Option<String>,
     /// The locale to use for the installed system.
     pub lang: String,
     /// The file that contains a list of packages to remove.

@@ -76,32 +76,111 @@ namespace Distinst {
         ERASE,
     }
 
-    [CCode (has_type_id = false, unref_function = "")]
+    /**
+     * An "Erase and Install" installation option.
+     */
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class EraseOption {
-        public string get_device ();
+        /**
+         * The location of the device in the file system.
+         */
+        public unowned uint8[] get_device_path ();
+        /**
+         * The model name or serial of the device.
+         */
+        public unowned uint8[] get_model ();
+        /**
+         * Returns a GTK icon name to associate with this device.
+         */
+        public unowned uint8[] get_linux_icon ();
+        /**
+         * If true, this device is connected via USB.
+         */
+        public bool is_removable ();
+        /**
+         * If true, this is a standard magnetic hard drive.
+         */
+        public bool is_rotational ();
+        /**
+         * Returns true if the disk is a valid size. Use this field to control
+         * sensitivity of UI elements.
+         */
+        public bool meets_requirements ();
+        /**
+         * Gets the number of sectors that this option's device contains.
+         */
+        public uint64 get_sectors ();
     }
 
-    [CCode (has_type_id = false, unref_function = "")]
+    /**
+     * A "Refresh" installation option, which may be used to optionally retain user accounts.
+     */
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class RefreshOption {
-        public string get_os_name ();
-        public string get_os_version ();
-        public string get_root_part ();
+        /**
+         * The OS name string obtained from the disk.
+         */
+        public unowned uint8[] get_os_name ();
+        /**
+         * The OS version string obtained from the disk.
+         */
+        public unowned uint8[] get_os_version ();
+        /**
+         * The UUID of the root partition.
+         */
+        public unowned uint8[] get_root_part ();
     }
 
-    [SimpleType]
-    [CCode (has_type_id = false)]
-    public struct InstallOption {
-        InstallOptionVariant tag;
-        RefreshOption refresh_option;
-        EraseOption erase_option;
-        string erase_pass;
+    /**
+     * Converts into an ADT within the backend to select an installation option to use.
+     */
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
+    public class InstallOption {
+        public InstallOption ();
+
+        /**
+         * Defines which field to use.
+         */
+        public InstallOptionVariant tag;
+        /**
+         * A possible refresh option.
+         */
+        public RefreshOption refresh_option;
+        /**
+         * A possible erase and install option.
+         */
+        public EraseOption erase_option;
+        /**
+         * The encryption password to optionally use with an erase and install option.
+         */
+        public string erase_pass;
+
+        /**
+         * Applies the stored option to the given disks object.
+         */
+        public int apply (Distinst.Disks disks);
     }
 
+    /**
+     * An object that will store all the available installation options.
+     */
     [CCode (free_function = "distinst_install_options_destroy", has_type_id = false)]
     [Compact]
     public class InstallOptions {
+        /**
+         * Creates a new object from a given disks object.
+         *
+         * The `required` field will be used to set the `MEETS_REQUIREMENTS`
+         * flag for each erase option collected.
+         */
         public InstallOptions (Disks disks, uint64 required);
+        /**
+         * Gets a boxed array of refresh installation options that were collected.
+         */
         public RefreshOption[] get_refresh_options ();
+        /**
+         * Gets a boxed array of erase and install options that were collected.
+         */
         public EraseOption[] get_erase_options ();
     }
 
@@ -743,6 +822,6 @@ namespace Distinst {
         public void emit_status (Distinst.Status error);
         public void on_status (Distinst.StatusCallback callback);
         public int install (owned Distinst.Disks disks, Distinst.Config config);
-        public int reinstall_retain_home (owned Distinst.Disks disks, Distinst.Config config);
+        public int install_and_retain_home (owned Distinst.Disks disks, Distinst.Config config);
     }
 }
