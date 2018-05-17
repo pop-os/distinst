@@ -71,7 +71,7 @@ impl AccountFiles {
             );
 
             let user: &[u8] = &user;
-            self.group.iter().find(|(_, value)| group_has_id(&value, group_id))
+            self.group.iter().find(|&(_, value)| group_has_id(&value, group_id))
                 .map(|(group, _)| {
                     info!(
                         "libdistinst: found group '{}' associated with '{}'",
