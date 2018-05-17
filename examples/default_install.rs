@@ -3,14 +3,14 @@ extern crate pbr;
 
 use pbr::ProgressBar;
 
-use distinst::*;
 use distinst::auto::*;
+use distinst::*;
 
-use std::env;
-use std::path::Path;
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::env;
 use std::io::{self, BufRead, Write};
+use std::path::Path;
+use std::rc::Rc;
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -23,7 +23,7 @@ fn main() {
     let options = InstallOptions::new(&disks, 0);
 
     let mut config = Config {
-        flags: distinst::MODIFY_BOOT_ORDER | distinst::INSTALL_HARDWARE_SUPPORT,
+        flags:            distinst::MODIFY_BOOT_ORDER | distinst::INSTALL_HARDWARE_SUPPORT,
         hostname:         "pop-testing".into(),
         keyboard_layout:  "us".into(),
         keyboard_model:   None,
@@ -43,20 +43,20 @@ fn main() {
                 Some(option) => {
                     let option = InstallOption::EraseOption {
                         option,
-                        password: args.next()
+                        password: args.next(),
                     };
 
                     match option.apply(&mut disks) {
                         Ok(()) => (),
                         Err(why) => {
                             eprintln!("failed to apply: {}", why);
-                            return
+                            return;
                         }
                     }
                 }
                 None => {
                     eprintln!("erase option not found for {}", disk.display());
-                    return
+                    return;
                 }
             }
         }
@@ -67,11 +67,12 @@ fn main() {
 
             let mut buff = String::new();
             let option = loop {
-                io::stdout().write_all(b"Select an option: ")
+                io::stdout()
+                    .write_all(b"Select an option: ")
                     .and_then(|_| io::stdout().flush());
                 let stdin = io::stdin();
                 stdin.lock().read_line(&mut buff);
-                if let Ok(number) = buff[..buff.len()-1].parse::<usize>() {
+                if let Ok(number) = buff[..buff.len() - 1].parse::<usize>() {
                     break number;
                 }
 

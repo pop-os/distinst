@@ -1,14 +1,14 @@
-use libc;
 use distinst::locale::{self, KeyboardLayout, KeyboardLayouts, KeyboardVariant};
-use std::ptr;
+use libc;
 use std::ffi::CString;
+use std::ptr;
 
 #[repr(C)]
 pub struct DistinstKeyboardLayout;
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_layout_get_name(
-    keyboard_layout: *const DistinstKeyboardLayout
+    keyboard_layout: *const DistinstKeyboardLayout,
 ) -> *mut libc::c_char {
     let keyboard_layout = &*(keyboard_layout as *const KeyboardLayout);
     CString::new(keyboard_layout.get_name())
@@ -19,7 +19,7 @@ pub unsafe extern "C" fn distinst_keyboard_layout_get_name(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_layout_get_description(
-    keyboard_layout: *const DistinstKeyboardLayout
+    keyboard_layout: *const DistinstKeyboardLayout,
 ) -> *mut libc::c_char {
     let keyboard_layout = &*(keyboard_layout as *const KeyboardLayout);
     CString::new(keyboard_layout.get_description())
@@ -33,7 +33,7 @@ pub struct DistinstKeyboardVariant;
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_variant_get_name(
-    keyboard_variant: *const DistinstKeyboardVariant
+    keyboard_variant: *const DistinstKeyboardVariant,
 ) -> *mut libc::c_char {
     let keyboard_variant = &*(keyboard_variant as *const KeyboardVariant);
     CString::new(keyboard_variant.get_name())
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn distinst_keyboard_variant_get_name(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_variant_get_description(
-    keyboard_variant: *const DistinstKeyboardVariant
+    keyboard_variant: *const DistinstKeyboardVariant,
 ) -> *mut libc::c_char {
     let keyboard_variant = &*(keyboard_variant as *const KeyboardVariant);
     CString::new(keyboard_variant.get_description())
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn distinst_keyboard_variant_get_description(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_layout_get_variants(
     keyboard_layout: *const DistinstKeyboardLayout,
-    len: *mut libc::c_int
+    len: *mut libc::c_int,
 ) -> *mut *const DistinstKeyboardVariant {
     let layout = &mut *(keyboard_layout as *mut KeyboardLayout);
 
@@ -75,7 +75,6 @@ pub unsafe extern "C" fn distinst_keyboard_layout_get_variants(
             ptr::null_mut()
         }
     }
-
 }
 
 #[repr(C)]
@@ -95,7 +94,7 @@ pub unsafe extern "C" fn distinst_keyboard_layouts_new() -> *mut DistinstKeyboar
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_layouts_get_layouts(
     layouts: *mut DistinstKeyboardLayouts,
-    len: *mut libc::c_int
+    len: *mut libc::c_int,
 ) -> *mut *mut DistinstKeyboardLayout {
     let layouts = &mut *(layouts as *mut KeyboardLayouts);
 
@@ -107,7 +106,6 @@ pub unsafe extern "C" fn distinst_keyboard_layouts_get_layouts(
     *len = output.len() as libc::c_int;
     Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstKeyboardLayout
 }
-
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_layouts_destroy(

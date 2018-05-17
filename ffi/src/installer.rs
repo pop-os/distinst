@@ -162,7 +162,7 @@ pub unsafe extern "C" fn distinst_installer_install_and_retain_home(
                     -1
                 }
             }
-        },
+        }
         Err(err) => {
             info!("Config error: {}", err);
             let errno = err.raw_os_error().unwrap_or(libc::EIO);

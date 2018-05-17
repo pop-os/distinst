@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 /// Obtains the UUID of the given device path by resolving symlinks in `/dev/disk/by-uuid`
 /// until the device is found.
 pub fn get_uuid(path: &Path) -> Option<String> {
-    let uuid_dir = Path::new("/dev/disk/by-uuid").read_dir().expect("unable to find /dev/disk/by-uuid");
+    let uuid_dir = Path::new("/dev/disk/by-uuid")
+        .read_dir()
+        .expect("unable to find /dev/disk/by-uuid");
 
     if let Ok(path) = path.canonicalize() {
         for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
@@ -16,7 +18,6 @@ pub fn get_uuid(path: &Path) -> Option<String> {
                     if let Some(uuid_entry) = uuid_entry.file_name().to_str() {
                         return Some(uuid_entry.into());
                     }
-
                 }
             }
         }
@@ -26,7 +27,9 @@ pub fn get_uuid(path: &Path) -> Option<String> {
 }
 
 pub fn from_uuid(uuid: &str) -> Option<PathBuf> {
-    let uuid_dir = Path::new("/dev/disk/by-uuid").read_dir().expect("unable to find /dev/disk/by-uuid");
+    let uuid_dir = Path::new("/dev/disk/by-uuid")
+        .read_dir()
+        .expect("unable to find /dev/disk/by-uuid");
 
     for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
         let uuid_entry = uuid_entry.path();

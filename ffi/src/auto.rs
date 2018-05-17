@@ -1,10 +1,10 @@
 use libc;
 
-use std::ptr;
-use std::os::unix::ffi::OsStrExt;
 use super::{gen_object_ptr, get_str, DistinstDisks};
+use distinst::auto::{EraseOption, InstallOption, InstallOptions, RefreshOption};
 use distinst::Disks;
-use distinst::auto::{RefreshOption, EraseOption, InstallOption, InstallOptions};
+use std::os::unix::ffi::OsStrExt;
+use std::ptr;
 
 #[repr(C)]
 pub struct DistinstRefreshOption;
@@ -80,7 +80,7 @@ pub unsafe extern "C" fn distinst_erase_option_get_linux_icon(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_erase_option_get_sectors(
-    option: *const DistinstEraseOption
+    option: *const DistinstEraseOption,
 ) -> libc::uint64_t {
     let option = &*(option as *const EraseOption);
     option.sectors
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn distinst_erase_option_get_sectors(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_erase_option_is_rotational(
-    option: *const DistinstEraseOption
+    option: *const DistinstEraseOption,
 ) -> bool {
     let option = &*(option as *const EraseOption);
     option.is_rotational()
@@ -96,7 +96,7 @@ pub unsafe extern "C" fn distinst_erase_option_is_rotational(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_erase_option_is_removable(
-    option: *const DistinstEraseOption
+    option: *const DistinstEraseOption,
 ) -> bool {
     let option = &*(option as *const EraseOption);
     option.is_removable()
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn distinst_erase_option_is_removable(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_erase_option_meets_requirements(
-    option: *const DistinstEraseOption
+    option: *const DistinstEraseOption,
 ) -> bool {
     let option = &*(option as *const EraseOption);
     option.meets_requirements()
@@ -113,15 +113,15 @@ pub unsafe extern "C" fn distinst_erase_option_meets_requirements(
 #[repr(C)]
 pub enum DISTINST_INSTALL_OPTION_VARIANT {
     REFRESH,
-    ERASE
+    ERASE,
 }
 
 #[repr(C)]
 pub struct DistinstInstallOption {
-    tag: DISTINST_INSTALL_OPTION_VARIANT,
+    tag:            DISTINST_INSTALL_OPTION_VARIANT,
     refresh_option: *const DistinstRefreshOption,
-    erase_option: *const DistinstEraseOption,
-    erase_pass: *const libc::c_char,
+    erase_option:   *const DistinstEraseOption,
+    erase_pass:     *const libc::c_char,
 }
 
 impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
@@ -131,16 +131,14 @@ impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
                 DISTINST_INSTALL_OPTION_VARIANT::REFRESH => {
                     InstallOption::RefreshOption(&*(opt.refresh_option as *const RefreshOption))
                 }
-                DISTINST_INSTALL_OPTION_VARIANT::ERASE => {
-                    InstallOption::EraseOption {
-                        option: &*(opt.erase_option as *const EraseOption),
-                        password: if opt.erase_pass.is_null() {
-                            None
-                        } else {
-                            get_str(opt.erase_pass, "").ok().map(String::from)
-                        }
-                    }
-                }
+                DISTINST_INSTALL_OPTION_VARIANT::ERASE => InstallOption::EraseOption {
+                    option:   &*(opt.erase_option as *const EraseOption),
+                    password: if opt.erase_pass.is_null() {
+                        None
+                    } else {
+                        get_str(opt.erase_pass, "").ok().map(String::from)
+                    },
+                },
             }
         }
     }
@@ -149,10 +147,10 @@ impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_install_option_new() -> *mut DistinstInstallOption {
     Box::into_raw(Box::new(DistinstInstallOption {
-        tag: DISTINST_INSTALL_OPTION_VARIANT::ERASE,
+        tag:            DISTINST_INSTALL_OPTION_VARIANT::ERASE,
         refresh_option: ptr::null(),
-        erase_option: ptr::null(),
-        erase_pass: ptr::null()
+        erase_option:   ptr::null(),
+        erase_pass:     ptr::null(),
     }))
 }
 
@@ -192,9 +190,7 @@ pub unsafe extern "C" fn distinst_install_options_new(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_install_options_destroy(
-    options: *mut DistinstInstallOptions
-) {
+pub unsafe extern "C" fn distinst_install_options_destroy(options: *mut DistinstInstallOptions) {
     if !options.is_null() {
         drop(Box::from_raw(options as *mut InstallOptions))
     }
@@ -203,7 +199,7 @@ pub unsafe extern "C" fn distinst_install_options_destroy(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_install_options_get_refresh_options(
     options: *const DistinstInstallOptions,
-    len: *mut libc::c_int
+    len: *mut libc::c_int,
 ) -> *mut *const DistinstRefreshOption {
     let options = &*(options as *const InstallOptions);
 
@@ -219,7 +215,7 @@ pub unsafe extern "C" fn distinst_install_options_get_refresh_options(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_install_options_get_erase_options(
     options: *const DistinstInstallOptions,
-    len: *mut libc::c_int
+    len: *mut libc::c_int,
 ) -> *mut *const DistinstEraseOption {
     let options = &*(options as *const InstallOptions);
 

@@ -2,14 +2,14 @@ use std::fmt;
 use std::mem;
 
 use super::super::super::*;
-use super::{RefreshOption, EraseOption, InstallOptionError};
+use super::{EraseOption, InstallOptionError, RefreshOption};
 
 pub enum InstallOption<'a> {
     RefreshOption(&'a RefreshOption),
     EraseOption {
-        option: &'a EraseOption,
+        option:   &'a EraseOption,
         password: Option<String>,
-    }
+    },
 }
 
 impl<'a> fmt::Debug for InstallOption<'a> {
@@ -18,9 +18,11 @@ impl<'a> fmt::Debug for InstallOption<'a> {
             InstallOption::RefreshOption(ref option) => {
                 write!(f, "InstallOption::RefreshOption({:?})", option)
             }
-            InstallOption::EraseOption { ref option, .. } => {
-                write!(f, "InstallOption::EraseOption {{ option: {:?}, password: hidden }}", option)
-            }
+            InstallOption::EraseOption { ref option, .. } => write!(
+                f,
+                "InstallOption::EraseOption {{ option: {:?}, password: hidden }}",
+                option
+            ),
         }
     }
 }
@@ -36,30 +38,38 @@ impl<'a> InstallOption<'a> {
             // Reuse existing partitions, without making any modifications.
             InstallOption::RefreshOption(option) => {
                 {
-                    let root = disks.get_partition_by_uuid_mut(&option.root_part)
-                        .ok_or(InstallOptionError::PartitionNotFound { uuid: option.root_part.clone() })?;
+                    let root = disks.get_partition_by_uuid_mut(&option.root_part).ok_or(
+                        InstallOptionError::PartitionNotFound {
+                            uuid: option.root_part.clone(),
+                        },
+                    )?;
                     root.set_mount("/".into());
                 }
 
                 if let Some(ref home) = option.home_part {
-                    let home = disks.get_partition_by_uuid_mut(home)
+                    let home = disks
+                        .get_partition_by_uuid_mut(home)
                         .ok_or(InstallOptionError::PartitionNotFound { uuid: home.clone() })?;
                     home.set_mount("/home".into());
                 }
 
                 if let Some(ref efi) = option.efi_part {
-                    let efi = disks.get_partition_by_uuid_mut(efi)
+                    let efi = disks
+                        .get_partition_by_uuid_mut(efi)
                         .ok_or(InstallOptionError::PartitionNotFound { uuid: efi.clone() })?;
                     efi.set_mount("/boot/efi".into());
                 }
 
                 if let Some(ref recovery) = option.recovery_part {
-                    let recovery = disks.get_partition_by_uuid_mut(recovery)
-                        .ok_or(InstallOptionError::PartitionNotFound { uuid: recovery.clone() })?;
+                    let recovery = disks.get_partition_by_uuid_mut(recovery).ok_or(
+                        InstallOptionError::PartitionNotFound {
+                            uuid: recovery.clone(),
+                        },
+                    )?;
                     recovery.set_mount("/recovery".into());
                     recovery.format_with(FileSystemType::Fat32);
                 }
-            },
+            }
             // Reset the `disks` object and designate a disk to be wiped and installed.
             InstallOption::EraseOption { option, password } => {
                 let mut tmp = Disks::new();
@@ -83,12 +93,15 @@ impl<'a> InstallOption<'a> {
 
                         Some((LvmEncryption::new(encrypted_vg, Some(pass), None), root))
                     }
-                    None => None
+                    None => None,
                 };
 
                 {
-                    let mut device = Disk::from_name(&option.device).ok()
-                        .ok_or(InstallOptionError::DeviceNotFound { path: option.device.clone() })?;
+                    let mut device = Disk::from_name(&option.device).ok().ok_or(
+                        InstallOptionError::DeviceNotFound {
+                            path: option.device.clone(),
+                        },
+                    )?;
 
                     let result = match bootloader {
                         Bootloader::Efi => {
@@ -167,7 +180,8 @@ impl<'a> InstallOption<'a> {
                 disks.initialize_volume_groups()?;
 
                 if let Some(root_vg) = root_vg {
-                    let lvm_device = disks.get_logical_device_mut(&root_vg)
+                    let lvm_device = disks
+                        .get_logical_device_mut(&root_vg)
                         .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
 
                     let start = lvm_device.get_sector(start_sector);
@@ -176,7 +190,7 @@ impl<'a> InstallOption<'a> {
                     lvm_device.add_partition(
                         PartitionBuilder::new(start, end, FileSystemType::Ext4)
                             .name("root".into())
-                            .mount("/".into())
+                            .mount("/".into()),
                     )?;
                 }
             }

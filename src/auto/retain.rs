@@ -1,21 +1,21 @@
 //! Retain users when reinstalling, keeping their home folder and user account.
 
 use super::super::{Bootloader, Disks, FileSystemType};
-use super::{AccountFiles, ReinstallError, UserData, mount_and_then};
+use super::{mount_and_then, AccountFiles, ReinstallError, UserData};
 use misc;
 
-use std::path::{Path, PathBuf};
-use std::io::{self, Write};
-use std::fs::{self, File, OpenOptions, Permissions};
 use std::ffi::{OsStr, OsString};
+use std::fs::{self, File, OpenOptions, Permissions};
+use std::io::{self, Write};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::{symlink, PermissionsExt};
+use std::path::{Path, PathBuf};
 
 pub fn validate_before_removing<P: AsRef<Path>>(
     disks: &Disks,
     path: P,
     home_path: &Path,
-    home_fs: FileSystemType
+    home_fs: FileSystemType,
 ) -> Result<(), ReinstallError> {
     partition_configuration_is_valid(&disks)
         .and_then(|_| install_media_exists(path.as_ref()))
@@ -23,7 +23,8 @@ pub fn validate_before_removing<P: AsRef<Path>>(
 }
 
 fn partition_configuration_is_valid(disks: &Disks) -> Result<(), ReinstallError> {
-    disks.verify_partitions(Bootloader::detect())
+    disks
+        .verify_partitions(Bootloader::detect())
         .map_err(|why| ReinstallError::InvalidPartitionConfiguration { why })
 }
 
@@ -31,14 +32,16 @@ fn install_media_exists(path: &Path) -> Result<(), ReinstallError> {
     if path.exists() {
         Ok(())
     } else {
-        Err(ReinstallError::MissingSquashfs { path: path.to_path_buf() })
+        Err(ReinstallError::MissingSquashfs {
+            path: path.to_path_buf(),
+        })
     }
 }
 
 fn remove_all_except(
     device: &Path,
     fs: FileSystemType,
-    exclude: &[&OsStr]
+    exclude: &[&OsStr],
 ) -> Result<(), ReinstallError> {
     mount_and_then(device, fs, |base| {
         info!("libdistinst: removing all files except /home");
@@ -64,10 +67,10 @@ fn remove_all_except(
 }
 
 pub struct Backup<'a> {
-    pub users: Vec<UserData<'a>>,
+    pub users:     Vec<UserData<'a>>,
     pub localtime: Option<PathBuf>,
-    pub timezone: Option<Vec<u8>>,
-    pub networks: Option<Vec<(OsString, Vec<u8>)>>
+    pub timezone:  Option<Vec<u8>>,
+    pub networks:  Option<Vec<(OsString, Vec<u8>)>>,
 }
 
 impl<'a> Backup<'a> {
@@ -85,15 +88,17 @@ impl<'a> Backup<'a> {
                 base.read_dir()
             };
 
-            let users = dir.map_err(|why| ReinstallError::IO { why })
-                .map(|dir| {
-                    dir.filter_map(|entry| entry.ok())
-                        .map(|name| name.file_name())
-                        .inspect(|name| info!(
+            let users = dir.map_err(|why| ReinstallError::IO { why }).map(|dir| {
+                dir.filter_map(|entry| entry.ok())
+                    .map(|name| name.file_name())
+                    .inspect(|name| {
+                        info!(
                             "libdistinst: backing up {}",
                             name.clone().into_string().unwrap()
-                        )).collect::<Vec<OsString>>()
-                })?;
+                        )
+                    })
+                    .collect::<Vec<OsString>>()
+            })?;
 
             let localtime = base.join("etc/localtime");
             let localtime = if localtime.exists() {
@@ -109,20 +114,32 @@ impl<'a> Backup<'a> {
                 None
             };
 
-            let networks = base.join("etc/NetworkManager/system-connections/").read_dir().ok()
+            let networks = base.join("etc/NetworkManager/system-connections/")
+                .read_dir()
+                .ok()
                 .map(|directory| {
-                    directory.flat_map(|entry| entry.ok())
+                    directory
+                        .flat_map(|entry| entry.ok())
                         .filter(|entry| entry.path().is_file())
                         .filter_map(|conn| {
-                            misc::read(conn.path()).ok().map(|data| (conn.file_name(), data))
-                        }).collect::<Vec<(OsString, Vec<u8>)>>()
+                            misc::read(conn.path())
+                                .ok()
+                                .map(|data| (conn.file_name(), data))
+                        })
+                        .collect::<Vec<(OsString, Vec<u8>)>>()
                 });
 
-            let users = users.iter()
+            let users = users
+                .iter()
                 .filter_map(|user| account_files.get(user))
                 .collect::<Vec<_>>();
 
-            Ok(Backup { users, localtime, timezone, networks })
+            Ok(Backup {
+                users,
+                localtime,
+                timezone,
+                networks,
+            })
         })
     }
 
@@ -133,14 +150,17 @@ impl<'a> Backup<'a> {
                 base.join("etc/passwd"),
                 base.join("etc/group"),
                 base.join("etc/shadow"),
-                base.join("etc/gshadow")
+                base.join("etc/gshadow"),
             );
 
             let (mut passwd, mut group, mut shadow, mut gshadow) = open(&passwd)
                 .and_then(|p| open(&group).map(|g| (p, g)))
                 .and_then(|(p, g)| open(&shadow).map(|s| (p, g, s)))
                 .and_then(|(p, g, s)| open(&gshadow).map(|gs| (p, g, s, gs)))
-                .map_err(|why| ReinstallError::AccountsObtain { why, step: "append" })?;
+                .map_err(|why| ReinstallError::AccountsObtain {
+                    why,
+                    step: "append",
+                })?;
 
             fn append(entry: &[u8]) -> Vec<u8> {
                 let mut entry = entry.to_owned();
@@ -166,7 +186,10 @@ impl<'a> Backup<'a> {
             }
 
             if let Some(ref tz) = self.timezone {
-                info!("libdistinst: restoring /etc/timezone with {}", String::from_utf8_lossy(tz));
+                info!(
+                    "libdistinst: restoring /etc/timezone with {}",
+                    String::from_utf8_lossy(tz)
+                );
                 File::create(base.join("etc/timezone")).and_then(|mut file| file.write_all(tz))?;
             }
 
@@ -187,7 +210,8 @@ impl<'a> Backup<'a> {
 
 fn create_network_conf(base: &Path, conn: &OsStr, data: &[u8]) {
     let result = File::create(base.join(conn)).and_then(|mut file| {
-        file.write_all(data).and_then(|_| file.set_permissions(Permissions::from_mode(0o600)))
+        file.write_all(data)
+            .and_then(|_| file.set_permissions(Permissions::from_mode(0o600)))
     });
 
     if let Err(why) = result {
@@ -195,22 +219,22 @@ fn create_network_conf(base: &Path, conn: &OsStr, data: &[u8]) {
     }
 }
 
-fn open(path: &Path) -> io::Result<File> {
-    OpenOptions::new().write(true).append(true).open(path)
-}
+fn open(path: &Path) -> io::Result<File> { OpenOptions::new().write(true).append(true).open(path) }
 
 fn get_timezone_path(tz: PathBuf) -> Option<PathBuf> {
     let raw = tz.as_os_str().as_bytes();
     const PATTERN: &[u8] = b"zoneinfo/";
     const PREFIX: &[u8] = b"../usr/share/zoneinfo/";
 
-    raw.windows(PATTERN.len()).rposition(|window| window == PATTERN)
+    raw.windows(PATTERN.len())
+        .rposition(|window| window == PATTERN)
         .and_then(|position| {
             let (_, tz) = raw.split_at(position + PATTERN.len());
             let mut vec = PREFIX.to_vec();
             vec.extend_from_slice(tz);
             String::from_utf8(vec).ok()
-        }).map(PathBuf::from)
+        })
+        .map(PathBuf::from)
 }
 
 #[cfg(test)]
@@ -221,7 +245,9 @@ mod tests {
     #[test]
     fn localtime() {
         assert_eq!(
-            get_timezone_path(PathBuf::from("/tmp/prefix.id/usr/share/zoneinfo/America/Denver")),
+            get_timezone_path(PathBuf::from(
+                "/tmp/prefix.id/usr/share/zoneinfo/America/Denver"
+            )),
             Some(PathBuf::from("../usr/share/zoneinfo/America/Denver"))
         )
     }
