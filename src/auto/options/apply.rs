@@ -67,7 +67,6 @@ impl<'a> InstallOption<'a> {
                         },
                     )?;
                     recovery.set_mount("/recovery".into());
-                    recovery.format_with(FileSystemType::Fat32);
                 }
             }
             // Reset the `disks` object and designate a disk to be wiped and installed.
