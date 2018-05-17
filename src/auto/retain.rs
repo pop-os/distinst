@@ -41,6 +41,7 @@ fn remove_all_except(
     exclude: &[&OsStr]
 ) -> Result<(), ReinstallError> {
     mount_and_then(device, fs, |base| {
+        info!("libdistinst: removing all files except /home");
         for entry in base.read_dir().map_err(|why| ReinstallError::IO { why })? {
             if let Ok(entry) = entry {
                 let entry = entry.path();
@@ -73,8 +74,8 @@ pub fn get_data_on_device(
     fs: FileSystemType,
     is_root: bool
 ) -> Result<Backup, ReinstallError> {
-    info!("libdistinst: collecting list of user accounts");
     mount_and_then(device, fs, |base| {
+        info!("libdistinst: collecting list of user accounts");
         let dir = if is_root {
             base.join("home").read_dir()
         } else {
@@ -146,7 +147,12 @@ pub fn add_users_on_device(
 
         if let Some(ref tz) = localtime {
             info!("libdistinst: restoring /etc/localtime symlink to {:?}", tz);
-            symlink(base.join(tz), base.join("etc/localtime"))?;
+            let path = base.join("etc/localtime");
+            if path.exists() {
+                fs::remove_file(&path)?;
+            }
+
+            symlink(Path::new(tz), path)?;
         }
 
         if let Some(ref tz) = timezone {
@@ -165,7 +171,7 @@ fn open(path: &Path) -> io::Result<File> {
 fn get_timezone_path(tz: PathBuf) -> Option<PathBuf> {
     let raw = tz.as_os_str().as_bytes();
     const PATTERN: &[u8] = b"zoneinfo/";
-    const PREFIX: &[u8] = b"usr/share/zoneinfo/";
+    const PREFIX: &[u8] = b"../usr/share/zoneinfo/";
 
     raw.windows(PATTERN.len()).rposition(|window| window == PATTERN)
         .and_then(|position| {
@@ -185,7 +191,7 @@ mod tests {
     fn localtime() {
         assert_eq!(
             get_timezone_path(PathBuf::from("/tmp/prefix.id/usr/share/zoneinfo/America/Denver")),
-            Some(PathBuf::from("usr/share/zoneinfo/America/Denver"))
+            Some(PathBuf::from("../usr/share/zoneinfo/America/Denver"))
         )
     }
 }

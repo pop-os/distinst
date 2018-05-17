@@ -57,6 +57,7 @@ impl<'a> InstallOption<'a> {
                     let recovery = disks.get_partition_by_uuid_mut(recovery)
                         .ok_or(InstallOptionError::PartitionNotFound { uuid: recovery.clone() })?;
                     recovery.set_mount("/recovery".into());
+                    recovery.format_with(FileSystemType::Fat32);
                 }
             },
             // Reset the `disks` object and designate a disk to be wiped and installed.

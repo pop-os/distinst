@@ -47,16 +47,35 @@ impl AccountFiles {
         })
     }
 
-    pub fn get(&self, user: &OsStr) -> Option<UserData> {
-        let user = user.as_bytes();
-        self.passwd.get(user)
-            .and_then(|p| self.group.get(user).map(|g| (p, g)))
-            .and_then(|(p, g)| self.shadow.get(user).map(|s| (p, g, s)))
-            .and_then(|(p, g, s)| self.gshadow.get(user).map(|gs| (p, g, s, gs)))
-            .map(|(passwd, group, shadow, gshadow)| {
+    pub fn get(&self, home: &OsStr) -> Option<UserData> {
+        let mut home_path = b"/home/".to_vec();
+        home_path.extend_from_slice(home.as_bytes());
+        let home: &[u8] = &home_path;
+
+        let (user, passwd) = self.passwd.iter()
+            .find(|(_, value)| get_passwd_home(value) == home)?;
+
+        info!(
+            "libdistinst: found user '{}' from home path at {}",
+            String::from_utf8_lossy(&user),
+            String::from_utf8_lossy(home)
+        );
+
+        let user: &[u8] = &user;
+        self.group.get(user)
+            .and_then(|g| self.shadow.get(user).map(|s| (g, s)))
+            .and_then(|(g, s)| self.gshadow.get(user).map(|gs| (g, s, gs)))
+            .map(|(group, shadow, gshadow)| {
                 UserData { passwd, group, shadow, gshadow }
             })
     }
+}
+
+fn get_passwd_home(entry: &[u8]) -> &[u8] {
+    entry.split(|&x| x == b':')
+        .skip(5)
+        .next()
+        .unwrap_or(b"")
 }
 
 /// Information about a user that should be carried over to the corresponding files.
@@ -65,4 +84,17 @@ pub struct UserData<'a> {
     pub shadow: &'a [u8],
     pub group: &'a [u8],
     pub gshadow: &'a [u8],
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_from_passwd() {
+        assert_eq!(
+            get_passwd_home(b"bin:x:2:2:bin:/bin:/usr/sbin/nologin"),
+            b"/bin"
+        )
+    }
 }

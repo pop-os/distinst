@@ -73,6 +73,13 @@ pub(crate) struct DiskOps<'a> {
 }
 
 impl<'a> DiskOps<'a> {
+    /// Useful for knowing when operations should be attempted.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.remove_partitions.is_empty()
+            && self.change_partitions.is_empty()
+            && self.create_partitions.is_empty()
+    }
+
     /// The first stage of disk operations, where a new partition table may be
     /// generated
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
