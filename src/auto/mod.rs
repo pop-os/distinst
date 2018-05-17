@@ -42,6 +42,12 @@ pub enum ReinstallError {
     MissingSquashfs { path: PathBuf },
 }
 
+impl From<io::Error> for ReinstallError {
+    fn from(why: io::Error) -> ReinstallError {
+        ReinstallError::IO { why }
+    }
+}
+
 pub fn install_and_retain_home(
     installer: &mut Installer,
     disks: Disks,
@@ -52,6 +58,7 @@ pub fn install_and_retain_home(
     let root_path;
     let root_fs;
     let user_data;
+    let mut backup;
 
     {
         let old_root_uuid = config.old_root.as_ref()
@@ -77,12 +84,11 @@ pub fn install_and_retain_home(
         let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
 
         account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
+        backup = get_data_on_device(home_path, home_fs, home_is_root)?;
 
-        user_data = get_users_on_device(home_path, home_fs, home_is_root)?.iter()
+        user_data = backup.users.iter()
             .filter_map(|user| account_files.get(user))
             .collect::<Vec<_>>();
-
-        // TODO: Back up specific system configurations, such as datetime?
 
         validate_before_removing(&disks, &config.squashfs, home_path, home_fs)?;
     }
@@ -92,7 +98,13 @@ pub fn install_and_retain_home(
         .map_err(|why| ReinstallError::Install { why })?;
 
     // Re-add user data
-    add_users_on_device(&root_path, root_fs, &user_data)
+    add_users_on_device(
+        &root_path,
+        root_fs,
+        &user_data,
+        backup.localtime.take(),
+        backup.timezone.take()
+    )
 }
 
 fn mount_and_then<T, F>(device: &Path, fs: FileSystemType, mut action: F) -> Result<T, ReinstallError>

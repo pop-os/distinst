@@ -2,11 +2,14 @@
 
 use super::super::{Bootloader, Disks, FileSystemType};
 use super::{ReinstallError, UserData, mount_and_then};
+use misc;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::io::{self, Write};
 use std::fs::{self, File, OpenOptions};
 use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::symlink;
 
 pub fn validate_before_removing<P: AsRef<Path>>(
     disks: &Disks,
@@ -59,11 +62,17 @@ fn remove_all_except(
     })
 }
 
-pub fn get_users_on_device(
+pub struct Backup {
+    pub users: Vec<OsString>,
+    pub localtime: Option<PathBuf>,
+    pub timezone: Option<Vec<u8>>,
+}
+
+pub fn get_data_on_device(
     device: &Path,
     fs: FileSystemType,
     is_root: bool
-) -> Result<Vec<OsString>, ReinstallError> {
+) -> Result<Backup, ReinstallError> {
     info!("libdistinst: collecting list of user accounts");
     mount_and_then(device, fs, |base| {
         let dir = if is_root {
@@ -72,7 +81,7 @@ pub fn get_users_on_device(
             base.read_dir()
         };
 
-        dir.map_err(|why| ReinstallError::IO { why })
+        let users = dir.map_err(|why| ReinstallError::IO { why })
             .map(|dir| {
                 dir.filter_map(|entry| entry.ok())
                     .map(|name| name.file_name())
@@ -80,17 +89,35 @@ pub fn get_users_on_device(
                         "libdistinst: backing up {}",
                         name.clone().into_string().unwrap()
                     )).collect::<Vec<OsString>>()
-            })
+            })?;
+
+        let localtime = base.join("etc/localtime");
+        let localtime = if localtime.exists() {
+            localtime.canonicalize().ok().and_then(get_timezone_path)
+        } else {
+            None
+        };
+
+        let timezone = base.join("etc/timezone");
+        let timezone = if timezone.exists() {
+            misc::read(&timezone).ok()
+        } else {
+            None
+        };
+
+        Ok(Backup { users, localtime, timezone })
     })
 }
 
 pub fn add_users_on_device(
     device: &Path,
     fs: FileSystemType,
-    user_data: &[UserData]
+    user_data: &[UserData],
+    localtime: Option<PathBuf>,
+    timezone: Option<Vec<u8>>,
 ) -> Result<(), ReinstallError> {
-    info!("libdistinst: appending user account data to new install");
     mount_and_then(device, fs, |base| {
+        info!("libdistinst: appending user account data to new install");
         let (passwd, group, shadow, gshadow) = (
             base.join("etc/passwd"),
             base.join("etc/group"),
@@ -117,10 +144,48 @@ pub fn add_users_on_device(
             let _ = gshadow.write_all(&append(user.gshadow));
         }
 
+        if let Some(ref tz) = localtime {
+            info!("libdistinst: restoring /etc/localtime symlink to {:?}", tz);
+            symlink(base.join(tz), base.join("etc/localtime"))?;
+        }
+
+        if let Some(ref tz) = timezone {
+            info!("libdistinst: restoring /etc/timezone with {}", String::from_utf8_lossy(tz));
+            File::create(base.join("etc/timezone")).and_then(|mut file| file.write_all(tz))?;
+        }
+
         Ok(())
     })
 }
 
 fn open(path: &Path) -> io::Result<File> {
     OpenOptions::new().write(true).append(true).open(path)
+}
+
+fn get_timezone_path(tz: PathBuf) -> Option<PathBuf> {
+    let raw = tz.as_os_str().as_bytes();
+    const PATTERN: &[u8] = b"zoneinfo/";
+    const PREFIX: &[u8] = b"usr/share/zoneinfo/";
+
+    raw.windows(PATTERN.len()).rposition(|window| window == PATTERN)
+        .and_then(|position| {
+            let (_, tz) = raw.split_at(position + PATTERN.len());
+            let mut vec = PREFIX.to_vec();
+            vec.extend_from_slice(tz);
+            String::from_utf8(vec).ok()
+        }).map(PathBuf::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn localtime() {
+        assert_eq!(
+            get_timezone_path(PathBuf::from("/tmp/prefix.id/usr/share/zoneinfo/America/Denver")),
+            Some(PathBuf::from("usr/share/zoneinfo/America/Denver"))
+        )
+    }
 }
