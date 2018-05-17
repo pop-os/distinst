@@ -12,9 +12,19 @@ macro_rules! package {
         }
     }};
 
-    ($name:tt { $( $field:tt $distro:expr => $package:expr ),+ })  => (
+    (vendor $vendor:expr => $package:expr) => {{
+        if vendor().map_or(false, |vendor| vendor.starts_with($vendor))  {
+            return Some($package);
+        }
+    }};
+
+    ($name:tt { $( $( $field:tt $distro:expr ),+ => $package:expr ),+ })  => (
         fn $name() -> Option<&'static str> {
-            $( package!($field $distro => $package); )+
+            $(
+                $(
+                    package!($field $distro => $package);
+                )+
+            )+
 
             None
         }

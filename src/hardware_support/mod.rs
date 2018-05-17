@@ -24,7 +24,7 @@ package!(system76_driver {
 });
 
 package!(nvidia_driver {
-    name "Pop!_OS" => "system76-driver-nvidia",
+    like "debian", vendor "System76" => "system76-driver-nvidia",
     like "debian" => "nvidia-driver-390"
 });
 
@@ -61,15 +61,19 @@ fn processor_support() -> Option<&'static str> {
 
 /// Hardware enablement packages for hardware from specific vendors.
 fn vendor_support() -> Option<&'static str> {
-    if let Ok(mut file) = File::open("/sys/class/dmi/id/sys_vendor") {
-        let mut string = String::new();
-        if let Ok(_) = file.read_to_string(&mut string) {
-            // NOTE: Vendors should add their logic & package names here.
-            vendor!(string.trim() => {
-                starts_with "System76" => system76_driver
-            });
-        }
+    if let Some(vendor) = vendor() {
+        // NOTE: Vendors should add their logic & package names here.
+        vendor!(vendor.trim() => {
+            starts_with "System76" => system76_driver
+        });
     }
 
     None
+}
+
+fn vendor() -> Option<String> {
+    let mut vendor = String::new();
+    File::open("/sys/class/dmi/id/sys_vendor")
+        .and_then(|mut file| file.read_to_string(&mut vendor))
+        .ok().map(|_| vendor)
 }
