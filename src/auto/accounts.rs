@@ -52,30 +52,52 @@ impl AccountFiles {
         home_path.extend_from_slice(home.as_bytes());
         let home: &[u8] = &home_path;
 
-        let (user, passwd) = self.passwd.iter()
-            .find(|(_, value)| get_passwd_home(value) == home)?;
+        let mut user_fields = None;
 
-        info!(
-            "libdistinst: found user '{}' from home path at {}",
-            String::from_utf8_lossy(&user),
-            String::from_utf8_lossy(home)
-        );
+        for (key, passwd) in &self.passwd {
+            let (group, home_field) = get_passwd_home_and_group(passwd);
+            if home_field == home {
+                user_fields = Some((key, group, home_field, passwd));
+                break
+            }
+        }
 
-        let user: &[u8] = &user;
-        self.group.get(user)
-            .and_then(|g| self.shadow.get(user).map(|s| (g, s)))
-            .and_then(|(g, s)| self.gshadow.get(user).map(|gs| (g, s, gs)))
-            .map(|(group, shadow, gshadow)| {
-                UserData { passwd, group, shadow, gshadow }
-            })
+        user_fields.and_then(|(user, group_id, home, passwd)| {
+            let user_string = String::from_utf8_lossy(&user);
+            info!(
+                "libdistinst: found user '{}' from home path at {}",
+                user_string,
+                String::from_utf8_lossy(home)
+            );
+
+            let user: &[u8] = &user;
+            self.group.iter().find(|(_, value)| group_has_id(&value, group_id))
+                .map(|(group, _)| {
+                    info!(
+                        "libdistinst: found group '{}' associated with '{}'",
+                        user_string,
+                        String::from_utf8_lossy(group)
+                    );
+                    group
+                }).and_then(|g| self.shadow.get(user).map(|s| (g, s)))
+                .and_then(|(g, s)| self.gshadow.get(user).map(|gs| (g, s, gs)))
+                .map(|(group, shadow, gshadow)| {
+                    UserData { passwd, group, shadow, gshadow }
+                })
+        })
     }
 }
 
-fn get_passwd_home(entry: &[u8]) -> &[u8] {
-    entry.split(|&x| x == b':')
-        .skip(5)
-        .next()
-        .unwrap_or(b"")
+fn group_has_id(entry: &[u8], id: &[u8]) -> bool {
+    entry.split(|&x| x == b':').skip(2).next().map_or(false, |field| field == id)
+}
+
+fn get_passwd_home_and_group(entry: &[u8]) -> (&[u8], &[u8]) {
+    let fields = &mut entry.split(|&x| x == b':');
+    let group = fields.skip(3).next();
+    let home = fields.skip(1).next();
+
+    group.and_then(|group| home.map(|home| (group, home))).unwrap_or((b"", b""))
 }
 
 /// Information about a user that should be carried over to the corresponding files.
@@ -93,8 +115,14 @@ mod tests {
     #[test]
     fn user_from_passwd() {
         assert_eq!(
-            get_passwd_home(b"bin:x:2:2:bin:/bin:/usr/sbin/nologin"),
-            b"/bin"
+            get_passwd_home_and_group(b"bin:x:2:3:bin:/bin:/usr/sbin/nologin"),
+            (&b"3"[..], &b"/bin"[..])
         )
+    }
+
+    #[test]
+    fn group_from_id() {
+        assert!(group_has_id(b"nogroup:x:65534:", b"65534"));
+        assert!(!group_has_id(b"nogroup:x:65534:", b"1"));
     }
 }
