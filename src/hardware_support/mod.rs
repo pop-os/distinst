@@ -24,8 +24,7 @@ package!(system76_driver {
 });
 
 package!(nvidia_driver {
-    like "debian", vendor "System76" => "system76-driver-nvidia",
-    like "debian" => "nvidia-driver-390"
+    like "debian", vendor "System76" => "system76-driver-nvidia"
 });
 
 pub fn append_packages(install_pkgs: &mut Vec<&'static str>) {
