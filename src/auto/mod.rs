@@ -55,10 +55,9 @@ pub fn install_and_retain_home(
 ) -> Result<(), ReinstallError> {
     info!("libdistinst: installing while retaining home");
     let account_files;
+    let backup;
     let root_path;
     let root_fs;
-    let user_data;
-    let mut backup;
 
     {
         let old_root_uuid = config.old_root.as_ref()
@@ -84,27 +83,14 @@ pub fn install_and_retain_home(
         let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
 
         account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
-        backup = get_data_on_device(home_path, home_fs, home_is_root)?;
-
-        user_data = backup.users.iter()
-            .filter_map(|user| account_files.get(user))
-            .collect::<Vec<_>>();
+        backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
 
         validate_before_removing(&disks, &config.squashfs, home_path, home_fs)?;
     }
 
-    // Attempt the installation
     installer.install(disks, config)
-        .map_err(|why| ReinstallError::Install { why })?;
-
-    // Re-add user data
-    add_users_on_device(
-        &root_path,
-        root_fs,
-        &user_data,
-        backup.localtime.take(),
-        backup.timezone.take()
-    )
+        .map_err(|why| ReinstallError::Install { why })
+        .and_then(|_| backup.restore(&root_path, root_fs))
 }
 
 fn mount_and_then<T, F>(device: &Path, fs: FileSystemType, mut action: F) -> Result<T, ReinstallError>

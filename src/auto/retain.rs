@@ -1,15 +1,15 @@
 //! Retain users when reinstalling, keeping their home folder and user account.
 
 use super::super::{Bootloader, Disks, FileSystemType};
-use super::{ReinstallError, UserData, mount_and_then};
+use super::{AccountFiles, ReinstallError, UserData, mount_and_then};
 use misc;
 
 use std::path::{Path, PathBuf};
 use std::io::{self, Write};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File, OpenOptions, Permissions};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::symlink;
+use std::os::unix::fs::{PermissionsExt, symlink};
 
 pub fn validate_before_removing<P: AsRef<Path>>(
     disks: &Disks,
@@ -63,105 +63,136 @@ fn remove_all_except(
     })
 }
 
-pub struct Backup {
-    pub users: Vec<OsString>,
+pub struct Backup<'a> {
+    pub users: Vec<UserData<'a>>,
     pub localtime: Option<PathBuf>,
     pub timezone: Option<Vec<u8>>,
+    pub networks: Option<Vec<(OsString, Vec<u8>)>>
 }
 
-pub fn get_data_on_device(
-    device: &Path,
-    fs: FileSystemType,
-    is_root: bool
-) -> Result<Backup, ReinstallError> {
-    mount_and_then(device, fs, |base| {
-        info!("libdistinst: collecting list of user accounts");
-        let dir = if is_root {
-            base.join("home").read_dir()
-        } else {
-            base.read_dir()
-        };
+impl<'a> Backup<'a> {
+    pub fn new(
+        device: &Path,
+        fs: FileSystemType,
+        is_root: bool,
+        account_files: &'a AccountFiles,
+    ) -> Result<Backup<'a>, ReinstallError> {
+        mount_and_then(device, fs, |base| {
+            info!("libdistinst: collecting list of user accounts");
+            let dir = if is_root {
+                base.join("home").read_dir()
+            } else {
+                base.read_dir()
+            };
 
-        let users = dir.map_err(|why| ReinstallError::IO { why })
-            .map(|dir| {
-                dir.filter_map(|entry| entry.ok())
-                    .map(|name| name.file_name())
-                    .inspect(|name| info!(
-                        "libdistinst: backing up {}",
-                        name.clone().into_string().unwrap()
-                    )).collect::<Vec<OsString>>()
-            })?;
+            let users = dir.map_err(|why| ReinstallError::IO { why })
+                .map(|dir| {
+                    dir.filter_map(|entry| entry.ok())
+                        .map(|name| name.file_name())
+                        .inspect(|name| info!(
+                            "libdistinst: backing up {}",
+                            name.clone().into_string().unwrap()
+                        )).collect::<Vec<OsString>>()
+                })?;
 
-        let localtime = base.join("etc/localtime");
-        let localtime = if localtime.exists() {
-            localtime.canonicalize().ok().and_then(get_timezone_path)
-        } else {
-            None
-        };
+            let localtime = base.join("etc/localtime");
+            let localtime = if localtime.exists() {
+                localtime.canonicalize().ok().and_then(get_timezone_path)
+            } else {
+                None
+            };
 
-        let timezone = base.join("etc/timezone");
-        let timezone = if timezone.exists() {
-            misc::read(&timezone).ok()
-        } else {
-            None
-        };
+            let timezone = base.join("etc/timezone");
+            let timezone = if timezone.exists() {
+                misc::read(&timezone).ok()
+            } else {
+                None
+            };
 
-        Ok(Backup { users, localtime, timezone })
-    })
-}
+            let networks = base.join("etc/NetworkManager/system-connections/").read_dir().ok()
+                .map(|directory| {
+                    directory.flat_map(|entry| entry.ok())
+                        .filter(|entry| entry.path().is_file())
+                        .filter_map(|conn| {
+                            misc::read(conn.path()).ok().map(|data| (conn.file_name(), data))
+                        }).collect::<Vec<(OsString, Vec<u8>)>>()
+                });
 
-pub fn add_users_on_device(
-    device: &Path,
-    fs: FileSystemType,
-    user_data: &[UserData],
-    localtime: Option<PathBuf>,
-    timezone: Option<Vec<u8>>,
-) -> Result<(), ReinstallError> {
-    mount_and_then(device, fs, |base| {
-        info!("libdistinst: appending user account data to new install");
-        let (passwd, group, shadow, gshadow) = (
-            base.join("etc/passwd"),
-            base.join("etc/group"),
-            base.join("etc/shadow"),
-            base.join("etc/gshadow")
-        );
+            let users = users.iter()
+                .filter_map(|user| account_files.get(user))
+                .collect::<Vec<_>>();
 
-        let (mut passwd, mut group, mut shadow, mut gshadow) = open(&passwd)
-            .and_then(|p| open(&group).map(|g| (p, g)))
-            .and_then(|(p, g)| open(&shadow).map(|s| (p, g, s)))
-            .and_then(|(p, g, s)| open(&gshadow).map(|gs| (p, g, s, gs)))
-            .map_err(|why| ReinstallError::AccountsObtain { why, step: "append" })?;
+            Ok(Backup { users, localtime, timezone, networks })
+        })
+    }
 
-        fn append(entry: &[u8]) -> Vec<u8> {
-            let mut entry = entry.to_owned();
-            entry.push(b'\n');
-            entry
-        }
+    pub fn restore(&self, device: &Path, fs: FileSystemType) -> Result<(), ReinstallError> {
+        mount_and_then(device, fs, |base| {
+            info!("libdistinst: appending user account data to new install");
+            let (passwd, group, shadow, gshadow) = (
+                base.join("etc/passwd"),
+                base.join("etc/group"),
+                base.join("etc/shadow"),
+                base.join("etc/gshadow")
+            );
 
-        for user in user_data {
-            let _ = passwd.write_all(&append(user.passwd));
-            let _ = group.write_all(&append(user.group));
-            let _ = shadow.write_all(&append(user.shadow));
-            let _ = gshadow.write_all(&append(user.gshadow));
-        }
+            let (mut passwd, mut group, mut shadow, mut gshadow) = open(&passwd)
+                .and_then(|p| open(&group).map(|g| (p, g)))
+                .and_then(|(p, g)| open(&shadow).map(|s| (p, g, s)))
+                .and_then(|(p, g, s)| open(&gshadow).map(|gs| (p, g, s, gs)))
+                .map_err(|why| ReinstallError::AccountsObtain { why, step: "append" })?;
 
-        if let Some(ref tz) = localtime {
-            info!("libdistinst: restoring /etc/localtime symlink to {:?}", tz);
-            let path = base.join("etc/localtime");
-            if path.exists() {
-                fs::remove_file(&path)?;
+            fn append(entry: &[u8]) -> Vec<u8> {
+                let mut entry = entry.to_owned();
+                entry.push(b'\n');
+                entry
             }
 
-            symlink(Path::new(tz), path)?;
-        }
+            for user in &self.users {
+                let _ = passwd.write_all(&append(user.passwd));
+                let _ = group.write_all(&append(user.group));
+                let _ = shadow.write_all(&append(user.shadow));
+                let _ = gshadow.write_all(&append(user.gshadow));
+            }
 
-        if let Some(ref tz) = timezone {
-            info!("libdistinst: restoring /etc/timezone with {}", String::from_utf8_lossy(tz));
-            File::create(base.join("etc/timezone")).and_then(|mut file| file.write_all(tz))?;
-        }
+            if let Some(ref tz) = self.localtime {
+                info!("libdistinst: restoring /etc/localtime symlink to {:?}", tz);
+                let path = base.join("etc/localtime");
+                if path.exists() {
+                    fs::remove_file(&path)?;
+                }
 
-        Ok(())
-    })
+                symlink(Path::new(tz), path)?;
+            }
+
+            if let Some(ref tz) = self.timezone {
+                info!("libdistinst: restoring /etc/timezone with {}", String::from_utf8_lossy(tz));
+                File::create(base.join("etc/timezone")).and_then(|mut file| file.write_all(tz))?;
+            }
+
+            if let Some(ref networks) = self.networks {
+                info!("libdistinst: restoring NetworkManager configuration");
+                let network_conf_dir = &base.join("etc/NetworkManager/system-connections/");
+                let _ = fs::create_dir_all(&network_conf_dir);
+
+                for &(ref connection, ref data) in networks {
+                    create_network_conf(network_conf_dir, connection, data);
+                }
+            }
+
+            Ok(())
+        })
+    }
+}
+
+fn create_network_conf(base: &Path, conn: &OsStr, data: &[u8]) {
+    let result = File::create(base.join(conn)).and_then(|mut file| {
+        file.write_all(data).and_then(|_| file.set_permissions(Permissions::from_mode(0o600)))
+    });
+
+    if let Err(why) = result {
+        warn!("failed to write network configuration file: {}", why);
+    }
 }
 
 fn open(path: &Path) -> io::Result<File> {
