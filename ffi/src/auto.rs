@@ -119,9 +119,14 @@ pub unsafe extern "C" fn distinst_recovery_option_get_efi_uuid(
     len: *mut libc::c_int,
 ) -> *const u8 {
     let option = &*(option as *const RecoveryOption);
-    let output = option.efi_uuid.as_bytes();
-    *len = output.len() as libc::c_int;
-    output.as_ptr()
+    match option.efi_uuid.as_ref() {
+        Some(ref efi_uuid) => {
+            let output = efi_uuid.as_bytes();
+            *len = output.len() as libc::c_int;
+            output.as_ptr()
+        }
+        None => ptr::null(),
+    }
 }
 
 #[no_mangle]

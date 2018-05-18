@@ -139,7 +139,7 @@ fn detect_recovery() -> Option<RecoveryOption> {
             kbd_layout:    env.get("KBD_LAYOUT")?.to_owned(),
             kbd_model:     env.get("KBD_MODEL").map(|x| x.to_owned()),
             kbd_variant:   env.get("KBD_VARIANT").map(|x| x.to_owned()),
-            efi_uuid:      env.get("EFI_UUID")?.to_owned(),
+            efi_uuid:      env.get("EFI_UUID").map(|x| x.to_owned()),
             recovery_uuid: env.get("RECOVERY_UUID")?.to_owned(),
             root_uuid:     env.get("ROOT_UUID")?.to_owned(),
             oem_mode:      env.get("OEM_MODE").map_or(false, |oem| oem == "1"),
@@ -169,7 +169,7 @@ impl From<DiskError> for InstallOptionError {
 
 #[derive(Debug)]
 pub struct RecoveryOption {
-    pub efi_uuid:      String,
+    pub efi_uuid:      Option<String>,
     pub hostname:      String,
     pub kbd_layout:    String,
     pub kbd_model:     Option<String>,

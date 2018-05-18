@@ -75,7 +75,7 @@ impl<'a> InstallOption<'a> {
                 }
             }
             InstallOption::RecoveryOption { option, password } => {
-                // TODO: Do nothing, for now.
+                ()
             }
             // Reset the `disks` object and designate a disk to be wiped and installed.
             InstallOption::EraseOption { option, password } => {

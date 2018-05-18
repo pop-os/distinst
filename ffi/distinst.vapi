@@ -133,7 +133,7 @@ namespace Distinst {
 
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class RecoveryOption {
-        public unowned uint8[] get_efi_uuid ();
+        public unowned uint8[]? get_efi_uuid ();
         public unowned uint8[] get_recovery_uuid ();
         public unowned uint8[] get_root_uuid ();
         public unowned uint8[] get_hostname ();
