@@ -64,6 +64,9 @@ use envfile::EnvFile;
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
 
+/// Force the installation to perform a BIOS install, even if on an EFI system.
+pub static FORCE_BIOS: AtomicBool = ATOMIC_BOOL_INIT;
+
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
 

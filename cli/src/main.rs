@@ -10,8 +10,9 @@ use clap::{App, Arg, ArgMatches, Values};
 use distinst::{
     Config, Disk, DiskError, DiskExt, Disks, FileSystemType, Installer, LvmEncryption,
     PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step,
-    KILL_SWITCH, PARTITIONING_TEST,
+    KILL_SWITCH, PARTITIONING_TEST, FORCE_BIOS
 };
+
 use pbr::ProgressBar;
 
 use std::cell::RefCell;
@@ -173,6 +174,11 @@ fn main() {
                 .help("simply test whether the provided arguments pass the partitioning stage"),
         )
         .arg(
+            Arg::with_name("force-bios")
+                .long("force-bios")
+                .help("performs a BIOS installation even if the running system is EFI")
+        )
+        .arg(
             Arg::with_name("delete")
                 .short("d")
                 .long("delete")
@@ -295,6 +301,10 @@ fn main() {
         let testing = matches.occurrences_of("test") != 0;
         if testing {
             PARTITIONING_TEST.store(true, Ordering::SeqCst);
+        }
+
+        if matches.occurrences_of("force-bios") != 0 {
+            FORCE_BIOS.store(true, Ordering::SeqCst);
         }
 
         fn take_optional_string(argument: Option<&str>) -> Option<String> {
