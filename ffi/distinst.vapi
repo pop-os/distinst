@@ -74,6 +74,7 @@ namespace Distinst {
     public enum InstallOptionVariant {
         REFRESH,
         ERASE,
+        RECOVERY,
     }
 
     /**
