@@ -3,6 +3,7 @@ use std::mem;
 
 use super::super::super::*;
 use super::{EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
+use misc;
 
 pub enum InstallOption<'a> {
     RefreshOption(&'a RefreshOption),
@@ -32,6 +33,35 @@ impl<'a> fmt::Debug for InstallOption<'a> {
     }
 }
 
+fn set_mount_by_uuid(disks: &mut Disks, uuid: &str, mount: &str) -> Result<(), InstallOptionError> {
+    disks
+        .get_partition_by_uuid_mut(uuid)
+        .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.into() })
+        .map(|part| {
+            part.set_mount(mount.into());
+            ()
+        })
+}
+
+fn generate_encryption(
+    password: Option<String>,
+) -> Result<Option<(LvmEncryption, String)>, InstallOptionError> {
+    let value = match password {
+        Some(pass) => {
+            let (root, encrypted_vg) = generate_unique_id("data")
+                .and_then(|r| generate_unique_id("cryptdata").map(|e| (r, e)))
+                .map_err(|why| InstallOptionError::GenerateID { why })?;
+
+            let root_vg = root.clone();
+            let enc = LvmEncryption::new(encrypted_vg, Some(pass), None);
+            Some((enc, root_vg))
+        }
+        None => None,
+    };
+
+    Ok(value)
+}
+
 impl<'a> InstallOption<'a> {
     /// Applies a given installation option to the `disks` object.
     ///
@@ -52,37 +82,140 @@ impl<'a> InstallOption<'a> {
                 }
 
                 if let Some(ref home) = option.home_part {
-                    let home = disks
-                        .get_partition_by_uuid_mut(home)
-                        .ok_or(InstallOptionError::PartitionNotFound { uuid: home.clone() })?;
-                    home.set_mount("/home".into());
+                    set_mount_by_uuid(disks, home, "/home")?;
                 }
 
                 if let Some(ref efi) = option.efi_part {
-                    let efi = disks
-                        .get_partition_by_uuid_mut(efi)
-                        .ok_or(InstallOptionError::PartitionNotFound { uuid: efi.clone() })?;
-                    efi.set_mount("/boot/efi".into());
+                    set_mount_by_uuid(disks, efi, "/boot/efi")?;
                 }
 
                 if let Some(ref recovery) = option.recovery_part {
-                    let recovery = disks.get_partition_by_uuid_mut(recovery).ok_or(
-                        InstallOptionError::PartitionNotFound {
-                            uuid: recovery.clone(),
-                        },
-                    )?;
-                    recovery.set_mount("/recovery".into());
+                    set_mount_by_uuid(disks, recovery, "/recovery")?;
                 }
             }
             InstallOption::RecoveryOption { option, password } => {
-                ()
+                let mut tmp = Disks::new();
+                mem::swap(&mut tmp, disks);
+
+                let (lvm, root_vg) = match generate_encryption(password)? {
+                    Some((enc, root)) => (Some((enc, root.clone())), Some(root)),
+                    None => (None, None),
+                };
+
+                let mut recovery_device: Disk = {
+                    let recovery_path: &Path = &misc::from_uuid(&option.root_uuid).unwrap();
+                    Disk::from_name(recovery_path)
+                        .ok()
+                        .ok_or(InstallOptionError::DeviceNotFound {
+                            path: recovery_path.to_path_buf(),
+                        })?
+                };
+
+                {
+                    let recovery_device = &mut recovery_device;
+                    let lvm_part: Option<PathBuf> = {
+                        let path: &str = &misc::from_uuid(&option.root_uuid)
+                            .expect("no uuid for recovery root")
+                            .file_name()
+                            .expect("path does not have file name")
+                            .to_owned()
+                            .into_string()
+                            .expect("path is not UTF-8");
+
+                        misc::resolve_slave(path).or_else(|| {
+                            // Attempt to find the LVM partition automatically.
+                            for part in recovery_device.get_partitions() {
+                                if part
+                                    .filesystem
+                                    .as_ref()
+                                    .map_or(false, |&p| p == FileSystemType::Luks)
+                                {
+                                    return Some(part.get_device_path().to_path_buf());
+                                }
+                            }
+
+                            None
+                        })
+                    };
+
+                    if let Some(ref uuid) = option.efi_uuid {
+                        let path = &misc::from_uuid(uuid).expect("no uuid for efi part");
+                        recovery_device
+                            .get_partitions_mut()
+                            .iter_mut()
+                            .find(|d| d.get_device_path() == path)
+                            .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.clone() })
+                            .map(|part| part.set_mount("/boot/efi".into()))?;
+                    }
+
+                    {
+                        let uuid = &option.recovery_uuid;
+                        let path = &misc::from_uuid(uuid).expect("no uuid for recovery part");
+                        recovery_device
+                            .get_partitions_mut()
+                            .iter_mut()
+                            .find(|d| d.get_device_path() == path)
+                            .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.clone() })
+                            .map(|part| part.set_mount("/recovery".into()))?;
+                    }
+
+                    let (start, end);
+
+                    if let Some(part) = lvm_part {
+                        let id = {
+                            let part = recovery_device
+                                .get_partitions()
+                                .iter()
+                                .find(|d| d.get_device_path() == part)
+                                .ok_or(InstallOptionError::PartitionNotFound {
+                                    uuid: part.to_string_lossy().to_string(),
+                                })?;
+
+                            start = part.start_sector;
+                            end = part.end_sector;
+                            part.number
+                        };
+
+                        recovery_device.remove_partition(id)?;
+                    } else {
+                        return Err(InstallOptionError::RecoveryNoLvm);
+                    }
+
+                    if let Some((enc, root)) = lvm {
+                        recovery_device.add_partition(
+                            PartitionBuilder::new(start, end, FileSystemType::Luks)
+                                .logical_volume(root, Some(enc)),
+                        )?;
+                    } else {
+                        recovery_device.add_partition(
+                            PartitionBuilder::new(start, end, FileSystemType::Ext4)
+                                .mount("/".into()),
+                        )?;
+                    }
+                }
+
+                disks.add(recovery_device);
+                disks.initialize_volume_groups()?;
+
+                if let Some(root_vg) = root_vg {
+                    let lvm_device = disks
+                        .get_logical_device_mut(&root_vg)
+                        .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
+
+                    let start = lvm_device.get_sector(Sector::Start);
+                    let end = lvm_device.get_sector(Sector::End);
+
+                    lvm_device.add_partition(
+                        PartitionBuilder::new(start, end, FileSystemType::Ext4)
+                            .name("root".into())
+                            .mount("/".into()),
+                    )?;
+                }
             }
             // Reset the `disks` object and designate a disk to be wiped and installed.
             InstallOption::EraseOption { option, password } => {
                 let mut tmp = Disks::new();
                 mem::swap(&mut tmp, disks);
-
-                let mut root_vg: Option<String> = None;
 
                 let start_sector = Sector::Start;
                 let boot_sector = Sector::Megabyte(512);
@@ -90,17 +223,9 @@ impl<'a> InstallOption<'a> {
                 let swap_sector = Sector::MegabyteFromEnd(4096);
                 let end_sector = Sector::End;
 
-                let lvm = match password {
-                    Some(pass) => {
-                        let (root, encrypted_vg) = generate_unique_id("data")
-                            .and_then(|r| generate_unique_id("cryptdata").map(|e| (r, e)))
-                            .map_err(|why| InstallOptionError::GenerateID { why })?;
-
-                        root_vg = Some(root.clone());
-
-                        Some((LvmEncryption::new(encrypted_vg, Some(pass), None), root))
-                    }
-                    None => None,
+                let (lvm, root_vg) = match generate_encryption(password)? {
+                    Some((enc, root)) => (Some((enc, root.clone())), Some(root)),
+                    None => (None, None),
                 };
 
                 {

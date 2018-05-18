@@ -64,6 +64,30 @@ impl Disks {
     /// configuration.
     pub fn get_physical_devices_mut(&mut self) -> &mut [Disk] { &mut self.physical }
 
+    /// Returns the physical device that contains the partition at path.
+    pub fn get_physical_device_with_partition_mut<P: AsRef<Path>>(
+        &mut self,
+        path: P
+    ) -> Option<&mut Disk> {
+        let path = path.as_ref();
+        for device in self.get_physical_devices_mut() {
+            let mut found = false;
+
+            for part in device.get_partitions_mut() {
+                if part.get_device_path() == path {
+                    found = true;
+                    break
+                }
+            }
+
+            if found {
+                return Some(device);
+            }
+        }
+
+        None
+    }
+
     /// Searches for a LVM device by the LVM volume group name.
     pub fn get_logical_device(&self, group: &str) -> Option<&LvmDevice> {
         self.logical.iter().find(|d| &d.volume_group == group)

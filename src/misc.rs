@@ -1,6 +1,7 @@
 //! An assortment of useful basic functions useful throughout the project.
 
-use std::fs::File;
+use std::ffi::{OsStr, OsString};
+use std::fs::{DirEntry, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
@@ -40,6 +41,55 @@ pub fn from_uuid(uuid: &str) -> Option<PathBuf> {
                 }
             }
         }
+    }
+
+    None
+}
+
+/// Concatenates an array of `&OsStr` into a new `OsString`.
+pub(crate) fn concat_osstr(input: &[&OsStr]) -> OsString {
+    let mut output = OsString::with_capacity(input.iter().fold(0, |acc, c| acc + c.len()));
+
+    input.iter().for_each(|comp| output.push(comp));
+    output
+}
+
+pub(crate) fn device_maps<F: FnMut(&Path)>(mut action: F) {
+    read_dirs("/dev/mapper", |pv| action(&pv.path())).unwrap()
+}
+
+pub(crate) fn read_dirs<P: AsRef<Path>, F: FnMut(DirEntry)>(
+    path: P,
+    mut action: F,
+) -> io::Result<()> {
+    for entry in path.as_ref().read_dir()? {
+        match entry {
+            Ok(entry) => action(entry),
+            Err(_) => continue,
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) fn resolve_slave(name: &str) -> Option<PathBuf> {
+    let slaves_dir = PathBuf::from(["/sys/class/block/", name, "/slaves/"].concat());
+    if !slaves_dir.exists() {
+        return Some(PathBuf::from(["/dev/", name].concat()));
+    }
+
+    let mut slaves = Vec::new();
+
+    for entry in slaves_dir.read_dir().ok()? {
+        if let Ok(entry) = entry {
+            if let Ok(name) = entry.file_name().into_string() {
+                slaves.push(name);
+            }
+        }
+    }
+
+    if slaves.len() == 1 {
+        return Some(PathBuf::from(["/dev/", &slaves[0]].concat()));
     }
 
     None

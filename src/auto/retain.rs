@@ -114,7 +114,8 @@ impl<'a> Backup<'a> {
                 None
             };
 
-            let networks = base.join("etc/NetworkManager/system-connections/")
+            let networks = base
+                .join("etc/NetworkManager/system-connections/")
                 .read_dir()
                 .ok()
                 .map(|directory| {

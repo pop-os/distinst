@@ -161,6 +161,8 @@ pub enum InstallOptionError {
     DiskError { why: DiskError },
     #[fail(display = "error generating volume group ID: {}", why)]
     GenerateID { why: io::Error },
+    #[fail(display = "recovery does not have LVM partition")]
+    RecoveryNoLvm,
 }
 
 impl From<DiskError> for InstallOptionError {
