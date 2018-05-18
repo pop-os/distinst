@@ -58,3 +58,48 @@ impl<'a> EnvFile<'a> {
         write(&self.path, &buffer)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempdir::TempDir;
+    use std::collections::BTreeMap;
+    use std::fs::File;
+    use std::io::Write;
+
+    const SAMPLE: &str = r#"HOSTNAME=pop-testing
+LANG=en_US.UTF-8
+KBD_LAYOUT=us
+KBD_MODEL=
+KBD_VARIANT=
+EFI_UUID=DFFD-D047
+RECOVERY_UUID=8DB5-AFF3
+ROOT_UUID=2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c
+OEM_MODE=0"#;
+
+    #[test]
+    fn env_file() {
+        let tempdir = TempDir::new("distinst_test").unwrap();
+        let path = &tempdir.path().join("recovery.conf");
+
+        {
+            let mut file = File::create(path).unwrap();
+            file.write_all(SAMPLE.as_bytes()).unwrap();
+        }
+
+        let env = EnvFile::new(path).unwrap();
+        assert_eq!(&env.store, &{
+            let mut map = BTreeMap::new();
+            map.insert("HOSTNAME".into(), "pop-testing".into());
+            map.insert("LANG".into(), "en_US.UTF-8".into());
+            map.insert("KBD_LAYOUT".into(), "us".into());
+            map.insert("KBD_MODEL".into(), "".into());
+            map.insert("KBD_VARIANT".into(), "".into());
+            map.insert("EFI_UUID".into(), "DFFD-D047".into());
+            map.insert("RECOVERY_UUID".into(), "8DB5-AFF3".into());
+            map.insert("ROOT_UUID".into(), "2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c".into());
+            map.insert("OEM_MODE".into(), "0".into());
+            map
+        });
+    }
+}
