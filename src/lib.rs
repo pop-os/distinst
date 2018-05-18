@@ -34,7 +34,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT};
 use std::thread::sleep;
 use std::time::Duration;
 use tempdir::TempDir;
@@ -64,8 +64,8 @@ use envfile::EnvFile;
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
 
-/// Force the installation to perform a BIOS install, even if on an EFI system.
-pub static FORCE_BIOS: AtomicBool = ATOMIC_BOOL_INIT;
+/// Force the installation to perform either a BIOS or EFI installation.
+pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
 
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;

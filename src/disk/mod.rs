@@ -17,7 +17,7 @@ use libparted::{Device, DiskType as PedDiskType};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
-use super::FORCE_BIOS;
+use super::FORCE_BOOTLOADER;
 
 /// Bootloader type
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -29,8 +29,14 @@ pub enum Bootloader {
 impl Bootloader {
     /// Detects whether the system is running from EFI.
     pub fn detect() -> Bootloader {
-        if FORCE_BIOS.load(Ordering::SeqCst) {
-            return Bootloader::Bios;
+        match FORCE_BOOTLOADER.load(Ordering::SeqCst) {
+            1 => {
+                return Bootloader::Bios;
+            }
+            2 => {
+                return Bootloader::Efi;
+            }
+            _ => ()
         }
 
         if Path::new("/sys/firmware/efi").is_dir() {

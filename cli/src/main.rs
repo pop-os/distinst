@@ -10,7 +10,7 @@ use clap::{App, Arg, ArgMatches, Values};
 use distinst::{
     Config, Disk, DiskError, DiskExt, Disks, FileSystemType, Installer, LvmEncryption,
     PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step,
-    KILL_SWITCH, PARTITIONING_TEST, FORCE_BIOS
+    KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER
 };
 
 use pbr::ProgressBar;
@@ -179,6 +179,11 @@ fn main() {
                 .help("performs a BIOS installation even if the running system is EFI")
         )
         .arg(
+            Arg::with_name("force-efi")
+                .long("force-efi")
+                .help("performs an EFI installation even if the running system is BIOS")
+        )
+        .arg(
             Arg::with_name("delete")
                 .short("d")
                 .long("delete")
@@ -304,7 +309,9 @@ fn main() {
         }
 
         if matches.occurrences_of("force-bios") != 0 {
-            FORCE_BIOS.store(true, Ordering::SeqCst);
+            FORCE_BOOTLOADER.store(1, Ordering::SeqCst);
+        } else if matches.occurrences_of("force-efi") != 0 {
+            FORCE_BOOTLOADER.store(2, Ordering::SeqCst);
         }
 
         fn take_optional_string(argument: Option<&str>) -> Option<String> {
