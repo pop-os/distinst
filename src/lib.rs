@@ -14,12 +14,12 @@ extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
+extern crate gettextrs;
+extern crate iso3166_1;
+extern crate isolang;
 extern crate rand;
 extern crate raw_cpuid;
 extern crate tempdir;
-extern crate gettextrs;
-extern crate isolang;
-extern crate iso3166_1;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_xml_rs;
@@ -43,15 +43,15 @@ pub use chroot::Chroot;
 pub use disk::mount::{Mount, Mounts};
 pub use disk::{
     generate_unique_id, Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks,
-    FileSystemType, LvmDevice, LvmEncryption, OS, PartitionBuilder, PartitionError, PartitionFlag,
-    PartitionInfo, PartitionTable, PartitionType, Sector,
+    FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag,
+    PartitionInfo, PartitionTable, PartitionType, Sector, OS,
 };
 
 pub mod auto;
 mod chroot;
 mod disk;
-mod hardware_support;
 mod envfile;
+mod hardware_support;
 pub mod hostname;
 pub mod locale;
 mod logger;
@@ -518,7 +518,11 @@ impl Installer {
             info!("libdistinst: applying LVM initramfs autodetect workaround");
             fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
             let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
-            file_create!(lvm_fix, 0o1755, [include_bytes!("scripts/lvm-workaround.sh")])
+            file_create!(
+                lvm_fix,
+                0o1755,
+                [include_bytes!("scripts/lvm-workaround.sh")]
+            )
         }
 
         callback(30);
@@ -530,7 +534,10 @@ impl Installer {
             file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
 
             info!("libdistinst: writing /etc/fstab");
-            file_create!(mount_dir.join("etc/fstab"), [FSTAB_HEADER, fstab.as_bytes()]);
+            file_create!(
+                mount_dir.join("etc/fstab"),
+                [FSTAB_HEADER, fstab.as_bytes()]
+            );
         }
 
         callback(60);
@@ -941,13 +948,24 @@ fn update_recovery_config(mount: &Path, root_uuid: &str) -> io::Result<()> {
         Ok(())
     }
 
-    let recovery_conf = EnvFile::new(Path::new("/cdrom/recovery.conf"));
-    if recovery_conf.exists() {
+    let recovery_path = Path::new("/cdrom/recovery.conf");
+    if recovery_path.exists() {
+        let recovery_conf = &mut EnvFile::new(recovery_path)?;
         remount_rw("/cdrom")
-            .and_then(|_| recovery_conf.update("OEM_MODE", "0"))
-            .and_then(|_| recovery_conf.get("ROOT_UUID"))
-            .and_then(|ref old_uuid| remove_boot(mount, old_uuid))
-            .and_then(|_| recovery_conf.update("ROOT_UUID", root_uuid))?;
+            .and_then(|_| {
+                recovery_conf.update("OEM_MODE", "0");
+                recovery_conf.get("ROOT_UUID").ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "no ROOT_UUID found in /cdrom/recovery.conf",
+                    )
+                })
+            })
+            .and_then(|old_uuid| remove_boot(mount, old_uuid))
+            .and_then(|_| {
+                recovery_conf.update("ROOT_UUID", root_uuid);
+                recovery_conf.write()
+            })?;
     }
 
     Ok(())

@@ -1,55 +1,60 @@
-use std::io::{self, BufRead, Cursor};
+use std::collections::BTreeMap;
+use std::io;
 use std::path::Path;
 use std::str;
 
 use misc::{read, write};
 
-pub(crate) struct EnvFile<'a>(&'a Path);
+pub(crate) struct EnvFile<'a> {
+    path:  &'a Path,
+    store: BTreeMap<String, String>,
+}
 
 impl<'a> EnvFile<'a> {
-    pub fn new(path: &'a Path) -> EnvFile<'a> {
-        EnvFile(path)
+    pub fn new(path: &'a Path) -> io::Result<EnvFile<'a>> {
+        let data = read(path)?;
+        let mut store = BTreeMap::new();
+
+        let values = data.split(|&x| x == b'\n').flat_map(|entry| {
+            let fields = &mut entry.split(|&x| x == b'=');
+            fields
+                .next()
+                .and_then(|x| String::from_utf8(x.to_owned()).ok())
+                .and_then(|x| {
+                    fields
+                        .next()
+                        .and_then(|x| String::from_utf8(x.to_owned()).ok())
+                        .map(|y| (x, y))
+                })
+        });
+
+        for (key, value) in values {
+            store.insert(key, value);
+        }
+
+        Ok(EnvFile { path, store })
     }
 
-    pub fn update(&self, key: &str, value: &str) -> io::Result<()> {
+    pub fn update(&mut self, key: &str, value: &str) {
         info!("libdistinst: updating {} with {} in env file", key, value);
-        read(self.0)
-            .and_then(|data| replace_env(data, key, value))
-            .and_then(|ref new_data| write(self.0, new_data))
+        self.store.insert(key.into(), value.into());
     }
 
-    pub fn get(&self, key: &str) -> io::Result<String> {
+    pub fn get(&self, key: &str) -> Option<&str> {
         info!("libdistinst: getting {} from env file", key);
-        read(self.0).and_then(|data| get_env(data, key))
+        self.store.get(key).as_ref().map(|x| x.as_str())
     }
 
-    pub fn exists(&self) -> bool { self.0.exists() }
-}
-
-fn get_env(buffer: Vec<u8>, key: &str) -> io::Result<String> {
-    for line in Cursor::new(buffer).lines() {
-        let line = line?;
-        if line.starts_with(&[key, "="].concat()) {
-            return Ok(line[key.len() + 1..].into())
+    pub fn write(&mut self) -> io::Result<()> {
+        info!("libdistinst: writing recovery changes");
+        let mut buffer = Vec::with_capacity(1024);
+        for (key, value) in self.store.iter() {
+            buffer.extend_from_slice(key.as_bytes());
+            buffer.push(b'=');
+            buffer.extend_from_slice(value.as_bytes());
+            buffer.push(b'\n');
         }
+
+        write(&self.path, &buffer)
     }
-
-    Err(io::Error::new(io::ErrorKind::NotFound, "key not found in env file"))
-}
-
-fn replace_env(buffer: Vec<u8>, key: &str, value: &str) -> io::Result<Vec<u8>> {
-    let mut new_buffer = Vec::with_capacity(buffer.len());
-    for line in Cursor::new(buffer).lines() {
-        let line = line?;
-        if line.starts_with(&[key, "="].concat()) {
-            new_buffer.extend_from_slice(key.as_bytes());
-            new_buffer.push(b'=');
-            new_buffer.extend_from_slice(value.as_bytes());
-        } else {
-            new_buffer.extend_from_slice(line.as_bytes());
-        }
-        new_buffer.push(b'\n');
-    }
-
-    Ok(new_buffer)
 }

@@ -2,12 +2,16 @@ use std::fmt;
 use std::mem;
 
 use super::super::super::*;
-use super::{EraseOption, InstallOptionError, RefreshOption};
+use super::{EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
 
 pub enum InstallOption<'a> {
     RefreshOption(&'a RefreshOption),
     EraseOption {
         option:   &'a EraseOption,
+        password: Option<String>,
+    },
+    RecoveryOption {
+        option:   &'a RecoveryOption,
         password: Option<String>,
     },
 }
@@ -18,6 +22,7 @@ impl<'a> fmt::Debug for InstallOption<'a> {
             InstallOption::RefreshOption(ref option) => {
                 write!(f, "InstallOption::RefreshOption({:?})", option)
             }
+            InstallOption::RecoveryOption { .. } => write!(f, "InstallOption::RecoveryOption"),
             InstallOption::EraseOption { ref option, .. } => write!(
                 f,
                 "InstallOption::EraseOption {{ option: {:?}, password: hidden }}",
@@ -68,6 +73,9 @@ impl<'a> InstallOption<'a> {
                     )?;
                     recovery.set_mount("/recovery".into());
                 }
+            }
+            InstallOption::RecoveryOption { option, password } => {
+                // TODO: Do nothing, for now.
             }
             // Reset the `disks` object and designate a disk to be wiped and installed.
             InstallOption::EraseOption { option, password } => {

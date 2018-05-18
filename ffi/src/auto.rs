@@ -1,7 +1,7 @@
 use libc;
 
 use super::{gen_object_ptr, get_str, DistinstDisks};
-use distinst::auto::{EraseOption, InstallOption, InstallOptions, RefreshOption};
+use distinst::auto::{EraseOption, InstallOption, InstallOptions, RecoveryOption, RefreshOption};
 use distinst::Disks;
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
@@ -111,33 +111,150 @@ pub unsafe extern "C" fn distinst_erase_option_meets_requirements(
 }
 
 #[repr(C)]
+pub struct DistinstRecoveryOption;
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_efi_uuid(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RecoveryOption);
+    let output = option.efi_uuid.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_hostname(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RecoveryOption);
+    let output = option.hostname.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_kbd_layout(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RecoveryOption);
+    let output = option.kbd_layout.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_language(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RecoveryOption);
+    let output = option.language.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_recovery_uuid(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RecoveryOption);
+    let output = option.recovery_uuid.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_root_uuid(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RecoveryOption);
+    let output = option.root_uuid.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_kbd_model(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RecoveryOption);
+    match option.kbd_model.as_ref() {
+        Some(ref kbd_model) => {
+            let output = kbd_model.as_bytes();
+            *len = output.len() as libc::c_int;
+            output.as_ptr()
+        }
+        None => ptr::null(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_kbd_variant(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RecoveryOption);
+    match option.kbd_variant.as_ref() {
+        Some(ref kbd_variant) => {
+            let output = kbd_variant.as_bytes();
+            *len = output.len() as libc::c_int;
+            output.as_ptr()
+        }
+        None => ptr::null(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_oem_mode(
+    option: *const DistinstRecoveryOption,
+) -> bool {
+    let option = &*(option as *const RecoveryOption);
+    option.oem_mode
+}
+
+#[repr(C)]
 pub enum DISTINST_INSTALL_OPTION_VARIANT {
     REFRESH,
     ERASE,
+    RECOVERY,
 }
 
 #[repr(C)]
 pub struct DistinstInstallOption {
-    tag:            DISTINST_INSTALL_OPTION_VARIANT,
-    refresh_option: *const DistinstRefreshOption,
-    erase_option:   *const DistinstEraseOption,
-    erase_pass:     *const libc::c_char,
+    tag:          DISTINST_INSTALL_OPTION_VARIANT,
+    option:       *const libc::c_void,
+    encrypt_pass: *const libc::c_char,
 }
 
 impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
     fn from(opt: &'a DistinstInstallOption) -> InstallOption<'a> {
+        let get_passwd = || {
+            if opt.encrypt_pass.is_null() {
+                None
+            } else {
+                get_str(opt.encrypt_pass, "").ok().map(String::from)
+            }
+        };
+
         unsafe {
             match opt.tag {
+                DISTINST_INSTALL_OPTION_VARIANT::RECOVERY => InstallOption::RecoveryOption {
+                    option:   &*(opt.option as *const RecoveryOption),
+                    password: get_passwd(),
+                },
                 DISTINST_INSTALL_OPTION_VARIANT::REFRESH => {
-                    InstallOption::RefreshOption(&*(opt.refresh_option as *const RefreshOption))
+                    InstallOption::RefreshOption(&*(opt.option as *const RefreshOption))
                 }
                 DISTINST_INSTALL_OPTION_VARIANT::ERASE => InstallOption::EraseOption {
-                    option:   &*(opt.erase_option as *const EraseOption),
-                    password: if opt.erase_pass.is_null() {
-                        None
-                    } else {
-                        get_str(opt.erase_pass, "").ok().map(String::from)
-                    },
+                    option:   &*(opt.option as *const EraseOption),
+                    password: get_passwd(),
                 },
             }
         }
@@ -147,10 +264,9 @@ impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_install_option_new() -> *mut DistinstInstallOption {
     Box::into_raw(Box::new(DistinstInstallOption {
-        tag:            DISTINST_INSTALL_OPTION_VARIANT::ERASE,
-        refresh_option: ptr::null(),
-        erase_option:   ptr::null(),
-        erase_pass:     ptr::null(),
+        tag:          DISTINST_INSTALL_OPTION_VARIANT::ERASE,
+        option:       ptr::null(),
+        encrypt_pass: ptr::null(),
     }))
 }
 
@@ -226,4 +342,16 @@ pub unsafe extern "C" fn distinst_install_options_get_erase_options(
 
     *len = output.len() as libc::c_int;
     Box::into_raw(output.into_boxed_slice()) as *mut *const DistinstEraseOption
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_get_recovery_option(
+    options: *const DistinstInstallOptions,
+) -> *const DistinstRecoveryOption {
+    let options = &*(options as *const InstallOptions);
+    options
+        .recovery_option
+        .as_ref()
+        .map(|opt| opt as *const RecoveryOption as *const DistinstRecoveryOption)
+        .unwrap_or(ptr::null())
 }

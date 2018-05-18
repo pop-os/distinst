@@ -131,6 +131,19 @@ namespace Distinst {
         public unowned uint8[] get_root_part ();
     }
 
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
+    public class RecoveryOption {
+        public unowned uint8[] get_efi_uuid ();
+        public unowned uint8[] get_recovery_uuid ();
+        public unowned uint8[] get_root_uuid ();
+        public unowned uint8[] get_hostname ();
+        public unowned uint8[] get_kbd_layout ();
+        public unowned uint8[]? get_kbd_model ();
+        public unowned uint8[]? get_kbd_variant ();
+        public unowned uint8[] get_language ();
+        public bool get_oem_mode ();
+    }
+
     /**
      * Converts into an ADT within the backend to select an installation option to use.
      */
@@ -143,17 +156,17 @@ namespace Distinst {
          */
         public InstallOptionVariant tag;
         /**
-         * A possible refresh option.
+         * Available valid values are:
+         *
+         * - EraseOption
+         * - RecoveryOption
+         * - RefreshOption
          */
-        public RefreshOption refresh_option;
-        /**
-         * A possible erase and install option.
-         */
-        public EraseOption erase_option;
+        public void* option;
         /**
          * The encryption password to optionally use with an erase and install option.
          */
-        public string erase_pass;
+        public string? encrypt_pass;
 
         /**
          * Applies the stored option to the given disks object.
@@ -174,6 +187,7 @@ namespace Distinst {
          * flag for each erase option collected.
          */
         public InstallOptions (Disks disks, uint64 required);
+        public RecoveryOption? get_recovery_option ();
         /**
          * Gets a boxed array of refresh installation options that were collected.
          */
