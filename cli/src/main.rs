@@ -174,6 +174,16 @@ fn main() {
                 .help("simply test whether the provided arguments pass the partitioning stage"),
         )
         .arg(
+            Arg::with_name("hardware-support")
+                .long("hardware-support")
+                .help("install hardware support packages based on detected hardware")
+        )
+        .arg(
+            Arg::with_name("modify-boot")
+                .long("modify-boot")
+                .help("modify the boot order after installing")
+        )
+        .arg(
             Arg::with_name("force-bios")
                 .long("force-bios")
                 .help("performs a BIOS installation even if the running system is EFI")
@@ -303,8 +313,7 @@ fn main() {
 
         configure_signal_handling();
 
-        let testing = matches.occurrences_of("test") != 0;
-        if testing {
+        if matches.occurrences_of("test") != 0 {
             PARTITIONING_TEST.store(true, Ordering::SeqCst);
         }
 
@@ -323,10 +332,22 @@ fn main() {
         installer.install(
             disks,
             &Config {
-                flags:            if testing {
-                    0
-                } else {
-                    distinst::MODIFY_BOOT_ORDER | distinst::INSTALL_HARDWARE_SUPPORT
+                flags: {
+                    let mut flags = 0;
+
+                    flags += if matches.occurrences_of("modify-boot") != 0 {
+                        distinst::MODIFY_BOOT_ORDER
+                    } else {
+                        0
+                    };
+
+                    flags += if matches.occurrences_of("hardware-support") != 0 {
+                        distinst::INSTALL_HARDWARE_SUPPORT
+                    } else {
+                        0
+                    };
+
+                    flags
                 },
                 hostname:         hostname.into(),
                 keyboard_layout:  keyboard.next().map(String::from).unwrap(),
