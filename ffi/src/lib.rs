@@ -71,6 +71,11 @@ pub extern "C" fn distinst_device_layout_hash() -> libc::uint64_t {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_device_map_exists(name: *const libc::c_char) -> bool {
+    get_str(name, "").ok().map_or(false, |name| distinst::device_map_exists(name))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_generate_unique_id(
     prefix: *const libc::c_char,
 ) -> *mut libc::c_char {

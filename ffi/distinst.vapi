@@ -229,6 +229,11 @@ namespace Distinst {
     public uint64 device_layout_hash ();
 
     /**
+     * Returns true if the device name already exists
+     */
+    public bool device_map_exists ();
+
+    /**
      * Obtains the default locale associated with a language.
      */
     public string? locale_get_default (string lang);

@@ -24,7 +24,7 @@ extern crate tempdir;
 extern crate serde_derive;
 extern crate serde_xml_rs;
 
-use disk::external::{blockdev, pvs, remount_rw, vgactivate, vgdeactivate};
+use disk::external::{blockdev, dmlist, pvs, remount_rw, vgactivate, vgdeactivate};
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
@@ -111,6 +111,11 @@ pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
         }
         Err(err) => Err(err),
     }
+}
+
+/// Checks if the given name already exists as a device in the device map list.
+pub fn device_map_exists(name: &str) -> bool {
+    dmlist().ok().map_or(false, |list| list.contains(&name.into()))
 }
 
 /// Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
