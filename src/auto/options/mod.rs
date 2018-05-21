@@ -1,14 +1,19 @@
 //! Generate a list of installation options based on what already exists on the disk.
 
 mod apply;
+mod erase_option;
+mod recovery_option;
+mod refresh_option;
 
 pub use self::apply::*;
+pub use self::erase_option::*;
+pub use self::recovery_option::*;
+pub use self::refresh_option::*;
 
-use std::fmt;
 use std::path::PathBuf;
 
 use super::super::*;
-use misc::{from_uuid, get_uuid};
+use misc::get_uuid;
 
 #[derive(Debug)]
 pub struct InstallOptions {
@@ -118,38 +123,6 @@ impl InstallOptions {
     }
 }
 
-const RECOVERY_CONF: &'static str = "/cdrom/recovery.conf";
-
-fn detect_recovery() -> Option<RecoveryOption> {
-    let recovery_path = Path::new(RECOVERY_CONF);
-    if recovery_path.exists() {
-        let env = match EnvFile::new(recovery_path) {
-            Ok(env) => env,
-            Err(why) => {
-                warn!(
-                    "libdistinst: unable to read recovery configuration: {}",
-                    why
-                );
-                return None;
-            }
-        };
-
-        return Some(RecoveryOption {
-            hostname:      env.get("HOSTNAME")?.to_owned(),
-            language:      env.get("LANG")?.to_owned(),
-            kbd_layout:    env.get("KBD_LAYOUT")?.to_owned(),
-            kbd_model:     env.get("KBD_MODEL").map(|x| x.to_owned()),
-            kbd_variant:   env.get("KBD_VARIANT").map(|x| x.to_owned()),
-            efi_uuid:      env.get("EFI_UUID").map(|x| x.to_owned()),
-            recovery_uuid: env.get("RECOVERY_UUID")?.to_owned(),
-            root_uuid:     env.get("ROOT_UUID")?.to_owned(),
-            oem_mode:      env.get("OEM_MODE").map_or(false, |oem| oem == "1"),
-        });
-    }
-
-    None
-}
-
 #[derive(Debug, Fail)]
 pub enum InstallOptionError {
     #[fail(display = "partition ({}) was not found in disks object", uuid)]
@@ -168,81 +141,4 @@ pub enum InstallOptionError {
 
 impl From<DiskError> for InstallOptionError {
     fn from(why: DiskError) -> InstallOptionError { InstallOptionError::DiskError { why } }
-}
-
-#[derive(Debug)]
-pub struct RecoveryOption {
-    pub efi_uuid:      Option<String>,
-    pub hostname:      String,
-    pub kbd_layout:    String,
-    pub kbd_model:     Option<String>,
-    pub kbd_variant:   Option<String>,
-    pub language:      String,
-    pub oem_mode:      bool,
-    pub recovery_uuid: String,
-    pub root_uuid:     String,
-}
-
-pub const IS_ROTATIONAL: u8 = 1;
-pub const IS_REMOVABLE: u8 = 2;
-pub const MEETS_REQUIREMENTS: u8 = 3;
-
-#[derive(Debug)]
-pub struct EraseOption {
-    pub device:  PathBuf,
-    pub model:   String,
-    pub sectors: u64,
-    pub flags:   u8,
-}
-
-impl fmt::Display for EraseOption {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Erase and Install to {} ({})",
-            self.model,
-            self.device.display()
-        )
-    }
-}
-
-impl EraseOption {
-    pub fn is_rotational(&self) -> bool { self.flags & IS_ROTATIONAL != 0 }
-
-    pub fn is_removable(&self) -> bool { self.flags & IS_REMOVABLE != 0 }
-
-    pub fn meets_requirements(&self) -> bool { self.flags & MEETS_REQUIREMENTS != 0 }
-
-    pub fn get_linux_icon(&self) -> &'static str {
-        const BOTH: u8 = IS_ROTATIONAL | IS_REMOVABLE;
-        match self.flags & BOTH {
-            BOTH => "drive-harddisk-usb",
-            IS_ROTATIONAL => "drive-harddisk-scsi",
-            IS_REMOVABLE => "drive-removable-media-usb",
-            0 => "drive-harddisk-solidstate",
-            _ => unreachable!("get_linux_icon(): branch not handled"),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct RefreshOption {
-    pub os_name:        String,
-    pub os_pretty_name: String,
-    pub os_version:     String,
-    pub root_part:      String,
-    pub home_part:      Option<String>,
-    pub efi_part:       Option<String>,
-    pub recovery_part:  Option<String>,
-}
-
-impl fmt::Display for RefreshOption {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let root_part: String = match from_uuid(&self.root_part) {
-            Some(uuid) => uuid.to_string_lossy().into(),
-            None => "None".into(),
-        };
-
-        write!(f, "Refresh {} on {}", self.os_name, root_part)
-    }
 }
