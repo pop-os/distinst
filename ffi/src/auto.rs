@@ -21,6 +21,17 @@ pub unsafe extern "C" fn distinst_refresh_option_get_os_name(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_refresh_option_get_os_pretty_name(
+    option: *const DistinstRefreshOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const RefreshOption);
+    let output = option.os_pretty_name.as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_refresh_option_get_os_version(
     option: *const DistinstRefreshOption,
     len: *mut libc::c_int,

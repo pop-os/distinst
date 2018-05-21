@@ -123,6 +123,10 @@ namespace Distinst {
          */
         public unowned uint8[] get_os_name ();
         /**
+         * The OS pretty name obtained from the disk.
+         */
+        public unowned uint8[] get_os_pretty_name ();
+        /**
          * The OS version string obtained from the disk.
          */
         public unowned uint8[] get_os_version ();

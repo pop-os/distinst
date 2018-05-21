@@ -43,13 +43,14 @@ impl InstallOptions {
                                 efi,
                                 recovery,
                             } => refresh_options.push(RefreshOption {
-                                os_name:       info.pretty_name,
-                                os_version:    info.version,
-                                root_part:     get_uuid(part.get_device_path())
+                                os_name:        info.name,
+                                os_pretty_name: info.pretty_name,
+                                os_version:     info.version,
+                                root_part:      get_uuid(part.get_device_path())
                                     .expect("root device did not have uuid"),
-                                home_part:     home,
-                                efi_part:      efi,
-                                recovery_part: recovery,
+                                home_part:      home,
+                                efi_part:       efi,
+                                recovery_part:  recovery,
                             }),
                             _ => (),
                         },
@@ -226,12 +227,13 @@ impl EraseOption {
 
 #[derive(Debug)]
 pub struct RefreshOption {
-    pub os_name:       String,
-    pub os_version:    String,
-    pub root_part:     String,
-    pub home_part:     Option<String>,
-    pub efi_part:      Option<String>,
-    pub recovery_part: Option<String>,
+    pub os_name:        String,
+    pub os_pretty_name: String,
+    pub os_version:     String,
+    pub root_part:      String,
+    pub home_part:      Option<String>,
+    pub efi_part:       Option<String>,
+    pub recovery_part:  Option<String>,
 }
 
 impl fmt::Display for RefreshOption {
