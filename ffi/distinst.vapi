@@ -846,6 +846,5 @@ namespace Distinst {
         public void emit_status (Distinst.Status error);
         public void on_status (Distinst.StatusCallback callback);
         public int install (owned Distinst.Disks disks, Distinst.Config config);
-        public int install_and_retain_home (owned Distinst.Disks disks, Distinst.Config config);
     }
 }

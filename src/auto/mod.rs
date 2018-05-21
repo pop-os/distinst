@@ -6,7 +6,7 @@ pub(crate) use self::accounts::{AccountFiles, UserData};
 pub use self::options::*;
 pub(crate) use self::retain::*;
 
-use super::{Config, DiskError, Disks, FileSystemType, Installer, Mount};
+use super::{DiskError, FileSystemType, Mount};
 use tempdir::TempDir;
 
 use std::io;
@@ -14,8 +14,6 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Fail)]
 pub enum ReinstallError {
-    #[fail(display = "a pre-existing root partition must be specified")]
-    NoOldRoot,
     #[fail(display = "no root partition found within the disks configuration")]
     NoRootPartition,
     #[fail(display = "partition {:?} has an invalid file system ({:?})", part, fs)]
@@ -44,61 +42,6 @@ pub enum ReinstallError {
 
 impl From<io::Error> for ReinstallError {
     fn from(why: io::Error) -> ReinstallError { ReinstallError::IO { why } }
-}
-
-pub fn install_and_retain_home(
-    installer: &mut Installer,
-    disks: Disks,
-    config: &Config,
-) -> Result<(), ReinstallError> {
-    info!("libdistinst: installing while retaining home");
-    let account_files;
-    let backup;
-    let root_path;
-    let root_fs;
-
-    {
-        let old_root_uuid = config
-            .old_root
-            .as_ref()
-            .ok_or_else(|| ReinstallError::NoOldRoot)?;
-        let current_disks =
-            Disks::probe_devices().map_err(|why| ReinstallError::DiskProbe { why })?;
-        let old_root = current_disks
-            .get_partition_by_uuid(old_root_uuid)
-            .ok_or(ReinstallError::NoRootPartition)?;
-        let new_root = disks
-            .get_partition_with_target(Path::new("/"))
-            .ok_or(ReinstallError::NoRootPartition)?;
-
-        let (home, home_is_root) = disks
-            .get_partition_with_target(Path::new("/home"))
-            .map_or((old_root, true), |p| (p, false));
-
-        if home.will_format() {
-            return Err(ReinstallError::ReformattingHome);
-        }
-
-        let home_path = home.get_device_path();
-        root_path = new_root.get_device_path().to_path_buf();
-        root_fs = new_root
-            .filesystem
-            .ok_or_else(|| ReinstallError::NoFilesystem)?;
-        let old_root_fs = old_root
-            .filesystem
-            .ok_or_else(|| ReinstallError::NoFilesystem)?;
-        let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
-
-        account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
-        backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
-
-        validate_before_removing(&disks, &config.squashfs, home_path, home_fs)?;
-    }
-
-    installer
-        .install(disks, config)
-        .map_err(|why| ReinstallError::Install { why })
-        .and_then(|_| backup.restore(&root_path, root_fs))
 }
 
 fn mount_and_then<T, F>(

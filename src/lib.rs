@@ -60,6 +60,7 @@ mod misc;
 pub mod os_release;
 mod squashfs;
 
+use auto::{validate_before_removing, AccountFiles, Backup, ReinstallError};
 use envfile::EnvFile;
 
 /// When set to true, this will stop the installation process.
@@ -138,6 +139,15 @@ pub enum Step {
     Extract,
     Configure,
     Bootloader,
+}
+
+impl From<ReinstallError> for io::Error {
+    fn from(why: ReinstallError) -> io::Error {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("{}", why)
+        )
+    }
 }
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
@@ -804,7 +814,51 @@ impl Installer {
     /// The `disks` field contains all of the disks configuration information that will be
     /// applied before installation. The `config` field provides configuration details that
     /// will be applied when configuring the new installation.
+    ///
+    /// If `config.old_root` is set, then home at that location will be retained.
     pub fn install(&mut self, mut disks: Disks, config: &Config) -> io::Result<()> {
+        let account_files;
+
+        let backup = if let Some(ref old_root_uuid) = config.old_root {
+            info!("libdistinst: installing while retaining home");
+
+            let current_disks =
+                Disks::probe_devices().map_err(|why| ReinstallError::DiskProbe { why })?;
+            let old_root = current_disks
+                .get_partition_by_uuid(old_root_uuid)
+                .ok_or(ReinstallError::NoRootPartition)?;
+            let new_root = disks
+                .get_partition_with_target(Path::new("/"))
+                .ok_or(ReinstallError::NoRootPartition)?;
+
+            let (home, home_is_root) = disks
+                .get_partition_with_target(Path::new("/home"))
+                .map_or((old_root, true), |p| (p, false));
+
+            if home.will_format() {
+                return Err(ReinstallError::ReformattingHome.into());
+            }
+
+            let home_path = home.get_device_path();
+            let root_path = new_root.get_device_path().to_path_buf();
+            let root_fs = new_root
+                .filesystem
+                .ok_or_else(|| ReinstallError::NoFilesystem)?;
+            let old_root_fs = old_root
+                .filesystem
+                .ok_or_else(|| ReinstallError::NoFilesystem)?;
+            let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
+
+            account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
+            let backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
+
+            validate_before_removing(&disks, &config.squashfs, home_path, home_fs)?;
+
+            Some((backup, root_path, root_fs))
+        } else {
+            None
+        };
+
         if !hostname::is_valid(&config.hostname) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -917,6 +971,10 @@ impl Installer {
             }
 
             mount_dir.close()?;
+        }
+
+        if let Some((backup, root_path, root_fs)) = backup {
+            backup.restore(&root_path, root_fs)?;
         }
 
         Ok(())

@@ -67,11 +67,11 @@ fn main() {
 
             let mut buff = String::new();
             let option = loop {
-                io::stdout()
+                let _ = io::stdout()
                     .write_all(b"Select an option: ")
                     .and_then(|_| io::stdout().flush());
                 let stdin = io::stdin();
-                stdin.lock().read_line(&mut buff);
+                let _ = stdin.lock().read_line(&mut buff);
                 if let Ok(number) = buff[..buff.len() - 1].parse::<usize>() {
                     break number;
                 }
@@ -151,19 +151,10 @@ fn main() {
 
     let _ = log(|level, msg| eprintln!("{:?}: {}", level, msg));
 
-    if config.old_root.is_some() {
-        match install_and_retain_home(&mut installer, disks, &config) {
-            Ok(()) => (),
-            Err(why) => {
-                eprintln!("install failed: {}", why);
-            }
-        }
-    } else {
-        match installer.install(disks, &config) {
-            Ok(()) => (),
-            Err(why) => {
-                eprintln!("install failed: {}", why);
-            }
+    match installer.install(disks, &config) {
+        Ok(()) => (),
+        Err(why) => {
+            eprintln!("install failed: {}", why);
         }
     }
 }
