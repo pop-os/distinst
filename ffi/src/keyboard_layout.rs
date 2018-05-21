@@ -1,6 +1,5 @@
 use distinst::locale::{self, KeyboardLayout, KeyboardLayouts, KeyboardVariant};
 use libc;
-use std::ffi::CString;
 use std::ptr;
 
 #[repr(C)]
@@ -9,23 +8,23 @@ pub struct DistinstKeyboardLayout;
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_layout_get_name(
     keyboard_layout: *const DistinstKeyboardLayout,
-) -> *mut libc::c_char {
+    len: *mut libc::c_int,
+) -> *const u8 {
     let keyboard_layout = &*(keyboard_layout as *const KeyboardLayout);
-    CString::new(keyboard_layout.get_name())
-        .ok()
-        .map(|string| string.into_raw())
-        .unwrap_or(ptr::null_mut())
+    let name = keyboard_layout.get_name().as_bytes();
+    *len = name.len() as libc::c_int;
+    name.as_ptr()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_layout_get_description(
     keyboard_layout: *const DistinstKeyboardLayout,
-) -> *mut libc::c_char {
+    len: *mut libc::c_int,
+) -> *const u8 {
     let keyboard_layout = &*(keyboard_layout as *const KeyboardLayout);
-    CString::new(keyboard_layout.get_description())
-        .ok()
-        .map(|string| string.into_raw())
-        .unwrap_or(ptr::null_mut())
+    let desc = keyboard_layout.get_description().as_bytes();
+    *len = desc.len() as libc::c_int;
+    desc.as_ptr()
 }
 
 #[repr(C)]
@@ -34,23 +33,23 @@ pub struct DistinstKeyboardVariant;
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_variant_get_name(
     keyboard_variant: *const DistinstKeyboardVariant,
-) -> *mut libc::c_char {
+    len: *mut libc::c_int,
+) -> *const u8 {
     let keyboard_variant = &*(keyboard_variant as *const KeyboardVariant);
-    CString::new(keyboard_variant.get_name())
-        .ok()
-        .map(|string| string.into_raw())
-        .unwrap_or(ptr::null_mut())
+    let name = keyboard_variant.get_name().as_bytes();
+    *len = name.len() as libc::c_int;
+    name.as_ptr()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_keyboard_variant_get_description(
     keyboard_variant: *const DistinstKeyboardVariant,
-) -> *mut libc::c_char {
+    len: *mut libc::c_int,
+) -> *const u8 {
     let keyboard_variant = &*(keyboard_variant as *const KeyboardVariant);
-    CString::new(keyboard_variant.get_description())
-        .ok()
-        .map(|string| string.into_raw())
-        .unwrap_or(ptr::null_mut())
+    let desc = keyboard_variant.get_description().as_bytes();
+    *len = desc.len() as libc::c_int;
+    desc.as_ptr()
 }
 
 #[no_mangle]

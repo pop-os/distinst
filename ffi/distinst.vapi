@@ -205,14 +205,14 @@ namespace Distinst {
 
     [CCode (has_type_id = false, unref_function = "")]
     public class KeyboardVariant {
-        public string get_name ();
-        public string get_description ();
+        public uint8[] get_name ();
+        public uint8[] get_description ();
     }
 
     [CCode (has_type_id = false, unref_function = "")]
     public class KeyboardLayout {
-        public string get_name ();
-        public string get_description ();
+        public uint8[] get_name ();
+        public uint8[] get_description ();
         public KeyboardVariant[] get_variants ();
     }
 
