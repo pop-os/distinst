@@ -3,7 +3,6 @@ use ffi::AsMutPtr;
 use libc;
 
 use super::{get_str, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
-use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
@@ -75,12 +74,12 @@ pub unsafe extern "C" fn distinst_lvm_device_get_device_path(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_model(
     disk: *mut DistinstLvmDevice,
-) -> *mut libc::c_char {
+    len: *mut libc::c_int,
+) -> *const u8 {
     let disk = &mut *(disk as *mut LvmDevice);
-    CString::new(disk.get_model())
-        .ok()
-        .map(|string| string.into_raw())
-        .unwrap_or(ptr::null_mut())
+    let model = disk.get_model();
+    *len = model.len() as libc::c_int;
+    model.as_bytes().as_ptr()
 }
 
 #[no_mangle]

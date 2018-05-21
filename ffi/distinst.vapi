@@ -231,7 +231,7 @@ namespace Distinst {
     /**
      * Obtains the main country for a given language code.
      */
-    public string? locale_get_main_country (string code);
+    public uint8[]? locale_get_main_country (string code);
 
     /**
      * Obtains a list of available language locales.
@@ -246,7 +246,7 @@ namespace Distinst {
     /**
      * Get the name of a language by the ISO 639 language code.
      */
-    public string? locale_get_language_name (string code);
+    public uint8[]? locale_get_language_name (string code);
 
     /**
      * Get the translated name of a language by the ISO 639 language code.
@@ -256,7 +256,7 @@ namespace Distinst {
     /**
      * Get the name of a country by the ISO 3166 country code.
      */
-    public string? locale_get_country_name (string code);
+    public uint8[]? locale_get_country_name (string code);
 
     /**
      * Get the translated name of a country by the ISO 3166 country code,
@@ -416,7 +416,7 @@ namespace Distinst {
         /**
          * If a pre-existing LVM volume group has been assigned, this will return that group's name.
          */
-        public string get_current_lvm_volume_group ();
+        public uint8[] get_current_lvm_volume_group ();
 
         /**
          * Gets the start sector where this partition lies on the disk.
@@ -431,12 +431,12 @@ namespace Distinst {
         /**
          * Gets the name of the partition.
         */
-        public string? get_label ();
+        public uint8[]? get_label ();
 
         /**
          * Gets the mount point of the partition.
         */
-        public string? get_mount_point ();
+        public uint8[]? get_mount_point ();
 
         /**
          * Returns the file system which the partition is formatted with
@@ -574,12 +574,12 @@ namespace Distinst {
         /**
          * Returns the model name of the device, ie: (ATA Samsung 850 EVO)
          */
-        public string? get_model();
+        public uint8[] get_model();
 
         /**
          * Returns the serial of the device, ie: (Samsung_SSD_850_EVO_500GB_S21HNXAG806916N)
          */
-        public string? get_serial();
+        public uint8[] get_serial();
 
         /**
          * Returns the size of the device, in sectors.
@@ -651,7 +651,7 @@ namespace Distinst {
         /**
          * Returns the model name of the device in the format of "LVM <VG>"
          */
-        public string? get_model ();
+        public uint8[] get_model ();
 
         /**
          * Returns the size of the device, in sectors.

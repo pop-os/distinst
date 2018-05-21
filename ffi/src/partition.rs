@@ -285,12 +285,15 @@ pub struct DistinstPartition;
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_current_lvm_volume_group(
     partition: *const DistinstPartition,
-) -> *mut libc::c_char {
+    len: *mut libc::c_int,
+) -> *const u8 {
     let part = &*(partition as *const PartitionInfo);
-    part.get_current_lvm_volume_group()
-        .clone()
-        .and_then(|osstr| CString::new(osstr).ok().map(|string| string.into_raw()))
-        .unwrap_or(ptr::null_mut())
+    if let Some(vg) = part.get_current_lvm_volume_group() {
+        *len = vg.len() as libc::c_int;
+        return vg.as_bytes().as_ptr();
+    }
+
+    ptr::null()
 }
 
 #[no_mangle]
@@ -326,27 +329,30 @@ pub unsafe extern "C" fn distinst_partition_get_file_system(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_label(
     partition: *const DistinstPartition,
-) -> *mut libc::c_char {
+    len: *mut libc::c_int,
+) -> *const u8 {
     let part = &*(partition as *const PartitionInfo);
-    part.name
-        .clone()
-        .and_then(|osstr| CString::new(osstr).ok().map(|string| string.into_raw()))
-        .unwrap_or(ptr::null_mut())
+    if let Some(ref label) = part.name {
+        *len = label.len() as libc::c_int;
+        return label.as_bytes().as_ptr();
+    }
+
+    ptr::null()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_mount_point(
     partition: *const DistinstPartition,
-) -> *mut libc::c_char {
+    len: *mut libc::c_int,
+) -> *const u8 {
     let part = &*(partition as *const PartitionInfo);
-    part.mount_point
-        .clone()
-        .and_then(|path| {
-            CString::new(path.as_os_str().as_bytes())
-                .ok()
-                .map(|string| string.into_raw())
-        })
-        .unwrap_or(ptr::null_mut())
+    if let Some(ref mount) = part.mount_point {
+        let mount = mount.as_os_str();
+        *len = mount.len() as libc::c_int;
+        return mount.as_bytes().as_ptr();
+    }
+
+    ptr::null()
 }
 
 #[no_mangle]

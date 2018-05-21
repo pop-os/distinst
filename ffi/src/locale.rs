@@ -49,12 +49,15 @@ pub unsafe extern "C" fn distinst_locale_get_language_codes(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_locale_get_language_name(
     code: *const libc::c_char,
-) -> *mut libc::c_char {
-    get_str(code, "")
-        .ok()
-        .and_then(locale::get_language_name)
-        .map(|x| to_cstr(x.into()))
-        .unwrap_or(ptr::null_mut())
+    len: *mut libc::c_int,
+) -> *const u8 {
+    match get_str(code, "").ok().and_then(locale::get_language_name) {
+        Some(code) => {
+            *len = code.len() as libc::c_int;
+            code.as_bytes().as_ptr()
+        }
+        None => ptr::null()
+    }
 }
 
 #[no_mangle]
@@ -71,12 +74,15 @@ pub unsafe extern "C" fn distinst_locale_get_language_name_translated(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_locale_get_country_name(
     code: *const libc::c_char,
-) -> *mut libc::c_char {
-    get_str(code, "")
-        .ok()
-        .and_then(locale::get_country_name)
-        .map(|x| to_cstr(x.into()))
-        .unwrap_or(ptr::null_mut())
+    len: *mut libc::c_int,
+) -> *const u8 {
+    match get_str(code, "").ok().and_then(locale::get_country_name) {
+        Some(code) => {
+            *len = code.len() as libc::c_int;
+            code.as_bytes().as_ptr()
+        }
+        None => ptr::null()
+    }
 }
 
 #[no_mangle]
@@ -95,10 +101,13 @@ pub unsafe extern "C" fn distinst_locale_get_country_name_translated(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_locale_get_main_country(
     code: *const libc::c_char,
-) -> *mut libc::c_char {
-    get_str(code, "")
-        .ok()
-        .and_then(locale::get_main_country)
-        .map(|x| to_cstr(x.into()))
-        .unwrap_or(ptr::null_mut())
+    len: *mut libc::c_int,
+) -> *const u8 {
+    match get_str(code, "").ok().and_then(locale::get_main_country) {
+        Some(code) => {
+            *len = code.len() as libc::c_int;
+            code.as_bytes().as_ptr()
+        }
+        None => ptr::null()
+    }
 }
