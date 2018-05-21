@@ -224,6 +224,11 @@ namespace Distinst {
     }
 
     /**
+     * Hashes the contents of `/dev/`; useful for detecting layout changes.
+     */
+    public uint64 device_layout_hash ();
+
+    /**
      * Obtains the default locale associated with a language.
      */
     public string? locale_get_default (string lang);

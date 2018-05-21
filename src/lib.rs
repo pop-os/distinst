@@ -46,6 +46,7 @@ pub use disk::{
     FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType, Sector, OS,
 };
+pub use misc::device_layout_hash;
 
 pub mod auto;
 mod chroot;

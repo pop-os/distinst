@@ -5,6 +5,33 @@ use std::fs::{DirEntry, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
+pub use self::layout::*;
+
+mod layout {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    use std::path::Path;
+
+    pub fn device_layout_hash() -> u64 {
+        let hasher = &mut DefaultHasher::new();
+        if let Ok(dir) = Path::new("/dev/").read_dir() {
+            for entry in dir {
+                if let Ok(entry) = entry {
+                    entry.path().hash(hasher);
+
+                    if let Ok(md) = entry.metadata() {
+                        if let Ok(created) = md.created() {
+                            created.hash(hasher);
+                        }
+                    }
+                }
+            }
+        }
+
+        hasher.finish()
+    }
+}
+
 /// Obtains the UUID of the given device path by resolving symlinks in `/dev/disk/by-uuid`
 /// until the device is found.
 pub fn get_uuid(path: &Path) -> Option<String> {
