@@ -270,11 +270,13 @@ impl<'a> CreatePartitions<'a> {
                 sync(&mut device)?;
             }
 
-            // Open a second instance of the disk which we need to get the new partition ID.
-            let path = get_partition_id(self.device_path, partition.start_sector as i64)?;
-            self.format_partitions
-                .push((path, partition.file_system.clone()
-                    .expect("file system does not exist when creating partition")));
+            if partition.kind != PartitionType::Extended {
+                // Open a second instance of the disk which we need to get the new partition ID.
+                let path = get_partition_id(self.device_path, partition.start_sector as i64)?;
+                self.format_partitions
+                    .push((path, partition.file_system.clone()
+                        .expect("file system does not exist when creating partition")));
+            }
         }
 
         // Attempt to sync three times before returning an error.
@@ -304,6 +306,7 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
     let part_type = match partition.kind {
         PartitionType::Primary => PedPartitionType::PED_PARTITION_NORMAL,
         PartitionType::Logical => PedPartitionType::PED_PARTITION_LOGICAL,
+        PartitionType::Extended => PedPartitionType::PED_PARTITION_EXTENDED
     };
 
     // Open the disk, create the new partition, and add it to the disk.

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 pub struct PartitionBuilder {
     pub(crate) start_sector: u64,
     pub(crate) end_sector:   u64,
-    pub(crate) filesystem:   FileSystemType,
+    pub(crate) filesystem:   Option<FileSystemType>,
     pub(crate) part_type:    PartitionType,
     pub(crate) name:         Option<String>,
     pub(crate) flags:        Vec<PartitionFlag>,
@@ -16,11 +16,11 @@ pub struct PartitionBuilder {
 
 impl PartitionBuilder {
     /// Creates a new partition builder.
-    pub fn new(start: u64, end: u64, fs: FileSystemType) -> PartitionBuilder {
+    pub fn new<O: Into<Option<FileSystemType>>>(start: u64, end: u64, fs: O) -> PartitionBuilder {
         PartitionBuilder {
             start_sector: start,
             end_sector:   end - 1,
-            filesystem:   fs,
+            filesystem:   fs.into(),
             part_type:    PartitionType::Primary,
             name:         None,
             flags:        Vec::new(),
@@ -93,7 +93,7 @@ impl PartitionBuilder {
                     Some(FileSystemType::Lvm)
                 }
             } else {
-                Some(self.filesystem)
+                self.filesystem
             },
             flags:        self.flags,
             name:         self.name,

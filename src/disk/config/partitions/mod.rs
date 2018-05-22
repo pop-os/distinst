@@ -99,6 +99,7 @@ impl Into<&'static str> for FileSystemType {
 pub enum PartitionType {
     Primary,
     Logical,
+    Extended,
 }
 
 // Defines that this partition exists in the source.

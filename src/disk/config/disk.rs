@@ -206,6 +206,7 @@ impl Disk {
             .fold((0, 0), |sum, part| match part.part_type {
                 PartitionType::Logical => (sum.0, sum.1 + 1),
                 PartitionType::Primary => (sum.0 + 1, sum.1),
+                PartitionType::Extended => sum
             })
     }
 
@@ -724,8 +725,7 @@ impl Disk {
                 start_sector: partition.start_sector,
                 end_sector:   partition.end_sector,
                 format:       true,
-                file_system:  Some(partition.filesystem.clone()
-                    .expect("no filesystem in partition that is being created")),
+                file_system:  partition.filesystem.clone(),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
                 label:        partition.name.clone(),
