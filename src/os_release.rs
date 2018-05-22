@@ -1,9 +1,9 @@
-use std::io::{self, BufRead, BufReader};
 use std::fs::File;
+use std::io::{self, BufRead, BufReader};
+use std::path::Path;
 
 lazy_static! {
-    pub static ref OS_RELEASE: OsRelease = OsRelease::new()
-        .expect("unable to find /etc/os-release");
+    pub static ref OS_RELEASE: OsRelease = OsRelease::new().expect("unable to find /etc/os-release");
 }
 
 macro_rules! starts_with_match {
@@ -20,7 +20,7 @@ macro_rules! starts_with_match {
 fn parse_line(line: &str, skip: usize) -> &str {
     let line = line[skip..].trim();
     if line.starts_with('"') && line.ends_with('"') {
-        &line[1.. line.len() - 1]
+        &line[1..line.len() - 1]
     } else {
         line
     }
@@ -28,17 +28,17 @@ fn parse_line(line: &str, skip: usize) -> &str {
 
 #[derive(Debug, Default, PartialEq)]
 pub struct OsRelease {
-    pub name: String,
-    pub version: String,
-    pub id: String,
-    pub id_like: String,
-    pub pretty_name: String,
-    pub version_id: String,
-    pub home_url: String,
-    pub support_url: String,
-    pub bug_report_url: String,
+    pub name:               String,
+    pub version:            String,
+    pub id:                 String,
+    pub id_like:            String,
+    pub pretty_name:        String,
+    pub version_id:         String,
+    pub home_url:           String,
+    pub support_url:        String,
+    pub bug_report_url:     String,
     pub privacy_policy_url: String,
-    pub version_codename: String,
+    pub version_codename:   String,
 }
 
 impl OsRelease {
@@ -68,6 +68,11 @@ impl OsRelease {
         let file = BufReader::new(File::open("/etc/os-release")?);
         Ok(OsRelease::from_iter(file.lines().flat_map(|line| line)))
     }
+
+    pub fn new_from<P: AsRef<Path>>(path: P) -> io::Result<OsRelease> {
+        let file = BufReader::new(File::open(path)?);
+        Ok(OsRelease::from_iter(file.lines().flat_map(|line| line)))
+    }
 }
 
 #[cfg(test)]
@@ -90,18 +95,21 @@ VERSION_CODENAME=bionic"#;
     fn os_release() {
         let os_release = OsRelease::from_iter(EXAMPLE.lines().map(|x| x.into()));
 
-        assert_eq!(os_release, OsRelease {
-            name: "Pop!_OS".into(),
-            version: "18.04 LTS".into(),
-            id: "ubuntu".into(),
-            id_like: "debian".into(),
-            pretty_name: "Pop!_OS 18.04 LTS".into(),
-            version_id: "18.04".into(),
-            home_url: "https://system76.com/pop".into(),
-            support_url: "http://support.system76.com".into(),
-            bug_report_url: "https://github.com/pop-os/pop/issues".into(),
-            privacy_policy_url: "https://system76.com/privacy".into(),
-            version_codename: "bionic".into()
-        })
+        assert_eq!(
+            os_release,
+            OsRelease {
+                name:               "Pop!_OS".into(),
+                version:            "18.04 LTS".into(),
+                id:                 "ubuntu".into(),
+                id_like:            "debian".into(),
+                pretty_name:        "Pop!_OS 18.04 LTS".into(),
+                version_id:         "18.04".into(),
+                home_url:           "https://system76.com/pop".into(),
+                support_url:        "http://support.system76.com".into(),
+                bug_report_url:     "https://github.com/pop-os/pop/issues".into(),
+                privacy_policy_url: "https://system76.com/privacy".into(),
+                version_codename:   "bionic".into(),
+            }
+        )
     }
 }

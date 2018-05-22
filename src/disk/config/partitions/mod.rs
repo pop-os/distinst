@@ -7,15 +7,18 @@ mod usage;
 use self::block_info::BlockInfo;
 pub use self::builder::PartitionBuilder;
 pub use self::limitations::check_partition_size;
+pub use self::os_detect::OS;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
 use super::super::external::{get_label, is_encrypted, pvs};
 use super::super::{LvmEncryption, Mounts, Swaps};
-use super::{get_uuid, PVS};
+use super::PVS;
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use FileSystemType::*;
+use misc::get_uuid;
 
 #[derive(Debug)]
 pub enum PartitionError {
@@ -245,8 +248,18 @@ impl PartitionInfo {
     /// Returns true if the partition is a swap partition.
     pub fn is_swap(&self) -> bool {
         self.filesystem
-            .clone()
-            .map_or(false, |fs| fs == FileSystemType::Swap)
+            .as_ref()
+            .map_or(false, |&fs| fs == FileSystemType::Swap)
+    }
+
+    /// Returns true if the partition is compatible for Linux to be installed on it.
+    pub fn is_linux_compatible(&self) -> bool {
+        self.filesystem
+            .as_ref()
+            .map_or(false, |&fs| match fs {
+                Ntfs | Fat16 | Fat32 | Lvm | Luks | Exfat | Swap => false,
+                Btrfs | Xfs | Ext2 | Ext3 | Ext4 | F2fs => true
+            })
     }
 
     pub fn get_current_lvm_volume_group(&self) -> Option<&str> {
@@ -306,10 +319,19 @@ impl PartitionInfo {
         self.filesystem = Some(fs);
     }
 
+    pub fn is_esp_partition(&self) -> bool {
+        (self.filesystem == Some(Fat16) || self.filesystem == Some(Fat32))
+            && self.flags.contains(&PartitionFlag::PED_PARTITION_ESP)
+    }
+
+    /// Returns true if this partition will be formatted.
+    pub fn will_format(&self) -> bool {
+        self.bitflags & FORMAT != 0
+    }
+
     /// Returns the number of used sectors on the file system that belongs to
     /// this partition.
     pub fn sectors_used(&self, sector_size: u64) -> Option<io::Result<u64>> {
-        use FileSystemType::*;
         self.filesystem.and_then(|fs| match fs {
             Swap | Lvm | Luks | Xfs | F2fs | Exfat => None,
             _ => Some(get_used_sectors(self.get_device_path(), fs, sector_size)),
@@ -318,7 +340,7 @@ impl PartitionInfo {
 
     /// Detects if an OS is installed to this partition, and if so, what the OS
     /// is named.
-    pub fn probe_os(&self) -> Option<(String, Option<PathBuf>)> {
+    pub fn probe_os(&self) -> Option<OS> {
         self.filesystem
             .and_then(|fs| detect_os(self.get_device_path(), fs))
     }

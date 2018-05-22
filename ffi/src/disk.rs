@@ -65,21 +65,24 @@ pub unsafe extern "C" fn distinst_disk_get_device_path(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_get_model(disk: *mut DistinstDisk) -> *mut libc::c_char {
+pub unsafe extern "C" fn distinst_disk_get_model(
+    disk: *mut DistinstDisk,
+    len: *mut libc::c_int,
+) -> *const u8 {
     let disk = &mut *(disk as *mut Disk);
-    CString::new(disk.get_model())
-        .ok()
-        .map(|string| string.into_raw())
-        .unwrap_or(ptr::null_mut())
+    let model = disk.get_model();
+    *len = model.len() as libc::c_int;
+    model.as_bytes().as_ptr()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_get_serial(disk: *mut DistinstDisk) -> *mut libc::c_char {
+pub unsafe extern "C" fn distinst_disk_get_serial(disk: *mut DistinstDisk,
+len: *mut libc::c_int,
+) -> *const u8 {
     let disk = &mut *(disk as *mut Disk);
-    CString::new(disk.get_serial())
-        .ok()
-        .map(|string| string.into_raw())
-        .unwrap_or(ptr::null_mut())
+    let serial = disk.get_serial();
+    *len = serial.len() as libc::c_int;
+    serial.as_bytes().as_ptr()
 }
 
 #[no_mangle]

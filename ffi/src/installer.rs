@@ -139,7 +139,7 @@ pub unsafe extern "C" fn distinst_installer_on_status(
     });
 }
 
-/// Install using this installer
+/// Install using this installer, whilst retaining home & user accounts.
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_install(
     installer: *mut DistinstInstaller,

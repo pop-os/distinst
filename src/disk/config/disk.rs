@@ -750,10 +750,14 @@ impl Disk {
         );
         Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
             source.diff(self).and_then(|ops| {
-                ops.remove()
-                    .and_then(|ops| ops.change())
-                    .and_then(|ops| ops.create())
-                    .and_then(|ops| ops.format())
+                if ops.is_empty() {
+                    Ok(())
+                } else {
+                    ops.remove()
+                        .and_then(|ops| ops.change())
+                        .and_then(|ops| ops.create())
+                        .and_then(|ops| ops.format())
+                }
             })
         })?;
 

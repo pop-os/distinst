@@ -14,17 +14,17 @@ extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
+extern crate gettextrs;
+extern crate iso3166_1;
+extern crate isolang;
 extern crate rand;
 extern crate raw_cpuid;
 extern crate tempdir;
-extern crate gettextrs;
-extern crate isolang;
-extern crate iso3166_1;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_xml_rs;
 
-use disk::external::{blockdev, pvs, remount_rw, vgactivate, vgdeactivate};
+use disk::external::{blockdev, dmlist, pvs, remount_rw, vgactivate, vgdeactivate};
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
@@ -39,26 +39,28 @@ use std::thread::sleep;
 use std::time::Duration;
 use tempdir::TempDir;
 
-pub use automatic::{AutomaticError, Config as AutomaticConfig, InstallOption, InstallOptions};
 pub use chroot::Chroot;
 pub use disk::mount::{Mount, Mounts};
 pub use disk::{
     generate_unique_id, Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks,
     FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag,
-    PartitionInfo, PartitionTable, PartitionType, Sector,
+    PartitionInfo, PartitionTable, PartitionType, Sector, OS,
 };
+pub use misc::device_layout_hash;
 
-mod automatic;
+pub mod auto;
 mod chroot;
 mod disk;
-mod hardware_support;
 mod envfile;
+mod hardware_support;
 pub mod hostname;
 pub mod locale;
 mod logger;
+mod misc;
 pub mod os_release;
 mod squashfs;
 
+use auto::{validate_before_removing, AccountFiles, Backup, ReinstallError};
 use envfile::EnvFile;
 
 /// When set to true, this will stop the installation process.
@@ -111,6 +113,11 @@ pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
     }
 }
 
+/// Checks if the given name already exists as a device in the device map list.
+pub fn device_map_exists(name: &str) -> bool {
+    dmlist().ok().map_or(false, |list| list.contains(&name.into()))
+}
+
 /// Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
 /// return a default value.
 ///
@@ -139,6 +146,15 @@ pub enum Step {
     Bootloader,
 }
 
+impl From<ReinstallError> for io::Error {
+    fn from(why: ReinstallError) -> io::Error {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("{}", why)
+        )
+    }
+}
+
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
 
@@ -153,6 +169,8 @@ pub struct Config {
     pub keyboard_model: Option<String>,
     /// An optional variant of the keyboard (such as "dvorak").
     pub keyboard_variant: Option<String>,
+    /// The UUID of the old root partition, for retaining user accounts.
+    pub old_root: Option<String>,
     /// The locale to use for the installed system.
     pub lang: String,
     /// The file that contains a list of packages to remove.
@@ -519,7 +537,11 @@ impl Installer {
             info!("libdistinst: applying LVM initramfs autodetect workaround");
             fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
             let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
-            file_create!(lvm_fix, 0o1755, [include_bytes!("scripts/lvm-workaround.sh")])
+            file_create!(
+                lvm_fix,
+                0o1755,
+                [include_bytes!("scripts/lvm-workaround.sh")]
+            )
         }
 
         callback(30);
@@ -531,7 +553,10 @@ impl Installer {
             file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
 
             info!("libdistinst: writing /etc/fstab");
-            file_create!(mount_dir.join("etc/fstab"), [FSTAB_HEADER, fstab.as_bytes()]);
+            file_create!(
+                mount_dir.join("etc/fstab"),
+                [FSTAB_HEADER, fstab.as_bytes()]
+            );
         }
 
         callback(60);
@@ -575,7 +600,7 @@ impl Installer {
                     ))?
             };
 
-            let root_uuid = root_entry.uuid.to_str().unwrap();
+            let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid)?;
 
             let mut install_pkgs: Vec<&str> = match bootloader {
@@ -794,7 +819,51 @@ impl Installer {
     /// The `disks` field contains all of the disks configuration information that will be
     /// applied before installation. The `config` field provides configuration details that
     /// will be applied when configuring the new installation.
+    ///
+    /// If `config.old_root` is set, then home at that location will be retained.
     pub fn install(&mut self, mut disks: Disks, config: &Config) -> io::Result<()> {
+        let account_files;
+
+        let backup = if let Some(ref old_root_uuid) = config.old_root {
+            info!("libdistinst: installing while retaining home");
+
+            let current_disks =
+                Disks::probe_devices().map_err(|why| ReinstallError::DiskProbe { why })?;
+            let old_root = current_disks
+                .get_partition_by_uuid(old_root_uuid)
+                .ok_or(ReinstallError::NoRootPartition)?;
+            let new_root = disks
+                .get_partition_with_target(Path::new("/"))
+                .ok_or(ReinstallError::NoRootPartition)?;
+
+            let (home, home_is_root) = disks
+                .get_partition_with_target(Path::new("/home"))
+                .map_or((old_root, true), |p| (p, false));
+
+            if home.will_format() {
+                return Err(ReinstallError::ReformattingHome.into());
+            }
+
+            let home_path = home.get_device_path();
+            let root_path = new_root.get_device_path().to_path_buf();
+            let root_fs = new_root
+                .filesystem
+                .ok_or_else(|| ReinstallError::NoFilesystem)?;
+            let old_root_fs = old_root
+                .filesystem
+                .ok_or_else(|| ReinstallError::NoFilesystem)?;
+            let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
+
+            account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
+            let backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
+
+            validate_before_removing(&disks, &config.squashfs, home_path, home_fs)?;
+
+            Some((backup, root_path, root_fs))
+        } else {
+            None
+        };
+
         if !hostname::is_valid(&config.hostname) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -909,6 +978,10 @@ impl Installer {
             mount_dir.close()?;
         }
 
+        if let Some((backup, root_path, root_fs)) = backup {
+            backup.restore(&root_path, root_fs)?;
+        }
+
         Ok(())
     }
 
@@ -942,13 +1015,24 @@ fn update_recovery_config(mount: &Path, root_uuid: &str) -> io::Result<()> {
         Ok(())
     }
 
-    let recovery_conf = EnvFile::new(Path::new("/cdrom/recovery.conf"));
-    if recovery_conf.exists() {
+    let recovery_path = Path::new("/cdrom/recovery.conf");
+    if recovery_path.exists() {
+        let recovery_conf = &mut EnvFile::new(recovery_path)?;
         remount_rw("/cdrom")
-            .and_then(|_| recovery_conf.update("OEM_MODE", "0"))
-            .and_then(|_| recovery_conf.get("ROOT_UUID"))
-            .and_then(|ref old_uuid| remove_boot(mount, old_uuid))
-            .and_then(|_| recovery_conf.update("ROOT_UUID", root_uuid))?;
+            .and_then(|_| {
+                recovery_conf.update("OEM_MODE", "0");
+                recovery_conf.get("ROOT_UUID").ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "no ROOT_UUID found in /cdrom/recovery.conf",
+                    )
+                })
+            })
+            .and_then(|old_uuid| remove_boot(mount, old_uuid))
+            .and_then(|_| {
+                recovery_conf.update("ROOT_UUID", root_uuid);
+                recovery_conf.write()
+            })?;
     }
 
     Ok(())
