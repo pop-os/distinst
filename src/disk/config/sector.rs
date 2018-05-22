@@ -23,6 +23,10 @@ pub enum Sector {
     Percent(u16),
 }
 
+impl From<u64> for Sector {
+    fn from(sectors: u64) -> Sector { Sector::Unit(sectors) }
+}
+
 impl FromStr for Sector {
     type Err = &'static str;
     fn from_str(input: &str) -> Result<Self, Self::Err> {

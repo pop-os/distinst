@@ -261,14 +261,14 @@ impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
 
         unsafe {
             match opt.tag {
-                DISTINST_INSTALL_OPTION_VARIANT::RECOVERY => InstallOption::RecoveryOption {
+                DISTINST_INSTALL_OPTION_VARIANT::RECOVERY => InstallOption::Recovery {
                     option:   &*(opt.option as *const RecoveryOption),
                     password: get_passwd(),
                 },
                 DISTINST_INSTALL_OPTION_VARIANT::REFRESH => {
-                    InstallOption::RefreshOption(&*(opt.option as *const RefreshOption))
+                    InstallOption::Refresh(&*(opt.option as *const RefreshOption))
                 }
-                DISTINST_INSTALL_OPTION_VARIANT::ERASE => InstallOption::EraseOption {
+                DISTINST_INSTALL_OPTION_VARIANT::ERASE => InstallOption::Erase {
                     option:   &*(opt.option as *const EraseOption),
                     password: get_passwd(),
                 },

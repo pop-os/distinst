@@ -20,8 +20,9 @@ use std::str::FromStr;
 use FileSystemType::*;
 use misc::get_uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum PartitionError {
+    #[fail(display = "shrink value too high")]
     ShrinkValueTooHigh,
 }
 

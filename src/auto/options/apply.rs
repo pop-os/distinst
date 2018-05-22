@@ -2,16 +2,21 @@ use std::fmt;
 use std::mem;
 
 use super::super::super::*;
-use super::{EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
+use super::{AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
 use misc;
 
 pub enum InstallOption<'a> {
-    RefreshOption(&'a RefreshOption),
-    EraseOption {
+    Alongside {
+        option: &'a AlongsideOption,
+        password: Option<String>,
+        sectors: u64,
+    },
+    Refresh(&'a RefreshOption),
+    Erase {
         option:   &'a EraseOption,
         password: Option<String>,
     },
-    RecoveryOption {
+    Recovery {
         option:   &'a RecoveryOption,
         password: Option<String>,
     },
@@ -20,13 +25,16 @@ pub enum InstallOption<'a> {
 impl<'a> fmt::Debug for InstallOption<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            InstallOption::RefreshOption(ref option) => {
+            InstallOption::Alongside { ref option, .. } => {
+                write!(f, "InstallOption::Alongside {{ option: {:?}, .. }}", option)
+            }
+            InstallOption::Refresh(ref option) => {
                 write!(f, "InstallOption::RefreshOption({:?})", option)
             }
-            InstallOption::RecoveryOption { .. } => write!(f, "InstallOption::RecoveryOption"),
-            InstallOption::EraseOption { ref option, .. } => write!(
+            InstallOption::Recovery { .. } => write!(f, "InstallOption::RecoveryOption"),
+            InstallOption::Erase { ref option, .. } => write!(
                 f,
-                "InstallOption::EraseOption {{ option: {:?}, password: hidden }}",
+                "InstallOption::EraseOption {{ option: {:?}, .. }}",
                 option
             ),
         }
@@ -69,21 +77,149 @@ impl<'a> InstallOption<'a> {
     pub fn apply(self, disks: &mut Disks) -> Result<(), InstallOptionError> {
 
         match self {
+            // Install alongside another OS, taking `sectors` from the largest free partition.
+            InstallOption::Alongside { option, password, sectors } => {
+                alongside_config(disks, option, password, sectors)?;
+            }
             // Reuse existing partitions, without making any modifications.
-            InstallOption::RefreshOption(option) => {
+            InstallOption::Refresh(option) => {
                 refresh_config(disks, option)?;
             }
-            InstallOption::RecoveryOption { option, password } => {
+            InstallOption::Recovery { option, password } => {
                 recovery_config(disks, option, password)?;
             }
             // Reset the `disks` object and designate a disk to be wiped and installed.
-            InstallOption::EraseOption { option, password } => {
+            InstallOption::Erase { option, password } => {
                 erase_config(disks, option, password)?;
             }
         }
 
         Ok(())
     }
+}
+
+fn alongside_config(
+    disks: &mut Disks,
+    option: &AlongsideOption,
+    password: Option<String>,
+    sectors: u64
+) -> Result<(), InstallOptionError> {
+    let mut tmp = Disks::new();
+    mem::swap(&mut tmp, disks);
+
+    let mut device = Disk::from_name(&option.device)
+        .ok()
+        .ok_or_else(|| InstallOptionError::DeviceNotFound {
+            path: option.device.clone(),
+        })?;
+
+    let (mut start, end) = {
+        let resize = device.get_partition_mut(option.partition)
+            .ok_or_else(|| InstallOptionError::PartitionNotFoundByID {
+                number: option.partition,
+                device: option.device.clone()
+            })?;
+
+        let end = resize.end_sector;
+        resize.shrink_to(sectors)?;
+        (resize.end_sector + 1, end)
+    };
+
+    let (lvm, root_vg) = match generate_encryption(password)? {
+        Some((enc, root)) => (Some((enc, root.clone())), Some(root)),
+        None => (None, None),
+    };
+
+    let bootloader = Bootloader::detect();
+
+    if bootloader == Bootloader::Efi {
+        let mut create_esp = false;
+
+        {
+            let partitions = device.partitions.iter_mut();
+            match partitions.filter(|p| p.is_esp_partition() && p.sectors() < 819200).next() {
+                Some(esp) => esp.set_mount("/boot/efi".into()),
+                None => create_esp = true
+            }
+        }
+
+        if create_esp {
+            // 500 MiB ESP partition.
+            let esp_end = start + 1024_000;
+
+            device.add_partition(
+                PartitionBuilder::new(
+                    start,
+                    esp_end,
+                    FileSystemType::Fat32
+                ).flag(PartitionFlag::PED_PARTITION_ESP)
+                .mount("/boot/efi".into())
+            )?;
+
+            start = esp_end;
+        }
+
+        // 4096 MiB recovery partition
+        let recovery_end = start + 8388608
+        device.add_partition(
+            PartitionBuilder::new(start, recovery_end, FileSystemType::Fat32)
+                .mount("/recovery")
+                .name("recovery")
+        )?;
+
+        start = recovery_end;
+    } else if lvm.is_some() {
+        /// BIOS systems with an encrypted root must have a separate boot partition.
+        let boot_end = start + 1024_000;
+
+        device.add_partition(
+            PartitionBuilder::new(start, boot_end, FileSystemType::Ext4)
+                .partition_type(PartitionType::Primary)
+                .flag(PartitionFlag::PED_PARTITION_BOOT)
+                .mount("/boot".into())
+        )?;
+
+        start = boot_end;
+    }
+
+    // Configure optionally-encrypted root volume
+    if let Some((enc, root_vg)) = lvm {
+        device.add_partition(
+            PartitionBuilder::new(start, end, FileSystemType::Lvm)
+                .partition_type(PartitionType::Primary)
+                .logical_volume(root_vg, Some(enc))
+        )?;
+    } else {
+        let swap = device.get_sector(Sector::MegabyteFromEnd(4096));
+
+        device.add_partition(
+            PartitionBuilder::new(start, swap, FileSystemType::Ext4)
+                .mount("/".into())
+        ).and_then(|_| device.add_partition::new(swap, end, FileSystemType::Swap));
+    }
+
+    disks.add(device);
+    disks.initialize_volume_groups()?;
+
+    if let Some(root_vg) = root_vg {
+        let lvm_device = disks
+            .get_logical_device_mut(&root_vg)
+            .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
+
+        let start = lvm_device.get_sector(Sector::Start);
+        let swap = lvm_device.get_sector(Sector::MegabyteFromEnd(4096));
+        let end = lvm_device.get_sector(Sector::End);
+
+        lvm_device.add_partition(
+            PartitionBuilder::new(start, swap, FileSystemType::Ext4)
+                .name("root".into())
+                .mount("/".into()),
+        ).and_then(|_| {
+            lvm_device.add_partition(PartitionBuilder::new(swap, end, FileSystemType::Swap)
+        })?;
+    }
+
+    Ok(())
 }
 
 /// Apply a `refresh` config to `disks`.

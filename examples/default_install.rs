@@ -41,7 +41,7 @@ fn main() {
 
             match options.erase_options.iter().find(|opt| &opt.device == disk) {
                 Some(option) => {
-                    let option = InstallOption::EraseOption {
+                    let option = InstallOption::Erase {
                         option,
                         password: args.next(),
                     };
@@ -84,7 +84,7 @@ fn main() {
                     if action.as_str() == "retain" {
                         config.old_root = Some(option.root_part.clone());
                     }
-                    match InstallOption::RefreshOption(option).apply(&mut disks) {
+                    match InstallOption::Refresh(option).apply(&mut disks) {
                         Ok(()) => (),
                         Err(why) => {
                             eprintln!("failed to apply: {}", why);
