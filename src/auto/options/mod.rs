@@ -31,6 +31,30 @@ struct AlongsideData {
     systems: Vec<OS>,
     largest_partition: i32,
     sectors_free: u64,
+    best_free_region: Region
+}
+
+#[derive(Debug)]
+pub struct Region {
+    pub start: u64,
+    pub end: u64,
+}
+
+impl Region {
+    fn new(start: u64, end: u64) -> Region {
+        Region { start, end }
+    }
+
+    fn compare(&mut self, start: u64, end: u64) {
+        if self.size() < end - start {
+            self.start = start;
+            self.end = end;
+        }
+    }
+
+    pub fn size(&self) -> u64 {
+        self.end - self.start
+    }
 }
 
 impl InstallOptions {
@@ -115,6 +139,9 @@ impl InstallOptions {
                     },
                 });
 
+                let mut last_end_sector = 0;
+                let mut best_free_region = Region::new(0, 0);
+
                 for part in device.get_partitions() {
                     if let Some(os) = check_partition(part) {
                         match other_os.entry(device.get_device_path()) {
@@ -123,11 +150,15 @@ impl InstallOptions {
                                 entry.insert(AlongsideData {
                                     systems: vec![os],
                                     largest_partition: -1,
-                                    sectors_free: 0
+                                    sectors_free: 0,
+                                    best_free_region: Region::new(0, 0)
                                 });
                             }
                         }
                     }
+
+                    best_free_region.compare(last_end_sector, part.start_sector);
+                    last_end_sector = part.end_sector;
 
                     if let Some(Ok(used)) = part.sectors_used(512) {
                         let free = part.sectors() - used;
@@ -145,9 +176,24 @@ impl InstallOptions {
                                     systems: Vec::new(),
                                     largest_partition: num,
                                     sectors_free: free,
+                                    best_free_region: Region::new(0, 0),
                                 });
                             }
                         }
+                    }
+                }
+
+                match other_os.entry(device.get_device_path()) {
+                    Entry::Occupied(mut entry) => {
+                        entry.get_mut().best_free_region = best_free_region;
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(AlongsideData {
+                            systems: Vec::new(),
+                            largest_partition: -1,
+                            sectors_free: 0,
+                            best_free_region,
+                        });
                     }
                 }
             }
@@ -166,8 +212,18 @@ impl InstallOptions {
                     alongside_options.push(AlongsideOption {
                         device: device.to_path_buf(),
                         alongside: data.systems[0].clone(),
-                        partition: data.largest_partition,
-                        sectors_free: data.sectors_free,
+                        method: AlongsideMethod::Shrink {
+                            partition: data.largest_partition,
+                            sectors_free: data.sectors_free,
+                        }
+                    });
+                }
+
+                if required_space < data.best_free_region.size() {
+                    alongside_options.push(AlongsideOption {
+                        device: device.to_path_buf(),
+                        alongside: data.systems[0].clone(),
+                        method: AlongsideMethod::Free(data.best_free_region)
                     });
                 }
             } else {

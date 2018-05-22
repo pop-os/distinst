@@ -3,7 +3,7 @@ use std::mem;
 
 use super::super::super::*;
 use FileSystemType::*;
-use super::{AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
+use super::{AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
 use misc;
 
 pub enum InstallOption<'a> {
@@ -114,16 +114,21 @@ fn alongside_config(
             path: option.device.clone(),
         })?;
 
-    let (mut start, end) = {
-        let resize = device.get_partition_mut(option.partition)
-            .ok_or_else(|| InstallOptionError::PartitionNotFoundByID {
-                number: option.partition,
-                device: option.device.clone()
-            })?;
+    let (mut start, end) = match option.method {
+        AlongsideMethod::Shrink { partition, .. } => {
+            let resize = device.get_partition_mut(partition)
+                .ok_or_else(|| InstallOptionError::PartitionNotFoundByID {
+                    number: partition,
+                    device: option.device.clone()
+                })?;
 
-        let end = resize.end_sector;
-        resize.shrink_to(sectors)?;
-        (resize.end_sector + 1, end)
+            let end = resize.end_sector;
+            resize.shrink_to(sectors)?;
+            (resize.end_sector + 1, end)
+        }
+        AlongsideMethod::Free(ref region) => {
+            (region.start + 1, region.end - 1)
+        }
     };
 
     let (lvm, root_vg) = match generate_encryption(password)? {

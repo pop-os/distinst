@@ -62,17 +62,21 @@ fn main() {
                     let option = InstallOption::Alongside {
                         option,
                         password: args.next(),
-                        sectors: loop {
-                            let _ = write!(io::stdout(), "new install size ({} free): ", option.sectors_free)
-                                .and_then(|_| io::stdout().flush());
-                            let stdin = io::stdin();
-                            let _ = stdin.lock().read_line(&mut buff);
-                            if let Ok(number) = buff[..buff.len() - 1].parse::<u64>() {
-                                break number;
-                            }
+                        sectors: if let AlongsideMethod::Shrink { sectors_free, ..} = option.method {
+                            loop {
+                                let _ = write!(io::stdout(), "new install size ({} free): ", sectors_free)
+                                    .and_then(|_| io::stdout().flush());
+                                let stdin = io::stdin();
+                                let _ = stdin.lock().read_line(&mut buff);
+                                if let Ok(number) = buff[..buff.len() - 1].parse::<u64>() {
+                                    break number;
+                                }
 
-                            buff.clear();
-                        }
+                                buff.clear();
+                            }
+                        } else {
+                            0
+                        },
                     };
 
                     match option.apply(&mut disks) {
