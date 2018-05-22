@@ -34,7 +34,61 @@ fn main() {
         squashfs:         "/cdrom/casper/filesystem.squashfs".into(),
     };
 
+    eprintln!("Options: {:#?}", options);
+
     match action.as_str() {
+        "alongside" => {
+            for (id, option) in options.alongside_options.iter().enumerate() {
+                println!("{}: {}", id, option);
+            }
+
+            let mut buff = String::new();
+            let option = loop {
+                let _ = io::stdout()
+                    .write_all(b"Select an option: ")
+                    .and_then(|_| io::stdout().flush());
+                let stdin = io::stdin();
+                let _ = stdin.lock().read_line(&mut buff);
+                if let Ok(number) = buff[..buff.len() - 1].parse::<usize>() {
+                    buff.clear();
+                    break number;
+                }
+
+                buff.clear();
+            };
+
+            match options.alongside_options.get(option) {
+                Some(option) => {
+                    let option = InstallOption::Alongside {
+                        option,
+                        password: args.next(),
+                        sectors: loop {
+                            let _ = write!(io::stdout(), "new install size ({} free): ", option.sectors_free)
+                                .and_then(|_| io::stdout().flush());
+                            let stdin = io::stdin();
+                            let _ = stdin.lock().read_line(&mut buff);
+                            if let Ok(number) = buff[..buff.len() - 1].parse::<u64>() {
+                                break number;
+                            }
+
+                            buff.clear();
+                        }
+                    };
+
+                    match option.apply(&mut disks) {
+                        Ok(()) => (),
+                        Err(why) => {
+                            eprintln!("failed to apply: {}", why);
+                            return;
+                        }
+                    }
+                }
+                None => {
+                    eprintln!("index out of range");
+                    return;
+                }
+            }
+        }
         "erase" => {
             let disk = args.next().unwrap();
             let disk = Path::new(&disk);

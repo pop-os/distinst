@@ -160,16 +160,16 @@ fn alongside_config(
         }
 
         // 4096 MiB recovery partition
-        let recovery_end = start + 8388608
+        let recovery_end = start + 8388608;
         device.add_partition(
             PartitionBuilder::new(start, recovery_end, FileSystemType::Fat32)
-                .mount("/recovery")
-                .name("recovery")
+                .mount("/recovery".into())
+                .name("recovery".into())
         )?;
 
         start = recovery_end;
     } else if lvm.is_some() {
-        /// BIOS systems with an encrypted root must have a separate boot partition.
+        // BIOS systems with an encrypted root must have a separate boot partition.
         let boot_end = start + 1024_000;
 
         device.add_partition(
@@ -190,12 +190,16 @@ fn alongside_config(
                 .logical_volume(root_vg, Some(enc))
         )?;
     } else {
-        let swap = device.get_sector(Sector::MegabyteFromEnd(4096));
+        let swap = end - 8388608;
 
         device.add_partition(
             PartitionBuilder::new(start, swap, FileSystemType::Ext4)
                 .mount("/".into())
-        ).and_then(|_| device.add_partition::new(swap, end, FileSystemType::Swap));
+        ).and_then(|_| {
+            device.add_partition(
+                PartitionBuilder::new(swap, end, FileSystemType::Swap)
+            )
+        })?;
     }
 
     disks.add(device);
@@ -215,7 +219,7 @@ fn alongside_config(
                 .name("root".into())
                 .mount("/".into()),
         ).and_then(|_| {
-            lvm_device.add_partition(PartitionBuilder::new(swap, end, FileSystemType::Swap)
+            lvm_device.add_partition(PartitionBuilder::new(swap, end, FileSystemType::Swap))
         })?;
     }
 
