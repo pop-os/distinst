@@ -152,9 +152,8 @@ dependencies = [
  "itertools 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.40 (registry+https://github.com/rust-lang/crates.io-index)",
- "libparted 0.1.2 (git+https://github.com/pop-os/libparted?branch=remove-fixes)",
+ "libparted 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "pbr 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "raw-cpuid 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.47 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -309,8 +308,8 @@ dependencies = [
 
 [[package]]
 name = "libparted"
-version = "0.1.2"
-source = "git+https://github.com/pop-os/libparted?branch=remove-fixes#a2752a3e45c08677e3e244dd1701b3866d63f1ea"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "libparted-sys 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -850,7 +849,7 @@ dependencies = [
 "checksum lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c8f31047daa365f19be14b47c29df4f7c3b581832407daabe6ae77397619237d"
 "checksum libc 0.2.40 (registry+https://github.com/rust-lang/crates.io-index)" = "6fd41f331ac7c5b8ac259b8bf82c75c0fb2e469bbf37d2becbba9a6a2221965b"
 "checksum libloading 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "fd38073de8f7965d0c17d30546d4bb6da311ab428d1c7a3fc71dff7f9d4979b9"
-"checksum libparted 0.1.2 (git+https://github.com/pop-os/libparted?branch=remove-fixes)" = "<none>"
+"checksum libparted 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "a46101492e623f2d20b057d101408d26ec9bbd83cf83b8de6fb523d143164703"
 "checksum libparted-sys 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "16498f117aee52a1caa4523a6ecd9806ba81e176f0f2b489bd308e77eb83524a"
 "checksum log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
 "checksum log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "89f010e843f2b1a31dbd316b3b8d443758bc634bed37aabade59c686d644e0a2"
