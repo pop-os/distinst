@@ -206,6 +206,7 @@ impl Disk {
             .fold((0, 0), |sum, part| match part.part_type {
                 PartitionType::Logical => (sum.0, sum.1 + 1),
                 PartitionType::Primary => (sum.0 + 1, sum.1),
+                PartitionType::Extended => sum
             })
     }
 
@@ -661,7 +662,7 @@ impl Disk {
                             }
 
                             if new.flag_is_enabled(REMOVE) {
-                                remove_partitions.push(new.number);
+                                remove_partitions.push(source.start_sector);
                                 continue 'outer;
                             }
 
@@ -669,7 +670,7 @@ impl Disk {
                                 if new.flag_is_enabled(FORMAT)
                                     || source.filesystem == Some(FileSystemType::Swap)
                                 {
-                                    remove_partitions.push(new.number);
+                                    remove_partitions.push(source.start_sector);
                                     create_partitions.push(PartitionCreate {
                                         path:         self.device_path.clone(),
                                         start_sector: new.start_sector,
@@ -724,8 +725,7 @@ impl Disk {
                 start_sector: partition.start_sector,
                 end_sector:   partition.end_sector,
                 format:       true,
-                file_system:  Some(partition.filesystem.clone()
-                    .expect("no filesystem in partition that is being created")),
+                file_system:  partition.filesystem.clone(),
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
                 label:        partition.name.clone(),
@@ -744,8 +744,9 @@ impl Disk {
     /// Attempts to commit all changes that have been made to the disk.
     pub fn commit(&mut self) -> Result<(), DiskError> {
         info!(
-            "libdistinst: committing changes to {}",
-            self.path().display()
+            "libdistinst: committing changes to {}: {:#?}",
+            self.path().display(),
+            self
         );
         Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
             source.diff(self).and_then(|ops| {
