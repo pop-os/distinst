@@ -1,15 +1,6 @@
-use std::ffi::{OsStr, OsString};
-use std::fs::{read_dir, read_link, DirEntry};
-use std::io;
+use std::fs::read_link;
 use std::path::{Path, PathBuf};
-
-/// Concatenates an array of `&OsStr` into a new `OsString`.
-fn concat_osstr(input: &[&OsStr]) -> OsString {
-    let mut output = OsString::with_capacity(input.iter().fold(0, |acc, c| acc + c.len()));
-
-    input.iter().for_each(|comp| output.push(comp));
-    output
-}
+use misc::{concat_osstr, device_maps, read_dirs};
 
 /// The input shall contain physical device paths (ie: /dev/sda1), and the output
 /// will contain a list of physical volumes (ie: /dev/mapper/cryptroot) that need
@@ -46,19 +37,4 @@ pub(crate) fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec
     });
 
     discovered
-}
-
-pub(crate) fn device_maps<F: FnMut(&Path)>(mut action: F) {
-    read_dirs("/dev/mapper", |pv| action(&pv.path())).unwrap()
-}
-
-fn read_dirs<P: AsRef<Path>, F: FnMut(DirEntry)>(path: P, mut action: F) -> io::Result<()> {
-    for entry in read_dir(path.as_ref())? {
-        match entry {
-            Ok(entry) => action(entry),
-            Err(_) => continue,
-        }
-    }
-
-    Ok(())
 }

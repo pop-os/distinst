@@ -1,67 +1,124 @@
-use std::fs::File;
-use std::io::{self, BufRead, Cursor, Read, Write};
+use std::collections::BTreeMap;
+use std::io;
 use std::path::Path;
 use std::str;
 
-pub(crate) struct EnvFile<'a>(&'a Path);
+use misc::{read, write};
+
+pub(crate) struct EnvFile<'a> {
+    path:  &'a Path,
+    store: BTreeMap<String, String>,
+}
 
 impl<'a> EnvFile<'a> {
-    pub fn new(path: &'a Path) -> EnvFile<'a> {
-        EnvFile(path)
+    pub fn new(path: &'a Path) -> io::Result<EnvFile<'a>> {
+        let data = read(path)?;
+        let mut store = BTreeMap::new();
+
+        let values = data.split(|&x| x == b'\n').flat_map(|entry| {
+            let fields = &mut entry.split(|&x| x == b'=');
+            fields
+                .next()
+                .and_then(|x| String::from_utf8(x.to_owned()).ok())
+                .and_then(|x| {
+                    fields
+                        .next()
+                        .and_then(|x| String::from_utf8(x.to_owned()).ok())
+                        .map(|y| (x, y))
+                })
+        });
+
+        for (key, value) in values {
+            store.insert(key, value);
+        }
+
+        Ok(EnvFile { path, store })
     }
 
-    pub fn update(&self, key: &str, value: &str) -> io::Result<()> {
+    pub fn update(&mut self, key: &str, value: &str) {
         info!("libdistinst: updating {} with {} in env file", key, value);
-        read(self.0)
-            .and_then(|data| replace_env(data, key, value))
-            .and_then(|ref new_data| write(self.0, new_data))
+        self.store.insert(key.into(), value.into());
     }
 
-    pub fn get(&self, key: &str) -> io::Result<String> {
+    pub fn get(&self, key: &str) -> Option<&str> {
         info!("libdistinst: getting {} from env file", key);
-        read(self.0).and_then(|data| get_env(data, key))
+        self.store.get(key).as_ref().map(|x| x.as_str())
     }
 
-    pub fn exists(&self) -> bool { self.0.exists() }
-}
-
-fn get_env(buffer: Vec<u8>, key: &str) -> io::Result<String> {
-    for line in Cursor::new(buffer).lines() {
-        let line = line?;
-        if line.starts_with(&[key, "="].concat()) {
-            return Ok(line[key.len() + 1..].into())
+    pub fn write(&mut self) -> io::Result<()> {
+        info!("libdistinst: writing recovery changes");
+        let mut buffer = Vec::with_capacity(1024);
+        for (key, value) in self.store.iter() {
+            buffer.extend_from_slice(key.as_bytes());
+            buffer.push(b'=');
+            buffer.extend_from_slice(value.as_bytes());
+            buffer.push(b'\n');
         }
-    }
 
-    Err(io::Error::new(io::ErrorKind::NotFound, "key not found in env file"))
+        write(&self.path, &buffer)
+    }
 }
 
-fn replace_env(buffer: Vec<u8>, key: &str, value: &str) -> io::Result<Vec<u8>> {
-    let mut new_buffer = Vec::with_capacity(buffer.len());
-    for line in Cursor::new(buffer).lines() {
-        let line = line?;
-        if line.starts_with(&[key, "="].concat()) {
-            new_buffer.extend_from_slice(key.as_bytes());
-            new_buffer.push(b'=');
-            new_buffer.extend_from_slice(value.as_bytes());
-        } else {
-            new_buffer.extend_from_slice(line.as_bytes());
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use misc;
+    use tempdir::TempDir;
+    use std::collections::BTreeMap;
+    use std::fs::File;
+    use std::io::Write;
+
+    const SAMPLE: &str = r#"EFI_UUID=DFFD-D047
+HOSTNAME=pop-testing
+KBD_LAYOUT=us
+KBD_MODEL=
+KBD_VARIANT=
+LANG=en_US.UTF-8
+OEM_MODE=0
+RECOVERY_UUID=8DB5-AFF3
+ROOT_UUID=2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c
+"#;
+
+    #[test]
+    fn env_file_read() {
+        let tempdir = TempDir::new("distinst_test").unwrap();
+        let path = &tempdir.path().join("recovery.conf");
+
+        {
+            let mut file = File::create(path).unwrap();
+            file.write_all(SAMPLE.as_bytes()).unwrap();
         }
-        new_buffer.push(b'\n');
+
+        let env = EnvFile::new(path).unwrap();
+        assert_eq!(&env.store, &{
+            let mut map = BTreeMap::new();
+            map.insert("HOSTNAME".into(), "pop-testing".into());
+            map.insert("LANG".into(), "en_US.UTF-8".into());
+            map.insert("KBD_LAYOUT".into(), "us".into());
+            map.insert("KBD_MODEL".into(), "".into());
+            map.insert("KBD_VARIANT".into(), "".into());
+            map.insert("EFI_UUID".into(), "DFFD-D047".into());
+            map.insert("RECOVERY_UUID".into(), "8DB5-AFF3".into());
+            map.insert("ROOT_UUID".into(), "2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c".into());
+            map.insert("OEM_MODE".into(), "0".into());
+            map
+        });
     }
 
-    Ok(new_buffer)
-}
+    #[test]
+    fn env_file_write() {
+        let tempdir = TempDir::new("distinst_test").unwrap();
+        let path = &tempdir.path().join("recovery.conf");
 
-// TODO: These will be no longer be required once Rust is updated in the repos to 1.26.0
+        {
+            let mut file = File::create(path).unwrap();
+            file.write_all(SAMPLE.as_bytes()).unwrap();
+        }
 
-fn read<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
-    File::open(path).and_then(|mut file| {
-        let mut buffer = Vec::with_capacity(file.metadata().ok().map_or(0, |x| x.len()) as usize);
-        file.read_to_end(&mut buffer).map(|_| buffer)
-    })
-}
+        let mut env = EnvFile::new(path).unwrap();
+        env.write().unwrap();
+        let copy: &[u8] = &misc::read(path).unwrap();
 
-fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::Result<()> {
-    File::create(path).and_then(|mut file| file.write_all(contents.as_ref()))
+        assert_eq!(copy, SAMPLE.as_bytes());
+    }
 }

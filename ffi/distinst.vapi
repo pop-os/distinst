@@ -30,6 +30,7 @@ namespace Distinst {
         string keyboard_layout;
         string? keyboard_model;
         string? keyboard_variant;
+        string? old_root;
         string lang;
         string remove;
         string squashfs;
@@ -69,16 +70,149 @@ namespace Distinst {
         LUKS,
     }
 
+    [CCode (cname = "DISTINST_INSTALL_OPTION_VARIANT", has_type_id = false)]
+    public enum InstallOptionVariant {
+        REFRESH,
+        ERASE,
+        RECOVERY,
+    }
+
+    /**
+     * An "Erase and Install" installation option.
+     */
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
+    public class EraseOption {
+        /**
+         * The location of the device in the file system.
+         */
+        public unowned uint8[] get_device_path ();
+        /**
+         * The model name or serial of the device.
+         */
+        public unowned uint8[] get_model ();
+        /**
+         * Returns a GTK icon name to associate with this device.
+         */
+        public unowned uint8[] get_linux_icon ();
+        /**
+         * If true, this device is connected via USB.
+         */
+        public bool is_removable ();
+        /**
+         * If true, this is a standard magnetic hard drive.
+         */
+        public bool is_rotational ();
+        /**
+         * Returns true if the disk is a valid size. Use this field to control
+         * sensitivity of UI elements.
+         */
+        public bool meets_requirements ();
+        /**
+         * Gets the number of sectors that this option's device contains.
+         */
+        public uint64 get_sectors ();
+    }
+
+    /**
+     * A "Refresh" installation option, which may be used to optionally retain user accounts.
+     */
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
+    public class RefreshOption {
+        /**
+         * The OS name string obtained from the disk.
+         */
+        public unowned uint8[] get_os_name ();
+        /**
+         * The OS pretty name obtained from the disk.
+         */
+        public unowned uint8[] get_os_pretty_name ();
+        /**
+         * The OS version string obtained from the disk.
+         */
+        public unowned uint8[] get_os_version ();
+        /**
+         * The UUID of the root partition.
+         */
+        public unowned uint8[] get_root_part ();
+    }
+
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
+    public class RecoveryOption {
+        public unowned uint8[]? get_efi_uuid ();
+        public unowned uint8[] get_recovery_uuid ();
+        public unowned uint8[] get_root_uuid ();
+        public unowned uint8[] get_hostname ();
+        public unowned uint8[] get_kbd_layout ();
+        public unowned uint8[]? get_kbd_model ();
+        public unowned uint8[]? get_kbd_variant ();
+        public unowned uint8[] get_language ();
+        public bool get_oem_mode ();
+    }
+
+    /**
+     * Converts into an ADT within the backend to select an installation option to use.
+     */
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
+    public class InstallOption {
+        public InstallOption ();
+
+        /**
+         * Defines which field to use.
+         */
+        public InstallOptionVariant tag;
+        /**
+         * Available valid values are:
+         *
+         * - EraseOption
+         * - RecoveryOption
+         * - RefreshOption
+         */
+        public void* option;
+        /**
+         * The encryption password to optionally use with an erase and install option.
+         */
+        public string? encrypt_pass;
+
+        /**
+         * Applies the stored option to the given disks object.
+         */
+        public int apply (Distinst.Disks disks);
+    }
+
+    /**
+     * An object that will store all the available installation options.
+     */
+    [CCode (free_function = "distinst_install_options_destroy", has_type_id = false)]
+    [Compact]
+    public class InstallOptions {
+        /**
+         * Creates a new object from a given disks object.
+         *
+         * The `required` field will be used to set the `MEETS_REQUIREMENTS`
+         * flag for each erase option collected.
+         */
+        public InstallOptions (Disks disks, uint64 required);
+        public RecoveryOption? get_recovery_option ();
+        /**
+         * Gets a boxed array of refresh installation options that were collected.
+         */
+        public RefreshOption[] get_refresh_options ();
+        /**
+         * Gets a boxed array of erase and install options that were collected.
+         */
+        public EraseOption[] get_erase_options ();
+    }
+
     [CCode (has_type_id = false, unref_function = "")]
     public class KeyboardVariant {
-        public string get_name ();
-        public string get_description ();
+        public unowned uint8[] get_name ();
+        public unowned uint8[] get_description ();
     }
 
     [CCode (has_type_id = false, unref_function = "")]
     public class KeyboardLayout {
-        public string get_name ();
-        public string get_description ();
+        public unowned uint8[] get_name ();
+        public unowned uint8[] get_description ();
         public KeyboardVariant[] get_variants ();
     }
 
@@ -90,6 +224,16 @@ namespace Distinst {
     }
 
     /**
+     * Hashes the contents of `/dev/`; useful for detecting layout changes.
+     */
+    public uint64 device_layout_hash ();
+
+    /**
+     * Returns true if the device name already exists
+     */
+    public bool device_map_exists ();
+
+    /**
      * Obtains the default locale associated with a language.
      */
     public string? locale_get_default (string lang);
@@ -97,7 +241,7 @@ namespace Distinst {
     /**
      * Obtains the main country for a given language code.
      */
-    public string? locale_get_main_country (string code);
+    public unowned uint8[]? locale_get_main_country (string code);
 
     /**
      * Obtains a list of available language locales.
@@ -112,7 +256,7 @@ namespace Distinst {
     /**
      * Get the name of a language by the ISO 639 language code.
      */
-    public string? locale_get_language_name (string code);
+    public unowned uint8[]? locale_get_language_name (string code);
 
     /**
      * Get the translated name of a language by the ISO 639 language code.
@@ -122,7 +266,7 @@ namespace Distinst {
     /**
      * Get the name of a country by the ISO 3166 country code.
      */
-    public string? locale_get_country_name (string code);
+    public unowned uint8[]? locale_get_country_name (string code);
 
     /**
      * Get the translated name of a country by the ISO 3166 country code,
@@ -226,13 +370,6 @@ namespace Distinst {
 
     [SimpleType]
     [CCode (has_type_id = false)]
-    public struct OsInfo {
-        string? os;
-        string? home;
-    }
-
-    [SimpleType]
-    [CCode (has_type_id = false)]
     public struct PartitionUsage {
         /**
          * None = 0; Some(usage) = 1;
@@ -289,7 +426,7 @@ namespace Distinst {
         /**
          * If a pre-existing LVM volume group has been assigned, this will return that group's name.
          */
-        public string get_current_lvm_volume_group ();
+        public unowned uint8[] get_current_lvm_volume_group ();
 
         /**
          * Gets the start sector where this partition lies on the disk.
@@ -304,22 +441,17 @@ namespace Distinst {
         /**
          * Gets the name of the partition.
         */
-        public string? get_label ();
+        public unowned uint8[]? get_label ();
 
         /**
          * Gets the mount point of the partition.
         */
-        public string? get_mount_point ();
+        public unowned uint8[]? get_mount_point ();
 
         /**
          * Returns the file system which the partition is formatted with
         */
         public FileSystemType get_file_system ();
-
-        /**
-         * Returns the name of the OS which is installed here
-        */
-        public OsInfo probe_os ();
 
         /**
          * Returns the number of sectors that are used in the file system
@@ -452,12 +584,12 @@ namespace Distinst {
         /**
          * Returns the model name of the device, ie: (ATA Samsung 850 EVO)
          */
-        public string? get_model();
+        public unowned uint8[] get_model();
 
         /**
          * Returns the serial of the device, ie: (Samsung_SSD_850_EVO_500GB_S21HNXAG806916N)
          */
-        public string? get_serial();
+        public unowned uint8[] get_serial();
 
         /**
          * Returns the size of the device, in sectors.
@@ -529,7 +661,7 @@ namespace Distinst {
         /**
          * Returns the model name of the device in the format of "LVM <VG>"
          */
-        public string? get_model ();
+        public unowned uint8[] get_model ();
 
         /**
          * Returns the size of the device, in sectors.

@@ -6,6 +6,7 @@ extern crate log;
 use std::ffi::{CStr, CString};
 use std::ptr;
 
+pub use self::auto::*;
 pub use self::config::*;
 pub use self::disk::*;
 pub use self::filesystem::*;
@@ -21,6 +22,7 @@ pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
 
 use std::io;
 
+mod auto;
 mod config;
 mod disk;
 mod ffi;
@@ -61,6 +63,16 @@ pub fn to_cstr(string: String) -> *mut libc::c_char {
     CString::new(string)
         .map(|string| string.into_raw())
         .unwrap_or(ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "C" fn distinst_device_layout_hash() -> libc::uint64_t {
+    distinst::device_layout_hash()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_device_map_exists(name: *const libc::c_char) -> bool {
+    get_str(name, "").ok().map_or(false, |name| distinst::device_map_exists(name))
 }
 
 #[no_mangle]
