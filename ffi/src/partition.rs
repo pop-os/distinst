@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::ptr;
 
 use distinst::{
-    Bootloader, LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
+    Bootloader, FileSystemType, LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
 };
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use {gen_object_ptr, get_str, DistinstLvmEncryption};
@@ -32,6 +32,7 @@ pub unsafe extern "C" fn distinst_bootloader_detect() -> DISTINST_PARTITION_TABL
 pub enum DISTINST_PARTITION_TYPE {
     PRIMARY = 1,
     LOGICAL = 2,
+    EXTENDED = 3,
 }
 
 impl From<PartitionType> for DISTINST_PARTITION_TYPE {
@@ -39,6 +40,7 @@ impl From<PartitionType> for DISTINST_PARTITION_TYPE {
         match part_type {
             PartitionType::Primary => DISTINST_PARTITION_TYPE::PRIMARY,
             PartitionType::Logical => DISTINST_PARTITION_TYPE::LOGICAL,
+            PartitionType::Extended => DISTINST_PARTITION_TYPE::EXTENDED,
         }
     }
 }
@@ -48,6 +50,7 @@ impl From<DISTINST_PARTITION_TYPE> for PartitionType {
         match part_type {
             DISTINST_PARTITION_TYPE::PRIMARY => PartitionType::Primary,
             DISTINST_PARTITION_TYPE::LOGICAL => PartitionType::Logical,
+            DISTINST_PARTITION_TYPE::EXTENDED => PartitionType::Extended,
         }
     }
 }
@@ -139,7 +142,7 @@ pub unsafe extern "C" fn distinst_partition_builder_new(
     end_sector: libc::uint64_t,
     filesystem: DISTINST_FILE_SYSTEM_TYPE,
 ) -> *mut DistinstPartitionBuilder {
-    let filesystem = match filesystem.into() {
+    let filesystem: FileSystemType = match filesystem.into() {
         Some(filesystem) => filesystem,
         None => {
             error!("distinst_partition_builder_new: filesystem is NONE");

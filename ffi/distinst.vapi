@@ -49,7 +49,8 @@ namespace Distinst {
     [CCode (cname = "DISTINST_PARTITION_TYPE", has_type_id = false)]
     public enum PartitionType {
         PRIMARY,
-        LOGICAL
+        LOGICAL,
+        EXTENDED,
     }
 
     [CCode (cname = "DISTINST_FILE_SYSTEM_TYPE", has_type_id = false)]
