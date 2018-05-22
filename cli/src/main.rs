@@ -400,13 +400,14 @@ fn parse_part_type(table: &str) -> Result<PartitionType, DistinstError> {
     match table {
         "primary" => Ok(PartitionType::Primary),
         "logical" => Ok(PartitionType::Logical),
+        "extended" => Ok(PartitionType::Extended),
         _ => Err(DistinstError::InvalidPartitionType),
     }
 }
 
 enum PartType {
     /// A normal partition with a standard file system
-    Fs(FileSystemType),
+    Fs(Option<FileSystemType>),
     /// A partition that is formatted with LVM, optionally with encryption.
     Lvm(String, Option<LvmEncryption>),
 }
@@ -453,7 +454,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
             .ok_or(DistinstError::NoVolumeGroup)?;
 
         for field in fields {
-            parse_key(field, &mut pass, &mut keydata);
+            parse_key(field, &mut pass, &mut keydata)?;
         }
 
         Ok(PartType::Lvm(
@@ -474,10 +475,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
             None,
         ))
     } else {
-        fs.parse::<FileSystemType>()
-            .map(PartType::Fs)
-            .ok()
-            .ok_or_else(|| DistinstError::InvalidFileSystem { fs: fs.into() })
+        Ok(PartType::Fs(fs.parse::<FileSystemType>().ok()))
     }
 }
 
@@ -695,11 +693,13 @@ fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dist
                     PartType::Fs(fs) => fs,
                     PartType::Lvm(volume_group, encryption) => {
                         partition.set_volume_group(volume_group, encryption);
-                        FileSystemType::Lvm
+                        Some(FileSystemType::Lvm)
                     }
                 };
 
-                partition.format_with(fs);
+                if let Some(fs) = fs {
+                    partition.format_with(fs);
+                }
             }
 
             if let Some(flags) = flags {
@@ -789,7 +789,7 @@ struct LogicalArgs {
     // The length of the partition
     size: Sector,
     // The filesystem to assign to this partition
-    fs: FileSystemType,
+    fs: Option<FileSystemType>,
     // Where to mount this partition
     mount: Option<PathBuf>,
     // The partition flags to assign
@@ -915,11 +915,13 @@ fn configure_lvm(
                     PartType::Fs(fs) => fs,
                     PartType::Lvm(volume_group, encryption) => {
                         partition.set_volume_group(volume_group, encryption);
-                        FileSystemType::Lvm
+                        Some(FileSystemType::Lvm)
                     }
                 };
 
-                partition.format_and_keep_name(fs);
+                if let Some(fs) = fs {
+                    partition.format_and_keep_name(fs);
+                }
             }
 
             if let Some(mount) = mount {

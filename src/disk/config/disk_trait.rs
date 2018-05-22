@@ -91,6 +91,8 @@ pub trait DiskExt {
         self.get_partitions().iter()
             // Only consider partitions which are not set to be removed.
             .filter(|part| !part.flag_is_enabled(REMOVE))
+            // And which aren't extended
+            .filter(|part| part.part_type != PartitionType::Extended)
             // Return upon the first partition where the sector is within the partition.
             .find(|part|
                 !(
@@ -139,13 +141,13 @@ pub trait DiskExt {
     ///
     /// An error can occur if the partition will not fit onto the disk.
     fn add_partition(&mut self, builder: PartitionBuilder) -> Result<(), DiskError> {
-        info!(
-            "libdistinst: checking if {}:{} overlaps",
-            builder.start_sector, builder.end_sector
-        );
-
         // Ensure that the values aren't already contained within an existing partition.
-        if !Self::LOGICAL {
+        if !Self::LOGICAL && builder.part_type != PartitionType::Extended {
+            info!(
+                "libdistinst: checking if {}:{} overlaps",
+                builder.start_sector, builder.end_sector
+            );
+
             if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
                 return Err(DiskError::SectorOverlaps { id });
             }
@@ -167,7 +169,10 @@ pub trait DiskExt {
 
         let fs = builder.filesystem.clone();
         let partition = builder.build();
-        check_partition_size(partition.sectors() * self.get_sector_size(), fs)?;
+        if let Some(fs) = fs {
+            check_partition_size(partition.sectors() * self.get_sector_size(), fs)?;
+        }
+
         self.push_partition(partition);
 
         Ok(())

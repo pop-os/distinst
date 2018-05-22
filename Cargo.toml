@@ -16,7 +16,7 @@ crate-type = ["lib"]
 
 [dependencies]
 libc = "0.2"
-libparted = "0.1.2"
+libparted = "0.1.3"
 log = "0.3"
 tempdir = "0.3"
 itertools = "0.7.6"
@@ -38,9 +38,6 @@ features = ["derive"]
 
 [dependencies.failure_derive]
 version = "0.1.1"
-
-[dev_dependencies]
-pbr = "1.0"
 
 [profile.release]
 debug = true
