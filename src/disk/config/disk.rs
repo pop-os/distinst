@@ -662,7 +662,7 @@ impl Disk {
                             }
 
                             if new.flag_is_enabled(REMOVE) {
-                                remove_partitions.push(new.number);
+                                remove_partitions.push(source.start_sector);
                                 continue 'outer;
                             }
 
@@ -670,7 +670,7 @@ impl Disk {
                                 if new.flag_is_enabled(FORMAT)
                                     || source.filesystem == Some(FileSystemType::Swap)
                                 {
-                                    remove_partitions.push(new.number);
+                                    remove_partitions.push(source.start_sector);
                                     create_partitions.push(PartitionCreate {
                                         path:         self.device_path.clone(),
                                         start_sector: new.start_sector,
@@ -744,8 +744,9 @@ impl Disk {
     /// Attempts to commit all changes that have been made to the disk.
     pub fn commit(&mut self) -> Result<(), DiskError> {
         info!(
-            "libdistinst: committing changes to {}",
-            self.path().display()
+            "libdistinst: committing changes to {}: {:#?}",
+            self.path().display(),
+            self
         );
         Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
             source.diff(self).and_then(|ops| {

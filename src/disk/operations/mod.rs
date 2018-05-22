@@ -12,16 +12,29 @@ use libparted::{
 };
 use std::path::Path;
 
-/// Removes a partition by its ID from the disk.
-fn remove_partition(disk: &mut PedDisk, partition: u32) -> Result<(), DiskError> {
+/// Removes a partition at the given sector from the disk.
+fn remove_partition_by_sector(disk: &mut PedDisk, sector: u64) -> Result<(), DiskError> {
     info!(
-        "libdistinst: removing partition {} on {}",
-        partition,
+        "libdistinst: removing partition at sector {} on {}",
+        sector,
         unsafe { disk.get_device().path().display() }
     );
-    disk.remove_partition(partition)
+    disk.remove_partition_by_sector(sector as i64)
+        .map_err(|why| DiskError::PartitionRemoveBySector {
+            sector: sector,
+            why,
+        })
+}
+
+fn remove_partition_by_number(disk: &mut PedDisk, num: u32) -> Result<(), DiskError> {
+    info!(
+        "libdistinst: removing partition {} on {}",
+        num,
+        unsafe { disk.get_device().path().display() }
+    );
+    disk.remove_partition_by_number(num)
         .map_err(|why| DiskError::PartitionRemove {
-            partition: partition as i32,
+            partition: num as i32,
             why,
         })
 }
@@ -67,7 +80,7 @@ fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), D
 pub(crate) struct DiskOps<'a> {
     pub(crate) mklabel:           Option<PartitionTable>,
     pub(crate) device_path:       &'a Path,
-    pub(crate) remove_partitions: Vec<i32>,
+    pub(crate) remove_partitions: Vec<u64>,
     pub(crate) change_partitions: Vec<PartitionChange>,
     pub(crate) create_partitions: Vec<PartitionCreate>,
 }
@@ -91,7 +104,7 @@ impl<'a> DiskOps<'a> {
             let mut disk = open_disk(&mut device)?;
             let mut changes_required = false;
             for partition in self.remove_partitions {
-                remove_partition(&mut disk, partition as u32)?;
+                remove_partition_by_sector(&mut disk, partition)?;
                 changes_required = true;
             }
 
@@ -209,7 +222,7 @@ impl<'a> ChangePartitions<'a> {
                 // This is the delete function.
                 |partition| {
                     open_disk(unsafe { &mut (*device) }).and_then(|mut disk| {
-                        remove_partition(&mut disk, partition).and_then(|_| commit(&mut disk))
+                        remove_partition_by_number(&mut disk, partition).and_then(|_| commit(&mut disk))
                     })
                 },
                 // And this is the partition-creation function

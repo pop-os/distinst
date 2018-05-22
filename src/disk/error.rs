@@ -65,6 +65,8 @@ pub enum DiskError {
     PartitionOverlaps,
     #[fail(display = "unable to remove partition {}: {}", partition, why)]
     PartitionRemove { partition: i32, why: io::Error },
+    #[fail(display = "unable to remove partition at sector {}: {}", sector, why)]
+    PartitionRemoveBySector { sector: u64, why: io::Error },
     #[fail(display = "unable to move partition: {}", why)]
     PartitionMove { why: io::Error },
     #[fail(display = "unable to resize partition: {}", why)]
@@ -81,14 +83,14 @@ pub enum DiskError {
     PhysicalVolumeCreate { volume: String, why: io::Error },
     #[fail(display = "too many primary partitions in MSDOS partition table")]
     PrimaryPartitionsExceeded,
+    #[fail(display = "partition resize value is too small")]
+    ResizeTooSmall,
     #[fail(display = "multiple devices had the same volume group: currently unsupported")]
     SameGroup,
     #[fail(display = "sector overlaps partition {}", id)]
     SectorOverlaps { id: i32 },
     #[fail(display = "unable to get serial model of device: {}", why)]
     SerialGet { why: io::Error },
-    #[fail(display = "partition resize value is too small")]
-    ResizeTooSmall,
     #[fail(display = "unable to unmount partition(s): {}", why)]
     Unmount { why: io::Error },
     #[fail(display = "shrinking not supported for this file system")]

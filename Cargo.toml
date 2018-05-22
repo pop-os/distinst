@@ -16,7 +16,7 @@ crate-type = ["lib"]
 
 [dependencies]
 libc = "0.2"
-libparted = "0.1.2"
+libparted = { git = "https://github.com/pop-os/libparted", branch = "remove-fixes"}
 log = "0.3"
 tempdir = "0.3"
 itertools = "0.7.6"
