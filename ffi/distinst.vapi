@@ -232,7 +232,7 @@ namespace Distinst {
     /**
      * Returns true if the device name already exists
      */
-    public bool device_map_exists ();
+    public bool device_map_exists (string name);
 
     /**
      * Obtains the default locale associated with a language.
