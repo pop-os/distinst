@@ -9,7 +9,7 @@ mod serial;
 mod swaps;
 
 pub use self::config::*;
-pub use self::error::{DecryptionError, DiskError, PartitionSizeError};
+pub use self::error::{DecryptionError, DiskError, PartitionError, PartitionSizeError};
 pub(crate) use self::mounts::Mounts;
 pub use self::swaps::Swaps;
 pub use libparted::PartitionFlag;

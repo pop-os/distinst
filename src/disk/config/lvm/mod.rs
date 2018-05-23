@@ -10,7 +10,7 @@ use super::super::external::{
 };
 use super::super::mounts::Mounts;
 use super::super::{
-    DiskError, DiskExt, Disks, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE,
+    DiskError, DiskExt, Disks, PartitionError, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE,
 };
 use super::get_size;
 use rand::{self, Rng};
@@ -77,7 +77,7 @@ impl DiskExt for LvmDevice {
 
     fn get_table_type(&self) -> Option<PartitionTable> { None }
 
-    fn validate_partition_table(&self, _part_type: PartitionType) -> Result<(), DiskError> {
+    fn validate_partition_table(&self, _part_type: PartitionType) -> Result<(), PartitionError> {
         Ok(())
     }
 
