@@ -82,6 +82,10 @@ const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
 # <file system>  <mount point>  <type>  <options>  <dump>  <pass>
 ";
 
+pub const DEFAULT_ESP_SECTORS: u64 = 1024_000;
+pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
+pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
+
 macro_rules! file_create {
     ($path:expr, $perm:expr, [ $($data:expr),+ ]) => {{
         let mut file = File::create($path)?;
@@ -137,8 +141,8 @@ pub fn minimum_disk_size(default: u64) -> u64 {
         })
         .map_or(default, |size| size.max(default));
 
-    const DEFAULT_ESP_SIZE: u64 = 1024_000 * 512;
-    const DEFAULT_RECOVER_SIZE: u64 = 8_388_608 * 512;
+    const DEFAULT_ESP_SIZE: u64 = DEFAULT_ESP_SECTORS * 512;
+    const DEFAULT_RECOVER_SIZE: u64 = DEFAULT_RECOVER_SECTORS * 512;
     const DEFAULT_SWAP_SIZE: u64 = DEFAULT_RECOVER_SIZE;
 
     casper_size + DEFAULT_ESP_SIZE + DEFAULT_RECOVER_SIZE + DEFAULT_SWAP_SIZE

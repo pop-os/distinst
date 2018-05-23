@@ -143,15 +143,14 @@ fn alongside_config(
 
         {
             let partitions = device.partitions.iter_mut();
-            match partitions.filter(|p| p.is_esp_partition() && p.sectors() > 819200).next() {
+            match partitions.filter(|p| p.is_esp_partition() && p.sectors() > 819_200).next() {
                 Some(esp) => esp.set_mount("/boot/efi".into()),
                 None => create_esp = true
             }
         }
 
         if create_esp {
-            // 500 MiB ESP partition.
-            let esp_end = start + 1024_000;
+            let esp_end = start + DEFAULT_ESP_SECTORS;
 
             device.add_partition(
                 PartitionBuilder::new(start, esp_end, Fat32)
@@ -162,8 +161,7 @@ fn alongside_config(
             start = esp_end;
         }
 
-        // 4096 MiB recovery partition
-        let recovery_end = start + 8388608;
+        let recovery_end = start + DEFAULT_RECOVER_SECTORS;
         device.add_partition(
             PartitionBuilder::new(start, recovery_end, Fat32)
                 .mount("/recovery".into())
@@ -173,7 +171,7 @@ fn alongside_config(
         start = recovery_end;
     } else if lvm.is_some() {
         // BIOS systems with an encrypted root must have a separate boot partition.
-        let boot_end = start + 1024_000;
+        let boot_end = start + DEFAULT_ESP_SECTORS;
 
         device.add_partition(
             PartitionBuilder::new(start, boot_end, Ext4)
@@ -193,7 +191,7 @@ fn alongside_config(
                 .logical_volume(root_vg, Some(enc))
         )?;
     } else {
-        let swap = end - 8388608;
+        let swap = end - DEFAULT_SWAP_SECTORS;
 
         // Only create a new unencrypted swap partition if a swap partition does not already exist.
         let end = if !device.get_partitions().iter().any(|p| p.filesystem == Some(Swap)) {
@@ -218,7 +216,7 @@ fn alongside_config(
             .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
 
         let start = lvm_device.get_sector(Sector::Start);
-        let swap = lvm_device.get_sector(Sector::MegabyteFromEnd(4096));
+        let swap = lvm_device.get_sector(Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS));
         let end = lvm_device.get_sector(Sector::End);
 
         lvm_device.add_partition(
@@ -398,9 +396,9 @@ fn erase_config(
     let bootloader = Bootloader::detect();
 
     let start_sector = Sector::Start;
-    let boot_sector = Sector::Megabyte(512);
-    let recovery_sector = Sector::Megabyte(512 + 4096);
-    let swap_sector = Sector::MegabyteFromEnd(4096);
+    let boot_sector = Sector::Unit(DEFAULT_ESP_SECTORS);
+    let recovery_sector = Sector::Unit(DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS);
+    let swap_sector = Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS);
     let end_sector = Sector::End;
 
     let (lvm, root_vg) = match generate_encryption(password)? {
