@@ -19,14 +19,19 @@ pub struct AlongsideOption {
     pub method: AlongsideMethod
 }
 
-impl fmt::Display for AlongsideOption {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let os = match self.alongside {
+impl AlongsideOption {
+    pub fn get_os(&self) -> &str {
+        match self.alongside {
             OS::Linux { ref info, .. } => info.pretty_name.as_str(),
             OS::Windows(ref name) => name.as_str(),
             OS::MacOs(ref name) => name.as_str()
-        };
+        }
+    }
+}
 
+impl fmt::Display for AlongsideOption {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let os = self.get_os();
         let device = self.device.display();
 
         match self.method {
