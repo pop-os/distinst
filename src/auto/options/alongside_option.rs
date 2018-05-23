@@ -1,4 +1,3 @@
-use super::Region;
 use ::OS;
 use std::fmt;
 use std::path::PathBuf;
@@ -55,5 +54,35 @@ impl fmt::Display for AlongsideOption {
                 )
             }
         }
+    }
+}
+
+pub struct AlongsideData {
+    pub systems: Vec<OS>,
+    pub largest_partition: i32,
+    pub sectors_free: u64,
+    pub best_free_region: Region
+}
+
+#[derive(Debug)]
+pub struct Region {
+    pub start: u64,
+    pub end: u64,
+}
+
+impl Region {
+    pub fn new(start: u64, end: u64) -> Region {
+        Region { start, end }
+    }
+
+    pub fn compare(&mut self, start: u64, end: u64) {
+        if self.size() < end - start {
+            self.start = start;
+            self.end = end;
+        }
+    }
+
+    pub fn size(&self) -> u64 {
+        self.end - self.start
     }
 }

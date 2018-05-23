@@ -27,36 +27,6 @@ pub struct InstallOptions {
     pub refresh_options:   Vec<RefreshOption>,
 }
 
-struct AlongsideData {
-    systems: Vec<OS>,
-    largest_partition: i32,
-    sectors_free: u64,
-    best_free_region: Region
-}
-
-#[derive(Debug)]
-pub struct Region {
-    pub start: u64,
-    pub end: u64,
-}
-
-impl Region {
-    fn new(start: u64, end: u64) -> Region {
-        Region { start, end }
-    }
-
-    fn compare(&mut self, start: u64, end: u64) {
-        if self.size() < end - start {
-            self.start = start;
-            self.end = end;
-        }
-    }
-
-    pub fn size(&self) -> u64 {
-        self.end - self.start
-    }
-}
-
 impl InstallOptions {
     /// Detects existing installations, and suggests new ones.
     ///

@@ -20,7 +20,9 @@ fn main() {
 
     let mut disks = Disks::probe_devices().unwrap();
 
-    let options = InstallOptions::new(&disks, 0);
+    let required = minimum_disk_size(5_000_000_000) / 512 + 1;
+
+    let options = InstallOptions::new(&disks, required);
 
     let mut config = Config {
         flags:            distinst::MODIFY_BOOT_ORDER | distinst::INSTALL_HARDWARE_SUPPORT,
