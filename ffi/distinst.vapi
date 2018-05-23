@@ -73,7 +73,7 @@ namespace Distinst {
 
     [CCode (cname = "DISTINST_INSTALL_OPTION_VARIANT", has_type_id = false)]
     public enum InstallOptionVariant {
-        ALONGSIDE
+        ALONGSIDE,
         ERASE,
         RECOVERY,
         REFRESH,
