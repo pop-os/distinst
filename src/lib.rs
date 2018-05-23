@@ -119,12 +119,14 @@ pub fn device_map_exists(name: &str) -> bool {
 }
 
 /// Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
-/// return a default value.
+/// return a default value. Additionally adds the estimated required size
+/// of the boot or esp partition, recovery partition, and swap partition
+/// as additional minimum required overhead.
 ///
 /// If the value in `filesystem.size` is lower than that of the default, the
 /// default will be returned instead.
 pub fn minimum_disk_size(default: u64) -> u64 {
-    File::open("/cdrom/casper/filesystem.size")
+    let casper_size = File::open("/cdrom/casper/filesystem.size")
         .ok()
         .and_then(|mut file| {
             let capacity = file.metadata().ok().map_or(0, |m| m.len());
@@ -133,7 +135,13 @@ pub fn minimum_disk_size(default: u64) -> u64 {
                 .ok()
                 .and_then(|_| buffer[..buffer.len() - 1].parse::<u64>().ok())
         })
-        .map_or(default, |size| size.max(default))
+        .map_or(default, |size| size.max(default));
+
+    const DEFAULT_ESP_SIZE: u64 = 1024_000 * 512;
+    const DEFAULT_RECOVER_SIZE: u64 = 8_388_608 * 512;
+    const DEFAULT_SWAP_SIZE: u64 = DEFAULT_RECOVER_SIZE;
+
+    casper_size + DEFAULT_ESP_SIZE + DEFAULT_RECOVER_SIZE + DEFAULT_SWAP_SIZE
 }
 
 /// Installation step
