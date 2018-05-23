@@ -1,5 +1,5 @@
 use super::super::{
-    DiskError, Disks, PartitionBuilder, PartitionInfo, PartitionTable, PartitionType, Sector,
+    DiskError, Disks, PartitionBuilder, PartitionError, PartitionInfo, PartitionTable, PartitionType, Sector,
 };
 use super::partitions::{check_partition_size, REMOVE};
 use std::fs::File;
@@ -10,15 +10,27 @@ use std::path::{Path, PathBuf};
 pub trait DiskExt {
     const LOGICAL: bool;
 
+    /// Returns true if an extended partition exists.
+    fn extended_exists(&self) -> bool {
+        self.get_partitions().iter().any(|p| p.part_type == PartitionType::Extended)
+    }
+
     /// Returns the path to the block device in the system.
     fn get_device_path(&self) -> &Path;
 
     /// Returns the model of the device.
     fn get_model(&self) -> &str;
 
+    /// If the disk is mounted somewhere, get the mount point.
     fn get_mount_point(&self) -> Option<&Path>;
 
-    fn get_parent<'a>(&'a self) -> Option<&'a Disks>;
+    /// Get read-only access to information about the parent, if there is one.
+    fn get_parent(&self) -> Option<&Disks>;
+
+    /// Get the first partition whose start sector is after the given sector.
+    fn get_partition_after(&self, sector: u64) -> Option<&PartitionInfo> {
+        self.get_partitions().iter().find(|p| p.start_sector > sector)
+    }
 
     /// Returns a slice of all partitions in the device.
     fn get_partitions(&self) -> &[PartitionInfo];
@@ -83,7 +95,7 @@ pub trait DiskExt {
     }
 
     /// Validates that the partitions are valid for the partition table
-    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError>;
+    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), PartitionError>;
 
     /// If a given start and end range overlaps a pre-existing partition, that
     /// partition's number will be returned to indicate a potential conflict.
@@ -140,7 +152,7 @@ pub trait DiskExt {
     /// Adds a partition to the partition scheme.
     ///
     /// An error can occur if the partition will not fit onto the disk.
-    fn add_partition(&mut self, builder: PartitionBuilder) -> Result<(), DiskError> {
+    fn add_partition(&mut self, mut builder: PartitionBuilder) -> Result<(), DiskError> {
         // Ensure that the values aren't already contained within an existing partition.
         if !Self::LOGICAL && builder.part_type != PartitionType::Extended {
             info!(
@@ -165,7 +177,30 @@ pub trait DiskExt {
         }
 
         // Perform partition table & MSDOS restriction tests.
-        self.validate_partition_table(builder.part_type)?;
+        match self.validate_partition_table(builder.part_type) {
+            Err(PartitionError::PrimaryPartitionsExceeded) => {
+                info!("libdistinst: primary partitions exceeded, resolving");
+                builder.part_type = PartitionType::Logical;
+            }
+            Ok(()) => (),
+            error @ Err(_) => error?,
+        };
+
+        if builder.part_type == PartitionType::Logical && !self.extended_exists() {
+            info!("libdistinst: adding extended partition");
+            let part = PartitionBuilder::new(
+                builder.start_sector,
+                self.get_partition_after(builder.start_sector)
+                    .map_or_else(
+                        || self.get_sector(Sector::End),
+                        |part| part.start_sector - 1
+                    ),
+                None
+            ).partition_type(PartitionType::Extended);
+
+            self.push_partition(part.build());
+            builder.start_sector += 1024_000 / 512 + 1;
+        }
 
         let fs = builder.filesystem.clone();
         let partition = builder.build();
