@@ -11,7 +11,7 @@ pub use self::os_detect::OS;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
 use super::super::external::{get_label, is_encrypted, pvs};
-use super::super::{LvmEncryption, Mounts, Swaps};
+use super::super::{LvmEncryption, Mounts, Swaps, PartitionError};
 use super::PVS;
 use libparted::{Partition, PartitionFlag};
 use std::io;
@@ -19,12 +19,6 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use FileSystemType::*;
 use misc::get_uuid;
-
-#[derive(Debug, Fail)]
-pub enum PartitionError {
-    #[fail(display = "shrink value too high")]
-    ShrinkValueTooHigh,
-}
 
 /// Specifies which file system format to use.
 #[derive(Debug, PartialEq, Copy, Clone, Hash)]

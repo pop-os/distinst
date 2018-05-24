@@ -57,6 +57,8 @@ pub enum DiskError {
     NoFilesystem,
     #[fail(display = "unable to create partition: {}", why)]
     PartitionCreate { why: io::Error },
+    #[fail(display = "partition error: {}", why)]
+    PartitionError { why: PartitionError },
     #[fail(display = "unable to format partition: {}", why)]
     PartitionFormat { why: io::Error },
     #[fail(display = "partition {} not be found on disk", partition)]
@@ -71,8 +73,6 @@ pub enum DiskError {
     PartitionMove { why: io::Error },
     #[fail(display = "unable to resize partition: {}", why)]
     PartitionResize { why: io::Error },
-    #[fail(display = "partition table not found on disk")]
-    PartitionTableNotFound,
     #[fail(display = "partition was too large (size: {}, max: {}", size, max)]
     PartitionTooLarge { size: u64, max:  u64 },
     #[fail(display = "partition was too small (size: {}, min: {})", size, min)]
@@ -81,8 +81,6 @@ pub enum DiskError {
     PartitionOOB,
     #[fail(display = "unable to create physical volume from '{}': {}", volume, why)]
     PhysicalVolumeCreate { volume: String, why: io::Error },
-    #[fail(display = "too many primary partitions in MSDOS partition table")]
-    PrimaryPartitionsExceeded,
     #[fail(display = "partition resize value is too small")]
     ResizeTooSmall,
     #[fail(display = "multiple devices had the same volume group: currently unsupported")]
@@ -103,7 +101,16 @@ pub enum DiskError {
     VolumePartitionLacksLabel,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[derive(Debug, Fail)]
+pub enum PartitionError {
+    #[fail(display = "shrink value too high")]
+    ShrinkValueTooHigh,
+    #[fail(display = "too many primary partitions in MSDOS partition table")]
+    PrimaryPartitionsExceeded,
+    #[fail(display = "partition table not found on disk")]
+    PartitionTableNotFound,
+}
+
 #[derive(Debug, Fail)]
 pub enum DecryptionError {
     #[fail(display = "failed to decrypt '{:?}': {}", device, why)]
@@ -116,6 +123,10 @@ pub enum DecryptionError {
 
 impl From<DecryptionError> for DiskError {
     fn from(why: DecryptionError) -> DiskError { DiskError::Decryption { why } }
+}
+
+impl From<PartitionError> for DiskError {
+    fn from(why: PartitionError) -> DiskError { DiskError::PartitionError { why } }
 }
 
 impl From<DiskError> for io::Error {

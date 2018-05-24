@@ -3,8 +3,8 @@ use super::super::mounts::Mounts;
 use super::super::operations::*;
 use super::super::serial::get_serial;
 use super::super::{
-    check_partition_size, DiskError, DiskExt, Disks, FileSystemType, PartitionFlag, PartitionInfo,
-    PartitionTable, PartitionType,
+    check_partition_size, DiskError, DiskExt, Disks, FileSystemType, PartitionError, PartitionFlag,
+    PartitionInfo, PartitionTable, PartitionType,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::{get_device, open_disk};
@@ -79,20 +79,20 @@ impl DiskExt for Disk {
 
     fn get_table_type(&self) -> Option<PartitionTable> { self.table_type }
 
-    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError> {
+    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), PartitionError> {
         match self.table_type {
             Some(PartitionTable::Gpt) => (),
             Some(PartitionTable::Msdos) => {
                 let (primary, logical) = self.get_partition_type_count();
                 if part_type == PartitionType::Primary {
                     if primary == 4 || (primary == 3 && logical != 0) {
-                        return Err(DiskError::PrimaryPartitionsExceeded);
+                        return Err(PartitionError::PrimaryPartitionsExceeded);
                     }
                 } else if primary == 4 {
-                    return Err(DiskError::PrimaryPartitionsExceeded);
+                    return Err(PartitionError::PrimaryPartitionsExceeded);
                 }
             }
-            None => return Err(DiskError::PartitionTableNotFound),
+            None => return Err(PartitionError::PartitionTableNotFound),
         }
 
         Ok(())

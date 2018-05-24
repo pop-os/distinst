@@ -38,7 +38,6 @@ sudo target/debug/distinst \
     -n "$1:primary:start:512M:ntfs" \
     -n "$1:primary:512M:51200M:ntfs:mount=/win" \
     -n "$1:primary:51200M:71680M:ext4:mount=/" \
-    -n "$1:extended:71680M:end:none" \
     -n "$1:logical:71682M:102400M:ext4" \
     -n "$1:logical:102400M:-4096M:ext4" \
     -n "$1:logical:-4096M:end:swap"
