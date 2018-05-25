@@ -10,7 +10,7 @@ use super::super::{
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::{find_partition, find_partition_mut};
-use super::{Disk, LvmEncryption};
+use super::{detect_fs_on_device, Disk, LvmEncryption};
 use libparted::{Device, DeviceType};
 use misc::{get_uuid, from_uuid};
 
@@ -260,51 +260,73 @@ impl Disks {
         // An intermediary value that can avoid the borrowck issue.
         let mut new_device = None;
 
+        fn decrypt(
+            partition: &mut PartitionInfo,
+            path: &Path,
+            enc: &LvmEncryption,
+        ) -> Result<LvmDevice, DecryptionError> {
+            // Attempt to decrypt the device.
+            cryptsetup_open(path, &enc).map_err(|why| DecryptionError::Open {
+                device: path.to_path_buf(),
+                why,
+            })?;
+
+            // Determine which VG the newly-decrypted device belongs to.
+            let pv = &PathBuf::from(["/dev/mapper/", &enc.physical_volume].concat());
+            let mut attempt = 0;
+            while !pv.exists() && attempt < 10 {
+                info!("libdistinst: waiting 1 second for {:?} to activate", pv);
+                attempt += 1;
+                thread::sleep(Duration::from_millis(1000));
+            }
+
+            match pvs().expect("pvs() failed in decrypt_partition").remove(pv) {
+                Some(Some(vg)) => {
+                    // Set values in the device's partition.
+                    partition.volume_group = Some((vg.clone(), Some(enc.clone())));
+
+                    return Ok(LvmDevice::new(
+                        vg,
+                        Some(enc.clone()),
+                        partition.sectors(),
+                        512,
+                        true,
+                    ));
+                }
+                _ => {
+                    info!("attempting to detect LUKS {:?} from {:?}", pv, path);
+                    // Detect a file system on the device
+                    if let Some(fs) = detect_fs_on_device(&pv) {
+                        let pv = enc.physical_volume.clone();
+                        let mut luks = LvmDevice::new(
+                            pv,
+                            Some(enc.clone()),
+                            partition.sectors(),
+                            512,
+                            true
+                        );
+
+                        luks.set_file_system(fs);
+                        return Ok(luks);
+                    }
+
+                    // Attempt to close the device as we've failed to find a VG.
+                    let _ = cryptsetup_close(pv);
+
+                    // NOTE: Should we handle this in some way?
+                    return Err(DecryptionError::DecryptedLacksVG {
+                        device: path.to_path_buf(),
+                    });
+                }
+            }
+        }
+
         // Attempt to find the device in the configuration.
         for device in &mut self.physical {
             for partition in &mut device.partitions {
                 if &partition.device_path == path {
-                    // Attempt to decrypt the device.
-                    cryptsetup_open(path, &enc).map_err(|why| DecryptionError::Open {
-                        device: path.to_path_buf(),
-                        why,
-                    })?;
-
-                    // Determine which VG the newly-decrypted device belongs to.
-                    let pv = &PathBuf::from(["/dev/mapper/", &enc.physical_volume].concat());
-                    let mut attempt = 0;
-                    while !pv.exists() && attempt < 10 {
-                        info!("libdistinst: waiting 1 second for {:?} to activate", pv);
-                        attempt += 1;
-                        thread::sleep(Duration::from_millis(1000));
-                    }
-
-                    match pvs().expect("pvs() failed in decrypt_partition").remove(pv) {
-                        Some(Some(vg)) => {
-                            // Set values in the device's partition.
-                            partition.volume_group = Some((vg.clone(), Some(enc.clone())));
-
-                            // Create a new LvmDevice structure.
-                            new_device = Some(LvmDevice::new(
-                                vg,
-                                Some(enc.clone()),
-                                partition.sectors(),
-                                device.sector_size,
-                                true,
-                            ));
-
-                            break;
-                        }
-                        _ => {
-                            // Attempt to close the device as we've failed to find a VG.
-                            let _ = cryptsetup_close(pv);
-
-                            // NOTE: Should we handle this in some way?
-                            return Err(DecryptionError::DecryptedLacksVG {
-                                device: path.to_path_buf(),
-                            });
-                        }
-                    }
+                    new_device = Some(decrypt(partition, path, &enc)?);
+                    break
                 }
             }
         }
@@ -312,7 +334,10 @@ impl Disks {
         match new_device {
             // Add the new LVM device to the disk configuration
             Some(mut device) => {
-                device.add_partitions();
+                if device.file_system.is_none() {
+                    device.add_partitions();
+                }
+
                 device.parent = &*self as *const Disks;
                 self.logical.push(device);
                 Ok(())

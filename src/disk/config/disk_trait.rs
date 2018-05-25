@@ -1,5 +1,6 @@
 use super::super::{
-    DiskError, Disks, PartitionBuilder, PartitionError, PartitionInfo, PartitionTable, PartitionType, Sector,
+    DiskError, Disks, PartitionBuilder, PartitionError, PartitionInfo,
+    PartitionTable, PartitionType, Sector,
 };
 use super::partitions::{check_partition_size, REMOVE};
 use std::fs::File;
@@ -17,6 +18,12 @@ pub trait DiskExt {
 
     /// Returns the path to the block device in the system.
     fn get_device_path(&self) -> &Path;
+
+    /// Sometimes, disks may have an entire file system, rather than a partition table.
+    fn get_file_system(&self) -> Option<&PartitionInfo>;
+
+    /// Sets a file system on this device (unsetting the partition table in the process).
+    fn set_file_system(&mut self, fs: PartitionInfo);
 
     /// Returns the model of the device.
     fn get_model(&self) -> &str;

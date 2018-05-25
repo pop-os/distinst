@@ -10,7 +10,8 @@ use super::super::external::{
 };
 use super::super::mounts::Mounts;
 use super::super::{
-    DiskError, DiskExt, Disks, PartitionError, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE,
+    DiskError, DiskExt, Disks, PartitionError, PartitionInfo, PartitionTable,
+    PartitionType, FORMAT, REMOVE, SOURCE,
 };
 use super::get_size;
 use rand::{self, Rng};
@@ -33,6 +34,9 @@ pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     }
 }
 
+// TODO: Refactor to support FS on LUKS.
+// TODO: Change name to LuksDevice?
+
 /// An LVM device acts similar to a Disk, but consists of one more block devices
 /// that comprise a volume group, and may optionally be encrypted.
 #[derive(Debug, Clone, PartialEq)]
@@ -41,6 +45,7 @@ pub struct LvmDevice {
     pub(crate) volume_group: String,
     pub(crate) device_path:  PathBuf,
     pub(crate) mount_point:  Option<PathBuf>,
+    pub(crate) file_system:  Option<PartitionInfo>,
     pub(crate) sectors:      u64,
     pub(crate) sector_size:  u64,
     pub(crate) partitions:   Vec<PartitionInfo>,
@@ -54,6 +59,14 @@ impl DiskExt for LvmDevice {
     const LOGICAL: bool = true;
 
     fn get_device_path(&self) -> &Path { &self.device_path }
+
+    fn get_file_system(&self) -> Option<&PartitionInfo> { self.file_system.as_ref() }
+
+    fn set_file_system(&mut self, fs: PartitionInfo) {
+        self.file_system = Some(fs);
+        self.partitions.clear();
+        debug_assert!(self.encryption.is_some(), "encryption should be configured");
+    }
 
     fn get_model(&self) -> &str { &self.model_name }
 
@@ -103,6 +116,7 @@ impl LvmDevice {
             mount_point: mounts.get_mount_point(&device_path),
             volume_group,
             device_path,
+            file_system: None,
             sectors,
             sector_size,
             partitions: Vec::new(),
@@ -117,10 +131,8 @@ impl LvmDevice {
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub(crate) fn validate(&self) -> Result<(), DiskError> {
-        for partition in self.get_partitions() {
-            if !partition.name.is_some() {
-                return Err(DiskError::VolumePartitionLacksLabel);
-            }
+        if self.get_partitions().iter().any(|p| !p.name.is_some()) {
+            return Err(DiskError::VolumePartitionLacksLabel);
         }
 
         Ok(())

@@ -8,7 +8,7 @@ use super::super::{
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::{get_device, open_disk};
-use libparted::{Device, DeviceType};
+use libparted::{Device, DeviceType, Disk as PedDisk};
 
 use std::collections::BTreeSet;
 use std::fs::File;
@@ -17,6 +17,27 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::ptr;
 use std::str;
+
+/// Detects a partition on the device, if it exists.
+/// Useful for detecting if a LUKS device has a file system.
+pub(crate) fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
+    if let Ok(mut dev) = Device::get(path) {
+        if let Ok(disk) = PedDisk::new(&mut dev) {
+            if let Some(part) = disk.parts().next() {
+                match PartitionInfo::new_from_ped(&part) {
+                    Ok(partition) => {
+                        return partition;
+                    }
+                    Err(why) => {
+                        info!("libdistinst: unable to get partition from device: {}", why);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
 
 /// Contains all of the information relevant to a given device.
 ///
@@ -31,6 +52,8 @@ pub struct Disk {
     pub(crate) serial: String,
     /// The location in the file system where the block device is located.
     pub(crate) device_path: PathBuf,
+    /// Account for the possibility that the entire disk is a file system.
+    pub(crate) file_system: Option<PartitionInfo>,
     /// Where the device is mounted, if mounted at all.
     pub(crate) mount_point: Option<PathBuf>,
     /// The size of the disk in sectors.
@@ -56,6 +79,10 @@ impl DiskExt for Disk {
     const LOGICAL: bool = false;
 
     fn get_device_path(&self) -> &Path { &self.device_path }
+
+    fn get_file_system(&self) -> Option<&PartitionInfo> { self.file_system.as_ref() }
+
+    fn set_file_system(&mut self, fs: PartitionInfo) { self.file_system = Some(fs) }
 
     fn get_model(&self) -> &str { &self.model_name }
 
@@ -138,6 +165,7 @@ impl Disk {
             model_name,
             mount_point: mounts.get_mount_point(&device_path),
             device_path,
+            file_system: None,
             serial,
             size,
             sector_size,
