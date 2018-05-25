@@ -455,6 +455,11 @@ namespace Distinst {
         public FileSystemType get_file_system ();
 
         /**
+         * Checks if the partition is LUKS-encrypted.
+         */
+        public bool is_encrypted ();
+
+        /**
          * Returns the number of sectors that are used in the file system
          */
         public PartitionUsage sectors_used (uint64 sector_size);

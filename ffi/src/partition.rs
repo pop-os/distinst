@@ -375,6 +375,14 @@ pub unsafe extern "C" fn distinst_partition_get_end_sector(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_is_encrypted(
+    partition: *const DistinstPartition,
+) -> bool {
+    let part = &*(partition as *const PartitionInfo);
+    part.is_encrypted()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_set_mount(
     partition: *mut DistinstPartition,
     target: *const libc::c_char,
