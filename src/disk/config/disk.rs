@@ -667,9 +667,7 @@ impl Disk {
                             }
 
                             if source.requires_changes(new) {
-                                if new.flag_is_enabled(FORMAT)
-                                    || source.filesystem == Some(FileSystemType::Swap)
-                                {
+                                if new.flag_is_enabled(FORMAT) {
                                     remove_partitions.push(source.start_sector);
                                     create_partitions.push(PartitionCreate {
                                         path:         self.device_path.clone(),
