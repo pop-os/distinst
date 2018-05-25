@@ -45,6 +45,13 @@ impl Disks {
         self.physical.push(disk);
     }
 
+    pub fn contains_luks(&self) -> bool {
+        self.physical
+            .iter()
+            .flat_map(|d| d.get_partitions().iter())
+            .any(|p| p.filesystem == Some(FileSystemType::Luks))
+    }
+
     pub fn get_physical_device<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
         self.physical
             .iter()

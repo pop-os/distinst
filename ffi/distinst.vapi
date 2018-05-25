@@ -829,6 +829,11 @@ namespace Distinst {
          * and logical partitions.
          */
         public PartitionAndDiskPath find_partition (string target);
+
+        /**
+         * True if any partition on the disk is a LUKS partition.
+         */
+        public bool contains_luks ();
     }
 
     [CCode (has_type_id = false)]
