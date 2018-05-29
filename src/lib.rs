@@ -118,8 +118,7 @@ pub fn device_map_exists(name: &str) -> bool {
     dmlist().ok().map_or(false, |list| list.contains(&name.into()))
 }
 
-/// Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
-/// return a default value.
+/// Gets the minimum number of sectors required. The input should be in sectors, not bytes.
 ///
 /// If the value in `filesystem.size` is lower than that of the default, the
 /// default will be returned instead.
@@ -133,6 +132,8 @@ pub fn minimum_disk_size(default: u64) -> u64 {
                 .ok()
                 .and_then(|_| buffer[..buffer.len() - 1].parse::<u64>().ok())
         })
+        // Convert the number of bytes read into sectors required + 1
+        .map(|bytes| (bytes / 512) + 1)
         .map_or(default, |size| size.max(default))
 }
 
