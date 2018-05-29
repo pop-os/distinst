@@ -95,12 +95,13 @@ impl InstallOptions {
                         } else {
                             0
                         };
-                        flags += if device.is_rotational() {
+                        flags |= if device.is_rotational() {
                             IS_ROTATIONAL
                         } else {
                             0
                         };
-                        flags += if sectors >= required_space || required_space == 0 {
+
+                        flags |= if sectors >= required_space || required_space == 0 {
                             MEETS_REQUIREMENTS
                         } else {
                             0

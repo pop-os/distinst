@@ -3,7 +3,7 @@ use std::fmt;
 
 pub const IS_ROTATIONAL: u8 = 1;
 pub const IS_REMOVABLE: u8 = 2;
-pub const MEETS_REQUIREMENTS: u8 = 3;
+pub const MEETS_REQUIREMENTS: u8 = 4;
 
 #[derive(Debug)]
 pub struct EraseOption {

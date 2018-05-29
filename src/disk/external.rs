@@ -114,6 +114,10 @@ pub(crate) fn dmlist() -> io::Result<Vec<String>> {
     Ok(output)
 }
 
+fn swap_exists(path: &Path) -> bool {
+    Command::new("swaplabel").arg(path).status().ok().map_or(false, |stat| stat.success())
+}
+
 /// Formats the supplied `part` device with the file system specified.
 pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
     use FileSystemType::*;
@@ -127,7 +131,13 @@ pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<
         Fat16 => ("mkfs.fat", &["-F", "16"]),
         Fat32 => ("mkfs.fat", &["-F", "32"]),
         Ntfs => ("mkfs.ntfs", &["-FQ", "-q"]),
-        Swap => ("mkswap", &["-f"]),
+        Swap => {
+            if swap_exists(part.as_ref()) {
+                return Ok(());
+            }
+
+            ("mkswap", &["-f"])
+        },
         Xfs => ("mkfs.xfs", &["-f"]),
         Luks | Lvm => return Ok(()),
     };

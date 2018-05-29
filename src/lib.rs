@@ -122,13 +122,16 @@ pub fn device_map_exists(name: &str) -> bool {
     dmlist().ok().map_or(false, |list| list.contains(&name.into()))
 }
 
-/// Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
-/// return a default value. Additionally adds the estimated required size
-/// of the boot or esp partition, recovery partition, and swap partition
-/// as additional minimum required overhead.
+/// Gets the minimum number of sectors required. The input should be in sectors, not bytes.
 ///
-/// If the value in `filesystem.size` is lower than that of the default, the
-/// default will be returned instead.
+/// The number of sectors required is calculated through:
+///
+/// - The value in `/cdrom/casper/filesystem.size`
+/// - The size of a default boot / esp partition
+/// - The size of a default swap partition
+/// - The size of a default recovery partition.
+///
+/// The input parameter will undergo a max comparison to the estimated minimum requirement.
 pub fn minimum_disk_size(default: u64) -> u64 {
     let casper_size = File::open("/cdrom/casper/filesystem.size")
         .ok()
@@ -139,13 +142,11 @@ pub fn minimum_disk_size(default: u64) -> u64 {
                 .ok()
                 .and_then(|_| buffer[..buffer.len() - 1].parse::<u64>().ok())
         })
+        // Convert the number of bytes read into sectors required + 1
+        .map(|bytes| (bytes / 512) + 1)
         .map_or(default, |size| size.max(default));
 
-    const DEFAULT_ESP_SIZE: u64 = DEFAULT_ESP_SECTORS * 512;
-    const DEFAULT_RECOVER_SIZE: u64 = DEFAULT_RECOVER_SECTORS * 512;
-    const DEFAULT_SWAP_SIZE: u64 = DEFAULT_RECOVER_SIZE;
-
-    casper_size + DEFAULT_ESP_SIZE + DEFAULT_RECOVER_SIZE + DEFAULT_SWAP_SIZE
+    casper_size + DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS + DEFAULT_SWAP_SECTORS
 }
 
 /// Installation step
