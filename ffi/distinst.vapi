@@ -673,7 +673,7 @@ namespace Distinst {
          * If this is not `None`, then LVM is not on the device, and the
          * device contains a file system instead.
          */
-        public Partition? get_encrypted_file_system ();
+        public unowned Partition? get_encrypted_file_system ();
 
         /**
          * Returns the size of the device, in sectors.

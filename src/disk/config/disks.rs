@@ -292,13 +292,7 @@ impl Disks {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
 
-                    return Ok(LvmDevice::new(
-                        vg,
-                        Some(enc.clone()),
-                        partition.sectors(),
-                        512,
-                        true,
-                    ));
+                    return Ok(LvmDevice::new(vg, Some(enc.clone()), partition.sectors(), 512, true));
                 }
                 _ => {
                     info!("attempting to detect LUKS {:?} from {:?}", pv, path);
@@ -314,6 +308,7 @@ impl Disks {
                         );
 
                         luks.set_file_system(fs);
+                        info!("found {:?}", luks);
                         return Ok(luks);
                     }
 
@@ -330,6 +325,13 @@ impl Disks {
 
         // Attempt to find the device in the configuration.
         for device in &mut self.physical {
+            // TODO: NLL
+            if let Some(partition) = device.get_file_system_mut() {
+                if &partition.device_path == path {
+                    decrypt(partition, path, &enc)?;
+                }
+            }
+
             for partition in &mut device.partitions {
                 if &partition.device_path == path {
                     new_device = Some(decrypt(partition, path, &enc)?);

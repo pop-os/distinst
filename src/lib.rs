@@ -311,6 +311,7 @@ impl Installer {
         callback(20);
 
         for disk in disks.get_physical_devices_mut() {
+            if disk.contains_mount ("/") { continue }
             if let Err(why) = disk.unmount_all_partitions_with_target() {
                 error!("unable to unmount partitions");
                 return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
@@ -580,21 +581,37 @@ impl Installer {
 
             callback(75);
 
+            use std::iter;
+
             let root_entry = {
                 info!("libdistinst: retrieving root partition");
                 disks
                     .get_physical_devices()
                     .iter()
-                    .flat_map(|disk| disk.partitions.iter())
+                    .flat_map(|disk| {
+                        let iterator: Box<Iterator<Item = &PartitionInfo>> = if let Some(ref fs) = disk.file_system {
+                            Box::new(iter::once(fs).chain(disk.partitions.iter()))
+                        } else {
+                            Box::new(disk.partitions.iter())
+                        };
+                        iterator
+                    })
                     .filter_map(|part| part.get_block_info())
                     .find(|entry| entry.mount() == "/")
-                    .or(disks
+                    .or_else(|| disks
                         .get_logical_devices()
                         .iter()
-                        .flat_map(|disk| disk.partitions.iter())
+                        .flat_map(|disk| {
+                            let iterator: Box<Iterator<Item = &PartitionInfo>> = if let Some(ref fs) = disk.file_system {
+                                Box::new(iter::once(fs).chain(disk.partitions.iter()))
+                            } else {
+                                Box::new(disk.partitions.iter())
+                            };
+                            iterator
+                        })
                         .filter_map(|part| part.get_block_info())
                         .find(|entry| entry.mount() == "/"))
-                    .ok_or(io::Error::new(
+                    .ok_or_else(|| io::Error::new(
                         io::ErrorKind::Other,
                         "root partition not found",
                     ))?

@@ -82,6 +82,8 @@ impl DiskExt for Disk {
 
     fn get_file_system(&self) -> Option<&PartitionInfo> { self.file_system.as_ref() }
 
+    fn get_file_system_mut(&mut self) -> Option<&mut PartitionInfo> { self.file_system.as_mut() }
+
     fn set_file_system(&mut self, fs: PartitionInfo) { self.file_system = Some(fs) }
 
     fn get_model(&self) -> &str { &self.model_name }

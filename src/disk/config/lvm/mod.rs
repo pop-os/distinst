@@ -16,10 +16,8 @@ use super::super::{
 use super::get_size;
 use rand::{self, Rng};
 use std::ffi::OsStr;
-use std::io;
+use std::{io, ptr, thread};
 use std::path::{Path, PathBuf};
-use std::ptr;
-use std::thread;
 use std::time::Duration;
 
 pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
@@ -34,8 +32,7 @@ pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     }
 }
 
-// TODO: Refactor to support FS on LUKS.
-// TODO: Change name to LuksDevice?
+// TODO: Change name to LogicalDevice?
 
 /// An LVM device acts similar to a Disk, but consists of one more block devices
 /// that comprise a volume group, and may optionally be encrypted.
@@ -62,10 +59,13 @@ impl DiskExt for LvmDevice {
 
     fn get_file_system(&self) -> Option<&PartitionInfo> { self.file_system.as_ref() }
 
+    fn get_file_system_mut(&mut self) -> Option<&mut PartitionInfo> { self.file_system.as_mut() }
+
     fn set_file_system(&mut self, fs: PartitionInfo) {
+        debug_assert!(self.encryption.is_some(), "encryption should be configured");
+
         self.file_system = Some(fs);
         self.partitions.clear();
-        debug_assert!(self.encryption.is_some(), "encryption should be configured");
     }
 
     fn get_model(&self) -> &str { &self.model_name }
@@ -253,11 +253,21 @@ impl LvmDevice {
 
     /// Create & modify all logical volumes on the volume group, and format them.
     pub(crate) fn modify_partitions(&self) -> Result<(), DiskError> {
-        if self.partitions.is_empty() {
-            return Ok(());
-        }
-        let nparts = self.partitions.len() - 1;
-        for (id, partition) in self.partitions.iter().enumerate() {
+        let nparts = if self.partitions.is_empty() {
+            if self.file_system.is_some() {
+                0
+            } else {
+                return Ok(());
+            }
+        } else {
+            self.partitions.len() - 1
+        };
+
+        let partitions = self.file_system.as_ref().into_iter()
+            .map(|part| (0, part))
+            .chain(self.partitions.iter().enumerate());
+
+        for (id, partition) in partitions {
             let label = partition.name.as_ref().expect("logical partitions should have names").as_str();
 
             // Don't create a partition if it already exists.
