@@ -415,13 +415,13 @@ impl Installer {
         let physical_targets = disks
             .get_physical_devices()
             .iter()
-            .flat_map(|disk| disk.partitions.iter())
+            .flat_map(|disk| disk.file_system.as_ref().into_iter().chain(disk.partitions.iter()))
             .filter(|part| !part.target.is_none() && !part.filesystem.is_none());
 
         let logical_targets = disks
             .get_logical_devices()
             .iter()
-            .flat_map(|disk| disk.partitions.iter())
+            .flat_map(|disk| disk.file_system.as_ref().into_iter().chain(disk.partitions.iter()))
             .filter(|part| !part.target.is_none() && !part.filesystem.is_none());
 
         let targets = physical_targets.chain(logical_targets);
