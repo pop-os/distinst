@@ -295,7 +295,6 @@ impl Disks {
                     return Ok(LvmDevice::new(vg, Some(enc.clone()), partition.sectors(), 512, true));
                 }
                 _ => {
-                    info!("attempting to detect LUKS {:?} from {:?}", pv, path);
                     // Detect a file system on the device
                     if let Some(fs) = detect_fs_on_device(&pv) {
                         let pv = enc.physical_volume.clone();
@@ -308,7 +307,6 @@ impl Disks {
                         );
 
                         luks.set_file_system(fs);
-                        info!("found {:?}", luks);
                         return Ok(luks);
                     }
 
