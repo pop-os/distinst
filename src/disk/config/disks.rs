@@ -521,14 +521,15 @@ impl Disks {
         Ok(())
     }
 
-    /// Maps key paths to their keyfile IDs
+    /// Maps key paths to their keyfile IDs TODO
     fn resolve_keyfile_paths(&mut self) -> Result<(), DiskError> {
         let mut temp: Vec<(String, Option<(PathBuf, PathBuf)>)> = Vec::new();
 
         'outer: for logical_device in &mut self.logical {
             if let Some(ref mut encryption) = logical_device.encryption {
                 if let Some((ref key_id, ref mut paths)) = encryption.keydata {
-                    let partitions = self.physical.iter().flat_map(|p| p.partitions.iter());
+                    let partitions = self.physical.iter()
+                        .flat_map(|p| p.file_system.as_ref().into_iter().chain(p.partitions.iter()));
                     for partition in partitions {
                         let dev = partition.get_device_path();
                         if let Some(ref pkey_id) = partition.key_id {
@@ -677,7 +678,7 @@ impl Disks {
         Ok(())
     }
 
-    /// Similar to `generate_fstab`, but for the crypttab file.
+    /// Generates the crypttab and fstab files in memory.
     pub(crate) fn generate_fstabs(&self) -> (OsString, OsString) {
         info!("libdistinst: generating /etc/crypttab & /etc/fstab in memory");
         let mut crypttab = OsString::with_capacity(1024);
@@ -685,10 +686,16 @@ impl Disks {
 
         let partitions = self.physical
             .iter()
-            .flat_map(|x| x.get_partitions().iter().map(|p| (true, p)))
+            .flat_map(|x| {
+                x.file_system.as_ref().into_iter()
+                    .chain(x.partitions.iter())
+                    .map(|p| (true, p))
+            })
             .chain(self.logical.iter().flat_map(|x| {
                 let is_unencrypted: bool = x.encryption.is_none();
-                x.get_partitions().iter().map(move |p| (is_unencrypted, p))
+                x.file_system.as_ref().into_iter()
+                    .chain(x.partitions.iter())
+                    .map(move |p| (is_unencrypted, p))
             }));
 
         fn write_fstab(fstab: &mut OsString, partition: &PartitionInfo) {
@@ -776,6 +783,8 @@ impl Disks {
                 write_fstab(&mut fstab, &partition);
             }
         }
+
+        // Handle
 
         info!(
             "libdistinst: generated the following crypttab data:\n{}",

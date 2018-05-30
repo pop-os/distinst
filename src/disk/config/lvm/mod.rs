@@ -22,6 +22,10 @@ use std::time::Duration;
 
 pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     let dmlist = dmlist()?;
+    if !dmlist.iter().any(|x| x.as_str() == prefix) {
+        return Ok(prefix.into());
+    }
+
     loop {
         let id: String = rand::thread_rng().gen_ascii_chars().take(5).collect();
         let id = [prefix, "_", &id].concat();
@@ -61,8 +65,9 @@ impl DiskExt for LvmDevice {
 
     fn get_file_system_mut(&mut self) -> Option<&mut PartitionInfo> { self.file_system.as_mut() }
 
-    fn set_file_system(&mut self, fs: PartitionInfo) {
-        debug_assert!(self.encryption.is_some(), "encryption should be configured");
+    fn set_file_system(&mut self, mut fs: PartitionInfo) {
+        // Set the volume group + encryption to be the same as the parent.
+        fs.volume_group = Some((self.volume_group.clone(), self.encryption.clone()));
 
         self.file_system = Some(fs);
         self.partitions.clear();
