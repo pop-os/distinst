@@ -48,7 +48,7 @@ impl Disks {
     pub fn contains_luks(&self) -> bool {
         self.physical
             .iter()
-            .flat_map(|d| d.get_partitions().iter())
+            .flat_map(|d| d.file_system.as_ref().into_iter().chain(d.partitions.iter()))
             .any(|p| p.filesystem == Some(FileSystemType::Luks))
     }
 
@@ -332,7 +332,7 @@ impl Disks {
                 }
             }
 
-            for partition in &mut device.partitions {
+            for partition in device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut()) {
                 if &partition.device_path == path {
                     new_device = Some(decrypt(partition, path, &enc)?);
                     break
@@ -786,8 +786,6 @@ impl Disks {
             }
         }
 
-        // Handle
-
         info!(
             "libdistinst: generated the following crypttab data:\n{}",
             crypttab.to_string_lossy(),
@@ -910,7 +908,7 @@ impl Disks {
 
         // By default, the `device_path` field is not populated, so let's fix that.
         for device in &mut self.logical {
-            for partition in &mut device.partitions {
+            for partition in device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut()) {
                 // ... unless it is populated, due to existing beforehand.
                 if partition.flag_is_enabled(SOURCE) {
                     continue;
