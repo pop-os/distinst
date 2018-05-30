@@ -45,6 +45,7 @@ pub struct LvmDevice {
     pub(crate) model_name:   String,
     pub(crate) volume_group: String,
     pub(crate) device_path:  PathBuf,
+    pub(crate) luks_parent:  Option<PathBuf>,
     pub(crate) mount_point:  Option<PathBuf>,
     pub(crate) file_system:  Option<PartitionInfo>,
     pub(crate) sectors:      u64,
@@ -121,6 +122,7 @@ impl LvmDevice {
             mount_point: mounts.get_mount_point(&device_path),
             volume_group,
             device_path,
+            luks_parent: None,
             file_system: None,
             sectors,
             sector_size,
@@ -229,6 +231,10 @@ impl LvmDevice {
                 self.partitions.push(partition);
             }
         }
+    }
+
+    pub fn set_luks_parent(&mut self, device: PathBuf) {
+        self.luks_parent = Some(device);
     }
 
     pub fn clear_partitions(&mut self) {

@@ -17,12 +17,12 @@ use misc::{get_uuid, from_uuid};
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::ffi::OsString;
-use std::io;
+use std::{io, str, thread};
 use std::iter::{self, FromIterator};
 use std::path::{Path, PathBuf};
-use std::str;
-use std::thread;
 use std::time::Duration;
+use std::borrow::Cow;
+use std::ffi::OsStr;
 
 /// A configuration of disks, both physical and logical.
 #[derive(Debug, PartialEq)]
@@ -307,6 +307,8 @@ impl Disks {
                         );
 
                         luks.set_file_system(fs);
+                        luks.set_luks_parent(path.to_path_buf());
+
                         return Ok(luks);
                     }
 
@@ -689,13 +691,14 @@ impl Disks {
             .flat_map(|x| {
                 x.file_system.as_ref().into_iter()
                     .chain(x.partitions.iter())
-                    .map(|p| (true, p))
+                    .map(|p| (true, &None, p))
             })
             .chain(self.logical.iter().flat_map(|x| {
+                let luks_parent = &x.luks_parent;
                 let is_unencrypted: bool = x.encryption.is_none();
                 x.file_system.as_ref().into_iter()
                     .chain(x.partitions.iter())
-                    .map(move |p| (is_unencrypted, p))
+                    .map(move |p| (is_unencrypted, luks_parent, p))
             }));
 
         fn write_fstab(fstab: &mut OsString, partition: &PartitionInfo) {
@@ -717,10 +720,7 @@ impl Disks {
             }
         }
 
-        // <PV> <UUID> <Pass> <Options>
-        use std::borrow::Cow;
-        use std::ffi::OsStr;
-        for (is_unencrypted, partition) in partitions {
+        for (is_unencrypted, luks_parent, partition) in partitions {
             if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
                 let password: Cow<'static, OsStr> =
                     match (enc.password.is_some(), enc.keydata.as_ref()) {
@@ -736,7 +736,9 @@ impl Disks {
                         }
                     };
 
-                match get_uuid(&partition.device_path) {
+                let path = luks_parent.as_ref().map_or(&partition.device_path, |x| &x);
+
+                match get_uuid(path) {
                     Some(uuid) => {
                         crypttab.push(&enc.physical_volume);
                         crypttab.push(" UUID=");
