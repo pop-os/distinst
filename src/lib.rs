@@ -613,7 +613,7 @@ impl Installer {
                 hardware_support::append_packages(&mut install_pkgs);
             }
 
-            hardware_support::blacklist::disable_external_graphics()?;
+            hardware_support::blacklist::disable_external_graphics(&mount_dir)?;
 
             info!(
                 "libdistinst: will install {:?} bootloader packages",
