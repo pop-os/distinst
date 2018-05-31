@@ -298,6 +298,23 @@ namespace Distinst {
      */
     public bool validate_hostname (string hostname);
 
+    /**
+     * The followting functions take information from a static structure
+     * in the library which contains information from `/etc/os-release`.
+     */
+
+    public uint8[] get_os_bug_report_url ();
+    public uint8[] get_os_home_url ();
+    public uint8[] get_os_id_like ();
+    public uint8[] get_os_id ();
+    public uint8[] get_os_name ();
+    public uint8[] get_os_pretty_name ();
+    public uint8[] get_os_privacy_policy_url ();
+    public uint8[] get_os_support_url ();
+    public uint8[] get_os_version_codename ();
+    public uint8[] get_os_version_id ();
+    public uint8[] get_os_version ();
+
     [CCode (cname = "DISTINST_PARTITION_FLAG", has_type_id = false)]
     public enum PartitionFlag {
         BOOT,
@@ -466,6 +483,21 @@ namespace Distinst {
          * an error will occur.
          */
         public void associate_keyfile (string keyfile_id);
+
+        /**
+         * Checks if the partition is a EFI partition.
+         */
+        public bool is_esp ();
+
+        /**
+         * Checks if the partition is a swap partition.
+         */
+        public bool is_swap ();
+
+        /**
+         * Checks if Linux may be installed to this partition.
+         */
+        public bool is_linux_compatible ();
     }
 
     [CCode (has_type_id = false)]
