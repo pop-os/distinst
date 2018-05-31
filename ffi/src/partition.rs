@@ -443,6 +443,30 @@ pub unsafe extern "C" fn distinst_partition_format_with(
     0
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_is_esp(
+    partition: *const DistinstPartition,
+) -> bool {
+    let part = &*(partition as *const PartitionInfo);
+    part.is_esp_partition()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_is_swap(
+    partition: *const DistinstPartition,
+) -> bool {
+    let part = &*(partition as *const PartitionInfo);
+    part.is_swap()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_is_linux_compatible(
+    partition: *const DistinstPartition,
+) -> bool {
+    let part = &*(partition as *const PartitionInfo);
+    part.is_linux_compatible()
+}
+
 #[repr(C)]
 pub struct DistinstPartitionAndDiskPath {
     pub disk_path: *mut libc::c_char,

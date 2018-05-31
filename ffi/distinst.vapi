@@ -483,6 +483,21 @@ namespace Distinst {
          * an error will occur.
          */
         public void associate_keyfile (string keyfile_id);
+
+        /**
+         * Checks if the partition is a EFI partition.
+         */
+        public bool is_esp ();
+
+        /**
+         * Checks if the partition is a swap partition.
+         */
+        public bool is_swap ();
+
+        /**
+         * Checks if Linux may be installed to this partition.
+         */
+        public bool is_linux_compatible ();
     }
 
     [CCode (has_type_id = false)]
