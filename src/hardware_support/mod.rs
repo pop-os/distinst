@@ -3,6 +3,7 @@ use raw_cpuid::CpuId;
 use std::io::Read;
 use os_release::OS_RELEASE;
 
+pub mod blacklist;
 #[macro_use]
 mod macros;
 mod modules;
