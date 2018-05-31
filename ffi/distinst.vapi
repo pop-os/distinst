@@ -298,6 +298,23 @@ namespace Distinst {
      */
     public bool validate_hostname (string hostname);
 
+    /**
+     * The followting functions take information from a static structure
+     * in the library which contains information from `/etc/os-release`.
+     */
+
+    public uint8[] get_os_bug_report_url ();
+    public uint8[] get_os_home_url ();
+    public uint8[] get_os_id_like ();
+    public uint8[] get_os_id ();
+    public uint8[] get_os_name ();
+    public uint8[] get_os_pretty_name ();
+    public uint8[] get_os_privacy_policy_url ();
+    public uint8[] get_os_support_url ();
+    public uint8[] get_os_version_codename ();
+    public uint8[] get_os_version_id ();
+    public uint8[] get_os_version ();
+
     [CCode (cname = "DISTINST_PARTITION_FLAG", has_type_id = false)]
     public enum PartitionFlag {
         BOOT,
