@@ -134,3 +134,5 @@ options ${BOOT_OPTIONS} boot=casper hostname=recovery userfullname=Recovery user
 EOF
 
 fi
+
+update-initramfs -u

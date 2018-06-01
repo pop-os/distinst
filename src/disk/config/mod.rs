@@ -113,6 +113,7 @@ mod tests {
                 model_name:  "Test Disk".into(),
                 serial:      "Test Disk 123".into(),
                 device_path: "/dev/sdz".into(),
+                file_system: None,
                 mount_point: None,
                 size:        1953525168,
                 sector_size: 512,
@@ -199,6 +200,7 @@ mod tests {
         Disks {
             physical: vec![Disk {
                 mklabel:     false,
+                file_system: None,
                 model_name:  "Test Disk".into(),
                 serial:      "Test Disk 123".into(),
                 device_path: "/dev/sdz".into(),

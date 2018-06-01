@@ -6,7 +6,7 @@ lazy_static! {
     pub static ref OS_RELEASE: OsRelease = OsRelease::new().expect("unable to find /etc/os-release");
 }
 
-macro_rules! starts_with_match {
+macro_rules! map_keys {
     ($item:expr, { $($pat:expr => $field:expr),+ }) => {{
         $(
             if $item.starts_with($pat) {
@@ -28,17 +28,17 @@ fn parse_line(line: &str, skip: usize) -> &str {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct OsRelease {
-    pub name:               String,
-    pub version:            String,
-    pub id:                 String,
-    pub id_like:            String,
-    pub pretty_name:        String,
-    pub version_id:         String,
-    pub home_url:           String,
-    pub support_url:        String,
     pub bug_report_url:     String,
+    pub home_url:           String,
+    pub id_like:            String,
+    pub id:                 String,
+    pub name:               String,
+    pub pretty_name:        String,
     pub privacy_policy_url: String,
+    pub support_url:        String,
     pub version_codename:   String,
+    pub version_id:         String,
+    pub version:            String,
 }
 
 impl OsRelease {
@@ -46,7 +46,7 @@ impl OsRelease {
         let mut os_release = OsRelease::default();
 
         for line in lines {
-            starts_with_match!(line.as_str(), {
+            map_keys!(line.as_str(), {
                 "NAME=" => os_release.name,
                 "VERSION=" => os_release.version,
                 "ID=" => os_release.id,

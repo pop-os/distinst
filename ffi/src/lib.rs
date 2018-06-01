@@ -14,6 +14,7 @@ pub use self::installer::*;
 pub use self::keyboard_layout::*;
 pub use self::locale::*;
 pub use self::lvm::*;
+pub use self::os::*;
 pub use self::partition::*;
 pub use self::sector::*;
 
@@ -31,6 +32,7 @@ mod installer;
 mod keyboard_layout;
 mod locale;
 mod lvm;
+mod os;
 mod partition;
 mod sector;
 

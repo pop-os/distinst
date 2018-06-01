@@ -375,6 +375,14 @@ pub unsafe extern "C" fn distinst_partition_get_end_sector(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_partition_is_encrypted(
+    partition: *const DistinstPartition,
+) -> bool {
+    let part = &*(partition as *const PartitionInfo);
+    part.is_encrypted()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_partition_set_mount(
     partition: *mut DistinstPartition,
     target: *const libc::c_char,
@@ -441,6 +449,30 @@ pub unsafe extern "C" fn distinst_partition_format_with(
         None => return -1,
     });
     0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_is_esp(
+    partition: *const DistinstPartition,
+) -> bool {
+    let part = &*(partition as *const PartitionInfo);
+    part.is_esp_partition()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_is_swap(
+    partition: *const DistinstPartition,
+) -> bool {
+    let part = &*(partition as *const PartitionInfo);
+    part.is_swap()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_partition_is_linux_compatible(
+    partition: *const DistinstPartition,
+) -> bool {
+    let part = &*(partition as *const PartitionInfo);
+    part.is_linux_compatible()
 }
 
 #[repr(C)]

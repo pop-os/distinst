@@ -10,6 +10,8 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
 use tempdir::TempDir;
 
 /// A generic function for executing a variety external commands.
@@ -370,12 +372,29 @@ pub(crate) fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<
 
 /// If `cryptsetup info DEV` has an exit status of 0, the partition is encrypted.
 pub(crate) fn is_encrypted(device: &Path) -> bool {
-    exec(
-        "cryptsetup",
-        None,
-        None,
-        &["luksDump".into(), device.into()],
-    ).is_ok()
+    let mut attempts = 0;
+    loop {
+        let res = Command::new("cryptsetup")
+            .stdout(Stdio::null())
+            .arg("luksDump")
+            .arg(device)
+            .status()
+            .ok();
+
+        match res.and_then(|stat| stat.code()) {
+            Some(0) => return true,
+            // An exit status of 4 can happen if the partition is scanned too hastily.
+            Some(4) => {
+                thread::sleep(Duration::from_millis(100));
+                if attempts == 3 {
+                    return false;
+                }
+                attempts += 1;
+                continue
+            },
+            _ => return false,
+        }
+    }
 }
 
 /// Closes an encrypted partition.

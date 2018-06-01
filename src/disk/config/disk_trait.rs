@@ -1,5 +1,6 @@
 use super::super::{
-    DiskError, Disks, PartitionBuilder, PartitionError, PartitionInfo, PartitionTable, PartitionType, Sector,
+    DiskError, Disks, PartitionBuilder, PartitionError, PartitionInfo,
+    PartitionTable, PartitionType, Sector,
 };
 use super::partitions::{check_partition_size, REMOVE};
 use std::fs::File;
@@ -17,6 +18,15 @@ pub trait DiskExt {
 
     /// Returns the path to the block device in the system.
     fn get_device_path(&self) -> &Path;
+
+    /// Sometimes, disks may have an entire file system, rather than a partition table.
+    fn get_file_system(&self) -> Option<&PartitionInfo>;
+
+    /// Mutable variant of `get_file_system()`.
+    fn get_file_system_mut(&mut self) -> Option<&mut PartitionInfo>;
+
+    /// Sets a file system on this device (unsetting the partition table in the process).
+    fn set_file_system(&mut self, fs: PartitionInfo);
 
     /// Returns the model of the device.
     fn get_model(&self) -> &str;
@@ -221,7 +231,7 @@ pub(crate) fn find_partition<'a, T: DiskExt>(
     target: &Path,
 ) -> Option<(&'a Path, &'a PartitionInfo)> {
     for disk in disks {
-        for partition in disk.get_partitions() {
+        for partition in disk.get_file_system().into_iter().chain(disk.get_partitions().iter()) {
             if let Some(ref ptarget) = partition.target {
                 if ptarget == target {
                     return Some((disk.get_device_path(), partition));
@@ -240,7 +250,24 @@ pub(crate) fn find_partition_mut<'a, T: DiskExt>(
 ) -> Option<(PathBuf, &'a mut PartitionInfo)> {
     for disk in disks {
         let path = disk.get_device_path().to_path_buf();
-        for partition in disk.get_partitions_mut() {
+        // TODO: NLL
+        let disk = disk as *mut T;
+
+        if let Some(partition) = unsafe { &mut *disk }.get_file_system_mut() {
+            // TODO: NLL
+            let mut found = false;
+            if let Some(ref ptarget) = partition.target {
+                if ptarget == target {
+                    found = true;
+                }
+            }
+
+            if found {
+                return Some((path, partition));
+            }
+        }
+
+        for partition in unsafe { &mut *disk }.get_partitions_mut() {
             // TODO: NLL
             let mut found = false;
             if let Some(ref ptarget) = partition.target {

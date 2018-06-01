@@ -306,6 +306,23 @@ namespace Distinst {
      */
     public bool validate_hostname (string hostname);
 
+    /**
+     * The followting functions take information from a static structure
+     * in the library which contains information from `/etc/os-release`.
+     */
+
+    public uint8[] get_os_bug_report_url ();
+    public uint8[] get_os_home_url ();
+    public uint8[] get_os_id_like ();
+    public uint8[] get_os_id ();
+    public uint8[] get_os_name ();
+    public uint8[] get_os_pretty_name ();
+    public uint8[] get_os_privacy_policy_url ();
+    public uint8[] get_os_support_url ();
+    public uint8[] get_os_version_codename ();
+    public uint8[] get_os_version_id ();
+    public uint8[] get_os_version ();
+
     [CCode (cname = "DISTINST_PARTITION_FLAG", has_type_id = false)]
     public enum PartitionFlag {
         BOOT,
@@ -400,36 +417,36 @@ namespace Distinst {
     public class Partition {
         /**
          * Returns the partition's number.
-        */
+         */
         public int get_number ();
 
         /**
          * Returns the partition's device path.
-        */
+         */
         public unowned uint8[] get_device_path ();
 
         /**
          * Sets the flags that will be assigned to this partition.
-        */
+         */
         public void set_flags (PartitionFlag[] flags);
 
         /**
          * Sets the mount target for this partition.
-        */
+         */
         public void set_mount (string target);
 
         /**
          * Marks to format the partition with the provided file system.
          *
          * Retains the partiton's name.
-        */
+         */
         public int format_and_keep_name (FileSystemType fs);
 
         /**
          * Marks to format the partition with the provided file system.
          *
          * Also removes the partition's name in the process.
-        */
+         */
         public int format_with (FileSystemType fs);
 
         /**
@@ -439,32 +456,37 @@ namespace Distinst {
 
         /**
          * Gets the start sector where this partition lies on the disk.
-        */
+         */
         public uint64 get_start_sector ();
 
         /**
          * Gets the end sector where this partition lies on the disk.
-        */
+         */
         public uint64 get_end_sector ();
 
         /**
          * Gets the name of the partition.
-        */
+         */
         public unowned uint8[]? get_label ();
 
         /**
          * Gets the mount point of the partition.
-        */
+         */
         public unowned uint8[]? get_mount_point ();
 
         /**
          * Returns the file system which the partition is formatted with
-        */
+         */
         public FileSystemType get_file_system ();
 
         /**
+         * Checks if the partition is LUKS-encrypted.
+         */
+        public bool is_encrypted ();
+
+        /**
          * Returns the number of sectors that are used in the file system
-        */
+         */
         public PartitionUsage sectors_used (uint64 sector_size);
 
         /**
@@ -474,6 +496,21 @@ namespace Distinst {
          * an error will occur.
          */
         public void associate_keyfile (string keyfile_id);
+
+        /**
+         * Checks if the partition is a EFI partition.
+         */
+        public bool is_esp ();
+
+        /**
+         * Checks if the partition is a swap partition.
+         */
+        public bool is_swap ();
+
+        /**
+         * Checks if Linux may be installed to this partition.
+         */
+        public bool is_linux_compatible ();
     }
 
     [CCode (has_type_id = false)]
@@ -673,6 +710,12 @@ namespace Distinst {
         public unowned uint8[] get_model ();
 
         /**
+         * If this is not `None`, then LVM is not on the device, and the
+         * device contains a file system instead.
+         */
+        public unowned Partition? get_encrypted_file_system ();
+
+        /**
          * Returns the size of the device, in sectors.
          */
         public uint64 get_sectors ();
@@ -831,6 +874,11 @@ namespace Distinst {
          * and logical partitions.
          */
         public PartitionAndDiskPath find_partition (string target);
+
+        /**
+         * True if any partition on the disk is a LUKS partition.
+         */
+        public bool contains_luks ();
     }
 
     [CCode (has_type_id = false)]

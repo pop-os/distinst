@@ -344,6 +344,14 @@ pub unsafe extern "C" fn distinst_disks_probe() -> *mut DistinstDisks {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disks_contains_luks(
+    disks: *const DistinstDisks
+) -> bool {
+    let disks = &*(disks as *const Disks);
+    disks.contains_luks()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disks_list(
     disks: *mut DistinstDisks,
     len: *mut libc::c_int,
