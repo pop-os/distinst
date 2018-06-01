@@ -10,19 +10,22 @@ use super::super::external::{
 };
 use super::super::mounts::Mounts;
 use super::super::{
-    DiskError, DiskExt, Disks, PartitionError, PartitionInfo, PartitionTable, PartitionType, FORMAT, REMOVE, SOURCE,
+    DiskError, DiskExt, Disks, PartitionError, PartitionInfo, PartitionTable,
+    PartitionType, FORMAT, REMOVE, SOURCE,
 };
 use super::get_size;
 use rand::{self, Rng};
 use std::ffi::OsStr;
-use std::io;
+use std::{io, ptr, thread};
 use std::path::{Path, PathBuf};
-use std::ptr;
-use std::thread;
 use std::time::Duration;
 
 pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     let dmlist = dmlist()?;
+    if !dmlist.iter().any(|x| x.as_str() == prefix) {
+        return Ok(prefix.into());
+    }
+
     loop {
         let id: String = rand::thread_rng().gen_ascii_chars().take(5).collect();
         let id = [prefix, "_", &id].concat();
@@ -33,6 +36,8 @@ pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     }
 }
 
+// TODO: Change name to LogicalDevice?
+
 /// An LVM device acts similar to a Disk, but consists of one more block devices
 /// that comprise a volume group, and may optionally be encrypted.
 #[derive(Debug, Clone, PartialEq)]
@@ -40,7 +45,9 @@ pub struct LvmDevice {
     pub(crate) model_name:   String,
     pub(crate) volume_group: String,
     pub(crate) device_path:  PathBuf,
+    pub(crate) luks_parent:  Option<PathBuf>,
     pub(crate) mount_point:  Option<PathBuf>,
+    pub(crate) file_system:  Option<PartitionInfo>,
     pub(crate) sectors:      u64,
     pub(crate) sector_size:  u64,
     pub(crate) partitions:   Vec<PartitionInfo>,
@@ -54,6 +61,18 @@ impl DiskExt for LvmDevice {
     const LOGICAL: bool = true;
 
     fn get_device_path(&self) -> &Path { &self.device_path }
+
+    fn get_file_system(&self) -> Option<&PartitionInfo> { self.file_system.as_ref() }
+
+    fn get_file_system_mut(&mut self) -> Option<&mut PartitionInfo> { self.file_system.as_mut() }
+
+    fn set_file_system(&mut self, mut fs: PartitionInfo) {
+        // Set the volume group + encryption to be the same as the parent.
+        fs.volume_group = Some((self.volume_group.clone(), self.encryption.clone()));
+
+        self.file_system = Some(fs);
+        self.partitions.clear();
+    }
 
     fn get_model(&self) -> &str { &self.model_name }
 
@@ -103,6 +122,8 @@ impl LvmDevice {
             mount_point: mounts.get_mount_point(&device_path),
             volume_group,
             device_path,
+            luks_parent: None,
+            file_system: None,
             sectors,
             sector_size,
             partitions: Vec::new(),
@@ -117,10 +138,8 @@ impl LvmDevice {
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub(crate) fn validate(&self) -> Result<(), DiskError> {
-        for partition in self.get_partitions() {
-            if !partition.name.is_some() {
-                return Err(DiskError::VolumePartitionLacksLabel);
-            }
+        if self.get_partitions().iter().any(|p| !p.name.is_some()) {
+            return Err(DiskError::VolumePartitionLacksLabel);
         }
 
         Ok(())
@@ -214,6 +233,10 @@ impl LvmDevice {
         }
     }
 
+    pub fn set_luks_parent(&mut self, device: PathBuf) {
+        self.luks_parent = Some(device);
+    }
+
     pub fn clear_partitions(&mut self) {
         for partition in &mut self.partitions {
             partition.remove();
@@ -241,11 +264,21 @@ impl LvmDevice {
 
     /// Create & modify all logical volumes on the volume group, and format them.
     pub(crate) fn modify_partitions(&self) -> Result<(), DiskError> {
-        if self.partitions.is_empty() {
-            return Ok(());
-        }
-        let nparts = self.partitions.len() - 1;
-        for (id, partition) in self.partitions.iter().enumerate() {
+        let nparts = if self.partitions.is_empty() {
+            if self.file_system.is_some() {
+                0
+            } else {
+                return Ok(());
+            }
+        } else {
+            self.partitions.len() - 1
+        };
+
+        let partitions = self.file_system.as_ref().into_iter()
+            .map(|part| (0, part))
+            .chain(self.partitions.iter().enumerate());
+
+        for (id, partition) in partitions {
             let label = partition.name.as_ref().expect("logical partitions should have names").as_str();
 
             // Don't create a partition if it already exists.

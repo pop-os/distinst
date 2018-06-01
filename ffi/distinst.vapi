@@ -409,36 +409,36 @@ namespace Distinst {
     public class Partition {
         /**
          * Returns the partition's number.
-        */
+         */
         public int get_number ();
 
         /**
          * Returns the partition's device path.
-        */
+         */
         public unowned uint8[] get_device_path ();
 
         /**
          * Sets the flags that will be assigned to this partition.
-        */
+         */
         public void set_flags (PartitionFlag[] flags);
 
         /**
          * Sets the mount target for this partition.
-        */
+         */
         public void set_mount (string target);
 
         /**
          * Marks to format the partition with the provided file system.
          *
          * Retains the partiton's name.
-        */
+         */
         public int format_and_keep_name (FileSystemType fs);
 
         /**
          * Marks to format the partition with the provided file system.
          *
          * Also removes the partition's name in the process.
-        */
+         */
         public int format_with (FileSystemType fs);
 
         /**
@@ -448,32 +448,37 @@ namespace Distinst {
 
         /**
          * Gets the start sector where this partition lies on the disk.
-        */
+         */
         public uint64 get_start_sector ();
 
         /**
          * Gets the end sector where this partition lies on the disk.
-        */
+         */
         public uint64 get_end_sector ();
 
         /**
          * Gets the name of the partition.
-        */
+         */
         public unowned uint8[]? get_label ();
 
         /**
          * Gets the mount point of the partition.
-        */
+         */
         public unowned uint8[]? get_mount_point ();
 
         /**
          * Returns the file system which the partition is formatted with
-        */
+         */
         public FileSystemType get_file_system ();
 
         /**
+         * Checks if the partition is LUKS-encrypted.
+         */
+        public bool is_encrypted ();
+
+        /**
          * Returns the number of sectors that are used in the file system
-        */
+         */
         public PartitionUsage sectors_used (uint64 sector_size);
 
         /**
@@ -697,6 +702,12 @@ namespace Distinst {
         public unowned uint8[] get_model ();
 
         /**
+         * If this is not `None`, then LVM is not on the device, and the
+         * device contains a file system instead.
+         */
+        public unowned Partition? get_encrypted_file_system ();
+
+        /**
          * Returns the size of the device, in sectors.
          */
         public uint64 get_sectors ();
@@ -855,6 +866,11 @@ namespace Distinst {
          * and logical partitions.
          */
         public PartitionAndDiskPath find_partition (string target);
+
+        /**
+         * True if any partition on the disk is a LUKS partition.
+         */
+        public bool contains_luks ();
     }
 
     [CCode (has_type_id = false)]

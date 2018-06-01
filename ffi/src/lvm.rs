@@ -72,6 +72,17 @@ pub unsafe extern "C" fn distinst_lvm_device_get_device_path(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_lvm_device_get_encrypted_file_system(
+    disk: *const DistinstLvmDevice,
+) -> *const DistinstPartition {
+    let disk = &*(disk as *const LvmDevice);
+    match disk.get_file_system() {
+        Some(fs) => fs as *const PartitionInfo as *const DistinstPartition,
+        None => ptr::null()
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_model(
     disk: *mut DistinstLvmDevice,
     len: *mut libc::c_int,
