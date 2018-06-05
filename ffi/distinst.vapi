@@ -193,15 +193,15 @@ namespace Distinst {
          * flag for each erase option collected.
          */
         public InstallOptions (Disks disks, uint64 required);
-        public RecoveryOption? get_recovery_option ();
+        public unowned RecoveryOption? get_recovery_option ();
         /**
          * Gets a boxed array of refresh installation options that were collected.
          */
-        public RefreshOption[] get_refresh_options ();
+        public unowned RefreshOption[] get_refresh_options ();
         /**
          * Gets a boxed array of erase and install options that were collected.
          */
-        public EraseOption[] get_erase_options ();
+        public unowned EraseOption[] get_erase_options ();
     }
 
     [CCode (has_type_id = false, unref_function = "")]
