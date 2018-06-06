@@ -19,8 +19,8 @@ alias nvidia-modeset off
 /// Disables external graphics if switchable graphics is supported.
 pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<()> {
     if let Ok(modules) = Module::all() {
-        let product_name = &*product_name();
-        let disable_nvidia = has_switchable_graphics(product_name)
+        let product_version = &*product_version();
+        let disable_nvidia = has_switchable_graphics(product_version)
             && modules.iter().any(|x| &x.name == "nvidia" || &x.name == "nouveau");
 
         if disable_nvidia {
@@ -40,12 +40,12 @@ fn has_switchable_graphics(product: &str) -> bool {
     SWITCHABLE_GRAPHICS.contains(&product)
 }
 
-/// Path where the product name can be obtained from the DMI.
-const DMI_PATH_PRODUCT_NAME: &str = "/sys/class/dmi/id/product_name";
+/// Path where the product version can be obtained from the DMI.
+const DMI_PATH_PRODUCT_VERSION: &str = "/sys/class/dmi/id/product_version";
 
-fn product_name() -> String {
+fn product_version() -> String {
     let mut output = String::new();
-    if let Ok(mut file) = File::open(DMI_PATH_PRODUCT_NAME) {
+    if let Ok(mut file) = File::open(DMI_PATH_PRODUCT_VERSION) {
         let _ = file.read_to_string(&mut output);
         output = output.trim().into();
     }
