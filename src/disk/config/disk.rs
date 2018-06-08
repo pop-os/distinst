@@ -271,7 +271,7 @@ impl Disk {
 
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
-                if mount == Path::new("/cdrom") {
+                if mount == Path::new("/cdrom") || mount == Path::new("/") {
                     continue
                 }
 
@@ -312,22 +312,22 @@ impl Disk {
             .expect("failed to get mounts in unmount_all_partitions_with_target");
 
         for partition in &mut self.partitions {
-            if let Some(ref target) = partition.target {
-                if let Some(ref mount) = partition.mount_point {
-                    for mount in mountstab.mount_starts_with(mount.as_os_str().as_bytes()) {
-                        info!(
-                            "libdistinst: marking {} to be unmounted, which is mounted at {} and \
-                             has a target of {}",
-                            partition.get_device_path().display(),
-                            mount.display(),
-                            target.display()
-                        );
-                        mounts.insert(mount.clone());
-                    }
+            if let Some(ref mount) = partition.mount_point {
+                if mount == Path::new("/cdrom") || mount == Path::new("/") {
+                    continue
                 }
 
-                partition.mount_point = None;
+                for mount in mountstab.mount_starts_with(mount.as_os_str().as_bytes()) {
+                    info!(
+                        "libdistinst: marking {} to be unmounted, which is mounted at {}",
+                        partition.get_device_path().display(),
+                        mount.display(),
+                    );
+                    mounts.insert(mount.clone());
+                }
             }
+
+            partition.mount_point = None;
 
             if partition.flag_is_enabled(SWAPPED) {
                 info!(
