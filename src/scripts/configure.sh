@@ -102,9 +102,9 @@ then
         # Copy .disk, dists, and pool
         rsync -KLav "/cdrom/.disk" "/cdrom/dists" "/cdrom/pool" "/recovery"
 
-        # Copy casper to special path
+        #    Copy casper to special path
         rsync -KLav "/cdrom/casper/" "/recovery/${CASPER}"
-    end
+    fi
     #
     # # Make a note that the device is a recovery partition
     # # The installer will check for this file's existence.
