@@ -127,19 +127,13 @@ fn recovery_config(
     };
 
     let mut recovery_device: Disk = {
-        let mut recovery_path: PathBuf = misc::from_uuid(&option.root_uuid).expect("root UUID does not exist");
+        let mut recovery_path: PathBuf = misc::from_uuid(&option.recovery_uuid)
+            .ok_or_else(|| InstallOptionError::PartitionNotFound {
+                uuid: option.recovery_uuid.clone()
+            })?;
 
-        loop {
-            match misc::resolve_slave(recovery_path.file_name().unwrap().to_str().unwrap()) {
-                Some(slave) => {
-                    if recovery_path != slave {
-                        recovery_path = slave;
-                        continue
-                    }
-                },
-                None => (),
-            }
-            break
+        if let Some(physical) = misc::resolve_to_physical(recovery_path.file_name().unwrap().to_str().unwrap()) {
+            recovery_path = physical;
         }
 
         if let Some(parent) = misc::resolve_parent(recovery_path.file_name().unwrap().to_str().unwrap()) {
@@ -205,17 +199,8 @@ fn recovery_config(
         let (start, end);
 
         if let Some(mut part) = lvm_part {
-            loop {
-                match misc::resolve_slave(part.file_name().unwrap().to_str().unwrap()) {
-                    Some(slave) => {
-                        if part != slave {
-                            part = slave;
-                            continue
-                        }
-                    },
-                    None => (),
-                }
-                break
+            if let Some(physical) = misc::resolve_to_physical(part.file_name().unwrap().to_str().unwrap()) {
+                part = physical;
             }
 
             let id = {

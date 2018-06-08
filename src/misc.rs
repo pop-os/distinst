@@ -122,6 +122,21 @@ pub(crate) fn resolve_slave(name: &str) -> Option<PathBuf> {
     None
 }
 
+pub(crate) fn resolve_to_physical(name: &str) -> Option<PathBuf> {
+    let mut physical = None;
+    loop {
+        if let Some(slave) = resolve_slave(name) {
+            if physical.as_ref().map_or(true, |rec| rec != &slave) {
+                physical = Some(slave);
+                continue
+            }
+        }
+        break
+    }
+
+    physical
+}
+
 pub(crate) fn resolve_parent(name: &str) -> Option<PathBuf> {
     for entry in fs::read_dir("/sys/block").ok()? {
         if let Ok(entry) = entry {

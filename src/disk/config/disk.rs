@@ -274,7 +274,7 @@ impl Disk {
                 if mount == Path::new("/cdrom") {
                     continue
                 }
-                
+
                 info!(
                     "libdistinst: unmounting {}, which is mounted at {}",
                     partition.get_device_path().display(),
