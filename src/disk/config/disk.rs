@@ -271,6 +271,10 @@ impl Disk {
 
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
+                if mount == Path::new("/cdrom") {
+                    continue
+                }
+                
                 info!(
                     "libdistinst: unmounting {}, which is mounted at {}",
                     partition.get_device_path().display(),
