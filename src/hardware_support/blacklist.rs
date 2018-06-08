@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
 use super::Module;
@@ -25,7 +25,13 @@ pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<()> {
 
         if disable_nvidia {
             info!("libdistinst: disabling external NVIDIA graphics by default");
-            File::open(mount_dir.join(POWER)).and_then(|mut file| file.write_all(BLACKLIST_NVIDIA))?;
+            let _ = fs::create_dir_all(mount_dir.join("etc/modprobe.d/"));
+            OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(mount_dir.join(POWER))
+                .and_then(|mut file| file.write_all(BLACKLIST_NVIDIA))?;
         }
     }
 
