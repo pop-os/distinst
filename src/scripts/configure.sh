@@ -135,4 +135,10 @@ EOF
 
 fi
 
+# This is allowed to fail
+if [ $DISABLE_NVIDIA ]; then
+    systemctl disable nvidia-fallback.service || true
+fi
+
+# Update the chroot's initramfs
 update-initramfs -u

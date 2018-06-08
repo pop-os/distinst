@@ -17,7 +17,7 @@ alias nvidia-modeset off
 "#;
 
 /// Disables external graphics if switchable graphics is supported.
-pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<()> {
+pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<bool> {
     if let Ok(modules) = Module::all() {
         let product_version = &*product_version();
         let disable_nvidia = has_switchable_graphics(product_version)
@@ -32,10 +32,11 @@ pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<()> {
                 .truncate(true)
                 .open(mount_dir.join(POWER))
                 .and_then(|mut file| file.write_all(BLACKLIST_NVIDIA))?;
+            return Ok(true);
         }
     }
 
-    Ok(())
+    Ok(false)
 }
 
 /// Products which support switchable graphics.

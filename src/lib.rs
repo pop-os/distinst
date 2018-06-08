@@ -630,7 +630,7 @@ impl Installer {
                 hardware_support::append_packages(&mut install_pkgs);
             }
 
-            hardware_support::blacklist::disable_external_graphics(&mount_dir)?;
+            let disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir)?;
 
             info!(
                 "libdistinst: will install {:?} bootloader packages",
@@ -651,6 +651,10 @@ impl Installer {
 
                 // Set preferred keyboard layout
                 args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
+
+                if disable_nvidia {
+                    args.push("DISABLE_NVIDIA=1".into());
+                }
 
                 if let Some(ref model) = config.keyboard_model {
                     args.push(format!("KBD_MODEL={}", model));
