@@ -93,15 +93,18 @@ if [ -d "/boot/efi" -a -d "/cdrom" -a -d "/recovery" ]
 then
     EFI_UUID="$(findmnt -n -o UUID /boot/efi)"
     RECOVERY_UUID="$(findmnt -n -o UUID /recovery)"
+    CDROM_UUID="$(findmnt -n -o UUID /cdrom)"
 
     CASPER="casper-${RECOVERY_UUID}"
     RECOVERY="Recovery-${RECOVERY_UUID}"
 
-    # Copy .disk, dists, and pool
-    rsync -KLav "/cdrom/.disk" "/cdrom/dists" "/cdrom/pool" "/recovery"
+    if [ $RECOVERY_UUID != $CDROM_UUID ]; then
+        # Copy .disk, dists, and pool
+        rsync -KLav "/cdrom/.disk" "/cdrom/dists" "/cdrom/pool" "/recovery"
 
-    # Copy casper to special path
-    rsync -KLav "/cdrom/casper/" "/recovery/${CASPER}"
+        # Copy casper to special path
+        rsync -KLav "/cdrom/casper/" "/recovery/${CASPER}"
+    end
     #
     # # Make a note that the device is a recovery partition
     # # The installer will check for this file's existence.
