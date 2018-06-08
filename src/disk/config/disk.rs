@@ -313,7 +313,8 @@ impl Disk {
 
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
-                if mount == Path::new("/cdrom") || mount == Path::new("/") {
+                let paths: &[&Path] = &[Path::new("/"), Path::new("/boot/efi"), Path::new("/cdrom")][..];
+                if paths.contains(&mount.as_path()) {
                     continue
                 }
 

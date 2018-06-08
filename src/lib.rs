@@ -313,7 +313,7 @@ impl Installer {
 
         for disk in disks.get_physical_devices_mut() {
             // This will help us when we are testing in a dev environment.
-            if disk.contains_mount("/") && !disk.contains_mount("/cdrom") {
+            if disk.contains_mount("/") {
                 continue
             }
 
