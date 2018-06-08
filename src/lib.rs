@@ -312,7 +312,7 @@ impl Installer {
         callback(20);
 
         for disk in disks.get_physical_devices_mut() {
-            if disk.contains_mount ("/") { continue }
+            if disk.contains_mount ("/") || disk.contains_mount("/cdrom") { continue }
             if let Err(why) = disk.unmount_all_partitions_with_target() {
                 error!("unable to unmount partitions");
                 return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));

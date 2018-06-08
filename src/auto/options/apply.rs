@@ -127,8 +127,27 @@ fn recovery_config(
     };
 
     let mut recovery_device: Disk = {
-        let recovery_path: &Path = &misc::from_uuid(&option.root_uuid).unwrap();
-        Disk::from_name(recovery_path)
+        let mut recovery_path: PathBuf = misc::from_uuid(&option.root_uuid).expect("root UUID does not exist");
+
+        loop {
+            match misc::resolve_slave(recovery_path.file_name().unwrap().to_str().unwrap()) {
+                Some(slave) => {
+                    if recovery_path != slave {
+                        recovery_path = slave;
+                        continue
+                    }
+                },
+                None => (),
+            }
+            break
+        }
+
+        if let Some(parent) = misc::resolve_parent(recovery_path.file_name().unwrap().to_str().unwrap()) {
+            recovery_path = parent;
+        }
+
+        info!("libdistinst: recovery disk found at {:?}", recovery_path);
+        Disk::from_name(&recovery_path)
             .ok()
             .ok_or(InstallOptionError::DeviceNotFound {
                 path: recovery_path.to_path_buf(),
@@ -185,7 +204,20 @@ fn recovery_config(
 
         let (start, end);
 
-        if let Some(part) = lvm_part {
+        if let Some(mut part) = lvm_part {
+            loop {
+                match misc::resolve_slave(part.file_name().unwrap().to_str().unwrap()) {
+                    Some(slave) => {
+                        if part != slave {
+                            part = slave;
+                            continue
+                        }
+                    },
+                    None => (),
+                }
+                break
+            }
+
             let id = {
                 let part = recovery_device
                     .get_partitions()

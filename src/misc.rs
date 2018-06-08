@@ -1,7 +1,7 @@
 //! An assortment of useful basic functions useful throughout the project.
 
 use std::ffi::{OsStr, OsString};
-use std::fs::{DirEntry, File};
+use std::fs::{self, DirEntry, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
@@ -117,6 +117,20 @@ pub(crate) fn resolve_slave(name: &str) -> Option<PathBuf> {
 
     if slaves.len() == 1 {
         return Some(PathBuf::from(["/dev/", &slaves[0]].concat()));
+    }
+
+    None
+}
+
+pub(crate) fn resolve_parent(name: &str) -> Option<PathBuf> {
+    for entry in fs::read_dir("/sys/block").ok()? {
+        if let Ok(entry) = entry {
+            if let Some(file) = entry.file_name().to_str() {
+                if name.starts_with(file) {
+                    return Some(PathBuf::from(["/dev/", file].concat()));
+                }
+            }
+        }
     }
 
     None

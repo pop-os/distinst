@@ -98,10 +98,10 @@ then
     RECOVERY="Recovery-${RECOVERY_UUID}"
 
     # Copy .disk, dists, and pool
-    cp -rv --dereference "/cdrom/.disk" "/cdrom/dists" "/cdrom/pool" "/recovery"
+    rsync -KLav "/cdrom/.disk" "/cdrom/dists" "/cdrom/pool" "/recovery"
 
     # Copy casper to special path
-    cp -rv "/cdrom/casper" "/recovery/${CASPER}"
+    rsync -KLav "/cdrom/casper/" "/recovery/${CASPER}"
     #
     # # Make a note that the device is a recovery partition
     # # The installer will check for this file's existence.

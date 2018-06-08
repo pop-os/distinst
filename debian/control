@@ -40,6 +40,7 @@ Depends:
   mount,
   ntfs-3g,
   parted,
+  rsync,
   squashfs-tools,
   util-linux,
   xfsprogs,
