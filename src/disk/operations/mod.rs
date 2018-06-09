@@ -3,7 +3,7 @@
 mod move_and_resize;
 
 use self::move_and_resize::{transform, Coordinates, ResizeOperation};
-use super::external::mkfs;
+use super::external::{mkfs, wipefs};
 use super::*;
 use blockdev;
 use libparted::{
@@ -55,6 +55,7 @@ fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a
 fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), DiskError> {
     info!("libdistinst: zeroing 1-2048 sectors of {}", device_path.as_ref().display());
     let _ = misc::zero(&device_path, 2047, 1);
+    let _ = wipefs(&device_path);
 
     info!(
         "libdistinst: writing {:?} table on {}",
