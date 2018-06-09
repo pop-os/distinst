@@ -1055,9 +1055,13 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
     if recovery_path.exists() {
         let recovery_conf = &mut EnvFile::new(recovery_path)?;
 
-        if let Some(uuid) = luks_uuid {
-            recovery_conf.update("LUKS_UUID", uuid);
-        }
+        let luks_value = if let Some(uuid) = luks_uuid {
+            if root_uuid == uuid { "" } else { uuid }
+        } else {
+            ""
+        };
+
+        recovery_conf.update("LUKS_UUID", luks_value);
 
         remount_rw("/cdrom")
             .and_then(|_| {
