@@ -11,6 +11,7 @@ use libparted::{
     PartitionFlag, PartitionType as PedPartitionType,
 };
 use std::path::Path;
+use misc;
 
 /// Removes a partition at the given sector from the disk.
 fn remove_partition_by_sector(disk: &mut PedDisk, sector: u64) -> Result<(), DiskError> {
@@ -52,6 +53,9 @@ fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a
 
 /// Writes a new partition table to the disk, clobbering it in the process.
 fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), DiskError> {
+    info!("libdistinst: zeroing 1-2048 sectors of {}", device_path.as_ref().display());
+    let _ = misc::zero(&device_path, 2047, 1);
+
     info!(
         "libdistinst: writing {:?} table on {}",
         kind,

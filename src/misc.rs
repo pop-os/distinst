@@ -2,7 +2,7 @@
 
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, DirEntry, File};
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 pub use self::layout::*;
@@ -153,6 +153,18 @@ pub(crate) fn resolve_parent(name: &str) -> Option<PathBuf> {
     }
 
     None
+}
+
+pub(crate) fn zero<P: AsRef<Path>>(device: P, sectors: u64, offset: u64) -> io::Result<()> {
+    let zeroed_sector = [0; 512];
+    File::open(device.as_ref())
+        .and_then(|mut file| {
+            if offset != 0 {
+                file.seek(SeekFrom::Start(512 * offset)).map(|_| ())?;
+            }
+
+            (0..sectors).map(|_| file.write(&zeroed_sector).map(|_| ())).collect()
+        })
 }
 
 // TODO: These will be no longer be required once Rust is updated in the repos to 1.26.0
