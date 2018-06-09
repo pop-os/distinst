@@ -123,8 +123,12 @@ pub(crate) fn resolve_slave(name: &str) -> Option<PathBuf> {
 }
 
 pub(crate) fn resolve_to_physical(name: &str) -> Option<PathBuf> {
-    let mut physical = None;
+    let mut physical: Option<PathBuf> = None;
+
     loop {
+        let physical_c = physical.clone();
+        let name = physical_c.as_ref()
+            .map_or(name, |physical| physical.file_name().unwrap().to_str().unwrap());
         if let Some(slave) = resolve_slave(name) {
             if physical.as_ref().map_or(true, |rec| rec != &slave) {
                 physical = Some(slave);

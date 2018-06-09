@@ -622,8 +622,12 @@ impl Installer {
                     ))?
             };
 
+            let luks_uuid = misc::from_uuid(&root_entry.uuid)
+                .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
+                .and_then(|ref path| misc::get_uuid(path));
+
             let root_uuid = &root_entry.uuid;
-            update_recovery_config(&mount_dir, &root_uuid)?;
+            update_recovery_config(&mount_dir, &root_uuid, &luks_uuid)?;
 
             let mut install_pkgs: Vec<&str> = match bootloader {
                 Bootloader::Bios => vec!["grub-pc"],
@@ -670,6 +674,10 @@ impl Installer {
 
                 // Set root UUID
                 args.push(format!("ROOT_UUID={}", root_uuid));
+
+                if let Some(root_luks_uuid) = luks_uuid {
+                    args.push(format!("LUKS_UUID={}", root_luks_uuid));
+                }
 
                 // Run configure script with bash
                 args.push("bash".to_string());
@@ -1027,7 +1035,7 @@ impl Installer {
     }
 }
 
-fn update_recovery_config(mount: &Path, root_uuid: &str) -> io::Result<()> {
+fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>) -> io::Result<()> {
     fn remove_boot(mount: &Path, uuid: &str) -> io::Result<()> {
         for directory in mount.join("boot/efi/EFI").read_dir()? {
             let entry = directory?;
@@ -1046,6 +1054,11 @@ fn update_recovery_config(mount: &Path, root_uuid: &str) -> io::Result<()> {
     let recovery_path = Path::new("/cdrom/recovery.conf");
     if recovery_path.exists() {
         let recovery_conf = &mut EnvFile::new(recovery_path)?;
+
+        if let Some(uuid) = luks_uuid {
+            recovery_conf.update("LUKS_UUID", uuid);
+        }
+        
         remount_rw("/cdrom")
             .and_then(|_| {
                 recovery_conf.update("OEM_MODE", "0");

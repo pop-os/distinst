@@ -150,30 +150,8 @@ fn recovery_config(
 
     {
         let recovery_device = &mut recovery_device;
-        let lvm_part: Option<PathBuf> = {
-            let path: &str = &misc::from_uuid(&option.root_uuid)
-                .expect("no uuid for recovery root")
-                .file_name()
-                .expect("path does not have file name")
-                .to_owned()
-                .into_string()
-                .expect("path is not UTF-8");
-
-            misc::resolve_slave(path).or_else(|| {
-                // Attempt to find the LVM partition automatically.
-                for part in recovery_device.get_partitions() {
-                    if part
-                        .filesystem
-                        .as_ref()
-                        .map_or(false, |&p| p == FileSystemType::Luks)
-                    {
-                        return Some(part.get_device_path().to_path_buf());
-                    }
-                }
-
-                None
-            })
-        };
+        let lvm_part: Option<PathBuf> = option.luks_uuid.as_ref()
+            .and_then(|ref uuid| misc::from_uuid(uuid));
 
         if let Some(ref uuid) = option.efi_uuid {
             let path = &misc::from_uuid(uuid).expect("no uuid for efi part");
