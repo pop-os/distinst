@@ -627,7 +627,7 @@ impl Installer {
                 .and_then(|ref path| misc::get_uuid(path));
 
             let root_uuid = &root_entry.uuid;
-            update_recovery_config(&mount_dir, &root_uuid, &luks_uuid)?;
+            update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
 
             let mut install_pkgs: Vec<&str> = match bootloader {
                 Bootloader::Bios => vec!["grub-pc"],
@@ -1058,7 +1058,7 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
         if let Some(uuid) = luks_uuid {
             recovery_conf.update("LUKS_UUID", uuid);
         }
-        
+
         remount_rw("/cdrom")
             .and_then(|_| {
                 recovery_conf.update("OEM_MODE", "0");
