@@ -120,12 +120,9 @@ KBD_VARIANT=${KBD_VARIANT}
 EFI_UUID=${EFI_UUID}
 RECOVERY_UUID=${RECOVERY_UUID}
 ROOT_UUID=${ROOT_UUID}
+LUKS_UUID=${LUKS_UUID}
 OEM_MODE=0
 EOF
-
-    if [ $LUKS_UUID ]; then
-        echo "LUKS_UUID=${LUKS_UUID}" >> /recovery/recovery.conf
-    fi
 
     # Copy initrd and vmlinuz to EFI partition
     mkdir -p "/boot/efi/EFI/${RECOVERY}"

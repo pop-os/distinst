@@ -624,7 +624,8 @@ impl Installer {
 
             let luks_uuid = misc::from_uuid(&root_entry.uuid)
                 .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
-                .and_then(|ref path| misc::get_uuid(path));
+                .and_then(|ref path| misc::get_uuid(path))
+                .and_then(|uuid| if &uuid == &root_entry.uuid { None } else { Some(uuid)});
 
             let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
@@ -675,9 +676,10 @@ impl Installer {
                 // Set root UUID
                 args.push(format!("ROOT_UUID={}", root_uuid));
 
-                if let Some(root_luks_uuid) = luks_uuid {
-                    args.push(format!("LUKS_UUID={}", root_luks_uuid));
-                }
+                args.push(format!("LUKS_UUID={}", match luks_uuid.as_ref() {
+                    Some(ref uuid) => uuid.as_str(),
+                    None => ""
+                }));
 
                 // Run configure script with bash
                 args.push("bash".to_string());

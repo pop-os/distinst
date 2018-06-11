@@ -175,29 +175,33 @@ fn recovery_config(
 
         let (start, end);
 
-        if let Some(mut part) = lvm_part {
+        let root_path = if let Some(mut part) = lvm_part {
             if let Some(physical) = misc::resolve_to_physical(part.file_name().unwrap().to_str().unwrap()) {
                 part = physical;
             }
 
-            let id = {
-                let part = recovery_device
-                    .get_partitions()
-                    .iter()
-                    .find(|d| d.get_device_path() == part)
-                    .ok_or(InstallOptionError::PartitionNotFound {
-                        uuid: part.to_string_lossy().to_string(),
-                    })?;
-
-                start = part.start_sector;
-                end = part.end_sector;
-                part.number
-            };
-
-            recovery_device.remove_partition(id)?;
+            part
         } else {
-            return Err(InstallOptionError::RecoveryNoLvm);
-        }
+            misc::from_uuid(&option.root_uuid).ok_or_else(|| InstallOptionError::PartitionNotFound {
+                uuid: option.root_uuid.clone()
+            })?
+        };
+
+        let id = {
+            let part = recovery_device
+                .get_partitions()
+                .iter()
+                .find(|d| d.get_device_path() == root_path)
+                .ok_or(InstallOptionError::PartitionNotFound {
+                    uuid: root_path.to_string_lossy().to_string(),
+                })?;
+
+            start = part.start_sector;
+            end = part.end_sector;
+            part.number
+        };
+
+        recovery_device.remove_partition(id)?;
 
         if let Some((enc, root)) = lvm {
             recovery_device.add_partition(
