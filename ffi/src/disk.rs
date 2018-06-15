@@ -115,10 +115,12 @@ pub unsafe extern "C" fn distinst_disk_get_partition_by_path(
 pub unsafe extern "C" fn distinst_disk_contains_mount(
     disk: *const DistinstDisk,
     mount: *const libc::c_char,
+    disks: *const DistinstDisks,
 ) -> bool {
     get_str(mount, "").ok().map_or(false, |mount| {
         let disk = &mut *(disk as *mut Disk);
-        disk.contains_mount(mount)
+        let disks = &*(disks as *const Disks);
+        disk.contains_mount(mount, &*disks)
     })
 }
 

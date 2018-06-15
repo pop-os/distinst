@@ -15,7 +15,6 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::ptr;
 use std::str;
 
 /// Detects a partition on the device, if it exists.
@@ -71,8 +70,6 @@ pub struct Disk {
     pub(crate) mklabel: bool,
     /// The partitions that are stored on the device.
     pub(crate) partitions: Vec<PartitionInfo>,
-    /// A pointer back to the parent which owns this disk. Use caution.
-    pub(crate) parent: *const Disks,
 }
 
 impl DiskExt for Disk {
@@ -89,14 +86,6 @@ impl DiskExt for Disk {
     fn get_model(&self) -> &str { &self.model_name }
 
     fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
-
-    fn get_parent<'a>(&'a self) -> Option<&'a Disks> {
-        if self.parent.is_null() {
-            None
-        } else {
-            Some(unsafe { &*self.parent })
-        }
-    }
 
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
@@ -190,7 +179,6 @@ impl Disk {
             } else {
                 Vec::new()
             },
-            parent: ptr::null(),
         })
     }
 
