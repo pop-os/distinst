@@ -1,8 +1,8 @@
 //! An assortment of useful basic functions useful throughout the project.
 
 use std::ffi::{OsStr, OsString};
-use std::fs::{DirEntry, File};
-use std::io::{self, Read, Write};
+use std::fs::{self, DirEntry, File};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 pub use self::layout::*;
@@ -120,6 +120,51 @@ pub(crate) fn resolve_slave(name: &str) -> Option<PathBuf> {
     }
 
     None
+}
+
+pub(crate) fn resolve_to_physical(name: &str) -> Option<PathBuf> {
+    let mut physical: Option<PathBuf> = None;
+
+    loop {
+        let physical_c = physical.clone();
+        let name = physical_c.as_ref()
+            .map_or(name, |physical| physical.file_name().unwrap().to_str().unwrap());
+        if let Some(slave) = resolve_slave(name) {
+            if physical.as_ref().map_or(true, |rec| rec != &slave) {
+                physical = Some(slave);
+                continue
+            }
+        }
+        break
+    }
+
+    physical
+}
+
+pub(crate) fn resolve_parent(name: &str) -> Option<PathBuf> {
+    for entry in fs::read_dir("/sys/block").ok()? {
+        if let Ok(entry) = entry {
+            if let Some(file) = entry.file_name().to_str() {
+                if name.starts_with(file) {
+                    return Some(PathBuf::from(["/dev/", file].concat()));
+                }
+            }
+        }
+    }
+
+    None
+}
+
+pub(crate) fn zero<P: AsRef<Path>>(device: P, sectors: u64, offset: u64) -> io::Result<()> {
+    let zeroed_sector = [0; 512];
+    File::open(device.as_ref())
+        .and_then(|mut file| {
+            if offset != 0 {
+                file.seek(SeekFrom::Start(512 * offset)).map(|_| ())?;
+            }
+
+            (0..sectors).map(|_| file.write(&zeroed_sector).map(|_| ())).collect()
+        })
 }
 
 // TODO: These will be no longer be required once Rust is updated in the repos to 1.26.0

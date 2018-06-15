@@ -63,6 +63,12 @@ fn exec(
     }
 }
 
+/// Erase all signatures on a disk
+pub(crate) fn wipefs<P: AsRef<Path>>(device: P) -> io::Result<()> {
+    info!("libdistinst: using wipefs to wipe signatures from {:?}", device.as_ref());
+    exec("wipefs", None, None, &["-a".into(), device.as_ref().into()])
+}
+
 /// Checks & corrects errors with partitions that have been moved / resized.
 pub(crate) fn fsck<P: AsRef<Path>>(part: P, cmd: Option<(&str, &str)>) -> io::Result<()> {
     let (cmd, arg) = cmd.unwrap_or(("fsck", "-fy"));

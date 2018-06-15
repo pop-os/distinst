@@ -146,14 +146,14 @@ pub unsafe extern "C" fn distinst_installer_install(
     disks: *mut DistinstDisks,
     config: *const DistinstConfig,
 ) -> libc::c_int {
-    let disks = if disks.is_null() {
+    let disks: Box<Disks> = if disks.is_null() {
         return libc::EIO;
     } else {
-        *Box::from_raw(disks as *mut Disks)
+        Box::from_raw(disks as *mut Disks)
     };
 
     match (*config).as_config() {
-        Ok(config) => match (*(installer as *mut Installer)).install(disks, &config) {
+        Ok(config) => match (*(installer as *mut Installer)).install(*disks, &config) {
             Ok(()) => 0,
             Err(err) => {
                 info!("Install error: {}", err);

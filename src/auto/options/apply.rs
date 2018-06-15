@@ -272,8 +272,21 @@ fn recovery_config(
     };
 
     let mut recovery_device: Disk = {
-        let recovery_path: &Path = &misc::from_uuid(&option.root_uuid).unwrap();
-        Disk::from_name(recovery_path)
+        let mut recovery_path: PathBuf = misc::from_uuid(&option.recovery_uuid)
+            .ok_or_else(|| InstallOptionError::PartitionNotFound {
+                uuid: option.recovery_uuid.clone()
+            })?;
+
+        if let Some(physical) = misc::resolve_to_physical(recovery_path.file_name().unwrap().to_str().unwrap()) {
+            recovery_path = physical;
+        }
+
+        if let Some(parent) = misc::resolve_parent(recovery_path.file_name().unwrap().to_str().unwrap()) {
+            recovery_path = parent;
+        }
+
+        info!("libdistinst: recovery disk found at {:?}", recovery_path);
+        Disk::from_name(&recovery_path)
             .ok()
             .ok_or(InstallOptionError::DeviceNotFound {
                 path: recovery_path.to_path_buf(),
@@ -282,30 +295,8 @@ fn recovery_config(
 
     {
         let recovery_device = &mut recovery_device;
-        let lvm_part: Option<PathBuf> = {
-            let path: &str = &misc::from_uuid(&option.root_uuid)
-                .expect("no uuid for recovery root")
-                .file_name()
-                .expect("path does not have file name")
-                .to_owned()
-                .into_string()
-                .expect("path is not UTF-8");
-
-            misc::resolve_slave(path).or_else(|| {
-                // Attempt to find the LVM partition automatically.
-                for part in recovery_device.get_partitions() {
-                    if part
-                        .filesystem
-                        .as_ref()
-                        .map_or(false, |&p| p == Luks)
-                    {
-                        return Some(part.get_device_path().to_path_buf());
-                    }
-                }
-
-                None
-            })
-        };
+        let lvm_part: Option<PathBuf> = option.luks_uuid.as_ref()
+            .and_then(|ref uuid| misc::from_uuid(uuid));
 
         if let Some(ref uuid) = option.efi_uuid {
             let path = &misc::from_uuid(uuid).expect("no uuid for efi part");
@@ -324,31 +315,38 @@ fn recovery_config(
                 .get_partitions_mut()
                 .iter_mut()
                 .find(|d| d.get_device_path() == path)
-                .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.clone() })
-                .map(|part| part.set_mount("/recovery".into()))?;
+                .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.clone() })?;
         }
 
         let (start, end);
 
-        if let Some(part) = lvm_part {
-            let id = {
-                let part = recovery_device
-                    .get_partitions()
-                    .iter()
-                    .find(|d| d.get_device_path() == part)
-                    .ok_or(InstallOptionError::PartitionNotFound {
-                        uuid: part.to_string_lossy().to_string(),
-                    })?;
+        let root_path = if let Some(mut part) = lvm_part {
+            if let Some(physical) = misc::resolve_to_physical(part.file_name().unwrap().to_str().unwrap()) {
+                part = physical;
+            }
 
-                start = part.start_sector;
-                end = part.end_sector;
-                part.number
-            };
-
-            recovery_device.remove_partition(id)?;
+            part
         } else {
-            return Err(InstallOptionError::RecoveryNoLvm);
-        }
+            misc::from_uuid(&option.root_uuid).ok_or_else(|| InstallOptionError::PartitionNotFound {
+                uuid: option.root_uuid.clone()
+            })?
+        };
+
+        let id = {
+            let part = recovery_device
+                .get_partitions()
+                .iter()
+                .find(|d| d.get_device_path() == root_path)
+                .ok_or(InstallOptionError::PartitionNotFound {
+                    uuid: root_path.to_string_lossy().to_string(),
+                })?;
+
+            start = part.start_sector;
+            end = part.end_sector;
+            part.number
+        };
+
+        recovery_device.remove_partition(id)?;
 
         if let Some((enc, root)) = lvm {
             recovery_device.add_partition(

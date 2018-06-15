@@ -212,10 +212,12 @@ pub unsafe extern "C" fn distinst_lvm_device_list_partitions(
 pub unsafe extern "C" fn distinst_lvm_device_contains_mount(
     disk: *const DistinstLvmDevice,
     mount: *const libc::c_char,
+    disks: *const DistinstDisks,
 ) -> bool {
     get_str(mount, "").ok().map_or(false, |mount| {
         let disk = &mut *(disk as *mut LvmDevice);
-        disk.contains_mount(mount)
+        let disks = &*(disks as *const Disks);
+        disk.contains_mount(mount, &*disks)
     })
 }
 

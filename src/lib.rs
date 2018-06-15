@@ -323,8 +323,13 @@ impl Installer {
 
         callback(20);
 
+        let disks_ptr = &*disks as *const Disks;
         for disk in disks.get_physical_devices_mut() {
-            if disk.contains_mount ("/") { continue }
+            // This will help us when we are testing in a dev environment.
+            if disk.contains_mount("/", unsafe { &*disks_ptr }) {
+                continue
+            }
+
             if let Err(why) = disk.unmount_all_partitions_with_target() {
                 error!("unable to unmount partitions");
                 return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
@@ -630,8 +635,13 @@ impl Installer {
                     ))?
             };
 
+            let luks_uuid = misc::from_uuid(&root_entry.uuid)
+                .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
+                .and_then(|ref path| misc::get_uuid(path))
+                .and_then(|uuid| if &uuid == &root_entry.uuid { None } else { Some(uuid)});
+
             let root_uuid = &root_entry.uuid;
-            update_recovery_config(&mount_dir, &root_uuid)?;
+            update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
 
             let mut install_pkgs: Vec<&str> = match bootloader {
                 Bootloader::Bios => vec!["grub-pc"],
@@ -642,7 +652,7 @@ impl Installer {
                 hardware_support::append_packages(&mut install_pkgs);
             }
 
-            hardware_support::blacklist::disable_external_graphics(&mount_dir)?;
+            let disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir)?;
 
             info!(
                 "libdistinst: will install {:?} bootloader packages",
@@ -664,6 +674,10 @@ impl Installer {
                 // Set preferred keyboard layout
                 args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
 
+                if disable_nvidia {
+                    args.push("DISABLE_NVIDIA=1".into());
+                }
+
                 if let Some(ref model) = config.keyboard_model {
                     args.push(format!("KBD_MODEL={}", model));
                 }
@@ -674,6 +688,11 @@ impl Installer {
 
                 // Set root UUID
                 args.push(format!("ROOT_UUID={}", root_uuid));
+
+                args.push(format!("LUKS_UUID={}", match luks_uuid.as_ref() {
+                    Some(ref uuid) => uuid.as_str(),
+                    None => ""
+                }));
 
                 // Run configure script with bash
                 args.push("bash".to_string());
@@ -1031,7 +1050,7 @@ impl Installer {
     }
 }
 
-fn update_recovery_config(mount: &Path, root_uuid: &str) -> io::Result<()> {
+fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>) -> io::Result<()> {
     fn remove_boot(mount: &Path, uuid: &str) -> io::Result<()> {
         for directory in mount.join("boot/efi/EFI").read_dir()? {
             let entry = directory?;
@@ -1050,6 +1069,15 @@ fn update_recovery_config(mount: &Path, root_uuid: &str) -> io::Result<()> {
     let recovery_path = Path::new("/cdrom/recovery.conf");
     if recovery_path.exists() {
         let recovery_conf = &mut EnvFile::new(recovery_path)?;
+
+        let luks_value = if let Some(uuid) = luks_uuid {
+            if root_uuid == uuid { "" } else { uuid }
+        } else {
+            ""
+        };
+
+        recovery_conf.update("LUKS_UUID", luks_value);
+
         remount_rw("/cdrom")
             .and_then(|_| {
                 recovery_conf.update("OEM_MODE", "0");

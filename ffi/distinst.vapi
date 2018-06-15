@@ -201,15 +201,15 @@ namespace Distinst {
          * flag for each erase option collected.
          */
         public InstallOptions (Disks disks, uint64 required);
-        public RecoveryOption? get_recovery_option ();
+        public unowned RecoveryOption? get_recovery_option ();
         /**
          * Gets a boxed array of refresh installation options that were collected.
          */
-        public RefreshOption[] get_refresh_options ();
+        public unowned RefreshOption[] get_refresh_options ();
         /**
          * Gets a boxed array of erase and install options that were collected.
          */
-        public EraseOption[] get_erase_options ();
+        public unowned EraseOption[] get_erase_options ();
     }
 
     [CCode (has_type_id = false, unref_function = "")]
@@ -655,7 +655,7 @@ namespace Distinst {
         /**
          * Returns true if the device contains a partition mounted at the specified target.
          */
-        public bool contains_mount (string mount);
+        public bool contains_mount (string mount, Distinst.Disks disks);
 
         /**
          * Returns true if the device is a removable device.
@@ -738,7 +738,7 @@ namespace Distinst {
         /**
          * Returns true if the device contains a partition mounted at the specified target.
          */
-        public bool contains_mount (string mount);
+        public bool contains_mount (string mount, Distinst.Disks disks);
 
         /**
          * Returns a slice of all partitions on this volume.

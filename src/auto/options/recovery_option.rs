@@ -12,6 +12,7 @@ pub struct RecoveryOption {
     pub oem_mode:      bool,
     pub recovery_uuid: String,
     pub root_uuid:     String,
+    pub luks_uuid:     Option<String>,
 }
 
 const RECOVERY_CONF: &'static str = "/cdrom/recovery.conf";
@@ -40,6 +41,7 @@ pub(crate) fn detect_recovery() -> Option<RecoveryOption> {
             recovery_uuid: env.get("RECOVERY_UUID")?.to_owned(),
             root_uuid:     env.get("ROOT_UUID")?.to_owned(),
             oem_mode:      env.get("OEM_MODE").map_or(false, |oem| oem == "1"),
+            luks_uuid:     env.get("LUKS_UUID").map(|x| x.to_owned()),
         });
     }
 
