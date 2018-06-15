@@ -34,9 +34,6 @@ pub trait DiskExt {
     /// If the disk is mounted somewhere, get the mount point.
     fn get_mount_point(&self) -> Option<&Path>;
 
-    /// Get read-only access to information about the parent, if there is one.
-    fn get_parent(&self) -> Option<&Disks>;
-
     /// Get the first partition whose start sector is after the given sector.
     fn get_partition_after(&self, sector: u64) -> Option<&PartitionInfo> {
         self.get_partitions().iter().find(|p| p.start_sector > sector)
@@ -58,7 +55,7 @@ pub trait DiskExt {
     fn get_table_type(&self) -> Option<PartitionTable>;
 
     /// Returns true if this partition is mounted at root.
-    fn contains_mount(&self, mount: &str) -> bool {
+    fn contains_mount(&self, mount: &str, parent: &Disks) -> bool {
         let check_partitions = || {
             self.get_partitions().iter().any(|partition| {
                 if partition.mount_point == Some(mount.into()) {
@@ -69,11 +66,8 @@ pub trait DiskExt {
                     .volume_group
                     .as_ref()
                     .map_or(false, |&(ref vg, _)| {
-                        self.get_parent().map_or(false, |disks| {
-                            disks
-                                .get_logical_device(vg)
-                                .map_or(false, |d| d.contains_mount(mount))
-                        })
+                        parent.get_logical_device(vg)
+                            .map_or(false, |d| d.contains_mount(mount, parent))
                     })
             })
         };

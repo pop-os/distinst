@@ -66,11 +66,11 @@ impl InstallOptions {
 
             for device in disks.get_physical_devices() {
                 if !Path::new("/cdrom/recovery.conf").exists() {
-                    if device.contains_mount("/") || device.contains_mount("/cdrom") {
+                    if device.contains_mount("/", &disks) || device.contains_mount("/cdrom", &disks) {
                         continue
                     }
                 }
-                
+
                 let sectors = device.get_sectors();
                 erase_options.push(EraseOption {
                     device: device.get_device_path().to_path_buf(),

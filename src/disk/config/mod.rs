@@ -104,7 +104,6 @@ pub(crate) fn get_size(path: &Path) -> io::Result<u64> {
 mod tests {
     use super::*;
     use disk::operations::*;
-    use std::ptr;
 
     fn get_default() -> Disks {
         Disks {
@@ -120,7 +119,6 @@ mod tests {
                 device_type: "TEST".into(),
                 table_type:  Some(PartitionTable::Gpt),
                 read_only:   false,
-                parent:      ptr::null_mut(),
                 partitions:  vec![
                     PartitionInfo {
                         bitflags:     ACTIVE | BUSY | SOURCE,
@@ -211,7 +209,6 @@ mod tests {
                 table_type:  Some(PartitionTable::Gpt),
                 read_only:   false,
                 partitions:  Vec::new(),
-                parent:      ptr::null_mut(),
             }],
             logical:  Vec::new(),
         }
