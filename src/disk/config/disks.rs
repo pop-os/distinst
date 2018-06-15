@@ -40,8 +40,7 @@ impl Disks {
     }
 
     /// Adds a disk to the disks configuration.
-    pub fn add(&mut self, mut disk: Disk) {
-        disk.parent = &*self as *const Disks;
+    pub fn add(&mut self, disk: Disk) {
         self.physical.push(disk);
     }
 
@@ -347,7 +346,6 @@ impl Disks {
                     device.add_partitions();
                 }
 
-                device.parent = &*self as *const Disks;
                 self.logical.push(device);
                 Ok(())
             }
@@ -865,7 +863,6 @@ impl Disks {
             }
 
             device.add_partitions();
-            device.parent = &*self as *const Disks;
         }
 
         self.logical = existing_devices;

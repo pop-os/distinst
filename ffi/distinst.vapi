@@ -647,7 +647,7 @@ namespace Distinst {
         /**
          * Returns true if the device contains a partition mounted at the specified target.
          */
-        public bool contains_mount (string mount);
+        public bool contains_mount (string mount, Distinst.Disks disks);
 
         /**
          * Returns true if the device is a removable device.
@@ -730,7 +730,7 @@ namespace Distinst {
         /**
          * Returns true if the device contains a partition mounted at the specified target.
          */
-        public bool contains_mount (string mount);
+        public bool contains_mount (string mount, Distinst.Disks disks);
 
         /**
          * Returns a slice of all partitions on this volume.

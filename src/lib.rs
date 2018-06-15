@@ -311,9 +311,10 @@ impl Installer {
 
         callback(20);
 
+        let disks_ptr = &*disks as *const Disks;
         for disk in disks.get_physical_devices_mut() {
             // This will help us when we are testing in a dev environment.
-            if disk.contains_mount("/") {
+            if disk.contains_mount("/", unsafe { &*disks_ptr }) {
                 continue
             }
 

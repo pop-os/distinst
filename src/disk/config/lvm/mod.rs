@@ -10,13 +10,13 @@ use super::super::external::{
 };
 use super::super::mounts::Mounts;
 use super::super::{
-    DiskError, DiskExt, Disks, PartitionError, PartitionInfo, PartitionTable,
+    DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
     PartitionType, FORMAT, REMOVE, SOURCE,
 };
 use super::get_size;
 use rand::{self, Rng};
 use std::ffi::OsStr;
-use std::{io, ptr, thread};
+use std::{io, thread};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -54,7 +54,6 @@ pub struct LvmDevice {
     pub(crate) encryption:   Option<LvmEncryption>,
     pub(crate) is_source:    bool,
     pub(crate) remove:       bool,
-    pub(crate) parent:       *const Disks,
 }
 
 impl DiskExt for LvmDevice {
@@ -77,14 +76,6 @@ impl DiskExt for LvmDevice {
     fn get_model(&self) -> &str { &self.model_name }
 
     fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
-
-    fn get_parent<'a>(&'a self) -> Option<&'a Disks> {
-        if self.parent.is_null() {
-            None
-        } else {
-            Some(unsafe { &*self.parent })
-        }
-    }
 
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
@@ -130,7 +121,6 @@ impl LvmDevice {
             encryption,
             is_source,
             remove: false,
-            parent: ptr::null(),
         }
     }
 
