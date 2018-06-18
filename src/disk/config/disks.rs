@@ -357,13 +357,16 @@ impl Disks {
 
     /// Sometimes, physical devices themselves may be mounted directly.
     pub fn unmount_devices(&self) -> Result<(), DiskError> {
+        info!("libdistinst: unmounting devices");
         for device in self.get_physical_devices() {
             if let Some(mount) = device.get_mount_point() {
-                info!(
-                    "libdistinst: unmounting device mounted at {}",
-                    mount.display()
-                );
-                mount::umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
+                if mount != Path::new("/cdrom") {
+                    info!(
+                        "libdistinst: unmounting device mounted at {}",
+                        mount.display()
+                    );
+                    mount::umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
+                }
             }
         }
 
