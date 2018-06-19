@@ -85,7 +85,7 @@ impl Chroot {
 
                     while let Ok(read) = stderr.read_line(buffer) {
                         if read == 0 { break }
-                        info!("{}", buffer.trim());
+                        warn!("{}", buffer.trim());
                         buffer.clear();
                     }
 
