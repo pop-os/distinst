@@ -88,11 +88,13 @@ else
     update-grub
 fi
 
+RECOVERY_UUID="$(findmnt -n -o UUID /recovery)" || true
+
 # Prepare recovery partition, if it exists
-if [ -d "/boot/efi" -a -d "/cdrom" -a -d "/recovery" ]
+if [ -d "/boot/efi" -a -d "/cdrom" -a -n ${RECOVERY_UUID} ]
 then
     EFI_UUID="$(findmnt -n -o UUID /boot/efi)"
-    RECOVERY_UUID="$(findmnt -n -o UUID /recovery)"
+
     CDROM_UUID="$(findmnt -n -o UUID /cdrom)"
 
     CASPER="casper-${RECOVERY_UUID}"
