@@ -1,9 +1,10 @@
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
+use std::io::{Error, ErrorKind, Read, Result};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, PartialEq)]
 pub struct SwapInfo {
     pub source:   PathBuf,
     pub kind:     OsString,
@@ -12,6 +13,7 @@ pub struct SwapInfo {
     pub priority: OsString,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Swaps(Vec<SwapInfo>);
 
 impl Swaps {
@@ -46,44 +48,71 @@ impl Swaps {
     fn parse_line(line: &str) -> Result<SwapInfo> {
         let mut parts = line.split_whitespace();
 
-        let source = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing source"))?;
-        let kind = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing kind"))?;
-        let size = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing size"))?;
-        let used = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing used"))?;
-        let priority = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Missing priority"))?;
+        macro_rules! next_value {
+            ($err:expr) => {{
+                parts.next()
+                    .ok_or_else(|| Error::new(ErrorKind::Other, $err))
+                    .and_then(|val| Self::parse_value(val))
+            }}
+        }
 
         Ok(SwapInfo {
-            source:   PathBuf::from(Self::parse_value(source)?),
-            kind:     Self::parse_value(kind)?,
-            size:     Self::parse_value(size)?,
-            used:     Self::parse_value(used)?,
-            priority: Self::parse_value(priority)?,
+            source:   PathBuf::from(next_value!("Missing source")?),
+            kind:     next_value!("Missing kind")?,
+            size:     next_value!("Missing size")?,
+            used:     next_value!("Missing used")?,
+            priority: next_value!("Missing priority")?,
         })
     }
 
+    pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<Swaps> {
+        lines.map(Self::parse_line)
+            .collect::<Result<Vec<SwapInfo>>>()
+            .map(|ret| Swaps(ret))
+    }
+
     pub fn new() -> Result<Swaps> {
-        let mut ret = Vec::new();
+        let file = File::open("/proc/swaps")
+            .and_then(|mut file| {
+                let length = file.metadata().ok().map_or(0, |x| x.len() as usize);
+                let mut string = String::with_capacity(length);
+                file.read_to_string(&mut string).map(|_| string)
+            })?;
 
-        let file = BufReader::new(File::open("/proc/swaps")?);
-        for line_res in file.lines().skip(1) {
-            let line = line_res?;
-            ret.push(Self::parse_line(&line)?);
-        }
-
-        Ok(Swaps(ret))
+        Swaps::parse_from(file.lines().skip(1))
     }
 
     pub fn get_swapped(&self, path: &Path) -> bool {
         self.0.iter().any(|mount| mount.source == path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::ffi::OsString;
+
+    const SAMPLE: &'static str = r#"Filename				Type		Size	Used	Priority
+/dev/sda5                               partition	8388600	0	-2"#;
+
+    #[test]
+    fn swaps() {
+        let swaps = Swaps::parse_from(SAMPLE.lines().skip(1)).unwrap();
+        assert_eq!(
+            swaps,
+            Swaps(vec![
+                SwapInfo {
+                    source: PathBuf::from("/dev/sda5"),
+                    kind: OsString::from("partition"),
+                    size: OsString::from("8388600"),
+                    used: OsString::from("0"),
+                    priority: OsString::from("-2")
+                }
+            ])
+        );
+
+        assert!(swaps.get_swapped(Path::new("/dev/sda5")));
+        assert!(!swaps.get_swapped(Path::new("/dev/sda1")));
     }
 }
