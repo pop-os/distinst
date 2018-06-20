@@ -704,20 +704,7 @@ impl Disks {
 
         fn write_fstab(fstab: &mut OsString, partition: &PartitionInfo) {
             if let Some(entry) = partition.get_block_info() {
-                fstab.reserve_exact(entry.len() + 16);
-                fstab.push("UUID=");
-                fstab.push(&entry.uuid);
-                fstab.push("  ");
-                fstab.push(entry.mount());
-                fstab.push("  ");
-                fstab.push(&entry.fs);
-                fstab.push("  ");
-                fstab.push(&entry.options);
-                fstab.push("  ");
-                fstab.push(if entry.dump { "1" } else { "0" });
-                fstab.push("  ");
-                fstab.push(if entry.pass { "1" } else { "0" });
-                fstab.push("\n");
+                entry.write_fstab(fstab);
             }
         }
 

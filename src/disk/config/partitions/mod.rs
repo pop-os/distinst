@@ -360,22 +360,8 @@ impl PartitionInfo {
         let result = get_uuid(&self.device_path).map(|uuid| {
             let fs = self.filesystem.clone()
                 .expect("unable to get block info due to lack of file system");
-            BlockInfo {
-                uuid,
-                mount: if fs == FileSystemType::Swap {
-                    None
-                } else {
-                    Some(self.target.clone().expect("unable to get block info due to lack of target"))
-                },
-                fs: match fs {
-                    FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
-                    FileSystemType::Swap => "swap",
-                    _ => fs.clone().into(),
-                },
-                options: fs.get_preferred_options().into(),
-                dump: false,
-                pass: false,
-            }
+
+            BlockInfo::new(uuid, fs, self.target.as_ref().map(|p| p.as_path()))
         });
 
         if !result.is_some() {
