@@ -79,7 +79,7 @@ impl Swaps {
                 file.read_to_string(&mut string).map(|_| string)
             })?;
 
-        Swaps::parse_from(file.lines().skip(1))
+        Self::parse_from(file.lines().skip(1))
     }
 
     pub fn get_swapped(&self, path: &Path) -> bool {
