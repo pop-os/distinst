@@ -118,7 +118,7 @@ fn recovery_config(
     option: &RecoveryOption,
     password: Option<String>
 ) -> Result<(), InstallOptionError> {
-    let mut tmp = Disks::new();
+    let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
 
     let (lvm, root_vg) = match generate_encryption(password)? {
@@ -243,7 +243,7 @@ fn erase_config(
     option: &EraseOption,
     password: Option<String>
 ) -> Result<(), InstallOptionError> {
-    let mut tmp = Disks::new();
+    let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
 
     let bootloader = Bootloader::detect();

@@ -102,7 +102,7 @@ impl<'a> Backup<'a> {
 
             let localtime = base.join("etc/localtime");
             let localtime = if localtime.exists() {
-                localtime.canonicalize().ok().and_then(get_timezone_path)
+                localtime.canonicalize().ok().and_then(|ref p| get_timezone_path(p))
             } else {
                 None
             };
@@ -222,7 +222,7 @@ fn create_network_conf(base: &Path, conn: &OsStr, data: &[u8]) {
 
 fn open(path: &Path) -> io::Result<File> { OpenOptions::new().write(true).append(true).open(path) }
 
-fn get_timezone_path(tz: PathBuf) -> Option<PathBuf> {
+fn get_timezone_path(tz: &Path) -> Option<PathBuf> {
     let raw = tz.as_os_str().as_bytes();
     const PATTERN: &[u8] = b"zoneinfo/";
     const PREFIX: &[u8] = b"../usr/share/zoneinfo/";
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn localtime() {
         assert_eq!(
-            get_timezone_path(PathBuf::from(
+            get_timezone_path(Path::new(
                 "/tmp/prefix.id/usr/share/zoneinfo/America/Denver"
             )),
             Some(PathBuf::from("../usr/share/zoneinfo/America/Denver"))

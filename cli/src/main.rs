@@ -8,9 +8,9 @@ extern crate pbr;
 
 use clap::{App, Arg, ArgMatches, Values};
 use distinst::{
-    Config, Disk, DiskError, DiskExt, Disks, FileSystemType, Installer, LvmEncryption,
-    PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step,
-    KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER
+    Config, DecryptionError, Disk, DiskError, DiskExt, Disks, FileSystemType, Installer,
+    LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
+    Sector, Step, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER
 };
 
 use pbr::ProgressBar;
@@ -26,6 +26,8 @@ use std::sync::atomic::Ordering;
 enum DistinstError {
     #[fail(display = "disk error: {}", why)]
     Disk { why: DiskError },
+    #[fail(display = "failed to decrypt partition: {}", why)]
+    DecryptFailed { why: DecryptionError },
     #[fail(display = "table argument requires two values")]
     TableArgs,
     #[fail(display = "'{}' is not a valid table. Must be either 'gpt' or 'msdos'.", table)]
@@ -56,8 +58,6 @@ enum DistinstError {
     EmptyKeyValue,
     #[fail(display = "invalid field: {}", field)]
     InvalidField { field: String },
-    #[fail(display = "provided file system, '{}', was invalid", fs)]
-    InvalidFileSystem { fs: String },
     #[fail(display = "no logical device named '{}' found", group)]
     LogicalDeviceNotFound { group: String },
     #[fail(display = "'{}' was not found on '{}'", volume, group)]
@@ -974,7 +974,8 @@ fn configure_decrypt(disks: &mut Disks, decrypt: Option<Values>) -> Result<(), D
             let (mut pass, mut keydata) = (None, None);
             parse_key(&values[2], &mut pass, &mut keydata)?;
 
-            disks.decrypt_partition(device, LvmEncryption::new(pv, pass, keydata));
+            disks.decrypt_partition(device, &LvmEncryption::new(pv, pass, keydata))
+                .map_err(|why| DistinstError::DecryptFailed { why })?;
         }
     }
 
@@ -982,7 +983,7 @@ fn configure_decrypt(disks: &mut Disks, decrypt: Option<Values>) -> Result<(), D
 }
 
 fn configure_disks(matches: &ArgMatches) -> Result<Disks, DistinstError> {
-    let mut disks = Disks::new();
+    let mut disks = Disks::default();
 
     for block in matches.values_of("disk").unwrap() {
         eprintln!("distinst: adding {} to disks configuration", block);

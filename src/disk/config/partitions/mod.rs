@@ -101,17 +101,17 @@ pub enum PartitionType {
 }
 
 // Defines that this partition exists in the source.
-pub(crate) const SOURCE: u8 = 0b000001;
+pub(crate) const SOURCE:  u8 = 0b00_0001;
 // Defines that this partition will be removed.
-pub(crate) const REMOVE: u8 = 0b000010;
+pub(crate) const REMOVE:  u8 = 0b00_0010;
 // Defines that this partition will be formatted.
-pub(crate) const FORMAT: u8 = 0b000100;
+pub(crate) const FORMAT:  u8 = 0b00_0100;
 // Defines that this partition is currently active.
-pub(crate) const ACTIVE: u8 = 0b001000;
+pub(crate) const ACTIVE:  u8 = 0b00_1000;
 // Defines that this partition is currently busy.
-pub(crate) const BUSY: u8 = 0b010000;
+pub(crate) const BUSY:    u8 = 0b01_0000;
 // Defines that this partition is currently swapped.
-pub(crate) const SWAPPED: u8 = 0b100000;
+pub(crate) const SWAPPED: u8 = 0b10_0000;
 
 /// Contains relevant information about a certain partition.
 #[derive(Debug, Clone, PartialEq)]

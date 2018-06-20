@@ -316,7 +316,7 @@ pub struct DistinstDisks;
 /// On error, a null pointer will be returned.
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
-    Box::into_raw(Box::new(Disks::new())) as *mut DistinstDisks
+    Box::into_raw(Box::new(Disks::default())) as *mut DistinstDisks
 }
 
 /// A destructor for a `DistinstDisks`
@@ -451,7 +451,7 @@ pub unsafe extern "C" fn distinst_disks_decrypt_partition(
             } else {
                 let enc = LvmEncryption::new(pv.into(), password, keydata);
                 let disks = &mut *(disks as *mut Disks);
-                match disks.decrypt_partition(&Path::new(path), enc) {
+                match disks.decrypt_partition(&Path::new(path), &enc) {
                     Ok(_) => 0,
                     Err(why) => {
                         error!("decryption error: {}", why);
