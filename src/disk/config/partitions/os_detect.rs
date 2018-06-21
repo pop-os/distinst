@@ -184,7 +184,7 @@ fn detect_macos(base: &Path) -> Option<OS> {
         .and_then(|file| {
             parse_plist(BufReader::new(file))
                 .or_else(|| Some("Mac OS (Unknown)".into()))
-                .map(|name| OS::MacOs(name))
+                .map(OS::MacOs)
         })
 }
 

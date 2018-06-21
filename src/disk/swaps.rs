@@ -68,7 +68,7 @@ impl Swaps {
     pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<Swaps> {
         lines.map(Self::parse_line)
             .collect::<Result<Vec<SwapInfo>>>()
-            .map(|ret| Swaps(ret))
+            .map(Swaps)
     }
 
     pub fn new() -> Result<Swaps> {

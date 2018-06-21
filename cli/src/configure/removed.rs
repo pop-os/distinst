@@ -5,7 +5,7 @@ pub(crate) fn removed(disks: &mut Disks, ops: Option<Values>) -> Result<(), Dist
     eprintln!("distinst: configuring removed partitions");
     if let Some(ops) = ops {
         for op in ops {
-            let mut args = op.split(":");
+            let mut args = op.split(':');
             let block_dev = match args.next() {
                 Some(disk) => disk,
                 None => {

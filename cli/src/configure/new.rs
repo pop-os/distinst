@@ -6,7 +6,7 @@ pub(crate) fn new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distin
     eprintln!("distinst: configuring new partitions");
     if let Some(parts) = parts {
         for part in parts {
-            let values: Vec<&str> = part.split(":").collect();
+            let values: Vec<&str> = part.split(':').collect();
             if values.len() < 5 || values.len() > 7 {
                 return Err(DistinstError::NewArgs);
             }

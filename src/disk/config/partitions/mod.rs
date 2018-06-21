@@ -39,8 +39,8 @@ pub enum FileSystemType {
 }
 
 impl FileSystemType {
-    fn get_preferred_options(&self) -> &'static str {
-        match *self {
+    fn get_preferred_options(self) -> &'static str {
+        match self {
             FileSystemType::Fat16 | FileSystemType::Fat32 => "umask=0077",
             FileSystemType::Ext4 => "noatime,errors=remount-ro",
             FileSystemType::Swap => "sw",
@@ -175,7 +175,7 @@ impl PartitionInfo {
             PVS.as_ref()
                 .unwrap()
                 .get(&device_path)
-                .and_then(|vg| vg.as_ref().map(|vg| vg.clone()))
+                .and_then(|vg| vg.as_ref().cloned())
         };
 
         if let Some(ref vg) = original_vg.as_ref() {
@@ -295,7 +295,7 @@ impl PartitionInfo {
     /// specify a new physical volume name as well. In the event of encryption, an LVM
     /// device will be assigned to the encrypted partition.
     pub fn set_volume_group(&mut self, group: String, encryption: Option<LvmEncryption>) {
-        self.volume_group = Some((group.clone(), encryption));
+        self.volume_group = Some((group, encryption));
     }
 
     /// Shrinks the partition, if possible.
@@ -362,13 +362,13 @@ impl PartitionInfo {
         }
 
         let result = get_uuid(&self.device_path).map(|uuid| {
-            let fs = self.filesystem.clone()
+            let fs = self.filesystem
                 .expect("unable to get block info due to lack of file system");
 
             BlockInfo::new(uuid, fs, self.target.as_ref().map(|p| p.as_path()))
         });
 
-        if !result.is_some() {
+        if result.is_none() {
             error!(
                 "{}: no UUID associated with device",
                 self.device_path.display()

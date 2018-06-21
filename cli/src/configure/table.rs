@@ -5,7 +5,7 @@ pub(crate) fn tables(disks: &mut Disks, tables: Option<Values>) -> Result<(), Di
     eprintln!("distinst: configuring partition tables");
     if let Some(tables) = tables {
         for table in tables {
-            let values: Vec<&str> = table.split(":").collect();
+            let values: Vec<&str> = table.split(':').collect();
             if values.len() != 2 {
                 return Err(DistinstError::TableArgs);
             }

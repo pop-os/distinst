@@ -62,7 +62,7 @@ impl Mounts {
     pub(crate) fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<Mounts> {
         lines.map(Self::parse_line)
             .collect::<Result<Vec<MountInfo>>>()
-            .map(|ret| Mounts(ret))
+            .map(Mounts)
     }
 
     pub(crate) fn new() -> Result<Mounts> {

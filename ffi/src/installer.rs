@@ -115,7 +115,7 @@ pub unsafe extern "C" fn distinst_installer_emit_status(
     installer: *mut DistinstInstaller,
     status: *const DistinstStatus,
 ) {
-    (*(installer as *mut Installer)).emit_status(&Status {
+    (*(installer as *mut Installer)).emit_status(Status {
         step:    (*status).step.into(),
         percent: (*status).percent,
     });

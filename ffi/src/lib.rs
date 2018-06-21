@@ -1,3 +1,6 @@
+#![allow(unknown_lints)]
+#![allow(cast_ptr_alignment)]
+
 extern crate distinst;
 extern crate libc;
 #[macro_use]

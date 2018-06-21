@@ -376,7 +376,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
     if fs.starts_with("enc=") {
         let (mut pass, mut keydata) = (None, None);
 
-        let mut fields = fs[4..].split(",");
+        let mut fields = fs[4..].split(',');
         let physical_volume = fields
             .next()
             .map(|pv| pv.into())
@@ -393,14 +393,14 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
 
         Ok(PartType::Lvm(
             volume_group,
-            if !pass.is_some() && !keydata.is_some() {
+            if pass.is_none() && keydata.is_none() {
                 None
             } else {
                 Some(LvmEncryption::new(physical_volume, pass, keydata))
             },
         ))
     } else if fs.starts_with("lvm=") {
-        let mut fields = fs[4..].split(",");
+        let mut fields = fs[4..].split(',');
         Ok(PartType::Lvm(
             fields
                 .next()
@@ -465,10 +465,10 @@ fn find_disk_mut<'a>(disks: &'a mut Disks, block: &str) -> Result<&'a mut Disk, 
         .ok_or_else(|| DistinstError::DiskNotFound { disk: block.into() })
 }
 
-fn find_partition_mut<'a>(
-    disk: &'a mut Disk,
+fn find_partition_mut(
+    disk: &mut Disk,
     partition: i32,
-) -> Result<&'a mut PartitionInfo, DistinstError> {
+) -> Result<&mut PartitionInfo, DistinstError> {
     disk.get_partition_mut(partition)
         .ok_or_else(|| DistinstError::PartitionNotFound { partition })
 }

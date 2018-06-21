@@ -16,7 +16,7 @@ pub(crate) fn lvm(
         }
     } else if let Some(remove) = remove {
         for value in remove {
-            let values: Vec<&str> = value.split(":").collect();
+            let values: Vec<&str> = value.split(':').collect();
             if values.len() != 2 {
                 return Err(DistinstError::LogicalRemoveArgs);
             }
@@ -34,7 +34,7 @@ pub(crate) fn lvm(
 
     if let Some(modify) = modify {
         for value in modify {
-            let values: Vec<&str> = value.split(":").collect();
+            let values: Vec<&str> = value.split(':').collect();
             if values.len() < 3 {
                 return Err(DistinstError::ModifyArgs);
             }
@@ -107,7 +107,7 @@ pub(crate) fn lvm(
                         .map_err(|why| DistinstError::LvmPartitionAdd { why })
                 }
                 None => Err(DistinstError::NoVolumeGroupAssociated {
-                    group: args.group.into(),
+                    group: args.group,
                 }),
             }
         })?;
@@ -137,7 +137,7 @@ fn parse_logical<F: FnMut(LogicalArgs) -> Result<(), DistinstError>>(
     mut action: F,
 ) -> Result<(), DistinstError> {
     for value in values {
-        let values: Vec<&str> = value.split(":").collect();
+        let values: Vec<&str> = value.split(':').collect();
         if values.len() < 4 || values.len() > 6 {
             return Err(DistinstError::LogicalArgs);
         }

@@ -48,7 +48,7 @@ impl<'a> EnvFile<'a> {
     pub fn write(&mut self) -> io::Result<()> {
         info!("libdistinst: writing recovery changes");
         let mut buffer = Vec::with_capacity(1024);
-        for (key, value) in self.store.iter() {
+        for (key, value) in &self.store {
             buffer.extend_from_slice(key.as_bytes());
             buffer.push(b'=');
             buffer.extend_from_slice(value.as_bytes());

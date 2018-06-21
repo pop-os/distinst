@@ -6,7 +6,7 @@ pub(crate) fn moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dist
     eprintln!("distinst: configuring moved partitions");
     if let Some(parts) = parts {
         for part in parts {
-            let values: Vec<&str> = part.split(":").collect();
+            let values: Vec<&str> = part.split(':').collect();
             if values.len() != 4 {
                 return Err(DistinstError::MoveArgs);
             }

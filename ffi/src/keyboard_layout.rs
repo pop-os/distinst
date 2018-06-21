@@ -85,7 +85,7 @@ pub unsafe extern "C" fn distinst_keyboard_layouts_new() -> *mut DistinstKeyboar
         Ok(layout) => Box::into_raw(Box::new(layout)) as *mut DistinstKeyboardLayouts,
         Err(why) => {
             error!("distinst_keyboard_layouts_new: {}", why);
-            return ptr::null_mut();
+            ptr::null_mut()
         }
     }
 }

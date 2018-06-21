@@ -5,7 +5,7 @@ pub(crate) fn reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dis
     eprintln!("distinst: configuring reused partitions");
     if let Some(parts) = parts {
         for part in parts {
-            let values: Vec<&str> = part.split(":").collect();
+            let values: Vec<&str> = part.split(':').collect();
             if values.len() < 3 || values.len() > 5 {
                 return Err(DistinstError::ReusedArgs);
             }
