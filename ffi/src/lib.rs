@@ -42,24 +42,20 @@ mod sector;
 /// In comes a stack-allocated struct, and out goes a heap-allocated object.
 pub fn gen_object_ptr<T>(obj: T) -> *mut T { Box::into_raw(Box::new(obj)) as *mut T }
 
-pub fn null_check<T>(ptr: *const T, msg: &str) -> io::Result<*const T> {
+pub fn null_check<T>(ptr: *const T) -> io::Result<()> {
     if ptr.is_null() {
-        Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{}: null pointer", msg),
-        ))
+        error!("libdistinst: pointer in FFI is null");
+        Err(io::Error::from_raw_os_error(libc::EIO))
     } else {
-        Ok(ptr)
+        Ok(())
     }
 }
 
-pub fn get_str<'a>(ptr: *const libc::c_char, msg: &str) -> io::Result<&'a str> {
-    null_check(ptr, msg).and_then(|ptr| {
-        unsafe { CStr::from_ptr(ptr) }.to_str().map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{}: invalid UTF-8: {}", msg, err),
-            )
+pub fn get_str<'a>(ptr: *const libc::c_char) -> io::Result<&'a str> {
+    null_check(ptr).and_then(|_| {
+        unsafe { CStr::from_ptr(ptr) }.to_str().map_err(|_| {
+            error!("libdistinst: string is not UTF-8");
+            io::Error::from_raw_os_error(libc::EINVAL)
         })
     })
 }
@@ -77,14 +73,20 @@ pub extern "C" fn distinst_device_layout_hash() -> libc::uint64_t {
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_device_map_exists(name: *const libc::c_char) -> bool {
-    get_str(name, "").ok().map_or(false, |name| distinst::device_map_exists(name))
+    match get_str(name) {
+        Ok(name) => distinst::device_map_exists(name),
+        Err(why) => {
+            error!("distinst_device_map_exists: {}", why);
+            false
+        }
+    }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_generate_unique_id(
     prefix: *const libc::c_char,
 ) -> *mut libc::c_char {
-    get_str(prefix, "")
+    get_str(prefix)
         .ok()
         .and_then(|prefix| distinst::generate_unique_id(prefix).ok().map(to_cstr))
         .unwrap_or(ptr::null_mut())
@@ -92,7 +94,7 @@ pub unsafe extern "C" fn distinst_generate_unique_id(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_validate_hostname(hostname: *const libc::c_char) -> bool {
-    get_str(hostname, "")
+    get_str(hostname)
         .ok()
         .map_or(false, |hostname| distinst::hostname::is_valid(hostname))
 }
@@ -126,6 +128,10 @@ pub unsafe extern "C" fn distinst_log(
 ) -> libc::c_int {
     use log::LogLevel;
     use DISTINST_LOG_LEVEL::*;
+
+    if let Err(why) = null_check(user_data) {
+        return why.raw_os_error().unwrap_or(-1);
+    }
 
     let user_data_sync = user_data as usize;
     match distinst::log(move |level, message| {

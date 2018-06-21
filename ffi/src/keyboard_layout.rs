@@ -1,6 +1,7 @@
 use distinst::locale::{self, KeyboardLayout, KeyboardLayouts, KeyboardVariant};
 use libc;
 use std::ptr;
+use super::null_check;
 
 #[repr(C)]
 pub struct DistinstKeyboardLayout;
@@ -10,6 +11,10 @@ pub unsafe extern "C" fn distinst_keyboard_layout_get_name(
     keyboard_layout: *const DistinstKeyboardLayout,
     len: *mut libc::c_int,
 ) -> *const u8 {
+    if null_check(keyboard_layout).or(null_check(len)).is_err() {
+        return ptr::null();
+    }
+
     let keyboard_layout = &*(keyboard_layout as *const KeyboardLayout);
     let name = keyboard_layout.get_name().as_bytes();
     *len = name.len() as libc::c_int;
@@ -21,6 +26,10 @@ pub unsafe extern "C" fn distinst_keyboard_layout_get_description(
     keyboard_layout: *const DistinstKeyboardLayout,
     len: *mut libc::c_int,
 ) -> *const u8 {
+    if null_check(keyboard_layout).or(null_check(len)).is_err() {
+        return ptr::null();
+    }
+
     let keyboard_layout = &*(keyboard_layout as *const KeyboardLayout);
     let desc = keyboard_layout.get_description().as_bytes();
     *len = desc.len() as libc::c_int;
@@ -35,6 +44,10 @@ pub unsafe extern "C" fn distinst_keyboard_variant_get_name(
     keyboard_variant: *const DistinstKeyboardVariant,
     len: *mut libc::c_int,
 ) -> *const u8 {
+    if null_check(keyboard_variant).or(null_check(len)).is_err() {
+        return ptr::null();
+    }
+
     let keyboard_variant = &*(keyboard_variant as *const KeyboardVariant);
     let name = keyboard_variant.get_name().as_bytes();
     *len = name.len() as libc::c_int;
@@ -46,6 +59,10 @@ pub unsafe extern "C" fn distinst_keyboard_variant_get_description(
     keyboard_variant: *const DistinstKeyboardVariant,
     len: *mut libc::c_int,
 ) -> *const u8 {
+    if null_check(keyboard_variant).or(null_check(len)).is_err() {
+        return ptr::null();
+    }
+
     let keyboard_variant = &*(keyboard_variant as *const KeyboardVariant);
     let desc = keyboard_variant.get_description().as_bytes();
     *len = desc.len() as libc::c_int;
@@ -57,6 +74,10 @@ pub unsafe extern "C" fn distinst_keyboard_layout_get_variants(
     keyboard_layout: *const DistinstKeyboardLayout,
     len: *mut libc::c_int,
 ) -> *mut *const DistinstKeyboardVariant {
+    if null_check(keyboard_layout).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
     let layout = &mut *(keyboard_layout as *mut KeyboardLayout);
 
     let mut output: Vec<*const DistinstKeyboardVariant> = Vec::new();
@@ -95,6 +116,10 @@ pub unsafe extern "C" fn distinst_keyboard_layouts_get_layouts(
     layouts: *mut DistinstKeyboardLayouts,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstKeyboardLayout {
+    if null_check(layouts).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
     let layouts = &mut *(layouts as *mut KeyboardLayouts);
 
     let mut output: Vec<*mut DistinstKeyboardLayout> = Vec::new();
@@ -111,5 +136,9 @@ pub unsafe extern "C" fn distinst_keyboard_layouts_destroy(
     layouts: *mut DistinstKeyboardLayouts,
     len: libc::size_t,
 ) {
-    drop(Vec::from_raw_parts(layouts, len, len))
+    if layouts.is_null() {
+        error!("DistinstKeyboardLayouts was to be destroyed even though it was null");
+    } else {
+        Vec::from_raw_parts(layouts, len, len);
+    }
 }

@@ -10,7 +10,7 @@ use distinst::{
     PartitionBuilder, PartitionInfo, PartitionTable, Sector,
 };
 
-use super::get_str;
+use super::{get_str, null_check};
 use ffi::AsMutPtr;
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use gen_object_ptr;
@@ -29,9 +29,10 @@ pub struct DistinstDisk;
 /// On an error, this will return a null pointer.
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut DistinstDisk {
-    if path.is_null() {
+    if null_check(path).is_err() {
         return ptr::null_mut();
     }
+
     let cstring = CStr::from_ptr(path);
     let ostring = OsStr::from_bytes(cstring.to_bytes());
     match Disk::from_name(ostring) {
@@ -50,7 +51,11 @@ pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut Di
 /// A destructor for a `DistinstDisk`
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_destroy(disk: *mut DistinstDisk) {
-    drop(Box::from_raw(disk as *mut Disk))
+    if disk.is_null() {
+        error!("DistinstDisk was to be destroyed even though it is null");
+    } else {
+        Box::from_raw(disk as *mut Disk);
+    }
 }
 
 #[no_mangle]
@@ -58,6 +63,10 @@ pub unsafe extern "C" fn distinst_disk_get_device_path(
     disk: *const DistinstDisk,
     len: *mut libc::c_int,
 ) -> *const u8 {
+    if null_check(disk).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
     let disk = &*(disk as *const Disk);
     let path = disk.get_device_path().as_os_str().as_bytes();
     *len = path.len() as libc::c_int;
@@ -69,6 +78,10 @@ pub unsafe extern "C" fn distinst_disk_get_model(
     disk: *mut DistinstDisk,
     len: *mut libc::c_int,
 ) -> *const u8 {
+    if null_check(disk).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
     let disk = &mut *(disk as *mut Disk);
     let model = disk.get_model();
     *len = model.len() as libc::c_int;
@@ -76,9 +89,14 @@ pub unsafe extern "C" fn distinst_disk_get_model(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_get_serial(disk: *mut DistinstDisk,
-len: *mut libc::c_int,
+pub unsafe extern "C" fn distinst_disk_get_serial(
+    disk: *mut DistinstDisk,
+    len: *mut libc::c_int,
 ) -> *const u8 {
+    if null_check(disk).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
     let disk = &mut *(disk as *mut Disk);
     let serial = disk.get_serial();
     *len = serial.len() as libc::c_int;
@@ -90,6 +108,10 @@ pub unsafe extern "C" fn distinst_disk_get_partition(
     disk: *mut DistinstDisk,
     partition: libc::int32_t,
 ) -> *mut DistinstPartition {
+    if null_check(disk).is_err() {
+        return ptr::null_mut();
+    }
+
     let disk = &mut *(disk as *mut Disk);
     disk.get_partition_mut(partition as i32).as_mut_ptr() as *mut DistinstPartition
 }
@@ -99,7 +121,11 @@ pub unsafe extern "C" fn distinst_disk_get_partition_by_path(
     disk: *mut DistinstDisk,
     path: *const libc::c_char,
 ) -> *mut DistinstPartition {
-    get_str(path, "")
+    if null_check(disk).is_err() {
+        return ptr::null_mut();
+    }
+
+    get_str(path)
         .ok()
         .and_then(|path| {
             let path = Path::new(&path);
@@ -117,7 +143,11 @@ pub unsafe extern "C" fn distinst_disk_contains_mount(
     mount: *const libc::c_char,
     disks: *const DistinstDisks,
 ) -> bool {
-    get_str(mount, "").ok().map_or(false, |mount| {
+    if null_check(disk).or(null_check(disks)).is_err() {
+        return false;
+    }
+
+    get_str(mount).ok().map_or(false, |mount| {
         let disk = &mut *(disk as *mut Disk);
         let disks = &*(disks as *const Disks);
         disk.contains_mount(mount, &*disks)
@@ -126,12 +156,20 @@ pub unsafe extern "C" fn distinst_disk_contains_mount(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_is_removable(disk: *mut DistinstDisk) -> bool {
+    if null_check(disk).is_err() {
+        return false;
+    }
+
     let disk = &mut *(disk as *mut Disk);
     disk.is_removable()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_is_rotational(disk: *mut DistinstDisk) -> bool {
+    if null_check(disk).is_err() {
+        return false;
+    }
+
     let disk = &mut *(disk as *mut Disk);
     disk.is_rotational()
 }
@@ -141,6 +179,10 @@ pub unsafe extern "C" fn distinst_disk_list_partitions(
     disk: *mut DistinstDisk,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstPartition {
+    if null_check(disk).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
     let disk = &mut *(disk as *mut Disk);
 
     let mut output: Vec<*mut DistinstPartition> = Vec::new();
@@ -159,11 +201,19 @@ pub unsafe extern "C" fn distinst_disk_list_partitions_destroy(
     partitions: *mut DistinstPartition,
     len: libc::size_t,
 ) {
-    drop(Vec::from_raw_parts(partitions, len, len))
+    if partitions.is_null() {
+        error!("DistinstPartitions were to be destroyed but ")
+    } else {
+        Vec::from_raw_parts(partitions, len, len);
+    }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_sectors(disk: *const DistinstDisk) -> libc::uint64_t {
+    if null_check(disk).is_err() {
+        return 0;
+    }
+
     let disk = &*(disk as *const Disk);
     disk.get_sectors()
 }
@@ -172,6 +222,10 @@ pub unsafe extern "C" fn distinst_disk_get_sectors(disk: *const DistinstDisk) ->
 pub unsafe extern "C" fn distinst_disk_get_sector_size(
     disk: *const DistinstDisk,
 ) -> libc::uint64_t {
+    if null_check(disk).is_err() {
+        return 0;
+    }
+
     let disk = &*(disk as *const Disk);
     disk.get_sector_size()
 }
@@ -181,6 +235,10 @@ pub unsafe extern "C" fn distinst_disk_get_sector(
     disk: *const DistinstDisk,
     sector: *const DistinstSector,
 ) -> libc::uint64_t {
+    if null_check(disk).or(null_check(sector)).is_err() {
+        return 0;
+    }
+
     let disk = &*(disk as *const Disk);
     disk.get_sector(Sector::from(*sector))
 }
@@ -190,6 +248,10 @@ pub unsafe extern "C" fn distinst_disk_mklabel(
     disk: *mut DistinstDisk,
     table: DISTINST_PARTITION_TABLE,
 ) -> libc::c_int {
+    if null_check(disk).is_err() {
+        return -1;
+    }
+
     let disk = &mut *(disk as *mut Disk);
 
     let table = match table {
@@ -215,6 +277,10 @@ pub unsafe extern "C" fn distinst_disk_add_partition(
     disk: *mut DistinstDisk,
     partition: *mut DistinstPartitionBuilder,
 ) -> libc::c_int {
+    if null_check(disk).or(null_check(partition)).is_err() {
+        return -1;
+    }
+
     let disk = &mut *(disk as *mut Disk);
 
     if let Err(why) = disk.add_partition(*Box::from_raw(partition as *mut PartitionBuilder)) {
@@ -230,6 +296,10 @@ pub unsafe extern "C" fn distinst_disk_remove_partition(
     disk: *mut DistinstDisk,
     partition: libc::c_int,
 ) -> libc::c_int {
+    if null_check(disk).is_err() {
+        return -1;
+    }
+
     let disk = &mut *(disk as *mut Disk);
 
     if let Err(why) = disk.remove_partition(partition) {
@@ -246,6 +316,10 @@ pub unsafe extern "C" fn distinst_disk_resize_partition(
     partition: libc::c_int,
     end: libc::uint64_t,
 ) -> libc::c_int {
+    if null_check(disk).is_err() {
+        return 0;
+    }
+
     let disk = &mut *(disk as *mut Disk);
 
     if let Err(why) = disk.resize_partition(partition, end) {
@@ -262,6 +336,10 @@ pub unsafe extern "C" fn distinst_disk_move_partition(
     partition: libc::c_int,
     start: libc::uint64_t,
 ) -> libc::c_int {
+    if null_check(disk).is_err() {
+        return -1;
+    }
+
     let disk = &mut *(disk as *mut Disk);
 
     if let Err(why) = disk.move_partition(partition, start) {
@@ -278,6 +356,10 @@ pub unsafe extern "C" fn distinst_disk_format_partition(
     partition: libc::c_int,
     fs: DISTINST_FILE_SYSTEM_TYPE,
 ) -> libc::c_int {
+    if null_check(disk).is_err() {
+        return -1;
+    }
+
     let disk = &mut *(disk as *mut Disk);
 
     let fs = match Option::<FileSystemType>::from(fs) {
@@ -298,6 +380,10 @@ pub unsafe extern "C" fn distinst_disk_format_partition(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::c_int {
+    if null_check(disk).is_err() {
+        return -1;
+    }
+
     let disk = &mut *(disk as *mut Disk);
 
     if let Err(why) = disk.commit() {
@@ -322,11 +408,19 @@ pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
 /// A destructor for a `DistinstDisks`
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
-    drop(Box::from_raw(disks as *mut Disks))
+    if disks.is_null() {
+        error!("DistisntDisks was to be destroyed even though it is null");
+    } else {
+        Box::from_raw(disks as *mut Disks);
+    }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *const DistinstDisk) {
+    if null_check(disk).or(null_check(disks)).is_err() {
+        return;
+    }
+
     let disks = &mut *(disks as *mut Disks);
     disks.add(ptr::read(disk as *const Disk));
 }
@@ -349,6 +443,10 @@ pub unsafe extern "C" fn distinst_disks_probe() -> *mut DistinstDisks {
 pub unsafe extern "C" fn distinst_disks_contains_luks(
     disks: *const DistinstDisks
 ) -> bool {
+    if null_check(disks).is_err() {
+        return false;
+    }
+
     let disks = &*(disks as *const Disks);
     disks.contains_luks()
 }
@@ -358,6 +456,10 @@ pub unsafe extern "C" fn distinst_disks_list(
     disks: *mut DistinstDisks,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstDisk {
+    if null_check(disks).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
     let disks = &mut *(disks as *mut Disks);
 
     let mut output: Vec<*mut DistinstDisk> = Vec::new();
@@ -374,7 +476,11 @@ pub unsafe extern "C" fn distinst_disks_get_physical_device(
     disks: *mut DistinstDisks,
     path: *const libc::c_char,
 ) -> *mut DistinstDisk {
-    match get_str(path, "distinst_disks_get_physical_device") {
+    if null_check(disks).is_err() {
+        return ptr::null_mut();
+    }
+
+    match get_str(path) {
         Ok(path) => {
             let disks = &mut *(disks as *mut Disks);
             disks.get_physical_device_mut(path).as_mut_ptr() as *mut DistinstDisk
@@ -391,6 +497,10 @@ pub unsafe extern "C" fn distinst_disks_list_logical(
     disks: *mut DistinstDisks,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstLvmDevice {
+    if null_check(disks).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
     let disks = &mut *(disks as *mut Disks);
 
     let mut output: Vec<*mut DistinstLvmDevice> = Vec::new();
@@ -407,8 +517,12 @@ pub unsafe extern "C" fn distinst_disks_find_partition(
     disks: *mut DistinstDisks,
     path: *const libc::c_char,
 ) -> *mut DistinstPartitionAndDiskPath {
+    if null_check(disks).is_err() {
+        return ptr::null_mut();
+    }
+
     let disks = &mut *(disks as *mut Disks);
-    let path = match get_str(path, "") {
+    let path = match get_str(path) {
         Ok(path) => path,
         Err(_) => {
             return ptr::null_mut();
@@ -438,14 +552,19 @@ pub unsafe extern "C" fn distinst_disks_decrypt_partition(
     path: *const libc::c_char,
     enc: *mut DistinstLvmEncryption,
 ) -> libc::c_int {
-    if enc.is_null() || path.is_null() || (*enc).physical_volume.is_null() {
+    if null_check(disks)
+        .or(null_check(path))
+        .or(null_check(enc))
+        .or_else(|_| null_check((*enc).physical_volume))
+        .is_err()
+    {
         return 1;
     }
 
-    get_str(path, "").ok().map_or(2, |path| {
-        get_str((*enc).physical_volume, "").ok().map_or(2, |pv| {
-            let password = get_str((*enc).password, "").ok().map(String::from);
-            let keydata = get_str((*enc).keydata, "").ok().map(String::from);
+    get_str(path).ok().map_or(2, |path| {
+        get_str((*enc).physical_volume).ok().map_or(2, |pv| {
+            let password = get_str((*enc).password).ok().map(String::from);
+            let keydata = get_str((*enc).keydata).ok().map(String::from);
             if password.is_none() && keydata.is_none() {
                 3
             } else {

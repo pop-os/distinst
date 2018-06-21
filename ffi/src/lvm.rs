@@ -2,7 +2,7 @@ use distinst::{DiskExt, Disks, LvmDevice, PartitionBuilder, PartitionInfo, Secto
 use ffi::AsMutPtr;
 use libc;
 
-use super::{get_str, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
+use super::{get_str, null_check, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
@@ -12,6 +12,10 @@ use std::ptr;
 pub unsafe extern "C" fn distinst_disks_initialize_volume_groups(
     disks: *mut DistinstDisks,
 ) -> libc::c_int {
+    if null_check(disks).is_err() {
+        return -1;
+    }
+
     match (&mut *(disks as *mut Disks)).initialize_volume_groups() {
         Ok(_) => 0,
         Err(why) => {
@@ -26,7 +30,11 @@ pub unsafe extern "C" fn distinst_disks_get_logical_device(
     disks: *mut DistinstDisks,
     volume_group: *const libc::c_char,
 ) -> *mut DistinstLvmDevice {
-    match get_str(volume_group, "distinst_disks_get_logical_device") {
+    if null_check(disks).is_err() {
+        return ptr::null_mut();
+    }
+
+    match get_str(volume_group) {
         Ok(vg) => {
             let disks = &mut *(disks as *mut Disks);
             info!("getting logical device named '{}'", vg);
@@ -44,7 +52,11 @@ pub unsafe extern "C" fn distinst_disks_get_logical_device_within_pv(
     disks: *mut DistinstDisks,
     pv: *const libc::c_char,
 ) -> *mut DistinstLvmDevice {
-    match get_str(pv, "distinst_disks_get_logical_device_within_pv") {
+    if null_check(disks).is_err() {
+        return ptr::null_mut();
+    }
+
+    match get_str(pv) {
         Ok(pv) => {
             let disks = &mut *(disks as *mut Disks);
             info!("getting logical device");
@@ -62,21 +74,29 @@ pub struct DistinstLvmDevice;
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_device_path(
-    disk: *const DistinstLvmDevice,
+    device: *const DistinstLvmDevice,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    let disk = &*(disk as *const LvmDevice);
-    let path = disk.get_device_path().as_os_str().as_bytes();
+    if null_check(device).or(null_check(len)).is_err() {
+        return ptr::null();
+    }
+
+    let device = &*(device as *const LvmDevice);
+    let path = device.get_device_path().as_os_str().as_bytes();
     *len = path.len() as libc::c_int;
     path.as_ptr()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_encrypted_file_system(
-    disk: *const DistinstLvmDevice,
+    device: *const DistinstLvmDevice,
 ) -> *const DistinstPartition {
-    let disk = &*(disk as *const LvmDevice);
-    match disk.get_file_system() {
+    if null_check(device).is_err() {
+        return ptr::null();
+    }
+
+    let device = &*(device as *const LvmDevice);
+    match device.get_file_system() {
         Some(fs) => fs as *const PartitionInfo as *const DistinstPartition,
         None => ptr::null()
     }
@@ -84,11 +104,15 @@ pub unsafe extern "C" fn distinst_lvm_device_get_encrypted_file_system(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_model(
-    disk: *mut DistinstLvmDevice,
+    device: *mut DistinstLvmDevice,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    let disk = &mut *(disk as *mut LvmDevice);
-    let model = disk.get_model();
+    if null_check(device).or(null_check(len)).is_err() {
+        return ptr::null();
+    }
+
+    let device = &mut *(device as *mut LvmDevice);
+    let model = device.get_model();
     *len = model.len() as libc::c_int;
     model.as_bytes().as_ptr()
 }
@@ -97,6 +121,10 @@ pub unsafe extern "C" fn distinst_lvm_device_get_model(
 pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
     device: *mut DistinstLvmDevice,
 ) -> libc::uint64_t {
+    if null_check(device).is_err() {
+        return 0;
+    }
+
     (&mut *(device as *mut LvmDevice))
         .get_partitions()
         .iter()
@@ -106,18 +134,26 @@ pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_sectors(
-    disk: *const DistinstLvmDevice,
+    device: *const DistinstLvmDevice,
 ) -> libc::uint64_t {
-    let disk = &*(disk as *const LvmDevice);
-    disk.get_sectors()
+    if null_check(device).is_err() {
+        return 0;
+    }
+
+    let device = &*(device as *const LvmDevice);
+    device.get_sectors()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_sector_size(
-    disk: *const DistinstLvmDevice,
+    device: *const DistinstLvmDevice,
 ) -> libc::uint64_t {
-    let disk = &*(disk as *const LvmDevice);
-    disk.get_sector_size()
+    if null_check(device).is_err() {
+        return 0;
+    }
+
+    let device = &*(device as *const LvmDevice);
+    device.get_sector_size()
 }
 
 #[no_mangle]
@@ -125,6 +161,10 @@ pub unsafe extern "C" fn distinst_lvm_device_get_sector(
     device: *mut DistinstLvmDevice,
     sector: *const DistinstSector,
 ) -> libc::uint64_t {
+    if null_check(device).or(null_check(sector)).is_err() {
+        return 0;
+    }
+
     (&mut *(device as *mut LvmDevice)).get_sector(Sector::from(*sector))
 }
 
@@ -133,7 +173,11 @@ pub unsafe extern "C" fn distinst_lvm_device_get_volume(
     device: *mut DistinstLvmDevice,
     volume: *const libc::c_char,
 ) -> *mut DistinstPartition {
-    get_str(volume, "distinst_lvm_device_get_volume")
+    if null_check(device).is_err() {
+        return ptr::null_mut();
+    }
+
+    get_str(volume)
         .ok()
         .map_or(ptr::null_mut(), |volume| {
             let disk = &mut *(device as *mut LvmDevice);
@@ -143,15 +187,19 @@ pub unsafe extern "C" fn distinst_lvm_device_get_volume(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_partition_by_path(
-    disk: *mut DistinstLvmDevice,
+    device: *mut DistinstLvmDevice,
     path: *const libc::c_char,
 ) -> *mut DistinstPartition {
-    get_str(path, "")
+    if null_check(device).is_err() {
+        return ptr::null_mut();
+    }
+
+    get_str(path)
         .ok()
         .and_then(|path| {
             let path = Path::new(&path);
-            let disk = &mut *(disk as *mut LvmDevice);
-            disk.get_partitions_mut()
+            let device = &mut *(device as *mut LvmDevice);
+            device.get_partitions_mut()
                 .iter_mut()
                 .find(|d| d.get_device_path() == path)
         })
@@ -163,9 +211,13 @@ pub unsafe extern "C" fn distinst_lvm_device_add_partition(
     device: *mut DistinstLvmDevice,
     partition: *mut DistinstPartitionBuilder,
 ) -> libc::c_int {
-    let disk = &mut *(device as *mut LvmDevice);
+    if null_check(device).is_err() {
+        return -1;
+    }
 
-    if let Err(why) = disk.add_partition(*Box::from_raw(partition as *mut PartitionBuilder)) {
+    let device = &mut *(device as *mut LvmDevice);
+
+    if let Err(why) = device.add_partition(*Box::from_raw(partition as *mut PartitionBuilder)) {
         error!("unable to add partition: {}", why);
         -1
     } else {
@@ -178,18 +230,26 @@ pub unsafe extern "C" fn distinst_lvm_device_remove_partition(
     device: *mut DistinstLvmDevice,
     volume: *const libc::c_char,
 ) -> libc::c_int {
-    get_str(volume, "distinst_lvm_device_remove_partition")
+    if null_check(device).is_err() {
+        return -1;
+    }
+
+    get_str(volume)
         .ok()
         .map_or(1, |volume| {
-            let disk = &mut *(device as *mut LvmDevice);
-            disk.remove_partition(volume).ok().map_or(2, |_| 0)
+            let device = &mut *(device as *mut LvmDevice);
+            device.remove_partition(volume).ok().map_or(2, |_| 0)
         })
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_clear_partitions(device: *mut DistinstLvmDevice) {
-    let disk = &mut *(device as *mut LvmDevice);
-    disk.clear_partitions();
+    if null_check(device).is_err() {
+        return;
+    }
+
+    let device = &mut *(device as *mut LvmDevice);
+    device.clear_partitions();
 }
 
 #[no_mangle]
@@ -197,10 +257,14 @@ pub unsafe extern "C" fn distinst_lvm_device_list_partitions(
     device: *const DistinstLvmDevice,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstPartition {
-    let disk = &mut *(device as *mut LvmDevice);
+    if null_check(device).or(null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
+    let device = &mut *(device as *mut LvmDevice);
 
     let mut output: Vec<*mut DistinstPartition> = Vec::new();
-    for partition in disk.get_partitions_mut().iter_mut() {
+    for partition in device.get_partitions_mut().iter_mut() {
         output.push(partition as *mut PartitionInfo as *mut DistinstPartition);
     }
 
@@ -210,14 +274,18 @@ pub unsafe extern "C" fn distinst_lvm_device_list_partitions(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_contains_mount(
-    disk: *const DistinstLvmDevice,
+    device: *const DistinstLvmDevice,
     mount: *const libc::c_char,
     disks: *const DistinstDisks,
 ) -> bool {
-    get_str(mount, "").ok().map_or(false, |mount| {
-        let disk = &mut *(disk as *mut LvmDevice);
+    if null_check(device).or(null_check(disks)).is_err() {
+        return false;
+    }
+
+    get_str(mount).ok().map_or(false, |mount| {
+        let device = &mut *(device as *mut LvmDevice);
         let disks = &*(disks as *const Disks);
-        disk.contains_mount(mount, &*disks)
+        device.contains_mount(mount, &*disks)
     })
 }
 
@@ -236,6 +304,10 @@ pub unsafe extern "C" fn distinst_lvm_encryption_copy(
     src: *const DistinstLvmEncryption,
     dst: *mut DistinstLvmEncryption,
 ) {
+    if null_check(src).or(null_check(dst)).is_err() {
+        return;
+    }
+    
     let src = &*src;
     let dst = &mut *dst;
 

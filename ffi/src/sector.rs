@@ -63,7 +63,7 @@ pub unsafe extern "C" fn distinst_sector_from_str(
     string: *const libc::c_char,
 ) -> DistinstSectorResult {
     // First convert the C string into a Rust string
-    let string = match get_str(string, "sector_from_str") {
+    let string = match get_str(string) {
         Ok(string) => string,
         Err(why) => {
             return DistinstSectorResult {
