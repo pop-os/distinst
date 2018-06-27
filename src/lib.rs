@@ -710,6 +710,16 @@ impl Installer {
                 ));
             }
 
+            apply_localectl_fix(&mount_dir)?;
+
+            let status = chroot.command("update-initramfs", iter::once("-u"))?;
+            if !status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("update-initramfs failed: {}", status),
+                ));
+            }
+
             // Ensure that the cdrom binding is unmounted before the chroot.
             drop(cdrom_mount);
             drop(efivars_mount);
@@ -1036,6 +1046,18 @@ impl Installer {
         Disks::probe_devices()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
+}
+
+fn apply_localectl_fix(mount: &Path) -> io::Result<()> {
+    const VCONSOLE: &str = "/etc/vconsole.conf";
+    const KEYBOARD: &str = "/etc/default/keyboard";
+
+    fs::copy(KEYBOARD, mount.join(&KEYBOARD[1..]))?;
+    if Path::new(VCONSOLE).exists() {
+        fs::copy(VCONSOLE, mount.join(&VCONSOLE[1..]))?;
+    }
+
+    Ok(())
 }
 
 fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>) -> io::Result<()> {
