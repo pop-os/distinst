@@ -145,4 +145,3 @@ update-locale --reset "LANG=${LANG}"
 
 # Set keyboard settings system-wide
 localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
-sudo ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz

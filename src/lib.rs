@@ -30,10 +30,10 @@ use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
 use std::io::{self, BufRead, Read, Write};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::ffi::OsStringExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT};
 use std::thread::sleep;
 use std::time::Duration;
@@ -710,9 +710,8 @@ impl Installer {
                 ));
             }
 
-            apply_localectl_fix(&mount_dir)?;
+            apply_localectl_fix(&mut chroot, &mount_dir)?;
 
-            let _ = chroot.command("/bin/sh", &["/etc/init.d/console-setup.sh", "reload"])?;
             let status = chroot.command("update-initramfs", iter::once("-u"))?;
             if !status.success() {
                 return Err(io::Error::new(
@@ -1049,10 +1048,47 @@ impl Installer {
     }
 }
 
-fn apply_localectl_fix(mount: &Path) -> io::Result<()> {
+fn apply_localectl_fix(chroot: &mut Chroot, mount: &Path) -> io::Result<()> {
     const VCONSOLE: &str = "/etc/vconsole.conf";
     const KEYBOARD: &str = "/etc/default/keyboard";
 
+    // Console keymaps need to be regenerated, but there are some restrictions:
+    // - The keymaps cannot be reloaded in a chroot.
+    // - It requires access to a virtual console.
+    // - We therefore need to do it in the host and copy it to the chroot.
+    fn console_setup(chroot: &mut Chroot, mount: &Path) -> io::Result<()> {
+        const UTF8_KEYMAP: &str = "/etc/console-setup/cached_UTF-8_del.kmap.gz";
+        const CACHED_KEYMAP: &str = "/etc/console-setup/cached.kmap.gz";
+
+        info!("libdistinst: reloading vconsole in host environment");
+        let _ = Command::new("openvt")
+            .env("SYSTEMCTL_SKIP_REDIRECT", "_")
+            .args(&["--", "sh", "/etc/init.d/console-setup.sh", "reload"])
+            .status();
+
+        info!("libdistinst: removing key maps in chroot environment");
+        for file in mount.join("etc/console-setup").read_dir()? {
+            if let Ok(entry) = file {
+                fs::remove_file(entry.path())?;
+            }
+        }
+
+        info!("libdistinst: copying host key maps from host to chroot environment");
+        for file in Path::new("/etc/console-setup").read_dir()? {
+            if let Ok(entry) = file {
+                let path = entry.path();
+                if let Some(filename) = path.file_name() {
+                    fs::copy(&path, mount.join("etc/console-setup").join(filename))?;
+                }
+            }
+        }
+
+        chroot.command("ln", &["-s", UTF8_KEYMAP, CACHED_KEYMAP]).map(|_| ())
+    }
+
+    console_setup(chroot, mount)?;
+
+    info!("libdistinst: copying keyboard configuration to chroot environment");
     fs::copy(KEYBOARD, mount.join(&KEYBOARD[1..]))?;
     if Path::new(VCONSOLE).exists() {
         fs::copy(VCONSOLE, mount.join(&VCONSOLE[1..]))?;
