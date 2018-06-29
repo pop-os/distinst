@@ -77,7 +77,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_device_path(
     device: *const DistinstLvmDevice,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(device).or(null_check(len)).is_err() {
+    if null_check(device).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -107,7 +107,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_model(
     device: *mut DistinstLvmDevice,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(device).or(null_check(len)).is_err() {
+    if null_check(device).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -119,13 +119,13 @@ pub unsafe extern "C" fn distinst_lvm_device_get_model(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
-    device: *mut DistinstLvmDevice,
+    device: *const DistinstLvmDevice,
 ) -> libc::uint64_t {
     if null_check(device).is_err() {
         return 0;
     }
 
-    (&mut *(device as *mut LvmDevice))
+    (&*(device as *const LvmDevice))
         .get_partitions()
         .iter()
         .last()
@@ -158,14 +158,14 @@ pub unsafe extern "C" fn distinst_lvm_device_get_sector_size(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_sector(
-    device: *mut DistinstLvmDevice,
+    device: *const DistinstLvmDevice,
     sector: *const DistinstSector,
 ) -> libc::uint64_t {
-    if null_check(device).or(null_check(sector)).is_err() {
+    if null_check(device).or_else(|_| null_check(sector)).is_err() {
         return 0;
     }
 
-    (&mut *(device as *mut LvmDevice)).get_sector(Sector::from(*sector))
+    (&*(device as *const LvmDevice)).get_sector(Sector::from(*sector))
 }
 
 #[no_mangle]
@@ -257,7 +257,7 @@ pub unsafe extern "C" fn distinst_lvm_device_list_partitions(
     device: *const DistinstLvmDevice,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstPartition {
-    if null_check(device).or(null_check(len)).is_err() {
+    if null_check(device).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
@@ -278,7 +278,7 @@ pub unsafe extern "C" fn distinst_lvm_device_contains_mount(
     mount: *const libc::c_char,
     disks: *const DistinstDisks,
 ) -> bool {
-    if null_check(device).or(null_check(disks)).is_err() {
+    if null_check(device).or_else(|_| null_check(disks)).is_err() {
         return false;
     }
 
@@ -304,10 +304,10 @@ pub unsafe extern "C" fn distinst_lvm_encryption_copy(
     src: *const DistinstLvmEncryption,
     dst: *mut DistinstLvmEncryption,
 ) {
-    if null_check(src).or(null_check(dst)).is_err() {
+    if null_check(src).or_else(|_| null_check(dst)).is_err() {
         return;
     }
-    
+
     let src = &*src;
     let dst = &mut *dst;
 

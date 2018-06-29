@@ -14,7 +14,7 @@ pub unsafe extern "C" fn distinst_refresh_option_get_os_name(
     option: *const DistinstRefreshOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn distinst_refresh_option_get_os_pretty_name(
     option: *const DistinstRefreshOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn distinst_refresh_option_get_os_version(
     option: *const DistinstRefreshOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn distinst_refresh_option_get_root_part(
     option: *const DistinstRefreshOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn distinst_erase_option_get_device_path(
     option: *const DistinstEraseOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn distinst_erase_option_get_model(
     option: *const DistinstEraseOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -107,7 +107,7 @@ pub unsafe extern "C" fn distinst_erase_option_get_linux_icon(
     option: *const DistinstEraseOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -173,7 +173,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_efi_uuid(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_hostname(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -208,7 +208,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_kbd_layout(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -223,7 +223,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_language(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -238,7 +238,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_recovery_uuid(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -253,7 +253,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_root_uuid(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -268,7 +268,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_kbd_model(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -288,7 +288,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_kbd_variant(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(option).or(null_check(len)).is_err() {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -380,7 +380,7 @@ pub unsafe extern "C" fn distinst_install_option_apply(
     option: *const DistinstInstallOption,
     disks: *mut DistinstDisks,
 ) -> libc::c_int {
-    if null_check(disks).or(null_check(option)).is_err() {
+    if null_check(disks).or_else(|_| null_check(option)).is_err() {
         return libc::EIO;
     }
 
@@ -423,14 +423,14 @@ pub unsafe extern "C" fn distinst_install_options_get_refresh_options(
     options: *const DistinstInstallOptions,
     len: *mut libc::c_int,
 ) -> *mut *const DistinstRefreshOption {
-    if null_check(options).or(null_check(len)).is_err() {
+    if null_check(options).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
     let options = &*(options as *const InstallOptions);
 
     let mut output: Vec<*const DistinstRefreshOption> = Vec::new();
-    for option in options.refresh_options.iter() {
+    for option in &options.refresh_options {
         output.push(option as *const RefreshOption as *const DistinstRefreshOption);
     }
 
@@ -443,14 +443,14 @@ pub unsafe extern "C" fn distinst_install_options_get_erase_options(
     options: *const DistinstInstallOptions,
     len: *mut libc::c_int,
 ) -> *mut *const DistinstEraseOption {
-    if null_check(options).or(null_check(len)).is_err() {
+    if null_check(options).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
     let options = &*(options as *const InstallOptions);
 
     let mut output: Vec<*const DistinstEraseOption> = Vec::new();
-    for option in options.erase_options.iter() {
+    for option in &options.erase_options {
         output.push(option as *const EraseOption as *const DistinstEraseOption);
     }
 

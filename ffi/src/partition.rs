@@ -235,7 +235,7 @@ pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
     encryption: *mut DistinstLvmEncryption,
 ) -> *mut DistinstPartitionBuilder {
     let group = match get_str(group) {
-        Ok(string) => String::from(string.to_string()),
+        Ok(string) => string.to_string(),
         Err(_) => return builder,
     };
 
@@ -243,7 +243,7 @@ pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
         None
     } else {
         let pv = match get_str((*encryption).physical_volume) {
-            Ok(string) => String::from(string.to_string()),
+            Ok(string) => string.to_string(),
             Err(_) => return builder,
         };
 
@@ -251,7 +251,7 @@ pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
             None
         } else {
             match get_str((*encryption).password) {
-                Ok(string) => Some(String::from(string.to_string())),
+                Ok(string) => Some(string.to_string()),
                 Err(_) => return builder,
             }
         };
@@ -260,7 +260,7 @@ pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
             None
         } else {
             match get_str((*encryption).keydata) {
-                Ok(string) => Some(String::from(string.to_string())),
+                Ok(string) => Some(string.to_string()),
                 Err(_) => return builder,
             }
         };
@@ -279,7 +279,7 @@ pub unsafe extern "C" fn distinst_partition_get_current_lvm_volume_group(
     partition: *const DistinstPartition,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(partition).or(null_check(len)).is_err() {
+    if null_check(partition).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -308,7 +308,7 @@ pub unsafe extern "C" fn distinst_partition_get_device_path(
     partition: *const DistinstPartition,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(partition).or(null_check(len)).is_err() {
+    if null_check(partition).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -338,7 +338,7 @@ pub unsafe extern "C" fn distinst_partition_get_label(
     partition: *const DistinstPartition,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(partition).or(null_check(len)).is_err() {
+    if null_check(partition).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn distinst_partition_get_mount_point(
     partition: *const DistinstPartition,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(partition).or(null_check(len)).is_err() {
+    if null_check(partition).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn distinst_partition_set_flags(
     ptr: *const DISTINST_PARTITION_FLAG,
     len: libc::size_t,
 ) {
-    if null_check(partition).or(null_check(ptr)).is_err() {
+    if null_check(partition).or_else(|_| null_check(ptr)).is_err() {
         return;
     }
 

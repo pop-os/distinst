@@ -142,6 +142,6 @@ pub extern "C" fn distinst_sector_percent(value: libc::uint16_t) -> DistinstSect
     debug_assert!(value <= 100);
     DistinstSector {
         flag:  DISTINST_SECTOR_KIND::PERCENT,
-        value: value as libc::uint64_t,
+        value: u64::from(value),
     }
 }

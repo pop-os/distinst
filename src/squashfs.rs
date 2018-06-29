@@ -126,7 +126,6 @@ enum ExtractFormat {
 }
 
 /// Extracts an image using either unsquashfs or tar.
-#[allow(redundant_closure)]
 pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
     archive: P,
     directory: Q,
@@ -182,7 +181,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
             .env("COLUMNS", "")
             .env("LINES", "")
             .env("TERM", "xterm-256color")
-            .before_exec(|| before_exec())
+            .before_exec(before_exec)
             .spawn()?
     };
 

@@ -11,7 +11,7 @@ pub unsafe extern "C" fn distinst_keyboard_layout_get_name(
     keyboard_layout: *const DistinstKeyboardLayout,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(keyboard_layout).or(null_check(len)).is_err() {
+    if null_check(keyboard_layout).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -26,7 +26,7 @@ pub unsafe extern "C" fn distinst_keyboard_layout_get_description(
     keyboard_layout: *const DistinstKeyboardLayout,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(keyboard_layout).or(null_check(len)).is_err() {
+    if null_check(keyboard_layout).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn distinst_keyboard_variant_get_name(
     keyboard_variant: *const DistinstKeyboardVariant,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(keyboard_variant).or(null_check(len)).is_err() {
+    if null_check(keyboard_variant).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn distinst_keyboard_variant_get_description(
     keyboard_variant: *const DistinstKeyboardVariant,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(keyboard_variant).or(null_check(len)).is_err() {
+    if null_check(keyboard_variant).or_else(|_| null_check(len)).is_err() {
         return ptr::null();
     }
 
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn distinst_keyboard_layout_get_variants(
     keyboard_layout: *const DistinstKeyboardLayout,
     len: *mut libc::c_int,
 ) -> *mut *const DistinstKeyboardVariant {
-    if null_check(keyboard_layout).or(null_check(len)).is_err() {
+    if null_check(keyboard_layout).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
@@ -116,7 +116,7 @@ pub unsafe extern "C" fn distinst_keyboard_layouts_get_layouts(
     layouts: *mut DistinstKeyboardLayouts,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstKeyboardLayout {
-    if null_check(layouts).or(null_check(len)).is_err() {
+    if null_check(layouts).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 

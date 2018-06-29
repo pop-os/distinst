@@ -63,7 +63,7 @@ pub unsafe extern "C" fn distinst_disk_get_device_path(
     disk: *const DistinstDisk,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(disk).or(null_check(len)).is_err() {
+    if null_check(disk).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn distinst_disk_get_model(
     disk: *mut DistinstDisk,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(disk).or(null_check(len)).is_err() {
+    if null_check(disk).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
@@ -93,7 +93,7 @@ pub unsafe extern "C" fn distinst_disk_get_serial(
     disk: *mut DistinstDisk,
     len: *mut libc::c_int,
 ) -> *const u8 {
-    if null_check(disk).or(null_check(len)).is_err() {
+    if null_check(disk).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn distinst_disk_contains_mount(
     mount: *const libc::c_char,
     disks: *const DistinstDisks,
 ) -> bool {
-    if null_check(disk).or(null_check(disks)).is_err() {
+    if null_check(disk).or_else(|_| null_check(disks)).is_err() {
         return false;
     }
 
@@ -179,7 +179,7 @@ pub unsafe extern "C" fn distinst_disk_list_partitions(
     disk: *mut DistinstDisk,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstPartition {
-    if null_check(disk).or(null_check(len)).is_err() {
+    if null_check(disk).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
@@ -235,7 +235,7 @@ pub unsafe extern "C" fn distinst_disk_get_sector(
     disk: *const DistinstDisk,
     sector: *const DistinstSector,
 ) -> libc::uint64_t {
-    if null_check(disk).or(null_check(sector)).is_err() {
+    if null_check(disk).or_else(|_| null_check(sector)).is_err() {
         return 0;
     }
 
@@ -277,7 +277,7 @@ pub unsafe extern "C" fn distinst_disk_add_partition(
     disk: *mut DistinstDisk,
     partition: *mut DistinstPartitionBuilder,
 ) -> libc::c_int {
-    if null_check(disk).or(null_check(partition)).is_err() {
+    if null_check(disk).or_else(|_| null_check(partition)).is_err() {
         return -1;
     }
 
@@ -370,7 +370,7 @@ pub unsafe extern "C" fn distinst_disk_format_partition(
         }
     };
 
-    if let Err(why) = disk.format_partition(partition, fs.clone()) {
+    if let Err(why) = disk.format_partition(partition, fs) {
         info!("unable to remove partition: {}", why);
         -1
     } else {
@@ -417,7 +417,7 @@ pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_push(disks: *mut DistinstDisks, disk: *const DistinstDisk) {
-    if null_check(disk).or(null_check(disks)).is_err() {
+    if null_check(disk).or_else(|_| null_check(disks)).is_err() {
         return;
     }
 
@@ -456,7 +456,7 @@ pub unsafe extern "C" fn distinst_disks_list(
     disks: *mut DistinstDisks,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstDisk {
-    if null_check(disks).or(null_check(len)).is_err() {
+    if null_check(disks).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
@@ -497,7 +497,7 @@ pub unsafe extern "C" fn distinst_disks_list_logical(
     disks: *mut DistinstDisks,
     len: *mut libc::c_int,
 ) -> *mut *mut DistinstLvmDevice {
-    if null_check(disks).or(null_check(len)).is_err() {
+    if null_check(disks).or_else(|_| null_check(len)).is_err() {
         return ptr::null_mut();
     }
 
@@ -553,8 +553,8 @@ pub unsafe extern "C" fn distinst_disks_decrypt_partition(
     enc: *mut DistinstLvmEncryption,
 ) -> libc::c_int {
     if null_check(disks)
-        .or(null_check(path))
-        .or(null_check(enc))
+        .or_else(|_| null_check(path))
+        .or_else(|_| null_check(enc))
         .or_else(|_| null_check((*enc).physical_volume))
         .is_err()
     {
