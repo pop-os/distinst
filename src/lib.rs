@@ -712,6 +712,7 @@ impl Installer {
 
             apply_localectl_fix(&mount_dir)?;
 
+            let _ = chroot.command("/bin/sh", &["/etc/init.d/console-setup.sh", "reload"])?;
             let status = chroot.command("update-initramfs", iter::once("-u"))?;
             if !status.success() {
                 return Err(io::Error::new(
