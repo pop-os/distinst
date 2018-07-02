@@ -39,6 +39,7 @@ pub struct ResizeOperation {
 }
 
 /// Defines how many sectors to skip, and how the partition is.
+#[derive(Clone, Copy)]
 struct OffsetCoordinates {
     skip:   u64,
     offset: i64,
@@ -183,7 +184,7 @@ where
         fs => unimplemented!("{:?} handling", fs),
     };
 
-    let fs = match change.filesystem.clone() {
+    let fs = match change.filesystem {
         Some(Fat16) | Some(Fat32) => "vfat",
         Some(fs) => fs.into(),
         None => "none",
@@ -214,7 +215,7 @@ where
         let (num, path) = create(
             resize.new.start,
             resize.new.end,
-            change.filesystem.clone(),
+            change.filesystem,
             change.new_flags.clone(),
             change.label.clone(),
             change.kind,
@@ -241,7 +242,7 @@ where
         let (num, path) = create(
             resize.new.start,
             resize.new.end,
-            change.filesystem.clone(),
+            change.filesystem,
             change.new_flags.clone(),
             change.label.clone(),
             change.kind,
@@ -270,7 +271,7 @@ where
         create(
             resize.new.start,
             resize.new.end,
-            change.filesystem.clone(),
+            change.filesystem,
             change.new_flags,
             change.label,
             change.kind,
@@ -323,7 +324,7 @@ fn move_partition<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -
 
         let offset = offset_skip + sector;
         disk.seek(SeekFrom::Start(offset * bs))?;
-        disk.write_all(&mut buffer[..bs as usize])?;
+        disk.write_all(&buffer[..bs as usize])?;
     }
 
     disk.sync_all()

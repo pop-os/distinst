@@ -26,15 +26,15 @@ pub enum Sector {
 impl FromStr for Sector {
     type Err = &'static str;
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        if input.ends_with("M") {
-            if input.starts_with("-") {
+        if input.ends_with('M') {
+            if input.starts_with('-') {
                 if let Ok(value) = input[1..input.len() - 1].parse::<u64>() {
                     return Ok(Sector::MegabyteFromEnd(value));
                 }
             } else if let Ok(value) = input[..input.len() - 1].parse::<u64>() {
                 return Ok(Sector::Megabyte(value));
             }
-        } else if input.ends_with("%") {
+        } else if input.ends_with('%') {
             if let Ok(value) = input[..input.len() - 1].parse::<u16>() {
                 if value <= 100 {
                     return Ok(Sector::Percent(value));
@@ -44,7 +44,7 @@ impl FromStr for Sector {
             return Ok(Sector::Start);
         } else if input == "end" {
             return Ok(Sector::End);
-        } else if input.starts_with("-") {
+        } else if input.starts_with('-') {
             if let Ok(value) = input[1..input.len()].parse::<u64>() {
                 return Ok(Sector::UnitFromEnd(value));
             }

@@ -25,20 +25,13 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 
 /// A configuration of disks, both physical and logical.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Disks {
     pub(crate) physical: Vec<Disk>,
     pub(crate) logical:  Vec<LvmDevice>,
 }
 
 impl Disks {
-    pub fn new() -> Disks {
-        Disks {
-            physical: Vec::new(),
-            logical:  Vec::new(),
-        }
-    }
-
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) {
         self.physical.push(disk);
@@ -96,12 +89,12 @@ impl Disks {
 
     /// Searches for a LVM device by the LVM volume group name.
     pub fn get_logical_device(&self, group: &str) -> Option<&LvmDevice> {
-        self.logical.iter().find(|d| &d.volume_group == group)
+        self.logical.iter().find(|d| d.volume_group == group)
     }
 
     /// Searches for a LVM device by the LVM volume group name.
     pub fn get_logical_device_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
-        self.logical.iter_mut().find(|d| &d.volume_group == group)
+        self.logical.iter_mut().find(|d| d.volume_group == group)
     }
 
     /// Searches for a LVM device which is inside of the given LUKS physical volume name.
@@ -109,7 +102,7 @@ impl Disks {
         self.logical.iter().find(|d| {
             d.encryption
                 .as_ref()
-                .map_or(false, |enc| &enc.physical_volume == pv)
+                .map_or(false, |enc| enc.physical_volume == pv)
         })
     }
 
@@ -118,7 +111,7 @@ impl Disks {
         self.logical.iter_mut().find(|d| {
             d.encryption
                 .as_ref()
-                .map_or(false, |enc| &enc.physical_volume == pv)
+                .map_or(false, |enc| enc.physical_volume == pv)
         })
     }
 
@@ -260,7 +253,7 @@ impl Disks {
     pub fn decrypt_partition(
         &mut self,
         path: &Path,
-        enc: LvmEncryption,
+        enc: &LvmEncryption,
     ) -> Result<(), DecryptionError> {
         info!("libdistinst: decrypting partition at {:?}", path);
         // An intermediary value that can avoid the borrowck issue.
@@ -291,7 +284,7 @@ impl Disks {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
 
-                    return Ok(LvmDevice::new(vg, Some(enc.clone()), partition.sectors(), 512, true));
+                    Ok(LvmDevice::new(vg, Some(enc.clone()), partition.sectors(), 512, true))
                 }
                 _ => {
                     // Detect a file system on the device
@@ -315,9 +308,7 @@ impl Disks {
                     let _ = cryptsetup_close(pv);
 
                     // NOTE: Should we handle this in some way?
-                    return Err(DecryptionError::DecryptedLacksVG {
-                        device: path.to_path_buf(),
-                    });
+                    Err(DecryptionError::DecryptedLacksVG { device: path.to_path_buf() })
                 }
             }
         }
@@ -326,13 +317,13 @@ impl Disks {
         for device in &mut self.physical {
             // TODO: NLL
             if let Some(partition) = device.get_file_system_mut() {
-                if &partition.device_path == path {
+                if partition.device_path == path {
                     decrypt(partition, path, &enc)?;
                 }
             }
 
             for partition in device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut()) {
-                if &partition.device_path == path {
+                if partition.device_path == path {
                     new_device = Some(decrypt(partition, path, &enc)?);
                     break
                 }
@@ -375,7 +366,7 @@ impl Disks {
 
     /// Probes for and returns disk information for every disk in the system.
     pub fn probe_devices() -> Result<Disks, DiskError> {
-        let mut disks = Disks::new();
+        let mut disks = Disks::default();
         for mut device in Device::devices(true) {
             match device.type_() {
                 DeviceType::PED_DEVICE_UNKNOWN
@@ -394,7 +385,7 @@ impl Disks {
     pub fn find_disk<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
         self.physical
             .iter()
-            .find(|disk| &disk.device_path == path.as_ref())
+            .find(|disk| disk.device_path == path.as_ref())
     }
 
     /// Returns a mutable reference to the disk specified by its path, if it
@@ -402,13 +393,13 @@ impl Disks {
     pub fn find_disk_mut<P: AsRef<Path>>(&mut self, path: P) -> Option<&mut Disk> {
         self.physical
             .iter_mut()
-            .find(|disk| &disk.device_path == path.as_ref())
+            .find(|disk| disk.device_path == path.as_ref())
     }
 
     /// Finds the partition block path and associated partition information that is associated with
     /// the given target mount point. Scans both physical and logical partitions.
     pub fn find_partition<'a>(&'a self, target: &Path) -> Option<(&'a Path, &'a PartitionInfo)> {
-        find_partition(&self.physical, target).or(find_partition(&self.logical, target))
+        find_partition(&self.physical, target).or_else(|| find_partition(&self.logical, target))
     }
 
     /// Finds the partition block path and associated partition information that is associated with
@@ -417,8 +408,10 @@ impl Disks {
         &'a mut self,
         target: &Path,
     ) -> Option<(PathBuf, &'a mut PartitionInfo)> {
-        find_partition_mut(&mut self.physical, target)
-            .or(find_partition_mut(&mut self.logical, target))
+        match find_partition_mut(&mut self.physical, target) {
+            partition @ Some(_) => partition,
+            None => find_partition_mut(&mut self.logical, target)
+        }
     }
 
     /// Returns a list of disk & partition paths that match a volume group.
@@ -433,7 +426,7 @@ impl Disks {
                     .volume_group
                     .as_ref()
                     .map(|x| &x.0)
-                    .or(partition.original_vg.as_ref());
+                    .or_else(|| partition.original_vg.as_ref());
 
                 if let Some(ref pvg) = vg {
                     if pvg.as_str() == volume_group {
@@ -566,7 +559,7 @@ impl Disks {
             for partition in partitions {
                 if let Some(&mut (_, Some(ref mut enc))) = partition.volume_group.as_mut() {
                     if let Some((ref id, ref mut ppath)) = enc.keydata {
-                        if &*id == &*key {
+                        if *id == *key {
                             *ppath = paths.clone();
                             continue;
                         }
@@ -657,7 +650,7 @@ impl Disks {
                     }
 
                     // 256 MiB should be the minimal size of the ESP partition.
-                    const REQUIRED_SECTORS: u64 = 524288;
+                    const REQUIRED_SECTORS: u64 = 524_288;
 
                     if boot.sectors() < REQUIRED_SECTORS {
                         return Err(io::Error::new(
@@ -704,20 +697,7 @@ impl Disks {
 
         fn write_fstab(fstab: &mut OsString, partition: &PartitionInfo) {
             if let Some(entry) = partition.get_block_info() {
-                fstab.reserve_exact(entry.len() + 16);
-                fstab.push("UUID=");
-                fstab.push(&entry.uuid);
-                fstab.push("  ");
-                fstab.push(entry.mount());
-                fstab.push("  ");
-                fstab.push(&entry.fs);
-                fstab.push("  ");
-                fstab.push(&entry.options);
-                fstab.push("  ");
-                fstab.push(if entry.dump { "1" } else { "0" });
-                fstab.push("  ");
-                fstab.push(if entry.pass { "1" } else { "0" });
-                fstab.push("\n");
+                entry.write_fstab(fstab);
             }
         }
 
@@ -759,7 +739,7 @@ impl Disks {
                     match get_uuid(&partition.device_path) {
                         Some(uuid) => {
                             let unique_id =
-                                generate_unique_id("cryptswap").unwrap_or("cryptswap".into());
+                                generate_unique_id("cryptswap").unwrap_or_else(|_| "cryptswap".into());
                             crypttab.push(&unique_id);
                             crypttab.push(" UUID=");
                             crypttab.push(&uuid);
@@ -813,7 +793,7 @@ impl Disks {
                     // TODO: NLL
                     let push = match existing_devices
                         .iter_mut()
-                        .find(|d| &d.volume_group == &lvm.0)
+                        .find(|d| d.volume_group == lvm.0)
                     {
                         Some(device) => {
                             device.add_sectors(partition.sectors());
@@ -876,7 +856,7 @@ impl Disks {
     pub fn remove_logical_device(&mut self, volume: &str) {
         let mut remove_id = None;
         for (id, device) in self.logical.iter_mut().enumerate() {
-            if &device.volume_group == volume {
+            if device.volume_group == volume {
                 if device.is_source {
                     device.remove = true;
                 } else {

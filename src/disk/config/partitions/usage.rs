@@ -164,7 +164,7 @@ fn parse_fsck_cluster_summary<R: Iterator<Item = io::Result<String>>>(
                     .next()
                     .map_or(false, |word| word.ends_with(':'))
                 {
-                    if let Some(stats) = line.split_whitespace().skip(3).next() {
+                    if let Some(stats) = line.split_whitespace().nth(3) {
                         if let Some(id) = stats.find('/') {
                             if stats.len() > id + 1 {
                                 if let Ok(used) = stats[..id].parse::<u64>() {
@@ -194,7 +194,7 @@ fn parse_field<R: Iterator<Item = io::Result<String>>>(
     field: &str,
     value: usize,
 ) -> io::Result<u64> {
-    while let Some(line) = reader.next() {
+    for line in reader {
         let line = line?;
         if line.starts_with(field) {
             match line.split_whitespace().nth(value).map(|v| v.parse::<u64>()) {
@@ -237,7 +237,7 @@ fn parse_field_as_unit<R: Iterator<Item = io::Result<String>>>(
     field: &str,
     value: usize,
 ) -> io::Result<u64> {
-    while let Some(line) = reader.next() {
+    for line in reader {
         let line = line?;
         let line = line.trim_left();
         if line.starts_with(field) {

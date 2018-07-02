@@ -17,7 +17,7 @@ pub type Language = String;
 pub type Locales = BTreeMap<Language, Locale>;
 pub type Locale = BTreeMap<Country, Codesets>;
 pub type Country = Option<String>;
-pub type Codesets = Vec<Option<(String, bool)>>;
+pub type Codesets = Vec<Option<Codeset>>;
 
 pub fn get_default(lang: &str) -> Option<String> {
     LOCALES.get(lang)
@@ -25,12 +25,12 @@ pub fn get_default(lang: &str) -> Option<String> {
             if let Some(country) = get_main_country(lang) {
                 return match value.get(&Some(country.into())) {
                     Some(codeset) => {
-                        if codeset.contains(&Some(("UTF-8".into(), true))) {
+                        if codeset.contains(&Some(Codeset::new("UTF-8".into(), true))) {
                             format!("{}_{}.UTF-8", lang, country)
                         } else {
                             match codeset.first() {
-                                Some(&Some((ref codeset, dot))) if dot => {
-                                    format!("{}_{}.{}", lang, country, codeset)
+                                Some(&Some(ref codeset)) if codeset.dot => {
+                                    format!("{}_{}.{}", lang, country, codeset.variant)
                                 }
                                 _ => format!("{}_{}", lang, country)
                             }
@@ -52,12 +52,12 @@ pub fn get_default(lang: &str) -> Option<String> {
                 None => lang.into()
             };
 
-            if codeset.contains(&Some(("UTF-8".into(), true))) {
+            if codeset.contains(&Some(Codeset::new("UTF-8".into(), true))) {
                 format!("{}.UTF-8", prefix)
             } else {
                 match codeset.first() {
-                    Some(&Some((ref codeset, dot))) if dot => {
-                        format!("{}.{}", prefix, codeset)
+                    Some(&Some(ref codeset)) if codeset.dot => {
+                        format!("{}.{}", prefix, codeset.variant)
                     }
                     _ => prefix
                 }
@@ -88,31 +88,28 @@ pub fn parse_locales() -> io::Result<Locales> {
         }
         for line in BufReader::new(File::open(file)?).lines() {
             let line = line?;
-            match parse_entry(&line) {
-                Some((lang, country, unicode)) => {
-                    match locales.entry(lang) {
-                        Entry::Occupied(mut entry) => {
-                            let value: &mut Locale = entry.get_mut();
-                            match value.entry(country) {
-                                Entry::Occupied(mut entry) => {
-                                    let entry = entry.get_mut();
-                                    if !entry.contains(&unicode) {
-                                        entry.push(unicode);
-                                    }
-                                }
-                                Entry::Vacant(entry) => {
-                                    entry.insert(vec![unicode]);
+            if let Some(locale) = parse_entry(&line) {
+                match locales.entry(locale.language) {
+                    Entry::Occupied(mut entry) => {
+                        let value: &mut Locale = entry.get_mut();
+                        match value.entry(locale.country) {
+                            Entry::Occupied(mut entry) => {
+                                let entry = entry.get_mut();
+                                if !entry.contains(&locale.codeset) {
+                                    entry.push(locale.codeset);
                                 }
                             }
-                        }
-                        Entry::Vacant(entry) => {
-                            let mut map = BTreeMap::new();
-                            map.insert(country, vec![unicode]);
-                            entry.insert(map);
+                            Entry::Vacant(entry) => {
+                                entry.insert(vec![locale.codeset]);
+                            }
                         }
                     }
+                    Entry::Vacant(entry) => {
+                        let mut map = BTreeMap::new();
+                        map.insert(locale.country, vec![locale.codeset]);
+                        entry.insert(map);
+                    }
                 }
-                None => ()
             }
         }
     }
@@ -120,7 +117,36 @@ pub fn parse_locales() -> io::Result<Locales> {
     Ok(locales)
 }
 
-fn parse_entry(line: &str) -> Option<(String, Option<String>, Option<(String, bool)>)> {
+#[derive(Debug, PartialEq)]
+struct LocaleEntry {
+    language: String,
+    country:  Option<String>,
+    codeset:  Option<Codeset>
+}
+
+impl LocaleEntry {
+    fn new(language: String, country: Option<String>, codeset: Option<(String, bool)>) -> LocaleEntry {
+        LocaleEntry {
+            language,
+            country,
+            codeset: codeset.map(|c| Codeset { variant: c.0, dot: c.1 })
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Codeset {
+    pub variant: String,
+    pub dot: bool
+}
+
+impl Codeset {
+    fn new(variant: String, dot: bool) -> Codeset {
+        Codeset { variant, dot }
+    }
+}
+
+fn parse_entry(line: &str) -> Option<LocaleEntry> {
     let mut words = line.split_whitespace();
 
     match words.next() {
@@ -130,16 +156,20 @@ fn parse_entry(line: &str) -> Option<(String, Option<String>, Option<(String, bo
                 (None, _) => {
                     return None;
                 },
-                (Some(lang), None) => (lang.into(), None, None),
+                (Some(lang), None) => {
+                    LocaleEntry::new(lang.into(), None, None)
+                },
                 (Some(lang), Some(country)) => {
                     let mut codes = country.split('.');
                     match (codes.next(), codes.next()) {
-                        (None, _) => (lang.into(), None, None),
-                        (Some(country), None) => match words.next() {
-                            Some(code) => (lang.into(), trim_into(country), Some((code.into(), false))),
-                            None => (lang.into(), trim_into(country), None),
+                        (None, _) => {
+                            LocaleEntry::new(lang.into(), None, None)
                         },
-                        (Some(country), Some(code)) => (lang.into(), trim_into(country), Some((code.into(), true)))
+                        (Some(country), None) => match words.next() {
+                            Some(code) => LocaleEntry::new(lang.into(), trim_into(country), Some((code.into(), false))),
+                            None => LocaleEntry::new(lang.into(), trim_into(country), None),
+                        },
+                        (Some(country), Some(code)) => LocaleEntry::new(lang.into(), trim_into(country), Some((code.into(), true)))
                     }
                 }
             })
@@ -173,22 +203,22 @@ hak_TW UTF-8
 
         assert_eq!(
             parse_entry(&lines.next().unwrap()),
-            Some(("gu".into(), Some("IN".into()), Some(("UTF-8".into(), false))))
+            Some(LocaleEntry::new("gu".into(), Some("IN".into()), Some(("UTF-8".into(), false))))
         );
 
         assert_eq!(
             parse_entry(&lines.next().unwrap()),
-            Some(("gv".into(), Some("GB".into()), Some(("UTF-8".into(), true))))
+            Some(LocaleEntry::new("gv".into(), Some("GB".into()), Some(("UTF-8".into(), true))))
         );
 
         assert_eq!(
             parse_entry(&lines.next().unwrap()),
-            Some(("gv".into(), Some("GB".into()), Some(("ISO-8859-1".into(), false))))
+            Some(LocaleEntry::new("gv".into(), Some("GB".into()), Some(("ISO-8859-1".into(), false))))
         );
 
         assert_eq!(
             parse_entry(&lines.next().unwrap()),
-            Some(("hak".into(), Some("TW".into()), Some(("UTF-8".into(), false))))
+            Some(LocaleEntry::new("hak".into(), Some("TW".into()), Some(("UTF-8".into(), false))))
         );
     }
 }

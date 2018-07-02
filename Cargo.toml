@@ -14,6 +14,9 @@ members = ["cli", "ffi"]
 name = "distinst"
 crate-type = ["lib"]
 
+[dev-dependencies]
+pbr = "1.0"
+
 [dependencies]
 libc = "0.2"
 libparted = "0.1.3"

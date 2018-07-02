@@ -115,7 +115,7 @@ pub unsafe extern "C" fn distinst_installer_emit_status(
     installer: *mut DistinstInstaller,
     status: *const DistinstStatus,
 ) {
-    (*(installer as *mut Installer)).emit_status(&Status {
+    (*(installer as *mut Installer)).emit_status(Status {
         step:    (*status).step.into(),
         percent: (*status).percent,
     });
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn distinst_installer_install(
     disks: *mut DistinstDisks,
     config: *const DistinstConfig,
 ) -> libc::c_int {
-    let disks: Box<Disks> = if disks.is_null() {
+    let disks: Box<Disks> = if disks.is_null() || installer.is_null() || config.is_null() {
         return libc::EIO;
     } else {
         Box::from_raw(disks as *mut Disks)
@@ -175,5 +175,9 @@ pub unsafe extern "C" fn distinst_installer_install(
 /// Destroy an installer object
 #[no_mangle]
 pub unsafe extern "C" fn distinst_installer_destroy(installer: *mut DistinstInstaller) {
-    drop(Box::from_raw(installer as *mut Installer))
+    if installer.is_null() {
+        error!("DistinstInstaller was to be destroyed even though it is null");
+    } else {
+        Box::from_raw(installer as *mut Installer);
+    }
 }

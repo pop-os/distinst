@@ -254,9 +254,9 @@ impl Installer {
     ///     percent: 50,
     /// });
     /// ```
-    pub fn emit_status(&mut self, status: &Status) {
+    pub fn emit_status(&mut self, status: Status) {
         if let Some(ref mut cb) = self.status_cb {
-            cb(status);
+            cb(&status);
         }
     }
 
@@ -421,13 +421,13 @@ impl Installer {
             .get_physical_devices()
             .iter()
             .flat_map(|disk| disk.file_system.as_ref().into_iter().chain(disk.partitions.iter()))
-            .filter(|part| !part.target.is_none() && !part.filesystem.is_none());
+            .filter(|part| part.target.is_some() && part.filesystem.is_some());
 
         let logical_targets = disks
             .get_logical_devices()
             .iter()
             .flat_map(|disk| disk.file_system.as_ref().into_iter().chain(disk.partitions.iter()))
-            .filter(|part| !part.target.is_none() && !part.filesystem.is_none());
+            .filter(|part| part.target.is_some() && part.filesystem.is_some());
 
         let targets = physical_targets.chain(logical_targets);
 
@@ -468,7 +468,7 @@ impl Installer {
                     PathBuf::from(OsString::from_vec(target_mount))
                 };
 
-                let fs = match target.filesystem.clone().unwrap() {
+                let fs = match target.filesystem.unwrap() {
                     FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
                     fs => fs.into(),
                 };
@@ -626,7 +626,7 @@ impl Installer {
             let luks_uuid = misc::from_uuid(&root_entry.uuid)
                 .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
                 .and_then(|ref path| misc::get_uuid(path))
-                .and_then(|uuid| if &uuid == &root_entry.uuid { None } else { Some(uuid)});
+                .and_then(|uuid| if uuid == root_entry.uuid { None } else { Some(uuid)});
 
             let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
@@ -942,7 +942,7 @@ impl Installer {
 
                 status.step = $step;
                 status.percent = 0;
-                self.emit_status(&status);
+                self.emit_status(status);
 
                 apply_step!($msg, $action);
             }};
@@ -968,13 +968,13 @@ impl Installer {
             () => {
                 |percent| {
                     status.percent = percent;
-                    self.emit_status(&status);
+                    self.emit_status(status);
                 }
             };
         }
 
         info!("libdistinst: installing {:?} with {:?}", config, bootloader);
-        self.emit_status(&status);
+        self.emit_status(status);
 
         let (squashfs, remove_pkgs) = apply_step!("initializing", {
             Installer::initialize(&mut disks, config, percent!())
