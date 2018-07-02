@@ -1086,13 +1086,13 @@ fn apply_localectl_fix(chroot: &mut Chroot, mount: &Path) -> io::Result<()> {
         chroot.command("ln", &["-s", UTF8_KEYMAP, CACHED_KEYMAP]).map(|_| ())
     }
 
-    console_setup(chroot, mount)?;
-
     info!("libdistinst: copying keyboard configuration to chroot environment");
     fs::copy(KEYBOARD, mount.join(&KEYBOARD[1..]))?;
     if Path::new(VCONSOLE).exists() {
         fs::copy(VCONSOLE, mount.join(&VCONSOLE[1..]))?;
     }
+
+    console_setup(chroot, mount)?;
 
     Ok(())
 }
