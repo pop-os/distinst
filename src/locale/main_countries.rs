@@ -34,7 +34,7 @@ fn get_main_countries_iter<I: Iterator<Item = String>>(iter: I) -> BTreeMap<Stri
     for line in iter.filter(|x| !x.starts_with('#')) {
         let mut fields = line.split_whitespace();
         if let (Some(code), Some(country)) = (fields.next(), fields.next()) {
-            if let Some(country) = country.split('_').skip(1).next() {
+            if let Some(country) = country.split('_').nth(1) {
                 map.insert(code.into(), country.into());
             }
         }

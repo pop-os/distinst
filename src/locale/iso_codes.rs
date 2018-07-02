@@ -15,7 +15,7 @@ pub fn get_language_name(code: &str) -> Option<&'static str> {
 pub fn get_language_name_translated(code: &str) -> Option<String> {
     let current_lang = env::var("LANGUAGE");
     if let Some(locale) = get_default(code) {
-        let _ = env::set_var("LANGUAGE", locale);
+        env::set_var("LANGUAGE", locale);
     }
     setlocale(LocaleCategory::LcAll, "");
 
@@ -41,7 +41,7 @@ pub fn get_country_name_translated(country_code: &str, lang_code: &str) -> Optio
     get_country(country_code).map(|country| {
         let current_lang = env::var("LANGUAGE");
         if let Some(locale) = get_default(lang_code) {
-            let _ = env::set_var("LANGUAGE", locale);
+            env::set_var("LANGUAGE", locale);
         }
 
         setlocale(LocaleCategory::LcAll, "");

@@ -40,35 +40,27 @@ impl InstallOptions {
 
             let mut check_partition = |part: &PartitionInfo| {
                 if part.is_linux_compatible() {
-                    match part.probe_os() {
-                        Some(os) => match os {
-                            OS::Linux {
-                                info,
-                                home,
-                                efi,
-                                recovery,
-                            } => refresh_options.push(RefreshOption {
-                                os_name:        info.name,
-                                os_pretty_name: info.pretty_name,
-                                os_version:     info.version,
-                                root_part:      get_uuid(part.get_device_path())
-                                    .expect("root device did not have uuid"),
-                                home_part:      home,
-                                efi_part:       efi,
-                                recovery_part:  recovery,
-                            }),
-                            _ => (),
-                        },
-                        None => (),
+                    if let Some(OS::Linux { info, home, efi, recovery }) = part.probe_os() {
+                        refresh_options.push(RefreshOption {
+                            os_name:        info.name,
+                            os_pretty_name: info.pretty_name,
+                            os_version:     info.version,
+                            root_part:      get_uuid(part.get_device_path())
+                                .expect("root device did not have uuid"),
+                            home_part:      home,
+                            efi_part:       efi,
+                            recovery_part:  recovery,
+                        });
                     }
                 }
             };
 
             for device in disks.get_physical_devices() {
-                if !Path::new("/cdrom/recovery.conf").exists() {
-                    if device.contains_mount("/", &disks) || device.contains_mount("/cdrom", &disks) {
-                        continue
-                    }
+                let has_recovery = !Path::new("/cdrom/recovery.conf").exists()
+                    && (device.contains_mount("/", &disks) || device.contains_mount("/cdrom", &disks));
+
+                if has_recovery {
+                    continue
                 }
 
                 let sectors = device.get_sectors();

@@ -196,12 +196,10 @@ pub(crate) fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option
         } else {
             return None;
         }
+    } else if !output.is_empty() {
+        output.trim_right().into()
     } else {
-        if !output.is_empty() {
-            output.trim_right().into()
-        } else {
-            return None;
-        }
+        return None;
     };
 
     Some(output)
@@ -441,8 +439,7 @@ pub(crate) fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystemType>
 
     String::from_utf8_lossy(&output)
         .split_whitespace()
-        .skip(2)
-        .next()
+        .nth(2)
         .and_then(|type_| {
             info!("libdistinst: blkid found '{}'", type_);
             let length = type_.len();
@@ -477,16 +474,15 @@ pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
     while reader.read_line(&mut current_line)? != 0 {
         {
             let line = &current_line[2..];
-            match line.find(' ') {
-                Some(pos) => output.push(PathBuf::from(
+            if let Some(pos) = line.find(' ') {
+                output.push(PathBuf::from(
                     [
                         "/dev/mapper/",
                         &vg.replace("-", "--"),
                         "-",
                         &(&line[..pos].replace("-", "--"))
                     ].concat(),
-                )),
-                None => (),
+                ));
             }
         }
 
