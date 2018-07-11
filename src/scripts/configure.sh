@@ -38,13 +38,6 @@ dbus-uuidgen > "/var/lib/dbus/machine-id"
 # Correctly specify resolv.conf
 ln -sf "../run/resolvconf/resolv.conf" "/etc/resolv.conf"
 
-# Update locales
-locale-gen --purge "${LANG}"
-update-locale --reset "LANG=${LANG}"
-
-# Set keyboard settings system-wide
-localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
-
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"
 apt-get autoremove -y --purge
@@ -146,9 +139,9 @@ if [ $DISABLE_NVIDIA ]; then
     systemctl disable nvidia-fallback.service || true
 fi
 
-# Update the chroot's initramfs
-update-initramfs -u
+# Update locales
+locale-gen --purge "${LANG}"
+update-locale --reset "LANG=${LANG}"
 
-# Fix an issue with keyboard locales not being set in the initramfs.
-sudo ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz
-update-initramfs -u
+# Set keyboard settings system-wide
+localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
