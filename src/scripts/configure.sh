@@ -59,6 +59,9 @@ then
     apt-cdrom "${APT_OPTIONS[@]}" add
 fi
 
+# Ensure that no post update scripts exist for initramfs.
+rm /etc/initramfs/post-update.d/*
+
 # Install bootloader packages
 apt-get install -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
 
