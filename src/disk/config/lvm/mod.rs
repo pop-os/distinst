@@ -128,7 +128,7 @@ impl LvmDevice {
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub(crate) fn validate(&self) -> Result<(), DiskError> {
-        if self.get_partitions().iter().any(|p| !p.name.is_some()) {
+        if self.get_partitions().iter().any(|p| p.name.is_none()) {
             return Err(DiskError::VolumePartitionLacksLabel);
         }
 
@@ -288,8 +288,8 @@ impl LvmDevice {
                 lvremove(&self.volume_group, label)
                     .map_err(|why| DiskError::PartitionRemove { partition: -1, why })?;
             } else if partition.flag_is_enabled(FORMAT) {
-                if let Some(fs) = partition.filesystem.as_ref() {
-                    mkfs(&partition.device_path, fs.clone())
+                if let Some(fs) = partition.filesystem {
+                    mkfs(&partition.device_path, fs)
                         .map_err(|why| DiskError::PartitionFormat { why })?;
                 }
             }

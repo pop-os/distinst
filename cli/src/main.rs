@@ -6,12 +6,17 @@ extern crate failure_derive;
 extern crate libc;
 extern crate pbr;
 
+mod configure;
+mod errors;
+
 use clap::{App, Arg, ArgMatches, Values};
+use configure::*;
 use distinst::{
-    Config, Disk, DiskError, DiskExt, Disks, FileSystemType, Installer, LvmEncryption,
-    PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType, Sector, Step,
-    KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER
+    Config, DecryptionError, Disk, DiskError, Disks, FileSystemType, Installer,
+    LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
+    Sector, Step, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER
 };
+use errors::DistinstError;
 
 use pbr::ProgressBar;
 
@@ -22,71 +27,7 @@ use std::process::exit;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 
-#[derive(Debug, Fail)]
-enum DistinstError {
-    #[fail(display = "disk error: {}", why)]
-    Disk { why: DiskError },
-    #[fail(display = "table argument requires two values")]
-    TableArgs,
-    #[fail(display = "'{}' is not a valid table. Must be either 'gpt' or 'msdos'.", table)]
-    InvalidTable { table: String },
-    #[fail(display = "partition type must be either 'primary' or 'logical'")]
-    InvalidPartitionType,
-    #[fail(display = "decryption argument requires four values")]
-    DecryptArgs,
-    #[fail(display = "disk at '{}' could not be found", disk)]
-    DiskNotFound { disk: String },
-    #[fail(display = "no block argument provided")]
-    NoBlockArg,
-    #[fail(display = "argument '{}' is not a number", arg)]
-    ArgNaN { arg: String },
-    #[fail(display = "partition '{}' was not found", partition)]
-    PartitionNotFound { partition: i32 },
-    #[fail(display = "four arguments must be supplied to the move operation")]
-    MoveArgs,
-    #[fail(display = "provided sector value, '{}', was invalid", value)]
-    InvalidSectorValue { value: String },
-    #[fail(display = "no physical volume was defined in file system field")]
-    NoPhysicalVolume,
-    #[fail(display = "no volume group was defined in file system field")]
-    NoVolumeGroup,
-    #[fail(display = "provided password was empty")]
-    EmptyPassword,
-    #[fail(display = "provided key value was empty")]
-    EmptyKeyValue,
-    #[fail(display = "invalid field: {}", field)]
-    InvalidField { field: String },
-    #[fail(display = "provided file system, '{}', was invalid", fs)]
-    InvalidFileSystem { fs: String },
-    #[fail(display = "no logical device named '{}' found", group)]
-    LogicalDeviceNotFound { group: String },
-    #[fail(display = "'{}' was not found on '{}'", volume, group)]
-    LogicalPartitionNotFound { group:  String, volume: String },
-    #[fail(display = "invalid number of arguments supplied to --logical-modify")]
-    ModifyArgs,
-    #[fail(display = "could not find volume group associated with '{}'", group)]
-    NoVolumeGroupAssociated { group: String },
-    #[fail(display = "invalid number of arguments supplied to --use")]
-    ReusedArgs,
-    #[fail(display = "invalid number of arguments supplied to --new")]
-    NewArgs,
-    #[fail(display = "invalid number of arguments supplied to --logical")]
-    LogicalArgs,
-    #[fail(display = "invalid number of arguments supplied to --logical-remove")]
-    LogicalRemoveArgs,
-    #[fail(display = "mount path must be specified with key")]
-    NoMountPath,
-    #[fail(display = "mount value is empty")]
-    EmptyMount,
-    #[fail(display = "unable to add partition to lvm device: {}", why)]
-    LvmPartitionAdd { why: DiskError },
-    #[fail(display = "unable to initialize volume groups: {}", why)]
-    InitializeVolumes { why: DiskError },
-}
 
-impl From<DiskError> for DistinstError {
-    fn from(why: DiskError) -> DistinstError { DistinstError::Disk { why } }
-}
 
 fn main() {
     let matches = App::new("distinst")
@@ -332,23 +273,7 @@ fn main() {
         installer.install(
             disks,
             &Config {
-                flags: {
-                    let mut flags = 0;
-
-                    flags += if matches.occurrences_of("modify-boot") != 0 {
-                        distinst::MODIFY_BOOT_ORDER
-                    } else {
-                        0
-                    };
-
-                    flags += if matches.occurrences_of("hardware-support") != 0 {
-                        distinst::INSTALL_HARDWARE_SUPPORT
-                    } else {
-                        0
-                    };
-
-                    flags
-                },
+                flags:            install_flags(&matches),
                 hostname:         hostname.into(),
                 keyboard_layout:  keyboard.next().map(String::from).unwrap(),
                 keyboard_model:   take_optional_string(keyboard.next()),
@@ -379,6 +304,24 @@ fn main() {
     exit(status);
 }
 
+fn install_flags(matches: &ArgMatches) -> u8 {
+    let mut flags = 0;
+
+    flags += if matches.occurrences_of("modify-boot") != 0 {
+        distinst::MODIFY_BOOT_ORDER
+    } else {
+        0
+    };
+
+    flags += if matches.occurrences_of("hardware-support") != 0 {
+        distinst::INSTALL_HARDWARE_SUPPORT
+    } else {
+        0
+    };
+
+    flags
+}
+
 fn configure_signal_handling() {
     extern "C" fn handler(signal: i32) {
         match signal {
@@ -393,15 +336,6 @@ fn configure_signal_handling() {
             io::Error::last_os_error()
         );
         exit(1);
-    }
-}
-
-fn parse_part_type(table: &str) -> Result<PartitionType, DistinstError> {
-    match table {
-        "primary" => Ok(PartitionType::Primary),
-        "logical" => Ok(PartitionType::Logical),
-        "extended" => Ok(PartitionType::Extended),
-        _ => Err(DistinstError::InvalidPartitionType),
     }
 }
 
@@ -442,7 +376,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
     if fs.starts_with("enc=") {
         let (mut pass, mut keydata) = (None, None);
 
-        let mut fields = fs[4..].split(",");
+        let mut fields = fs[4..].split(',');
         let physical_volume = fields
             .next()
             .map(|pv| pv.into())
@@ -459,14 +393,14 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
 
         Ok(PartType::Lvm(
             volume_group,
-            if !pass.is_some() && !keydata.is_some() {
+            if pass.is_none() && keydata.is_none() {
                 None
             } else {
                 Some(LvmEncryption::new(physical_volume, pass, keydata))
             },
         ))
     } else if fs.starts_with("lvm=") {
-        let mut fields = fs[4..].split(",");
+        let mut fields = fs[4..].split(',');
         Ok(PartType::Lvm(
             fields
                 .next()
@@ -531,487 +465,10 @@ fn find_disk_mut<'a>(disks: &'a mut Disks, block: &str) -> Result<&'a mut Disk, 
         .ok_or_else(|| DistinstError::DiskNotFound { disk: block.into() })
 }
 
-fn find_partition_mut<'a>(
-    disk: &'a mut Disk,
+fn find_partition_mut(
+    disk: &mut Disk,
     partition: i32,
-) -> Result<&'a mut PartitionInfo, DistinstError> {
+) -> Result<&mut PartitionInfo, DistinstError> {
     disk.get_partition_mut(partition)
         .ok_or_else(|| DistinstError::PartitionNotFound { partition })
-}
-
-fn configure_tables(disks: &mut Disks, tables: Option<Values>) -> Result<(), DistinstError> {
-    if let Some(tables) = tables {
-        for table in tables {
-            let values: Vec<&str> = table.split(":").collect();
-            if values.len() != 2 {
-                return Err(DistinstError::TableArgs);
-            }
-
-            let disk = find_disk_mut(disks, values[0])?;
-            match values[1] {
-                "gpt" => disk.mklabel(PartitionTable::Gpt)?,
-                "msdos" => disk.mklabel(PartitionTable::Msdos)?,
-                _ => {
-                    return Err(DistinstError::InvalidTable {
-                        table: values[1].into(),
-                    });
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn configure_removed(disks: &mut Disks, ops: Option<Values>) -> Result<(), DistinstError> {
-    if let Some(ops) = ops {
-        for op in ops {
-            let mut args = op.split(":");
-            let block_dev = match args.next() {
-                Some(disk) => disk,
-                None => {
-                    return Err(DistinstError::NoBlockArg);
-                }
-            };
-
-            for part in args {
-                let part_id = match part.parse::<u32>() {
-                    Ok(value) => value,
-                    Err(_) => {
-                        return Err(DistinstError::ArgNaN { arg: part.into() });
-                    }
-                };
-
-                find_disk_mut(disks, block_dev)?.remove_partition(part_id as i32)?;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn configure_moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), DistinstError> {
-    if let Some(parts) = parts {
-        for part in parts {
-            let values: Vec<&str> = part.split(":").collect();
-            if values.len() != 4 {
-                return Err(DistinstError::MoveArgs);
-            }
-
-            let (block, partition, start, end) = (
-                values[0],
-                values[1]
-                    .parse::<u32>()
-                    .map(|x| x as i32)
-                    .ok()
-                    .ok_or_else(|| DistinstError::ArgNaN {
-                        arg: values[1].into(),
-                    })?,
-                match values[2] {
-                    "none" => None,
-                    value => Some(parse_sector(value)?),
-                },
-                match values[3] {
-                    "none" => None,
-                    value => Some(parse_sector(value)?),
-                },
-            );
-
-            let disk = find_disk_mut(disks, block)?;
-            if let Some(start) = start {
-                let start = disk.get_sector(start);
-                disk.move_partition(partition, start)?;
-            }
-
-            if let Some(end) = end {
-                let end = disk.get_sector(end);
-                disk.resize_partition(partition, end)?;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn configure_reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), DistinstError> {
-    if let Some(parts) = parts {
-        for part in parts {
-            let values: Vec<&str> = part.split(":").collect();
-            if values.len() < 3 || values.len() > 5 {
-                return Err(DistinstError::ReusedArgs);
-            }
-
-            let (block_dev, part_id, fs) = (
-                values[0],
-                values[1]
-                    .parse::<u32>()
-                    .map(|id| id as i32)
-                    .map_err(|_| DistinstError::ArgNaN {
-                        arg: values[1].into(),
-                    })?,
-                match values[2] {
-                    "reuse" => None,
-                    fs => Some(parse_fs(fs)?),
-                },
-            );
-
-            let (mut key, mut mount, mut flags) = (None, None, None);
-
-            for value in values.iter().skip(3) {
-                if value.starts_with("mount=") {
-                    mount = Some(Path::new(&value[6..]));
-                } else if value.starts_with("flags=") {
-                    flags = Some(parse_flags(&value[6..]));
-                } else if value.starts_with("keyid=") {
-                    key = Some(String::from(&value[6..]));
-                } else {
-                    return Err(DistinstError::InvalidField {
-                        field: (*value).into(),
-                    });
-                }
-            }
-
-            let disk = find_disk_mut(disks, block_dev)?;
-            let partition = find_partition_mut(disk, part_id)?;
-
-            if let Some(keyid) = key {
-                match mount {
-                    Some(mount) => {
-                        partition.associate_keyfile(keyid);
-                        partition.set_mount(mount.into());
-                    }
-                    None => {
-                        return Err(DistinstError::NoMountPath);
-                    }
-                }
-            } else if let Some(mount) = mount {
-                partition.set_mount(Path::new(mount).to_path_buf());
-            }
-
-            if let Some(fs) = fs {
-                let fs = match fs {
-                    PartType::Fs(fs) => fs,
-                    PartType::Lvm(volume_group, encryption) => {
-                        partition.set_volume_group(volume_group, encryption);
-                        Some(FileSystemType::Lvm)
-                    }
-                };
-
-                if let Some(fs) = fs {
-                    partition.format_with(fs);
-                }
-            }
-
-            if let Some(flags) = flags {
-                partition.flags = flags;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn configure_new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DistinstError> {
-    if let Some(parts) = parts {
-        for part in parts {
-            let values: Vec<&str> = part.split(":").collect();
-            if values.len() < 5 || values.len() > 7 {
-                return Err(DistinstError::NewArgs);
-            }
-
-            let (block, kind, start, end, fs) = (
-                values[0],
-                parse_part_type(values[1])?,
-                parse_sector(values[2])?,
-                parse_sector(values[3])?,
-                parse_fs(values[4])?,
-            );
-
-            let (mut key, mut mount, mut flags) = (None, None, None);
-
-            for value in values.iter().skip(5) {
-                if value.starts_with("mount=") {
-                    mount = Some(Path::new(&value[6..]));
-                } else if value.starts_with("flags=") {
-                    flags = Some(parse_flags(&value[6..]));
-                } else if value.starts_with("keyid=") {
-                    key = Some(String::from(&value[6..]));
-                } else {
-                    return Err(DistinstError::InvalidField {
-                        field: (*value).into(),
-                    });
-                }
-            }
-
-            let disk = find_disk_mut(disks, block)?;
-
-            let start = disk.get_sector(start);
-            let end = disk.get_sector(end);
-            let mut builder = match fs {
-                PartType::Lvm(volume_group, encryption) => {
-                    PartitionBuilder::new(start, end, FileSystemType::Lvm)
-                        .partition_type(kind)
-                        .logical_volume(volume_group, encryption)
-                }
-                PartType::Fs(fs) => PartitionBuilder::new(start, end, fs).partition_type(kind),
-            };
-
-            if let Some(flags) = flags {
-                builder = builder.flags(flags);
-            }
-
-            if let Some(keyid) = key {
-                match mount {
-                    Some(mount) => {
-                        builder = builder.associate_keyfile(keyid).mount(mount.into());
-                    }
-                    None => {
-                        return Err(DistinstError::NoMountPath);
-                    }
-                }
-            } else if let Some(mount) = mount {
-                builder = builder.mount(mount.into());
-            }
-
-            disk.add_partition(builder)?;
-        }
-    }
-
-    Ok(())
-}
-
-// Defines a new partition to assign to a volume group
-struct LogicalArgs {
-    // The group to create a partition on
-    group: String,
-    // The name of the partition
-    name: String,
-    // The length of the partition
-    size: Sector,
-    // The filesystem to assign to this partition
-    fs: Option<FileSystemType>,
-    // Where to mount this partition
-    mount: Option<PathBuf>,
-    // The partition flags to assign
-    flags: Option<Vec<PartitionFlag>>,
-}
-
-fn parse_logical<F: FnMut(LogicalArgs) -> Result<(), DistinstError>>(
-    values: Values,
-    mut action: F,
-) -> Result<(), DistinstError> {
-    for value in values {
-        let values: Vec<&str> = value.split(":").collect();
-        if values.len() < 4 || values.len() > 6 {
-            return Err(DistinstError::LogicalArgs);
-        }
-
-        let (mut mount, mut flags) = (None, None);
-
-        for arg in values.iter().skip(4) {
-            if arg.starts_with("mount=") {
-                let mountval = &arg[6..];
-                if mountval.is_empty() {
-                    return Err(DistinstError::EmptyMount);
-                }
-
-                mount = Some(Path::new(mountval).to_path_buf());
-            } else if arg.starts_with("flags=") {
-                let flagval = &arg[6..];
-                if flagval.is_empty() {
-                    return Err(DistinstError::EmptyMount);
-                }
-
-                flags = Some(parse_flags(flagval));
-            } else {
-                return Err(DistinstError::InvalidField {
-                    field: (*arg).into(),
-                });
-            }
-        }
-
-        action(LogicalArgs {
-            group: values[0].into(),
-            name: values[1].into(),
-            size: parse_sector(values[2])?,
-            fs: match parse_fs(values[3])? {
-                PartType::Fs(fs) => fs,
-                PartType::Lvm(..) => {
-                    unimplemented!("LUKS on LVM is unsupported");
-                }
-            },
-            mount,
-            flags,
-        })?;
-    }
-
-    Ok(())
-}
-
-fn configure_lvm(
-    disks: &mut Disks,
-    logical: Option<Values>,
-    modify: Option<Values>,
-    remove: Option<Values>,
-    remove_all: bool,
-) -> Result<(), DistinstError> {
-    if remove_all {
-        for device in disks.get_logical_devices_mut() {
-            device.clear_partitions();
-        }
-    } else if let Some(remove) = remove {
-        for value in remove {
-            let values: Vec<&str> = value.split(":").collect();
-            if values.len() != 2 {
-                return Err(DistinstError::LogicalRemoveArgs);
-            }
-
-            let (group, volume) = (values[0], values[1]);
-            let device = disks.get_logical_device_mut(group).ok_or(
-                DistinstError::LogicalDeviceNotFound {
-                    group: group.into(),
-                },
-            )?;
-
-            device.remove_partition(volume)?;
-        }
-    }
-
-    if let Some(modify) = modify {
-        for value in modify {
-            let values: Vec<&str> = value.split(":").collect();
-            if values.len() < 3 {
-                return Err(DistinstError::ModifyArgs);
-            }
-
-            let (group, volume) = (values[0], values[1]);
-            let (mut fs, mut mount) = (None, None);
-
-            for field in values.iter().skip(2) {
-                if field.starts_with("fs=") {
-                    fs = Some(parse_fs(&field[3..])?)
-                } else if field.starts_with("mount=") {
-                    mount = Some(&field[6..]);
-                } else {
-                    unimplemented!()
-                }
-            }
-
-            let device = disks.get_logical_device_mut(group).ok_or(
-                DistinstError::LogicalDeviceNotFound {
-                    group: group.into(),
-                },
-            )?;
-
-            let partition = device.get_partition_mut(volume).ok_or(
-                DistinstError::LogicalPartitionNotFound {
-                    group:  group.into(),
-                    volume: volume.into(),
-                },
-            )?;
-
-            if let Some(fs) = fs {
-                let fs = match fs {
-                    PartType::Fs(fs) => fs,
-                    PartType::Lvm(volume_group, encryption) => {
-                        partition.set_volume_group(volume_group, encryption);
-                        Some(FileSystemType::Lvm)
-                    }
-                };
-
-                if let Some(fs) = fs {
-                    partition.format_and_keep_name(fs);
-                }
-            }
-
-            if let Some(mount) = mount {
-                partition.set_mount(PathBuf::from(mount.to_owned()));
-            }
-        }
-    }
-
-    if let Some(logical) = logical {
-        parse_logical(logical, |args| {
-            match disks.get_logical_device_mut(&args.group) {
-                Some(lvm_device) => {
-                    let start = lvm_device.get_last_sector();
-                    let end = start + lvm_device.get_sector(args.size);
-                    let mut builder =
-                        PartitionBuilder::new(start, end, args.fs).name(args.name.clone());
-
-                    if let Some(mount) = args.mount.as_ref() {
-                        builder = builder.mount(mount.clone());
-                    }
-
-                    if let Some(flags) = args.flags.as_ref() {
-                        builder = builder.flags(flags.clone());
-                    }
-
-                    lvm_device
-                        .add_partition(builder)
-                        .map_err(|why| DistinstError::LvmPartitionAdd { why })
-                }
-                None => Err(DistinstError::NoVolumeGroupAssociated {
-                    group: args.group.into(),
-                }),
-            }
-        })?;
-    }
-
-    Ok(())
-}
-
-fn configure_decrypt(disks: &mut Disks, decrypt: Option<Values>) -> Result<(), DistinstError> {
-    if let Some(decrypt) = decrypt {
-        for device in decrypt {
-            let values: Vec<&str> = device.split(':').collect();
-            if values.len() != 3 {
-                return Err(DistinstError::DecryptArgs);
-            }
-
-            let (device, pv) = (Path::new(values[0]), values[1].into());
-
-            let (mut pass, mut keydata) = (None, None);
-            parse_key(&values[2], &mut pass, &mut keydata)?;
-
-            disks.decrypt_partition(device, LvmEncryption::new(pv, pass, keydata));
-        }
-    }
-
-    Ok(())
-}
-
-fn configure_disks(matches: &ArgMatches) -> Result<Disks, DistinstError> {
-    let mut disks = Disks::new();
-
-    for block in matches.values_of("disk").unwrap() {
-        eprintln!("distinst: adding {} to disks configuration", block);
-        disks.add(Disk::from_name(block)?);
-    }
-
-    configure_tables(&mut disks, matches.values_of("table"))?;
-    configure_removed(&mut disks, matches.values_of("delete"))?;
-    eprintln!("distinst: configuring moved partitions");
-    configure_moved(&mut disks, matches.values_of("move"))?;
-    eprintln!("distinst: configuring reused partitions");
-    configure_reused(&mut disks, matches.values_of("use"))?;
-    eprintln!("distinst: configuring new partitions");
-    configure_new(&mut disks, matches.values_of("new"))?;
-    eprintln!("distinst: initializing LVM groups");
-    disks
-        .initialize_volume_groups()
-        .map_err(|why| DistinstError::InitializeVolumes { why })?;
-    eprintln!("distinst: handling pre-existing LUKS partitions");
-    configure_decrypt(&mut disks, matches.values_of("decrypt"))?;
-    eprintln!("distinst: configuring LVM devices");
-    configure_lvm(
-        &mut disks,
-        matches.values_of("logical"),
-        matches.values_of("logical-modify"),
-        matches.values_of("logical-remove"),
-        matches.is_present("logical-remove-all"),
-    )?;
-    eprintln!("distinst: disks configured");
-
-    Ok(disks)
 }

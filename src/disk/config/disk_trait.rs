@@ -203,10 +203,10 @@ pub trait DiskExt {
             ).partition_type(PartitionType::Extended);
 
             self.push_partition(part.build());
-            builder.start_sector += 1024_000 / 512 + 1;
+            builder.start_sector += 1_024_000 / 512 + 1;
         }
 
-        let fs = builder.filesystem.clone();
+        let fs = builder.filesystem;
         let partition = builder.build();
         if let Some(fs) = fs {
             check_partition_size(partition.sectors() * self.get_sector_size(), fs)?;

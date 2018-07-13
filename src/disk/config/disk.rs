@@ -130,7 +130,7 @@ impl Disk {
         let serial = match device.type_() {
             // Encrypted devices do not have serials
             DeviceType::PED_DEVICE_DM | DeviceType::PED_DEVICE_LOOP => "".into(),
-            _ => get_serial(&device_path).unwrap_or("".into()),
+            _ => get_serial(&device_path).unwrap_or_else(|_| "".into()),
         };
 
         let size = device.length();
@@ -499,7 +499,7 @@ impl Disk {
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
             .and_then(|partition| {
-                check_partition_size(partition.sectors() * sector_size, fs.clone())
+                check_partition_size(partition.sectors() * sector_size, fs)
                     .map_err(DiskError::from)
                     .map(|_| {
                         partition.format_with(fs);
@@ -697,7 +697,7 @@ impl Disk {
                                         start_sector: new.start_sector,
                                         end_sector:   new.end_sector,
                                         format:       true,
-                                        file_system:  Some(new.filesystem.clone()
+                                        file_system:  Some(new.filesystem
                                             .expect("no file system in partition that requires changes")),
                                         kind:         new.part_type,
                                         flags:        new.flags.clone(),
@@ -712,7 +712,7 @@ impl Disk {
                                         start: new.start_sector,
                                         end: new.end_sector,
                                         sector_size,
-                                        filesystem: source.filesystem.clone(),
+                                        filesystem: source.filesystem,
                                         flags: flags_diff(
                                             &source.flags,
                                             new.flags.clone().into_iter(),
@@ -746,7 +746,7 @@ impl Disk {
                 start_sector: partition.start_sector,
                 end_sector:   partition.end_sector,
                 format:       true,
-                file_system:  partition.filesystem.clone(),
+                file_system:  partition.filesystem,
                 kind:         partition.part_type,
                 flags:        partition.flags.clone(),
                 label:        partition.name.clone(),
@@ -799,8 +799,8 @@ impl Disk {
             .filter_map(|partition| {
                 let start = partition.start_sector;
                 let mount = partition.target.as_ref().map(|ref path| path.to_path_buf());
-                let vg = partition.volume_group.as_ref().map(|vg| vg.clone());
-                let keyid = partition.key_id.as_ref().map(|id| id.clone());
+                let vg = partition.volume_group.as_ref().cloned();
+                let keyid = partition.key_id.as_ref().cloned();
                 if mount.is_some() || vg.is_some() || keyid.is_some() {
                     Some((start, mount, vg, keyid))
                 } else {

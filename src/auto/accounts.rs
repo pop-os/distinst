@@ -25,7 +25,7 @@ fn account(input: &[u8]) -> Vec<u8> {
             let (account, _) = input.split_at(position);
             account.to_owned()
         })
-        .unwrap_or_else(|| Vec::new())
+        .unwrap_or_else(Vec::new)
 }
 
 fn lines(input: &[u8]) -> HashMap<Vec<u8>, Vec<u8>> {
@@ -105,15 +105,14 @@ impl AccountFiles {
 fn group_has_id(entry: &[u8], id: &[u8]) -> bool {
     entry
         .split(|&x| x == b':')
-        .skip(2)
-        .next()
+        .nth(2)
         .map_or(false, |field| field == id)
 }
 
 fn get_passwd_home_and_group(entry: &[u8]) -> (&[u8], &[u8]) {
     let fields = &mut entry.split(|&x| x == b':');
-    let group = fields.skip(3).next();
-    let home = fields.skip(1).next();
+    let group = fields.nth(3);
+    let home = fields.nth(1);
 
     group
         .and_then(|group| home.map(|home| (group, home)))

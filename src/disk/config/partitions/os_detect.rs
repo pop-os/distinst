@@ -23,6 +23,7 @@ impl BoolExt for bool {
 }
 
 #[derive(Debug)]
+#[allow(large_enum_variant)]
 pub enum OS {
     Windows(String),
     Linux {
@@ -53,8 +54,8 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<OS> {
             .ok()
             .and_then(|_mount| {
                 detect_linux(base)
-                    .or(detect_windows(base))
-                    .or(detect_macos(base))
+                    .or_else(|| detect_windows(base))
+                    .or_else(|| detect_macos(base))
             })
     })
 }
@@ -183,7 +184,7 @@ fn detect_macos(base: &Path) -> Option<OS> {
         .and_then(|file| {
             parse_plist(BufReader::new(file))
                 .or_else(|| Some("Mac OS (Unknown)".into()))
-                .map(|name| OS::MacOs(name))
+                .map(OS::MacOs)
         })
 }
 

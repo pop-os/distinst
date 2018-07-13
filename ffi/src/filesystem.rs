@@ -65,8 +65,8 @@ impl From<FileSystemType> for DISTINST_FILE_SYSTEM_TYPE {
 }
 
 impl DISTINST_FILE_SYSTEM_TYPE {
-    fn get_cstr(&self) -> *const libc::c_char {
-        match *self {
+    fn get_cstr(self) -> *const libc::c_char {
+        match self {
             DISTINST_FILE_SYSTEM_TYPE::BTRFS => {
                 CStr::from_bytes_with_nul(b"btrfs\0").unwrap().as_ptr()
             }

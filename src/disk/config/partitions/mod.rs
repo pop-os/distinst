@@ -39,8 +39,8 @@ pub enum FileSystemType {
 }
 
 impl FileSystemType {
-    fn get_preferred_options(&self) -> &'static str {
-        match *self {
+    fn get_preferred_options(self) -> &'static str {
+        match self {
             FileSystemType::Fat16 | FileSystemType::Fat32 => "umask=0077",
             FileSystemType::Ext4 => "noatime,errors=remount-ro",
             FileSystemType::Swap => "sw",
@@ -101,17 +101,17 @@ pub enum PartitionType {
 }
 
 // Defines that this partition exists in the source.
-pub(crate) const SOURCE: u8 = 0b000001;
+pub(crate) const SOURCE:  u8 = 0b00_0001;
 // Defines that this partition will be removed.
-pub(crate) const REMOVE: u8 = 0b000010;
+pub(crate) const REMOVE:  u8 = 0b00_0010;
 // Defines that this partition will be formatted.
-pub(crate) const FORMAT: u8 = 0b000100;
+pub(crate) const FORMAT:  u8 = 0b00_0100;
 // Defines that this partition is currently active.
-pub(crate) const ACTIVE: u8 = 0b001000;
+pub(crate) const ACTIVE:  u8 = 0b00_1000;
 // Defines that this partition is currently busy.
-pub(crate) const BUSY: u8 = 0b010000;
+pub(crate) const BUSY:    u8 = 0b01_0000;
 // Defines that this partition is currently swapped.
-pub(crate) const SWAPPED: u8 = 0b100000;
+pub(crate) const SWAPPED: u8 = 0b10_0000;
 
 /// Contains relevant information about a certain partition.
 #[derive(Debug, Clone, PartialEq)]
@@ -175,7 +175,7 @@ impl PartitionInfo {
             PVS.as_ref()
                 .unwrap()
                 .get(&device_path)
-                .and_then(|vg| vg.as_ref().map(|vg| vg.clone()))
+                .and_then(|vg| vg.as_ref().cloned())
         };
 
         if let Some(ref vg) = original_vg.as_ref() {
@@ -237,17 +237,23 @@ impl PartitionInfo {
     /// Returns the length of the partition in sectors.
     pub fn sectors(&self) -> u64 { self.end_sector - self.start_sector }
 
-    // Returns true if the partition contains an encrypted partition
+    // True if the partition contains an encrypted partition
     pub fn is_encrypted(&self) -> bool { is_encrypted(self.get_device_path()) }
 
-    /// Returns true if the partition is a swap partition.
+    // True if the partition is an ESP partition.
+    pub fn is_esp_partition(&self) -> bool {
+        (self.filesystem == Some(Fat16) || self.filesystem == Some(Fat32))
+            && self.flags.contains(&PartitionFlag::PED_PARTITION_ESP)
+    }
+
+    /// True if the partition is a swap partition.
     pub fn is_swap(&self) -> bool {
         self.filesystem
             .as_ref()
             .map_or(false, |&fs| fs == FileSystemType::Swap)
     }
 
-    /// Returns true if the partition is compatible for Linux to be installed on it.
+    /// True if the partition is compatible for Linux to be installed on it.
     pub fn is_linux_compatible(&self) -> bool {
         self.filesystem
             .as_ref()
@@ -264,15 +270,18 @@ impl PartitionInfo {
     /// Returns the path to this device in the system.
     pub fn get_device_path(&self) -> &Path { &self.device_path }
 
+    /// True if the compared partition has differing parameters from the source.
     pub(crate) fn requires_changes(&self, other: &PartitionInfo) -> bool {
         self.sectors_differ_from(other) || self.filesystem != other.filesystem
             || self.flags != other.flags || other.flag_is_enabled(FORMAT)
     }
 
+    /// True if the sectors in the compared partition differs from the source.
     pub(crate) fn sectors_differ_from(&self, other: &PartitionInfo) -> bool {
         self.start_sector != other.start_sector || self.end_sector != other.end_sector
     }
 
+    /// Ture if the compared partition is the same as the source.
     pub(crate) fn is_same_partition_as(&self, other: &PartitionInfo) -> bool {
         self.flag_is_enabled(SOURCE) && other.flag_is_enabled(SOURCE) && self.number == other.number
     }
@@ -286,7 +295,7 @@ impl PartitionInfo {
     /// specify a new physical volume name as well. In the event of encryption, an LVM
     /// device will be assigned to the encrypted partition.
     pub fn set_volume_group(&mut self, group: String, encryption: Option<LvmEncryption>) {
-        self.volume_group = Some((group.clone(), encryption));
+        self.volume_group = Some((group, encryption));
     }
 
     /// Shrinks the partition, if possible.
@@ -312,11 +321,6 @@ impl PartitionInfo {
     pub fn format_and_keep_name(&mut self, fs: FileSystemType) {
         self.bitflags |= FORMAT;
         self.filesystem = Some(fs);
-    }
-
-    pub fn is_esp_partition(&self) -> bool {
-        (self.filesystem == Some(Fat16) || self.filesystem == Some(Fat32))
-            && self.flags.contains(&PartitionFlag::PED_PARTITION_ESP)
     }
 
     /// Returns true if this partition will be formatted.
@@ -358,27 +362,13 @@ impl PartitionInfo {
         }
 
         let result = get_uuid(&self.device_path).map(|uuid| {
-            let fs = self.filesystem.clone()
+            let fs = self.filesystem
                 .expect("unable to get block info due to lack of file system");
-            BlockInfo {
-                uuid,
-                mount: if fs == FileSystemType::Swap {
-                    None
-                } else {
-                    Some(self.target.clone().expect("unable to get block info due to lack of target"))
-                },
-                fs: match fs {
-                    FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
-                    FileSystemType::Swap => "swap",
-                    _ => fs.clone().into(),
-                },
-                options: fs.get_preferred_options().into(),
-                dump: false,
-                pass: false,
-            }
+
+            BlockInfo::new(uuid, fs, self.target.as_ref().map(|p| p.as_path()))
         });
 
-        if !result.is_some() {
+        if result.is_none() {
             error!(
                 "{}: no UUID associated with device",
                 self.device_path.display()
@@ -416,4 +406,173 @@ fn get_flags(partition: &Partition) -> Vec<PartitionFlag> {
         .filter(|&&f| partition.is_flag_available(f) && partition.get_flag(f))
         .cloned()
         .collect::<Vec<PartitionFlag>>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn efi_partition() -> PartitionInfo {
+        PartitionInfo {
+            bitflags:     ACTIVE | BUSY | SOURCE,
+            device_path:  Path::new("/dev/sdz1").to_path_buf(),
+            flags:        vec![PartitionFlag::PED_PARTITION_ESP],
+            mount_point:  Some(Path::new("/boot/efi").to_path_buf()),
+            target:       Some(Path::new("/boot/efi").to_path_buf()),
+            start_sector: 2048,
+            end_sector:   1026047,
+            filesystem:   Some(FileSystemType::Fat16),
+            name:         None,
+            number:       1,
+            ordering:     1,
+            part_type:    PartitionType::Primary,
+            key_id:       None,
+            original_vg:  None,
+            volume_group: None,
+        }
+    }
+
+    fn root_partition() -> PartitionInfo {
+        PartitionInfo {
+            bitflags:     ACTIVE | BUSY | SOURCE,
+            device_path:  Path::new("/dev/sdz2").to_path_buf(),
+            flags:        vec![],
+            mount_point:  Some(Path::new("/").to_path_buf()),
+            target:       Some(Path::new("/").to_path_buf()),
+            start_sector: 1026048,
+            end_sector:   420456447,
+            filesystem:   Some(FileSystemType::Btrfs),
+            name:         Some("Pop!_OS".into()),
+            number:       2,
+            ordering:     2,
+            part_type:    PartitionType::Primary,
+            key_id:       None,
+            original_vg:  None,
+            volume_group: None,
+        }
+    }
+
+    fn luks_on_lvm_partition() -> PartitionInfo {
+        PartitionInfo {
+            bitflags:     ACTIVE | SOURCE,
+            device_path:  Path::new("/dev/sdz3").to_path_buf(),
+            flags:        vec![],
+            mount_point:  None,
+            target:       None,
+            start_sector: 420456448,
+            end_sector:   1936738303,
+            filesystem:   Some(FileSystemType::Luks),
+            name:         None,
+            number:       4,
+            ordering:     4,
+            part_type:    PartitionType::Primary,
+            key_id:       None,
+            original_vg:  None,
+            volume_group: Some((
+                "LVM_GROUP".into(),
+                Some(LvmEncryption {
+                    physical_volume: "LUKS_PV".into(),
+                    password:        Some("password".into()),
+                    keydata:         None,
+                })
+            )),
+        }
+    }
+
+    fn lvm_partition() -> PartitionInfo {
+        PartitionInfo {
+            bitflags:     ACTIVE | SOURCE,
+            device_path:  Path::new("/dev/sdz3").to_path_buf(),
+            flags:        vec![],
+            mount_point:  None,
+            target:       None,
+            start_sector: 420456448,
+            end_sector:   1936738303,
+            filesystem:   Some(FileSystemType::Lvm),
+            name:         None,
+            number:       4,
+            ordering:     4,
+            part_type:    PartitionType::Primary,
+            key_id:       None,
+            original_vg:  None,
+            volume_group: Some(("LVM_GROUP".into(), None)),
+        }
+    }
+
+    fn swap_partition() -> PartitionInfo {
+        PartitionInfo {
+            bitflags:     ACTIVE | SOURCE,
+            device_path:  Path::new("/dev/sdz4").to_path_buf(),
+            flags:        vec![],
+            mount_point:  None,
+            target:       None,
+            start_sector: 1936738304,
+            end_sector:   1953523711,
+            filesystem:   Some(FileSystemType::Swap),
+            name:         None,
+            number:       4,
+            ordering:     4,
+            part_type:    PartitionType::Primary,
+            key_id:       None,
+            original_vg:  None,
+            volume_group: None,
+        }
+    }
+
+    #[test]
+    fn partition_sectors() {
+        assert_eq!(swap_partition().sectors(), 16785407);
+        assert_eq!(root_partition().sectors(), 419430399);
+        assert_eq!(efi_partition().sectors(), 1023999);
+    }
+
+    #[test]
+    fn partition_is_esp_partition() {
+        assert!(!root_partition().is_esp_partition());
+        assert!(efi_partition().is_esp_partition());
+    }
+
+    #[test]
+    fn partition_is_linux_compatible() {
+        assert!(root_partition().is_linux_compatible());
+        assert!(!swap_partition().is_linux_compatible());
+        assert!(!efi_partition().is_linux_compatible());
+        assert!(!luks_on_lvm_partition().is_linux_compatible());
+        assert!(!lvm_partition().is_linux_compatible());
+    }
+
+    #[test]
+    fn partition_requires_changes() {
+        let root = root_partition();
+
+        {
+            let mut other = root_partition();
+            assert!(!root.requires_changes(&other));
+            other.start_sector = 0;
+            assert!(root.requires_changes(&other));
+        }
+
+        {
+            let mut other = root_partition();
+            other.format_with(FileSystemType::Btrfs);
+            assert!(root.requires_changes(&other));
+        }
+    }
+
+    #[test]
+    fn partition_sectors_differ_from() {
+        assert!(root_partition().sectors_differ_from(&efi_partition()));
+        assert!(!root_partition().sectors_differ_from(&root_partition()));
+    }
+
+    #[test]
+    fn partition_is_same_as() {
+        let root = root_partition();
+        let root_dup = root.clone();
+        let efi = efi_partition();
+
+        assert!(root.is_same_partition_as(&root_dup));
+        assert!(!root.is_same_partition_as(&efi));
+    }
 }

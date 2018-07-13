@@ -151,3 +151,7 @@ fi
 
 # Update the chroot's initramfs
 update-initramfs -u
+
+# Fix an issue with keyboard locales not being set in the initramfs.
+sudo ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz
+update-initramfs -u

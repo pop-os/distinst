@@ -21,10 +21,7 @@ fn remove_partition_by_sector(disk: &mut PedDisk, sector: u64) -> Result<(), Dis
         unsafe { disk.get_device().path().display() }
     );
     disk.remove_partition_by_sector(sector as i64)
-        .map_err(|why| DiskError::PartitionRemoveBySector {
-            sector: sector,
-            why,
-        })
+        .map_err(|why| DiskError::PartitionRemoveBySector { sector, why })
 }
 
 fn remove_partition_by_number(disk: &mut PedDisk, num: u32) -> Result<(), DiskError> {
@@ -299,7 +296,7 @@ impl<'a> CreatePartitions<'a> {
                 // Open a second instance of the disk which we need to get the new partition ID.
                 let path = get_partition_id(self.device_path, partition.start_sector as i64)?;
                 self.format_partitions
-                    .push((path, partition.file_system.clone()
+                    .push((path, partition.file_system
                         .expect("file system does not exist when creating partition")));
             }
         }
@@ -344,7 +341,6 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
 
     let fs_type = partition
         .file_system
-        .clone()
         .and_then(|fs| PedFileSystemType::get(fs.into()));
 
     let mut disk = open_disk(device)?;

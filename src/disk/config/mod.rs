@@ -243,7 +243,7 @@ mod tests {
             DiskOps {
                 mklabel:           None,
                 device_path:       Path::new("/dev/sdz"),
-                remove_partitions: vec![1, 2, 3, 4],
+                remove_partitions: vec![2048, 1026048, 420456448, 1936738304],
                 change_partitions: vec![],
                 create_partitions: vec![
                     PartitionCreate {
