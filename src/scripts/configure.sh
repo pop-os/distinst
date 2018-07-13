@@ -64,7 +64,7 @@ rm /etc/initramfs/post-update.d/*
 
 # Install bootloader packages
 apt-get install -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
-
+/etc/initramfs/post-update.d/
 # Disable APT cdrom
 if [ -d "/cdrom" ]
 then
@@ -150,8 +150,4 @@ if [ $DISABLE_NVIDIA ]; then
 fi
 
 # Update the chroot's initramfs
-update-initramfs -u
-
-# Fix an issue with keyboard locales not being set in the initramfs.
-sudo ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz
 update-initramfs -u
