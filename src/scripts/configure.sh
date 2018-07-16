@@ -60,11 +60,13 @@ then
 fi
 
 # Ensure that no post update scripts exist for initramfs.
-rm /etc/initramfs/post-update.d/*
+if [ -d "/etc/initramfs/post-update.d/" ]; then
+    rm /etc/initramfs/post-update.d/*
+fi
 
 # Install bootloader packages
 apt-get install -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
-/etc/initramfs/post-update.d/
+
 # Disable APT cdrom
 if [ -d "/cdrom" ]
 then
