@@ -11,7 +11,7 @@ pub use self::os_detect::OS;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
 use super::super::external::{get_label, is_encrypted, pvs};
-use super::super::{LvmEncryption, Mounts, Swaps, PartitionError};
+use super::super::{LvmEncryption, MOUNTS, SWAPS, PartitionError};
 use super::PVS;
 use libparted::{Partition, PartitionFlag};
 use std::io;
@@ -164,8 +164,8 @@ impl PartitionInfo {
             "libdistinst: obtaining partition information from {}",
             device_path.display()
         );
-        let mounts = Mounts::new()?;
-        let swaps = Swaps::new()?;
+        let mounts = MOUNTS.read().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("lock failed: {}", why)))?;
+        let swaps = SWAPS.read().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("lock failed: {}", why)))?;
 
         let original_vg = unsafe {
             if PVS.is_none() {

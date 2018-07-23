@@ -1,5 +1,5 @@
 use super::super::mount::{swapoff, umount};
-use super::super::mounts::Mounts;
+use super::super::mounts::MOUNTS;
 use super::super::operations::*;
 use super::super::serial::get_serial;
 use super::super::{
@@ -149,8 +149,7 @@ impl Disk {
             _ => None,
         });
 
-        // TODO: Optimize this so it's not called for each disk.
-        let mounts = Mounts::new().expect("failed to get mounts in Disk::new");
+        let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
 
         Ok(Disk {
             model_name,
@@ -296,7 +295,7 @@ impl Disk {
         );
 
         let mut mounts = BTreeSet::new();
-        let mountstab = Mounts::new()
+        let mountstab = MOUNTS.read()
             .expect("failed to get mounts in unmount_all_partitions_with_target");
 
         for partition in &mut self.partitions {

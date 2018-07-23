@@ -3,8 +3,8 @@ use super::super::external::{
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
-use super::super::mounts::Mounts;
-use super::super::swaps::Swaps;
+use super::super::mounts::{MOUNTS};
+use super::super::swaps::{SWAPS};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
 };
@@ -186,8 +186,8 @@ impl Disks {
     /// Deactivates all device maps associated with the inner disks/partitions
     /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
-        let mounts = Mounts::new().expect("failed to get mounts in deactivate_device_maps");
-        let swaps = Swaps::new().expect("failed to get swaps in deactivate_device_maps");
+        let mounts = MOUNTS.read().expect("failed to get mounts in deactivate_device_maps");
+        let swaps = SWAPS.read().expect("failed to get swaps in deactivate_device_maps");
         let umount = move |vg: &str| -> Result<(), DiskError> {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
                 if let Some(mount) = mounts.get_mount_point(&lv) {
