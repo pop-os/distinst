@@ -33,6 +33,7 @@ gettext-rs = "0.3.0"
 serde-xml-rs = "0.2.1"
 serde = "1.0.47"
 serde_derive = "1.0.47"
+rayon = "1.0.2"
 
 [dependencies.failure]
 version = "0.1.1"

@@ -18,6 +18,7 @@ extern crate gettextrs;
 extern crate iso3166_1;
 extern crate isolang;
 extern crate rand;
+extern crate rayon;
 extern crate raw_cpuid;
 extern crate tempdir;
 #[macro_use]
@@ -26,6 +27,8 @@ extern crate serde_xml_rs;
 
 use disk::external::{blockdev, dmlist, pvs, remount_rw, vgactivate, vgdeactivate};
 use itertools::Itertools;
+use rayon::iter::IntoParallelRefMutIterator;
+use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
@@ -355,15 +358,16 @@ impl Installer {
     /// Apply all partitioning and formatting changes to the disks
     /// configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
-        for disk in disks.get_physical_devices_mut() {
+        disks.physical.par_iter_mut().map(|disk| {
             info!(
                 "libdistinst: {}: Committing changes to disk",
                 disk.path().display()
             );
             disk.commit()
-                .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
-            callback(100);
-        }
+                .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
+        }).collect::<io::Result<()>>()?;
+
+        callback(100);
 
         // This collection of physical volumes and their optional volume groups
         // will be used to obtain a list of volume groups associated with our
