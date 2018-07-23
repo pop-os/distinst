@@ -281,38 +281,81 @@ impl Installer {
     ) -> io::Result<(PathBuf, Vec<String>)> {
         info!("Initializing");
 
-        // Deactivate any open logical volumes & close any encrypted partitions.
-        if let Err(why) = disks.deactivate_device_maps() {
-            error!("lvm deactivation error: {}", why);
-            return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-        }
+        let ((res_a, res_b), (res_c, res_d)): (
+            (io::Result<()>, io::Result<Vec<String>>),
+            (io::Result<()>, io::Result<PathBuf>)
+        ) = rayon::join(
+            || rayon::join(
+                || {
+                    // Deactivate any open logical volumes & close any encrypted partitions.
+                    if let Err(why) = disks.deactivate_device_maps() {
+                        error!("lvm deactivation error: {}", why);
+                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
+                    }
 
-        // Unmount any mounted devices.
-        if let Err(why) = disks.unmount_devices() {
-            error!("device unmount error: {}", why);
-            return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-        }
+                    // Unmount any mounted devices.
+                    if let Err(why) = disks.unmount_devices() {
+                        error!("device unmount error: {}", why);
+                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
+                    }
 
-        let squashfs = match Path::new(&config.squashfs).canonicalize() {
-            Ok(squashfs) => if squashfs.exists() {
-                info!("config.squashfs: found at {}", squashfs.display());
-                squashfs
-            } else {
-                error!("config.squashfs: supplied file does not exist");
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "invalid squashfs path",
-                ));
-            },
-            Err(err) => {
-                error!("config.squashfs: {}", err);
-                return Err(err);
-            }
-        };
+                    Ok(())
+                },
+                || {
+                    let mut remove_pkgs = Vec::new();
+                    {
+                        let file = match File::open(&config.remove) {
+                            Ok(file) => file,
+                            Err(err) => {
+                                error!("config.remove: {}", err);
+                                return Err(err);
+                            }
+                        };
 
-        disks.verify_keyfile_paths()?;
+                        for line_res in io::BufReader::new(file).lines() {
+                            match line_res {
+                                Ok(line) => remove_pkgs.push(line),
+                                Err(err) => {
+                                    error!("config.remove: {}", err);
+                                    return Err(err);
+                                }
+                            }
+                        }
+                    }
 
-        callback(20);
+                    Ok(remove_pkgs)
+                }
+            ),
+            || rayon::join(
+                || {
+                    disks.verify_keyfile_paths()?;
+                    Ok(())
+                },
+                || {
+                    match Path::new(&config.squashfs).canonicalize() {
+                        Ok(squashfs) => if squashfs.exists() {
+                            info!("config.squashfs: found at {}", squashfs.display());
+                            Ok(squashfs)
+                        } else {
+                            error!("config.squashfs: supplied file does not exist");
+                            Err(io::Error::new(
+                                io::ErrorKind::NotFound,
+                                "invalid squashfs path",
+                            ))
+                        },
+                        Err(err) => {
+                            error!("config.squashfs: {}", err);
+                            Err(err)
+                        }
+                    }
+                }
+            )
+        );
+
+        let (remove_pkgs, squashfs) = res_a
+            .and(res_c)
+            .and(res_b)
+            .and_then(|pkgs| res_d.map(|squashfs| (pkgs, squashfs)))?;
 
         let disks_ptr = &*disks as *const Disks;
         {
@@ -330,29 +373,6 @@ impl Installer {
 
                 Ok(())
             }).collect::<io::Result<()>>()?;
-        }
-
-        callback(80);
-
-        let mut remove_pkgs = Vec::new();
-        {
-            let file = match File::open(&config.remove) {
-                Ok(file) => file,
-                Err(err) => {
-                    error!("config.remove: {}", err);
-                    return Err(err);
-                }
-            };
-
-            for line_res in io::BufReader::new(file).lines() {
-                match line_res {
-                    Ok(line) => remove_pkgs.push(line),
-                    Err(err) => {
-                        error!("config.remove: {}", err);
-                        return Err(err);
-                    }
-                }
-            }
         }
 
         callback(100);
@@ -540,41 +560,44 @@ impl Installer {
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
         let configure = configure_dir.path().join("configure.sh");
 
+        let configure_script = || {
+            // Write the installer's intallation script to the chroot's temporary directory.
+            info!("libdistinst: writing /tmp/configure.sh");
+            file_create!(&configure, [include_bytes!("scripts/configure.sh")]);
+            Ok(())
+        };
+
+        let lvm_autodetection = || {
+            // Ubuntu's LVM auto-detection doesn't seem to work for activating root volumes.
+            info!("libdistinst: applying LVM initramfs autodetect workaround");
+            fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
+            let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
+            file_create!(
+                lvm_fix,
+                0o1755,
+                [include_bytes!("scripts/lvm-workaround.sh")]
+            );
+            Ok(())
+        };
+
+        let generate_fstabs = || {
+            let (crypttab, fstab) = disks.generate_fstabs();
+            info!("libdistinst: writing /etc/crypttab");
+            file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
+
+            info!("libdistinst: writing /etc/fstab");
+            file_create!(
+                mount_dir.join("etc/fstab"),
+                [FSTAB_HEADER, fstab.as_bytes()]
+            );
+
+            Ok(())
+        };
+
         {
             let (res_a, (res_b, res_c)): (io::Result<()>, (io::Result<()>, io::Result<()>)) = rayon::join(
-                || {
-                    // Write the installer's intallation script to the chroot's temporary directory.
-                    info!("libdistinst: writing /tmp/configure.sh");
-                    file_create!(&configure, [include_bytes!("scripts/configure.sh")]);
-                    Ok(())
-                },
-                || rayon::join(
-                    || {
-                        // Ubuntu's LVM auto-detection doesn't seem to work for activating root volumes.
-                        info!("libdistinst: applying LVM initramfs autodetect workaround");
-                        fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
-                        let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
-                        file_create!(
-                            lvm_fix,
-                            0o1755,
-                            [include_bytes!("scripts/lvm-workaround.sh")]
-                        );
-                        Ok(())
-                    },
-                    || {
-                        let (crypttab, fstab) = disks.generate_fstabs();
-                        info!("libdistinst: writing /etc/crypttab");
-                        file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
-
-                        info!("libdistinst: writing /etc/fstab");
-                        file_create!(
-                            mount_dir.join("etc/fstab"),
-                            [FSTAB_HEADER, fstab.as_bytes()]
-                        );
-
-                        Ok(())
-                    }
-                )
+                configure_script,
+                || rayon::join(lvm_autodetection, generate_fstabs)
             );
 
             res_a.and(res_b).and(res_c)?;
