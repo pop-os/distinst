@@ -1,5 +1,5 @@
 use super::physical_volumes_to_deactivate;
-use disk::external::{cryptsetup_close, lvs, pvs, vgdeactivate};
+use disk::external::{cryptsetup_close, lvs, pvs, vgdeactivate, CloseBy};
 use disk::mount::{swapoff, umount};
 use disk::{Mounts, Swaps};
 use std::io;
@@ -28,11 +28,12 @@ pub(crate) fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()
 
     for pv in &physical_volumes_to_deactivate(devices) {
         let mut pvs = pvs()?;
+        let device = CloseBy::Path(&pv);
         match pvs.remove(pv) {
             Some(Some(ref vg)) => umount(vg)
                 .and_then(|_| vgdeactivate(vg))
-                .and_then(|_| cryptsetup_close(pv))?,
-            _ => cryptsetup_close(pv)?,
+                .and_then(|_| cryptsetup_close(device))?,
+            _ => cryptsetup_close(device)?,
         }
     }
 
