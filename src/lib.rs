@@ -315,16 +315,21 @@ impl Installer {
         callback(20);
 
         let disks_ptr = &*disks as *const Disks;
-        for disk in disks.get_physical_devices_mut() {
-            // This will help us when we are testing in a dev environment.
-            if disk.contains_mount("/", unsafe { &*disks_ptr }) {
-                continue
-            }
+        {
+            let borrowed: &Disks = unsafe { &*disks_ptr };
+            disks.physical.par_iter_mut().map(|disk| {
+                // This will help us when we are testing in a dev environment.
+                if disk.contains_mount("/", borrowed) {
+                    return Ok(());
+                }
 
-            if let Err(why) = disk.unmount_all_partitions_with_target() {
-                error!("unable to unmount partitions");
-                return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-            }
+                if let Err(why) = disk.unmount_all_partitions_with_target() {
+                    error!("unable to unmount partitions");
+                    return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
+                }
+
+                Ok(())
+            }).collect::<io::Result<()>>()?;
         }
 
         callback(80);
@@ -401,9 +406,9 @@ impl Installer {
 
         // This is to ensure that everything's been written and the OS is ready to
         // proceed.
-        for disk in disks.get_physical_devices() {
+        disks.physical.par_iter().for_each(|disk| {
             let _ = blockdev(&disk.path(), &["--flushbufs", "--rereadpt"]);
-        }
+        });
 
         // Give a bit of time to ensure that logical volumes can be re-activated.
         sleep(Duration::from_secs(1));
@@ -536,38 +541,43 @@ impl Installer {
         let configure = configure_dir.path().join("configure.sh");
 
         {
-            // Write the installer's intallation script to the chroot's temporary directory.
-            info!("libdistinst: writing /tmp/configure.sh");
-            file_create!(&configure, [include_bytes!("scripts/configure.sh")]);
-        }
+            let (res_a, (res_b, res_c)): (io::Result<()>, (io::Result<()>, io::Result<()>)) = rayon::join(
+                || {
+                    // Write the installer's intallation script to the chroot's temporary directory.
+                    info!("libdistinst: writing /tmp/configure.sh");
+                    file_create!(&configure, [include_bytes!("scripts/configure.sh")]);
+                    Ok(())
+                },
+                || rayon::join(
+                    || {
+                        // Ubuntu's LVM auto-detection doesn't seem to work for activating root volumes.
+                        info!("libdistinst: applying LVM initramfs autodetect workaround");
+                        fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
+                        let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
+                        file_create!(
+                            lvm_fix,
+                            0o1755,
+                            [include_bytes!("scripts/lvm-workaround.sh")]
+                        );
+                        Ok(())
+                    },
+                    || {
+                        let (crypttab, fstab) = disks.generate_fstabs();
+                        info!("libdistinst: writing /etc/crypttab");
+                        file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
 
-        callback(15);
+                        info!("libdistinst: writing /etc/fstab");
+                        file_create!(
+                            mount_dir.join("etc/fstab"),
+                            [FSTAB_HEADER, fstab.as_bytes()]
+                        );
 
-        {
-            // Ubuntu's LVM auto-detection doesn't seem to work for activating root volumes.
-            info!("libdistinst: applying LVM initramfs autodetect workaround");
-            fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
-            let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
-            file_create!(
-                lvm_fix,
-                0o1755,
-                [include_bytes!("scripts/lvm-workaround.sh")]
-            )
-        }
-
-        callback(30);
-
-        {
-            let (crypttab, fstab) = disks.generate_fstabs();
-
-            info!("libdistinst: writing /etc/crypttab");
-            file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
-
-            info!("libdistinst: writing /etc/fstab");
-            file_create!(
-                mount_dir.join("etc/fstab"),
-                [FSTAB_HEADER, fstab.as_bytes()]
+                        Ok(())
+                    }
+                )
             );
+
+            res_a.and(res_b).and(res_c)?;
         }
 
         callback(60);

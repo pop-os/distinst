@@ -24,6 +24,9 @@ use std::time::Duration;
 use std::borrow::Cow;
 use std::ffi::OsStr;
 
+use rayon::prelude::*;
+use rayon::iter::IntoParallelRefIterator;
+
 /// A configuration of disks, both physical and logical.
 #[derive(Debug, Default, PartialEq)]
 pub struct Disks {
@@ -214,7 +217,7 @@ impl Disks {
         info!("libdistinst: pvs: {:?}", pvs);
 
         // Handle LVM on LUKS
-        for pv in &pvs {
+        pvs.par_iter().map(|pv| {
             match volume_map.get(pv) {
                 Some(&Some(ref vg)) => umount(vg).and_then(|_| {
                     vgdeactivate(vg)
@@ -222,27 +225,27 @@ impl Disks {
                         .and_then(|_| pvremove(pv))
                         .and_then(|_| cryptsetup_close(pv))
                         .map_err(|why| DiskError::ExternalCommand { why })
-                })?,
+                }),
                 Some(&None) => {
-                    cryptsetup_close(pv).map_err(|why| DiskError::ExternalCommand { why })?
+                    cryptsetup_close(pv).map_err(|why| DiskError::ExternalCommand { why })
                 }
-                None => (),
+                None => Ok(()),
             }
-        }
+        }).collect::<Result<(), DiskError>>()?;
 
         // Handle LVM without LUKS
-        for entry in devices_to_modify
+        devices_to_modify
             .iter()
             .filter_map(|dev| volume_map.get(dev))
             .unique()
-        {
-            if let Some(ref vg) = *entry {
-                umount(vg)
-                    .and_then(|_| vgremove(vg).map_err(|why| DiskError::ExternalCommand { why }))?;
-            }
-        }
-
-        Ok(())
+            .map(|entry| {
+                if let Some(ref vg) = *entry {
+                    umount(vg)
+                        .and_then(|_| vgremove(vg).map_err(|why| DiskError::ExternalCommand { why }))
+                } else {
+                    Ok(())
+                }
+            }).collect::<Result<(), DiskError>>()
     }
 
     /// Attempts to decrypt the specified partition.
@@ -349,7 +352,7 @@ impl Disks {
     /// Sometimes, physical devices themselves may be mounted directly.
     pub fn unmount_devices(&self) -> Result<(), DiskError> {
         info!("libdistinst: unmounting devices");
-        for device in self.get_physical_devices() {
+        self.physical.par_iter().map(|device| {
             if let Some(mount) = device.get_mount_point() {
                 if mount != Path::new("/cdrom") {
                     info!(
@@ -359,9 +362,9 @@ impl Disks {
                     mount::umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
                 }
             }
-        }
 
-        Ok(())
+            Ok(())
+        }).collect::<Result<(), DiskError>>()
     }
 
     /// Probes for and returns disk information for every disk in the system.
