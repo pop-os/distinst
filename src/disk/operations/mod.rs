@@ -12,6 +12,8 @@ use libparted::{
 };
 use std::path::Path;
 use misc;
+use rayon::prelude::*;
+
 
 /// Removes a partition at the given sector from the disk.
 fn remove_partition_by_sector(disk: &mut PedDisk, sector: u64) -> Result<(), DiskError> {
@@ -407,11 +409,10 @@ impl FormatPartitions {
     // Finally, format all of the modified and created partitions.
     pub fn format(self) -> Result<(), DiskError> {
         info!("libdistinst: executing format operations");
-        for (part, fs) in self.0 {
+        self.0.par_iter().map(|&(ref part, fs)| {
             info!("libdistinst: formatting {} with {:?}", part.display(), fs);
-            mkfs(&part, fs).map_err(|why| DiskError::PartitionFormat { why })?;
-        }
-        Ok(())
+            mkfs(part, fs).map_err(|why| DiskError::PartitionFormat { why })
+        }).collect::<Result<(), DiskError>>()
     }
 }
 

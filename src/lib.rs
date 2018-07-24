@@ -384,21 +384,31 @@ impl Installer {
     /// Apply all partitioning and formatting changes to the disks
     /// configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
-        disks.physical.iter_mut().map(|disk| {
-            info!(
-                "libdistinst: {}: Committing changes to disk",
-                disk.path().display()
-            );
-            disk.commit()
-                .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
-        }).collect::<io::Result<()>>()?;
+        let (pvs_result, commit_result): (
+            io::Result<BTreeMap<PathBuf, Option<String>>>,
+            io::Result<()>
+        ) = rayon::join(
+            || {
+                // This collection of physical volumes and their optional volume groups
+                // will be used to obtain a list of volume groups associated with our
+                // modified partitions.
+                pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
+            },
+            || {
+                disks.physical.iter_mut().map(|disk| {
+                    info!(
+                        "libdistinst: {}: Committing changes to disk",
+                        disk.path().display()
+                    );
+                    disk.commit()
+                        .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
+                }).collect::<io::Result<()>>()
+            }
+        );
+
+        let pvs = commit_result.and(pvs_result)?;
 
         callback(100);
-
-        // This collection of physical volumes and their optional volume groups
-        // will be used to obtain a list of volume groups associated with our
-        // modified partitions.
-        let pvs = pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
 
         // Utilizes the physical volume collection to generate a vector of volume
         // groups which we will need to deactivate pre-`blockdev`, and will be
@@ -988,7 +998,6 @@ impl Installer {
 
                 apply_step!($msg, $action);
             }};
-            // When a step is not provided, the program will simply
             ($msg:expr, $action:expr) => {{
                 info!("libdistinst: starting {} step", $msg);
                 match $action {
@@ -1012,7 +1021,7 @@ impl Installer {
                     status.percent = percent;
                     self.emit_status(status);
                 }
-            };
+            }
         }
 
         info!("libdistinst: installing {:?} with {:?}", config, bootloader);
