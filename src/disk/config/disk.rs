@@ -1,13 +1,15 @@
 use super::super::mount::{swapoff, umount};
 use super::super::mounts::MOUNTS;
+use super::super::swaps::SWAPS;
 use super::super::operations::*;
 use super::super::serial::get_serial;
+use super::super::external::{is_encrypted, pvs};
 use super::super::{
     check_partition_size, DiskError, DiskExt, Disks, FileSystemType, PartitionError, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
-use super::{get_device, open_disk};
+use super::{get_device, open_disk, PVS};
 use libparted::{Device, DeviceType, Disk as PedDisk};
 
 use std::collections::BTreeSet;
@@ -17,15 +19,53 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
 
+use rayon::prelude::*;
+
 /// Detects a partition on the device, if it exists.
 /// Useful for detecting if a LUKS device has a file system.
 pub(crate) fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
     if let Ok(mut dev) = Device::get(path) {
         if let Ok(disk) = PedDisk::new(&mut dev) {
             if let Some(part) = disk.parts().next() {
+                unsafe {
+                    if PVS.is_none() {
+                        PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
+                    }
+                }
+
+                let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
+                let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+
                 match PartitionInfo::new_from_ped(&part) {
-                    Ok(partition) => {
-                        return partition;
+                    Ok(mut part) => {
+                        if let Some(part) = part.as_mut() {
+                            let device_path = &part.device_path;
+                            let original_vg = unsafe {
+                                PVS.as_ref()
+                                    .unwrap()
+                                    .get(device_path)
+                                    .and_then(|vg| vg.as_ref().cloned())
+                            };
+
+                            if let Some(ref vg) = original_vg.as_ref() {
+                                info!("libdistinst: partition belongs to volume group '{}'", vg);
+                            }
+
+                            if part.filesystem.is_none() {
+                                part.filesystem = if is_encrypted(device_path) {
+                                    Some(FileSystemType::Luks)
+                                } else if original_vg.is_some() {
+                                    Some(FileSystemType::Lvm)
+                                } else {
+                                    None
+                                };
+                            }
+
+                            part.mount_point = mounts.get_mount_point(device_path);
+                            part.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
+                            part.original_vg = original_vg;
+                        }
+                        return part;
                     }
                     Err(why) => {
                         info!("libdistinst: unable to get partition from device: {}", why);
@@ -150,6 +190,7 @@ impl Disk {
         });
 
         let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
+        let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
 
         Ok(Disk {
             model_name,
@@ -173,6 +214,40 @@ impl Disk {
                         partitions.push(part);
                     }
                 }
+
+                unsafe {
+                    if PVS.is_none() {
+                        PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
+                    }
+                }
+
+                partitions.par_iter_mut().for_each(|part| {
+                    let device_path = &part.device_path;
+                    let original_vg = unsafe {
+                        PVS.as_ref()
+                            .unwrap()
+                            .get(device_path)
+                            .and_then(|vg| vg.as_ref().cloned())
+                    };
+
+                    if let Some(ref vg) = original_vg.as_ref() {
+                        info!("libdistinst: partition belongs to volume group '{}'", vg);
+                    }
+
+                    if part.filesystem.is_none() {
+                        part.filesystem = if is_encrypted(device_path) {
+                            Some(FileSystemType::Luks)
+                        } else if original_vg.is_some() {
+                            Some(FileSystemType::Lvm)
+                        } else {
+                            None
+                        };
+                    }
+
+                    part.mount_point = mounts.get_mount_point(device_path);
+                    part.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
+                    part.original_vg = original_vg;
+                });
 
                 partitions
             } else {

@@ -383,7 +383,7 @@ impl Installer {
     /// Apply all partitioning and formatting changes to the disks
     /// configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
-        disks.physical.par_iter_mut().map(|disk| {
+        disks.physical.iter_mut().map(|disk| {
             info!(
                 "libdistinst: {}: Committing changes to disk",
                 disk.path().display()

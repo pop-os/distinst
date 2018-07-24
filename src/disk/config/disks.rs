@@ -1,5 +1,5 @@
 use super::super::external::{
-    cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove,
+    cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
@@ -221,8 +221,6 @@ impl Disks {
             match volume_map.get(pv) {
                 Some(&Some(ref vg)) => umount(vg).and_then(|_| {
                     vgdeactivate(vg)
-                        .and_then(|_| vgremove(vg))
-                        .and_then(|_| pvremove(pv))
                         .and_then(|_| cryptsetup_close(pv))
                         .map_err(|why| DiskError::ExternalCommand { why })
                 }),
@@ -241,7 +239,7 @@ impl Disks {
             .map(|entry| {
                 if let Some(ref vg) = *entry {
                     umount(vg)
-                        .and_then(|_| vgremove(vg).map_err(|why| DiskError::ExternalCommand { why }))
+                        .and_then(|_| vgdeactivate(vg).map_err(|why| DiskError::ExternalCommand { why }))
                 } else {
                     Ok(())
                 }

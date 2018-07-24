@@ -229,11 +229,6 @@ pub(crate) fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(
     })
 }
 
-/// Removes the given volume group from the system.
-pub(crate) fn vgremove(group: &str) -> io::Result<()> {
-    exec("vgremove", None, None, &["-ffy".into(), group.into()])
-}
-
 /// Used to create a logical volume on a volume group.
 pub(crate) fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result<()> {
     exec(
@@ -419,12 +414,6 @@ pub(crate) fn vgdeactivate(volume_group: &str) -> io::Result<()> {
     info!("libdistinst: deactivating '{}'", volume_group);
     let args = &["-ffyan".into(), volume_group.into()];
     exec("vgchange", None, None, args)
-}
-
-/// Removes the physical volume from the system.
-pub(crate) fn pvremove(physical_volume: &Path) -> io::Result<()> {
-    let args = &["-ffy".into(), physical_volume.into()];
-    exec("pvremove", None, None, args)
 }
 
 /// Obtains the file system on a partition via blkid
