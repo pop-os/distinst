@@ -403,7 +403,7 @@ fn get_partition_id_and_path(path: &Path, start_sector: i64) -> Result<(i32, Pat
     })
 }
 
-pub struct FormatPartitions(Vec<(PathBuf, FileSystemType)>);
+pub struct FormatPartitions(pub Vec<(PathBuf, FileSystemType)>);
 
 impl FormatPartitions {
     // Finally, format all of the modified and created partitions.

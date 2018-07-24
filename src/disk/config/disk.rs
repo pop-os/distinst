@@ -837,7 +837,7 @@ impl Disk {
     }
 
     /// Attempts to commit all changes that have been made to the disk.
-    pub fn commit(&mut self) -> Result<(), DiskError> {
+    pub fn commit(&mut self) -> Result<Option<FormatPartitions>, DiskError> {
         info!(
             "libdistinst: committing changes to {}: {:#?}",
             self.path().display(),
@@ -846,17 +846,15 @@ impl Disk {
         Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
             source.diff(self).and_then(|ops| {
                 if ops.is_empty() {
-                    Ok(())
+                    Ok(None)
                 } else {
                     ops.remove()
                         .and_then(|ops| ops.change())
                         .and_then(|ops| ops.create())
-                        .and_then(|ops| ops.format())
+                        .map(|format| Some(format))
                 }
             })
-        })?;
-
-        self.reload()
+        })
     }
 
     /// Reloads the disk information from the disk into our in-memory

@@ -26,6 +26,7 @@ extern crate serde_derive;
 extern crate serde_xml_rs;
 
 use disk::external::{blockdev, dmlist, pvs, remount_rw, vgactivate, vgdeactivate};
+use disk::operations::FormatPartitions;
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
@@ -395,14 +396,27 @@ impl Installer {
                 pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
             },
             || {
-                disks.physical.iter_mut().map(|disk| {
-                    info!(
-                        "libdistinst: {}: Committing changes to disk",
-                        disk.path().display()
-                    );
-                    disk.commit()
-                        .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
-                }).collect::<io::Result<()>>()
+                // Perform layout changes serially, due to libparted thread safety issues,
+                // and collect a list of partitions to format which can be done in parallel.
+                // Once partitions have been formatted in parallel, reload the disk configuration.
+                let mut partitions_to_format = FormatPartitions(Vec::new());
+                for disk in disks.get_physical_devices_mut() {
+                    info!("libdistinst: {}: Committing changes to disk", disk.path().display());
+                    if let Some(partitions) = disk.commit()
+                        .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?
+                    {
+                        partitions_to_format.0.extend_from_slice(&partitions.0);
+                    }       
+                }
+
+                partitions_to_format.format()?;
+                
+                // Optimization: possibly do this while formatting partitions?
+                for disk in &mut disks.physical {
+                    disk.reload()?;
+                }
+
+                Ok(())
             }
         );
 

@@ -4,7 +4,7 @@ pub mod mount;
 mod config;
 mod error;
 mod mounts;
-mod operations;
+pub(crate) mod operations;
 mod serial;
 mod swaps;
 
