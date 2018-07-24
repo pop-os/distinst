@@ -65,7 +65,7 @@ if [ -d "/etc/initramfs/post-update.d/" ]; then
 fi
 
 # Install bootloader packages
-apt-get install -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
+apt-get install -q -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
 
 # Disable APT cdrom
 if [ -d "/cdrom" ]

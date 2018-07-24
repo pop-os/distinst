@@ -77,16 +77,29 @@ impl Chroot {
                 Some(c) => break Ok(c),
                 // Pipe any output to logs that may be available.
                 None => {
-                    while let Ok(read) = stdout.read_line(buffer) {
-                        if read == 0 { break }
-                        info!("{}", buffer.trim());
+                    let mut finished = 0;
+                    loop {
                         buffer.clear();
-                    }
+                         match stdout.read_line(buffer) {
+                            Ok(0) | Err(_) => finished |= 1,
+                            Ok(_) => {
+                                info!("{}", buffer.trim());
+                            }
+                        }
 
-                    while let Ok(read) = stderr.read_line(buffer) {
-                        if read == 0 { break }
-                        warn!("{}", buffer.trim());
                         buffer.clear();
+                        match stderr.read_line(buffer) {
+                            Ok(0) | Err(_) => finished |= 2,
+                            Ok(_) => {
+                                warn!("{}", buffer.trim());
+                            }
+                        }
+
+                        if finished == 3 {
+                            break
+                        } else {
+                            finished = 0;
+                        }
                     }
 
                     sleep(Duration::from_millis(1));
