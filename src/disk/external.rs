@@ -21,7 +21,7 @@ fn exec(
     valid_codes: Option<&'static [i32]>,
     args: &[OsString],
 ) -> io::Result<()> {
-    info!("libdistinst: executing {} with {:?}", cmd, args);
+    info!("executing {} with {:?}", cmd, args);
 
     let mut child = Command::new(cmd)
         .args(args)
@@ -65,7 +65,7 @@ fn exec(
 
 /// Erase all signatures on a disk
 pub(crate) fn wipefs<P: AsRef<Path>>(device: P) -> io::Result<()> {
-    info!("libdistinst: using wipefs to wipe signatures from {:?}", device.as_ref());
+    info!("using wipefs to wipe signatures from {:?}", device.as_ref());
     exec("wipefs", None, None, &["-a".into(), device.as_ref().into()])
 }
 
@@ -284,7 +284,7 @@ fn append_newline(input: &[u8]) -> Vec<u8> {
 /// configuration, or a LVM on LUKS configurations.
 pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
     info!(
-        "libdistinst: cryptsetup is encrypting {} with {:?}",
+        "cryptsetup is encrypting {} with {:?}",
         device.display(),
         enc
     );
@@ -308,7 +308,7 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
             let keypath = tmpfs.path().join(&enc.physical_volume);
 
             generate_keyfile(&keypath)?;
-            info!("libdistinst: keypath exists: {}", keypath.is_file());
+            info!("keypath exists: {}", keypath.is_file());
 
             exec(
                 "cryptsetup",
@@ -332,7 +332,7 @@ pub(crate) fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<
     deactivate_devices(&[device])?;
     let pv = &enc.physical_volume;
     info!(
-        "libdistinst: cryptsetup is opening {} with pv {} and {:?}",
+        "cryptsetup is opening {} with pv {} and {:?}",
         device.display(),
         pv,
         enc
@@ -350,7 +350,7 @@ pub(crate) fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<
             let tmpfs = TempDir::new("distinst")?;
             let _mount = ExternalMount::new(&keydata.0, tmpfs.path(), LAZY)?;
             let keypath = tmpfs.path().join(&enc.physical_volume);
-            info!("libdistinst: keypath exists: {}", keypath.is_file());
+            info!("keypath exists: {}", keypath.is_file());
 
             exec(
                 "cryptsetup",
@@ -404,14 +404,14 @@ pub(crate) fn cryptsetup_close(device: &Path) -> io::Result<()> {
 
 /// Deactivates all logical volumes in the supplied volume group
 pub(crate) fn vgactivate(volume_group: &str) -> io::Result<()> {
-    info!("libdistinst: activating '{}'", volume_group);
+    info!("activating '{}'", volume_group);
     let args = &["-ffyay".into(), volume_group.into()];
     exec("vgchange", None, None, args)
 }
 
 /// Deactivates all logical volumes in the supplied volume group
 pub(crate) fn vgdeactivate(volume_group: &str) -> io::Result<()> {
-    info!("libdistinst: deactivating '{}'", volume_group);
+    info!("deactivating '{}'", volume_group);
     let args = &["-ffyan".into(), volume_group.into()];
     exec("vgchange", None, None, args)
 }
@@ -430,7 +430,7 @@ pub(crate) fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystemType>
         .split_whitespace()
         .nth(2)
         .and_then(|type_| {
-            info!("libdistinst: blkid found '{}'", type_);
+            info!("blkid found '{}'", type_);
             let length = type_.len();
             if length > 7 {
                 type_[6..length - 1].parse::<FileSystemType>().ok()
@@ -442,7 +442,7 @@ pub(crate) fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystemType>
 
 /// Obtains a list of logical volumes associated with the given volume group.
 pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
-    info!("libdistinst: obtaining logical volumes on {}", vg);
+    info!("obtaining logical volumes on {}", vg);
     let mut current_line = String::with_capacity(128);
     let mut output = Vec::new();
 
@@ -484,7 +484,7 @@ pub(crate) fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
 /// Obtains a map of physical volume paths and their optionally-assigned volume
 /// groups.
 pub(crate) fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
-    info!("libdistinst: obtaining list of physical volumes");
+    info!("obtaining list of physical volumes");
     let mut current_line = String::with_capacity(64);
     let mut output = BTreeMap::new();
 
@@ -528,7 +528,7 @@ fn mebibytes(bytes: u64) -> String { format!("{}", bytes / (1024 * 1024)) }
 
 /// Generates a new keyfile by reading 512 bytes from "/dev/urandom".
 fn generate_keyfile(path: &Path) -> io::Result<()> {
-    info!("libdistinst: generating keyfile at {}", path.display());
+    info!("generating keyfile at {}", path.display());
     // Generate the key in memory from /dev/urandom.
     let mut key = [0u8; 512];
     let mut urandom = File::open("/dev/urandom")?;

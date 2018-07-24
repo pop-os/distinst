@@ -160,7 +160,7 @@ impl PartitionInfo {
             .expect("unable to get path from ped partition")
             .to_path_buf();
         info!(
-            "libdistinst: obtaining partition information from {}",
+            "obtaining partition information from {}",
             device_path.display()
         );
 
@@ -319,7 +319,7 @@ impl PartitionInfo {
     /// generating entries in "/etc/fstab".
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
         info!(
-            "libdistinst: getting block information for partition at {}",
+            "getting block information for partition at {}",
             self.device_path.display()
         );
 

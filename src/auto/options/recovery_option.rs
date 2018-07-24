@@ -24,7 +24,7 @@ pub(crate) fn detect_recovery() -> Option<RecoveryOption> {
             Ok(env) => env,
             Err(why) => {
                 warn!(
-                    "libdistinst: unable to read recovery configuration: {}",
+                    "unable to read recovery configuration: {}",
                     why
                 );
                 return None;

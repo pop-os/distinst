@@ -12,7 +12,7 @@ pub(crate) fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()
         for lv in lvs(vg)? {
             if let Some(mount) = mounts.get_mount_point(&lv) {
                 info!(
-                    "libdistinst: unmounting logical volume mounted at {}",
+                    "unmounting logical volume mounted at {}",
                     mount.display()
                 );
                 umount(&mount, false)?;

@@ -166,7 +166,7 @@ impl LvmDevice {
     }
 
     pub fn add_partitions(&mut self) {
-        info!("libdistinst: adding partitions to LVM device");
+        info!("adding partitions to LVM device");
         let mut start_sector = 0;
         let _ = vgactivate(&self.volume_group);
         if let Ok(logical_paths) = lvs(&self.volume_group) {
@@ -175,7 +175,7 @@ impl LvmDevice {
                 let mut nth = 0;
                 while !path.exists() {
                     info!(
-                        "libdistinst: waiting 1 second because {:?} does not exist yet",
+                        "waiting 1 second because {:?} does not exist yet",
                         path
                     );
                     if nth == 5 {

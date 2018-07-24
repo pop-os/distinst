@@ -18,4 +18,4 @@ cbindgen = "0.4"
 [dependencies]
 distinst = { path = ".." }
 libc = "0.2"
-log = "0.3"
+log = "0.4"

@@ -34,25 +34,25 @@ pub enum PartitionTable {
 
 /// Gets a `libparted::Device` from the given name.
 pub(crate) fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
-    info!("libdistinst: getting device at {}", name.as_ref().display());
+    info!("getting device at {}", name.as_ref().display());
     Device::get(name).map_err(|why| DiskError::DeviceGet { why })
 }
 
 /// Gets and opens a `libparted::Device` from the given name.
 pub(crate) fn open_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
-    info!("libdistinst: opening device at {}", name.as_ref().display());
+    info!("opening device at {}", name.as_ref().display());
     Device::new(name).map_err(|why| DiskError::DeviceGet { why })
 }
 
 /// Opens a `libparted::Disk` from a `libparted::Device`.
 pub(crate) fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskError> {
-    info!("libdistinst: opening disk at {}", device.path().display());
+    info!("opening disk at {}", device.path().display());
     let device = device as *mut Device;
     unsafe {
         match PedDisk::new(&mut *device) {
             Ok(disk) => Ok(disk),
             Err(_) => {
-                info!("libdistinst: unable to open disk; creating new table on it");
+                info!("unable to open disk; creating new table on it");
                 PedDisk::new_fresh(
                     &mut *device,
                     match Bootloader::detect() {
@@ -67,7 +67,7 @@ pub(crate) fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskE
 
 /// Attempts to commit changes to the disk, return a `DiskError` on failure.
 pub(crate) fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
-    info!("libdistinst: commiting changes to {}", unsafe {
+    info!("committing changes to {}", unsafe {
         disk.get_device().path().display()
     });
     disk.commit().map_err(|why| DiskError::DiskCommit { why })
@@ -75,7 +75,7 @@ pub(crate) fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
 
 /// Flushes the OS cache, return a `DiskError` on failure.
 pub(crate) fn sync(device: &mut Device) -> Result<(), DiskError> {
-    info!("libdistinst: syncing device at {}", device.path().display());
+    info!("syncing device at {}", device.path().display());
     device.sync().map_err(|why| DiskError::DiskSync { why })
 }
 

@@ -48,7 +48,7 @@ pub(crate) fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
                             };
 
                             if let Some(ref vg) = original_vg.as_ref() {
-                                info!("libdistinst: partition belongs to volume group '{}'", vg);
+                                info!("partition belongs to volume group '{}'", vg);
                             }
 
                             if part.filesystem.is_none() {
@@ -68,7 +68,7 @@ pub(crate) fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
                         return part;
                     }
                     Err(why) => {
-                        info!("libdistinst: unable to get partition from device: {}", why);
+                        info!("unable to get partition from device: {}", why);
                     }
                 }
             }
@@ -162,7 +162,7 @@ impl DiskExt for Disk {
 impl Disk {
     pub(crate) fn new(device: &mut Device) -> Result<Disk, DiskError> {
         info!(
-            "libdistinst: obtaining disk information from {}",
+            "obtaining disk information from {}",
             device.path().display()
         );
         let model_name = device.model().into();
@@ -231,7 +231,7 @@ impl Disk {
                     };
 
                     if let Some(ref vg) = original_vg.as_ref() {
-                        info!("libdistinst: partition belongs to volume group '{}'", vg);
+                        info!("partition belongs to volume group '{}'", vg);
                     }
 
                     if part.filesystem.is_none() {
@@ -327,7 +327,7 @@ impl Disk {
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
         info!(
-            "libdistinst: unmount all partitions on {}",
+            "unmount all partitions on {}",
             self.path().display()
         );
 
@@ -338,7 +338,7 @@ impl Disk {
                 }
 
                 info!(
-                    "libdistinst: unmounting {}, which is mounted at {}",
+                    "unmounting {}, which is mounted at {}",
                     partition.get_device_path().display(),
                     mount.display()
                 );
@@ -350,7 +350,7 @@ impl Disk {
 
             if partition.flag_is_enabled(SWAPPED) {
                 info!(
-                    "libdistinst: unswapping '{}'",
+                    "unswapping '{}'",
                     partition.get_device_path().display(),
                 );
                 swapoff(&partition.get_device_path())?;
@@ -365,7 +365,7 @@ impl Disk {
     /// Unmounts all partitions on the device with a target
     pub fn unmount_all_partitions_with_target(&mut self) -> Result<(), io::Error> {
         info!(
-            "libdistinst: unmount all partitions with a target on {}",
+            "unmount all partitions with a target on {}",
             self.path().display()
         );
 
@@ -382,7 +382,7 @@ impl Disk {
 
                 for mount in mountstab.mount_starts_with(mount.as_os_str().as_bytes()) {
                     info!(
-                        "libdistinst: marking {} to be unmounted, which is mounted at {}",
+                        "marking {} to be unmounted, which is mounted at {}",
                         partition.get_device_path().display(),
                         mount.display(),
                     );
@@ -394,7 +394,7 @@ impl Disk {
 
             if partition.flag_is_enabled(SWAPPED) {
                 info!(
-                    "libdistinst: unswapping '{}'",
+                    "unswapping '{}'",
                     partition.get_device_path().display(),
                 );
                 swapoff(&partition.get_device_path())?;
@@ -404,7 +404,7 @@ impl Disk {
         }
 
         for mount in mounts.into_iter().rev() {
-            info!("libdistinst: unmounting {}", mount.display());
+            info!("unmounting {}", mount.display());
             umount(mount, false)?;
         }
 
@@ -415,7 +415,7 @@ impl Disk {
     /// partition table should be written to the disk during the disk operations phase.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
         info!(
-            "libdistinst: specifying to write new table on {}",
+            "specifying to write new table on {}",
             self.path().display()
         );
         self.unmount_all_partitions()
@@ -434,7 +434,7 @@ impl Disk {
     /// from the partition vector.
     pub fn remove_partition(&mut self, partition: i32) -> Result<(), DiskError> {
         info!(
-            "libdistinst: specifying to remove partition {} on {}",
+            "specifying to remove partition {} on {}",
             partition,
             self.path().display()
         );
@@ -481,7 +481,7 @@ impl Disk {
     pub fn resize_partition(&mut self, partition: i32, end: u64) -> Result<(), DiskError> {
         let end = end - 1;
         info!(
-            "libdistinst: specifying to resize partition {} on {} to sector {}",
+            "specifying to resize partition {} on {} to sector {}",
             partition,
             self.path().display(),
             end
@@ -520,7 +520,7 @@ impl Disk {
     /// and calculates whether it will be possible to do that.
     pub fn move_partition(&mut self, partition: i32, start: u64) -> Result<(), DiskError> {
         info!(
-            "libdistinst: specifying to move partition {} on {} to sector {}",
+            "specifying to move partition {} on {} to sector {}",
             partition,
             self.path().display(),
             start
@@ -564,7 +564,7 @@ impl Disk {
         fs: FileSystemType,
     ) -> Result<(), DiskError> {
         info!(
-            "libdistinst: specifying to format partition {} on {} with {:?}",
+            "specifying to format partition {} on {} with {:?}",
             partition,
             self.path().display(),
             fs,
@@ -661,7 +661,7 @@ impl Disk {
     /// An error can occur if the layout of the new disk conflicts with the source.
     pub(crate) fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
         info!(
-            "libdistinst: generating diff of disk at {}",
+            "generating diff of disk at {}",
             self.path().display()
         );
         self.validate_layout(new)?;
@@ -721,7 +721,7 @@ impl Disk {
             (new.partitions.iter().collect(), Vec::new())
         };
 
-        info!("libdistinst: proposed layout:{}", {
+        info!("proposed layout:{}", {
             let mut output = String::new();
             for partition in &new_sorted {
                 output.push_str(&format!(
@@ -839,7 +839,7 @@ impl Disk {
     /// Attempts to commit all changes that have been made to the disk.
     pub fn commit(&mut self) -> Result<Option<FormatPartitions>, DiskError> {
         info!(
-            "libdistinst: committing changes to {}: {:#?}",
+            "committing changes to {}: {:#?}",
             self.path().display(),
             self
         );
@@ -861,7 +861,7 @@ impl Disk {
     /// representation.
     pub fn reload(&mut self) -> Result<(), DiskError> {
         info!(
-            "libdistinst: reloading disk information for {}",
+            "reloading disk information for {}",
             self.path().display()
         );
 
@@ -886,7 +886,7 @@ impl Disk {
 
         // Then re-add the critical information which was lost.
         for (sector, mount, vg, keyid) in collected {
-            info!("libdistinst: checking for mount target at {}", sector);
+            info!("checking for mount target at {}", sector);
             let part = self.get_partition_at(sector)
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");

@@ -195,7 +195,7 @@ impl Disks {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
                 if let Some(mount) = mounts.get_mount_point(&lv) {
                     info!(
-                        "libdistinst: unmounting logical volume mounted at {}",
+                        "unmounting logical volume mounted at {}",
                         mount.display()
                     );
                     umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
@@ -210,11 +210,11 @@ impl Disks {
         };
 
         let devices_to_modify = self.get_device_paths_to_modify();
-        info!("libdistinst: devices to modify: {:?}", devices_to_modify);
+        info!("devices to modify: {:?}", devices_to_modify);
         let volume_map = pvs().map_err(|why| DiskError::ExternalCommand { why })?;
-        info!("libdistinst: volume map: {:?}", volume_map);
+        info!("volume map: {:?}", volume_map);
         let pvs = lvm::physical_volumes_to_deactivate(&devices_to_modify);
-        info!("libdistinst: pvs: {:?}", pvs);
+        info!("pvs: {:?}", pvs);
 
         // Handle LVM on LUKS
         pvs.par_iter().map(|pv| {
@@ -256,7 +256,7 @@ impl Disks {
         path: &Path,
         enc: &LvmEncryption,
     ) -> Result<(), DecryptionError> {
-        info!("libdistinst: decrypting partition at {:?}", path);
+        info!("decrypting partition at {:?}", path);
         // An intermediary value that can avoid the borrowck issue.
         let mut new_device = None;
 
@@ -275,7 +275,7 @@ impl Disks {
             let pv = &PathBuf::from(["/dev/mapper/", &enc.physical_volume].concat());
             let mut attempt = 0;
             while !pv.exists() && attempt < 10 {
-                info!("libdistinst: waiting 1 second for {:?} to activate", pv);
+                info!("waiting 1 second for {:?} to activate", pv);
                 attempt += 1;
                 thread::sleep(Duration::from_millis(1000));
             }
@@ -349,12 +349,12 @@ impl Disks {
 
     /// Sometimes, physical devices themselves may be mounted directly.
     pub fn unmount_devices(&self) -> Result<(), DiskError> {
-        info!("libdistinst: unmounting devices");
+        info!("unmounting devices");
         self.physical.iter().map(|device| {
             if let Some(mount) = device.get_mount_point() {
                 if mount != Path::new("/cdrom") {
                     info!(
-                        "libdistinst: unmounting device mounted at {}",
+                        "unmounting device mounted at {}",
                         mount.display()
                     );
                     mount::umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
@@ -485,7 +485,7 @@ impl Disks {
 
     /// Ensure that keyfiles have key paths.
     pub fn verify_keyfile_paths(&self) -> Result<(), DiskError> {
-        info!("libdistinst: verifying if keyfiles have paths");
+        info!("verifying if keyfiles have paths");
         let mut set = HashSet::new();
         'outer: for logical_device in &self.logical {
             if let Some(ref encryption) = logical_device.encryption {
@@ -677,7 +677,7 @@ impl Disks {
 
     /// Generates the crypttab and fstab files in memory.
     pub(crate) fn generate_fstabs(&self) -> (OsString, OsString) {
-        info!("libdistinst: generating /etc/crypttab & /etc/fstab in memory");
+        info!("generating /etc/crypttab & /etc/fstab in memory");
         let mut crypttab = OsString::with_capacity(1024);
         let mut fstab = OsString::with_capacity(1024);
 
@@ -769,12 +769,12 @@ impl Disks {
         }
 
         info!(
-            "libdistinst: generated the following crypttab data:\n{}",
+            "generated the following crypttab data:\n{}",
             crypttab.to_string_lossy(),
         );
 
         info!(
-            "libdistinst: generated the following fstab data:\n{}",
+            "generated the following fstab data:\n{}",
             fstab.to_string_lossy()
         );
 
@@ -814,7 +814,7 @@ impl Disks {
                     }
                 } else if let Some(ref vg) = partition.original_vg {
                     eprintln!(
-                        "libdistinst: found existing LVM device on {:?}",
+                        "found existing LVM device on {:?}",
                         partition.get_device_path()
                     );
                     // TODO: NLL

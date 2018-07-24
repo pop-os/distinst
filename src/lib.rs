@@ -7,6 +7,7 @@ extern crate derive_new;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
+extern crate fern;
 extern crate itertools;
 #[macro_use]
 extern crate lazy_static;
@@ -58,13 +59,13 @@ mod envfile;
 mod hardware_support;
 pub mod hostname;
 pub mod locale;
-mod logger;
 mod misc;
 pub mod os_release;
 mod squashfs;
 
 use auto::{validate_before_removing, AccountFiles, Backup, ReinstallError};
 use envfile::EnvFile;
+use log::LevelFilter;
 
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
@@ -100,20 +101,36 @@ macro_rules! file_create {
     }};
 }
 
-/// Initialize logging
-pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
+/// Initialize logging with the fern logger
+pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
     callback: F,
-) -> Result<(), log::SetLoggerError> {
-    match log::set_logger(|max_log_level| {
-        max_log_level.set(log::LogLevelFilter::Debug);
-        Box::new(logger::Logger::new(callback))
-    }) {
-        Ok(()) => {
-            info!("Logging enabled");
-            Ok(())
-        }
-        Err(err) => Err(err),
-    }
+) -> Result<(), fern::InitError> {
+    fern::Dispatch::new()
+        // Exclude logs for crates that we use
+        .level(LevelFilter::Off)
+        // Include only the logs for this binary
+        .level_for("distinst", LevelFilter::Debug)
+        // This will be used by the front end for display logs in a UI
+        .chain(fern::Output::call(move |record| {
+            callback(record.level(), &format!("{}", record.args()))
+        }))
+        // Whereas this will handle displaying the logs to the terminal & a log file
+        .chain(fern::Dispatch::new()
+            .format(|out, message, record| {
+                out.finish(format_args!(
+                    "[{}] {}: {}",
+                    record.level(),
+                    {
+                        let target = record.target();
+                        target.find(':').map_or(target, |pos| &target[..pos])
+                    },
+                    message
+                ))
+            })
+            .chain(std::io::stderr())
+            .chain(fern::log_file("/tmp/installer.log")?))
+        .apply()?;
+    Ok(())
 }
 
 /// Checks if the given name already exists as a device in the device map list.
@@ -401,7 +418,7 @@ impl Installer {
                 // Once partitions have been formatted in parallel, reload the disk configuration.
                 let mut partitions_to_format = FormatPartitions(Vec::new());
                 for disk in disks.get_physical_devices_mut() {
-                    info!("libdistinst: {}: Committing changes to disk", disk.path().display());
+                    info!("{}: Committing changes to disk", disk.path().display());
                     if let Some(partitions) = disk.commit()
                         .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?
                     {
@@ -541,7 +558,7 @@ impl Installer {
             }
 
             info!(
-                "libdistinst: mounting {} to {}, with {}",
+                "mounting {} to {}, with {}",
                 device_path.display(),
                 target_mount.display(),
                 filesystem
@@ -565,7 +582,7 @@ impl Installer {
         mount_dir: P,
         callback: F,
     ) -> io::Result<()> {
-        info!("libdistinst: Extracting {}", squashfs.as_ref().display());
+        info!("Extracting {}", squashfs.as_ref().display());
         squashfs::extract(squashfs, mount_dir, callback)?;
 
         Ok(())
@@ -581,7 +598,7 @@ impl Installer {
         mut callback: F,
     ) -> io::Result<()> {
         let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
-        info!("libdistinst: Configuring on {}", mount_dir.display());
+        info!("Configuring on {}", mount_dir.display());
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
         let configure = configure_dir.path().join("configure.sh");
 
@@ -592,14 +609,14 @@ impl Installer {
 
         let configure_script = || {
             // Write the installer's intallation script to the chroot's temporary directory.
-            info!("libdistinst: writing /tmp/configure.sh");
+            info!("writing /tmp/configure.sh");
             file_create!(&configure, [include_bytes!("scripts/configure.sh")]);
             Ok(())
         };
 
         let lvm_autodetection = || {
             // Ubuntu's LVM auto-detection doesn't seem to work for activating root volumes.
-            info!("libdistinst: applying LVM initramfs autodetect workaround");
+            info!("applying LVM initramfs autodetect workaround");
             fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
             let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
             file_create!(
@@ -615,12 +632,12 @@ impl Installer {
 
             let (a, b) = rayon::join(
                 || {
-                    info!("libdistinst: writing /etc/crypttab");
+                    info!("writing /etc/crypttab");
                     file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
                     Ok(())
                 },
                 || {
-                    info!("libdistinst: writing /etc/fstab");
+                    info!("writing /etc/fstab");
                     file_create!(
                         mount_dir.join("etc/fstab"),
                         [FSTAB_HEADER, fstab.as_bytes()]
@@ -657,7 +674,7 @@ impl Installer {
 
         {
             info!(
-                "libdistinst: chrooting into target on {}",
+                "chrooting into target on {}",
                 mount_dir.display()
             );
             let mut chroot = Chroot::new(&mount_dir)?;
@@ -677,7 +694,7 @@ impl Installer {
             use std::iter;
 
             let root_entry = {
-                info!("libdistinst: retrieving root partition");
+                info!("retrieving root partition");
                 disks
                     .get_physical_devices()
                     .iter()
@@ -719,7 +736,7 @@ impl Installer {
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
 
             info!(
-                "libdistinst: will install {:?} bootloader packages",
+                "will install {:?} bootloader packages",
                 install_pkgs
             );
 
@@ -940,7 +957,7 @@ impl Installer {
         let account_files;
 
         let backup = if let Some(ref old_root_uuid) = config.old_root {
-            info!("libdistinst: installing while retaining home");
+            info!("installing while retaining home");
 
             let current_disks =
                 Disks::probe_devices().map_err(|why| ReinstallError::DiskProbe { why })?;
@@ -1013,7 +1030,7 @@ impl Installer {
                 apply_step!($msg, $action);
             }};
             ($msg:expr, $action:expr) => {{
-                info!("libdistinst: starting {} step", $msg);
+                info!("starting {} step", $msg);
                 match $action {
                     Ok(value) => value,
                     Err(err) => {
@@ -1038,7 +1055,7 @@ impl Installer {
             }
         }
 
-        info!("libdistinst: installing {:?} with {:?}", config, bootloader);
+        info!("installing {:?} with {:?}", config, bootloader);
         self.emit_status(status);
 
         let (squashfs, remove_pkgs) = apply_step!("initializing", {
@@ -1052,7 +1069,7 @@ impl Installer {
         // Mount the temporary directory, and all of our mount targets.
         const CHROOT_ROOT: &str = "distinst";
         info!(
-            "libdistinst: mounting temporary chroot directory at {}",
+            "mounting temporary chroot directory at {}",
             CHROOT_ROOT
         );
 
@@ -1063,7 +1080,7 @@ impl Installer {
                 let mut mounts = Installer::mount(&disks, mount_dir.path())?;
 
                 if PARTITIONING_TEST.load(Ordering::SeqCst) {
-                    info!("libdistinst: PARTITION_TEST enabled: exiting before unsquashing");
+                    info!("PARTITION_TEST enabled: exiting before unsquashing");
                     return Ok(());
                 }
 
@@ -1107,7 +1124,7 @@ impl Installer {
     /// let disks = installer.disks().unwrap();
     /// ```
     pub fn disks(&self) -> io::Result<Disks> {
-        info!("libdistinst: probing disks on system");
+        info!("probing disks on system");
         Disks::probe_devices()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
@@ -1120,7 +1137,7 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
             let full_path = entry.path();
             if let Some(path) = entry.file_name().to_str() {
                 if path.ends_with(uuid) {
-                    info!("libdistinst: removing old boot files for {}", path);
+                    info!("removing old boot files for {}", path);
                     fs::remove_dir_all(&full_path)?;
                 }
             }

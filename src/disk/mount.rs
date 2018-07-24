@@ -89,7 +89,7 @@ impl Mount {
         options: Option<&str>,
     ) -> Result<Mount> {
         info!(
-            "libdistinst: mounting {} to {}",
+            "mounting {} to {}",
             src.as_ref().display(),
             target.display(),
         );
@@ -125,7 +125,7 @@ impl Mount {
 
     /// Unmounts a mount, optionally unmounting with the DETACH flag.
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
-        info!("libdistinst: unmounting {}", self.dest.display());
+        info!("unmounting {}", self.dest.display());
         if self.mounted {
             let result = umount(self.dest(), lazy);
             if result.is_ok() {

@@ -140,7 +140,7 @@ fn recovery_config(
             recovery_path = parent;
         }
 
-        info!("libdistinst: recovery disk found at {:?}", recovery_path);
+        info!("recovery disk found at {:?}", recovery_path);
         Disk::from_name(&recovery_path)
             .ok()
             .ok_or(InstallOptionError::DeviceNotFound {

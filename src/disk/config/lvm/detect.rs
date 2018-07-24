@@ -6,12 +6,12 @@ use misc::{concat_osstr, device_maps, read_dirs};
 /// will contain a list of physical volumes (ie: /dev/mapper/cryptroot) that need
 /// to be deactivated.
 pub(crate) fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec<PathBuf> {
-    info!("libdistinst: searching for device maps to deactivate");
+    info!("searching for device maps to deactivate");
     let mut discovered = Vec::new();
 
     device_maps(|pv| {
         info!(
-            "libdistinst: checking if {} needs to be marked",
+            "checking if {} needs to be marked",
             pv.display()
         );
 
@@ -29,7 +29,7 @@ pub(crate) fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec
                     .iter()
                     .any(|p| p.as_ref().file_name().expect("slave path does not have file name") == slave_path)
                 {
-                    info!("libdistinst: marking to deactivate {}", pv.display());
+                    info!("marking to deactivate {}", pv.display());
                     discovered.push(pv.to_path_buf());
                 }
             });

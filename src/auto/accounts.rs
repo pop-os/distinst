@@ -37,7 +37,7 @@ fn lines(input: &[u8]) -> HashMap<Vec<u8>, Vec<u8>> {
 
 impl AccountFiles {
     pub fn new(device: &Path, fs: FileSystemType) -> Result<AccountFiles, ReinstallError> {
-        info!("libdistinst: retrieving user account data");
+        info!("retrieving user account data");
         mount_and_then(device, fs, |base| {
             read(base.join("etc/passwd"))
                 .and_then(|p| read(base.join("etc/group")).map(|g| (p, g)))
@@ -73,7 +73,7 @@ impl AccountFiles {
         user_fields.and_then(|(user, group_id, home, passwd)| {
             let user_string = String::from_utf8_lossy(&user);
             info!(
-                "libdistinst: found user '{}' from home path at {}",
+                "found user '{}' from home path at {}",
                 user_string,
                 String::from_utf8_lossy(home)
             );
@@ -84,7 +84,7 @@ impl AccountFiles {
                 .find(|&(_, value)| group_has_id(&value, group_id))
                 .map(|(group, _)| {
                     info!(
-                        "libdistinst: found group '{}' associated with '{}'",
+                        "found group '{}' associated with '{}'",
                         user_string,
                         String::from_utf8_lossy(group)
                     );
