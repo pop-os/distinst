@@ -350,7 +350,7 @@ impl Disks {
     /// Sometimes, physical devices themselves may be mounted directly.
     pub fn unmount_devices(&self) -> Result<(), DiskError> {
         info!("libdistinst: unmounting devices");
-        self.physical.par_iter().map(|device| {
+        self.physical.iter().map(|device| {
             if let Some(mount) = device.get_mount_point() {
                 if mount != Path::new("/cdrom") {
                     info!(

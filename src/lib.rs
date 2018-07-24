@@ -27,7 +27,6 @@ extern crate serde_xml_rs;
 
 use disk::external::{blockdev, dmlist, pvs, remount_rw, vgactivate, vgdeactivate};
 use itertools::Itertools;
-use rayon::iter::IntoParallelRefMutIterator;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
@@ -281,6 +280,48 @@ impl Installer {
     ) -> io::Result<(PathBuf, Vec<String>)> {
         info!("Initializing");
 
+        let fetch_squashfs = || match Path::new(&config.squashfs).canonicalize() {
+            Ok(squashfs) => if squashfs.exists() {
+                info!("config.squashfs: found at {}", squashfs.display());
+                Ok(squashfs)
+            } else {
+                error!("config.squashfs: supplied file does not exist");
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "invalid squashfs path",
+                ))
+            },
+            Err(err) => {
+                error!("config.squashfs: {}", err);
+                Err(err)
+            }
+        };
+
+        let fetch_packages = || {
+            let mut remove_pkgs = Vec::new();
+            {
+                let file = match File::open(&config.remove) {
+                    Ok(file) => file,
+                    Err(err) => {
+                        error!("config.remove: {}", err);
+                        return Err(err);
+                    }
+                };
+
+                for line_res in io::BufReader::new(file).lines() {
+                    match line_res {
+                        Ok(line) => remove_pkgs.push(line),
+                        Err(err) => {
+                            error!("config.remove: {}", err);
+                            return Err(err);
+                        }
+                    }
+                }
+            }
+
+            Ok(remove_pkgs)
+        };
+
         let ((res_a, res_b), (res_c, res_d)): (
             (io::Result<()>, io::Result<Vec<String>>),
             (io::Result<()>, io::Result<PathBuf>)
@@ -301,54 +342,14 @@ impl Installer {
 
                     Ok(())
                 },
-                || {
-                    let mut remove_pkgs = Vec::new();
-                    {
-                        let file = match File::open(&config.remove) {
-                            Ok(file) => file,
-                            Err(err) => {
-                                error!("config.remove: {}", err);
-                                return Err(err);
-                            }
-                        };
-
-                        for line_res in io::BufReader::new(file).lines() {
-                            match line_res {
-                                Ok(line) => remove_pkgs.push(line),
-                                Err(err) => {
-                                    error!("config.remove: {}", err);
-                                    return Err(err);
-                                }
-                            }
-                        }
-                    }
-
-                    Ok(remove_pkgs)
-                }
+                fetch_packages
             ),
             || rayon::join(
                 || {
                     disks.verify_keyfile_paths()?;
                     Ok(())
                 },
-                || {
-                    match Path::new(&config.squashfs).canonicalize() {
-                        Ok(squashfs) => if squashfs.exists() {
-                            info!("config.squashfs: found at {}", squashfs.display());
-                            Ok(squashfs)
-                        } else {
-                            error!("config.squashfs: supplied file does not exist");
-                            Err(io::Error::new(
-                                io::ErrorKind::NotFound,
-                                "invalid squashfs path",
-                            ))
-                        },
-                        Err(err) => {
-                            error!("config.squashfs: {}", err);
-                            Err(err)
-                        }
-                    }
-                }
+                fetch_squashfs
             )
         );
 
@@ -360,7 +361,7 @@ impl Installer {
         let disks_ptr = &*disks as *const Disks;
         {
             let borrowed: &Disks = unsafe { &*disks_ptr };
-            disks.physical.par_iter_mut().map(|disk| {
+            disks.physical.iter_mut().map(|disk| {
                 // This will help us when we are testing in a dev environment.
                 if disk.contains_mount("/", borrowed) {
                     return Ok(());
@@ -560,6 +561,11 @@ impl Installer {
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
         let configure = configure_dir.path().join("configure.sh");
 
+        let install_pkgs: &mut Vec<&str> = &mut match bootloader {
+            Bootloader::Bios => vec!["grub-pc"],
+            Bootloader::Efi => vec!["kernelstub"],
+        };
+
         let configure_script = || {
             // Write the installer's intallation script to the chroot's temporary directory.
             info!("libdistinst: writing /tmp/configure.sh");
@@ -582,26 +588,46 @@ impl Installer {
 
         let generate_fstabs = || {
             let (crypttab, fstab) = disks.generate_fstabs();
-            info!("libdistinst: writing /etc/crypttab");
-            file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
 
-            info!("libdistinst: writing /etc/fstab");
-            file_create!(
-                mount_dir.join("etc/fstab"),
-                [FSTAB_HEADER, fstab.as_bytes()]
+            let (a, b) = rayon::join(
+                || {
+                    info!("libdistinst: writing /etc/crypttab");
+                    file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
+                    Ok(())
+                },
+                || {
+                    info!("libdistinst: writing /etc/fstab");
+                    file_create!(
+                        mount_dir.join("etc/fstab"),
+                        [FSTAB_HEADER, fstab.as_bytes()]
+                    );
+                    Ok(())
+                }
             );
 
-            Ok(())
+            a.and(b)
         };
 
-        {
-            let (res_a, (res_b, res_c)): (io::Result<()>, (io::Result<()>, io::Result<()>)) = rayon::join(
-                configure_script,
+        let disable_nvidia = {
+            let ((a, disable_nvidia), (b, c)): (
+                (io::Result<()>, io::Result<bool>),
+                (io::Result<()>, io::Result<()>)
+            ) = rayon::join(
+                || rayon::join(
+                    configure_script,
+                    || {
+                        if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
+                            hardware_support::append_packages(install_pkgs);
+                        }
+
+                        hardware_support::blacklist::disable_external_graphics(&mount_dir)
+                    }
+                ),
                 || rayon::join(lvm_autodetection, generate_fstabs)
             );
 
-            res_a.and(res_b).and(res_c)?;
-        }
+            a.and(b).and(c).and(disable_nvidia)?
+        };
 
         callback(60);
 
@@ -667,17 +693,6 @@ impl Installer {
 
             let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
-
-            let mut install_pkgs: Vec<&str> = match bootloader {
-                Bootloader::Bios => vec!["grub-pc"],
-                Bootloader::Efi => vec!["kernelstub"],
-            };
-
-            if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                hardware_support::append_packages(&mut install_pkgs);
-            }
-
-            let disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir)?;
 
             info!(
                 "libdistinst: will install {:?} bootloader packages",
