@@ -9,8 +9,7 @@ use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::{find_partition, find_partition_mut};
-use super::{detect_fs_on_device, Disk, LvmEncryption};
+use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PVS};
 use libparted::{Device, DeviceType};
 use misc::{get_uuid, from_uuid};
 
@@ -374,9 +373,26 @@ impl Disks {
                 | DeviceType::PED_DEVICE_LOOP
                 | DeviceType::PED_DEVICE_FILE
                 | DeviceType::PED_DEVICE_DM => continue,
-                _ => disks.add(Disk::new(&mut device)?),
+                _ => disks.add(Disk::new(&mut device, false)?),
             }
         }
+
+        // Collect all of the extended partition information for each contained
+        // partition in parallel.
+        let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
+        let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+
+        unsafe {
+            if PVS.is_none() {
+                PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
+            }
+        }
+
+        disks.physical.par_iter_mut()
+            .flat_map(|device| device.get_partitions_mut())
+            .for_each(|part| {
+                part.collect_extended_information(&mounts, &swaps);
+            });
 
         Ok(disks)
     }

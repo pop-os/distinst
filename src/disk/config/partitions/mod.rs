@@ -10,8 +10,9 @@ pub use self::limitations::check_partition_size;
 pub use self::os_detect::OS;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
+use super::PVS;
 use super::super::external::{get_label, is_encrypted};
-use super::super::{LvmEncryption, PartitionError};
+use super::super::{LvmEncryption, PartitionError, Mounts, Swaps};
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -190,6 +191,34 @@ impl PartitionInfo {
             volume_group: None,
             key_id: None,
         }))
+    }
+
+    pub(crate) fn collect_extended_information(&mut self, mounts: &Mounts, swaps: &Swaps) {
+        let device_path = &self.device_path;
+        let original_vg = unsafe {
+            PVS.as_ref()
+                .unwrap()
+                .get(device_path)
+                .and_then(|vg| vg.as_ref().cloned())
+        };
+
+        if let Some(ref vg) = original_vg.as_ref() {
+            info!("partition belongs to volume group '{}'", vg);
+        }
+
+        if self.filesystem.is_none() {
+            self.filesystem = if is_encrypted(device_path) {
+                Some(FileSystemType::Luks)
+            } else if original_vg.is_some() {
+                Some(FileSystemType::Lvm)
+            } else {
+                None
+            };
+        }
+
+        self.mount_point = mounts.get_mount_point(device_path);
+        self.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
+        self.original_vg = original_vg;
     }
 
     pub(crate) fn flag_is_enabled(&self, flag: u8) -> bool { self.bitflags & flag != 0 }

@@ -160,7 +160,7 @@ impl DiskExt for Disk {
 }
 
 impl Disk {
-    pub(crate) fn new(device: &mut Device) -> Result<Disk, DiskError> {
+    pub(crate) fn new(device: &mut Device, extended_partition_info: bool) -> Result<Disk, DiskError> {
         info!(
             "obtaining disk information from {}",
             device.path().display()
@@ -215,39 +215,17 @@ impl Disk {
                     }
                 }
 
-                unsafe {
-                    if PVS.is_none() {
-                        PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
+                if extended_partition_info {
+                    unsafe {
+                        if PVS.is_none() {
+                            PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
+                        }
                     }
+
+                    partitions.par_iter_mut().for_each(|part| {
+                        part.collect_extended_information(&mounts, &swaps);
+                    });
                 }
-
-                partitions.par_iter_mut().for_each(|part| {
-                    let device_path = &part.device_path;
-                    let original_vg = unsafe {
-                        PVS.as_ref()
-                            .unwrap()
-                            .get(device_path)
-                            .and_then(|vg| vg.as_ref().cloned())
-                    };
-
-                    if let Some(ref vg) = original_vg.as_ref() {
-                        info!("partition belongs to volume group '{}'", vg);
-                    }
-
-                    if part.filesystem.is_none() {
-                        part.filesystem = if is_encrypted(device_path) {
-                            Some(FileSystemType::Luks)
-                        } else if original_vg.is_some() {
-                            Some(FileSystemType::Lvm)
-                        } else {
-                            None
-                        };
-                    }
-
-                    part.mount_point = mounts.get_mount_point(device_path);
-                    part.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
-                    part.original_vg = original_vg;
-                });
 
                 partitions
             } else {
@@ -261,7 +239,7 @@ impl Disk {
     /// The `name` of the device should be a path, such as `/dev/sda`. If the device could
     /// not be found, then `Err(DiskError::DeviceGet)` will be returned.
     pub fn from_name<P: AsRef<Path>>(name: P) -> Result<Disk, DiskError> {
-        get_device(name).and_then(|mut device| Disk::new(&mut device))
+        get_device(name).and_then(|mut device| Disk::new(&mut device, true))
     }
 
     /// Obtains the disk that corresponds to a given serial model.
