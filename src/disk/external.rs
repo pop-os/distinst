@@ -1,7 +1,9 @@
 //! A collection of external commands used throughout the program.
 
-use super::config::lvm::deactivate_devices;
+use super::config::lvm::{deactivate_devices, physical_volumes_to_deactivate};
 use super::{FileSystemType, LvmEncryption};
+use disk::mount::{umount, swapoff};
+use disk::{Mounts, Swaps};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::{File, Permissions};
@@ -107,6 +109,34 @@ pub(crate) fn dmlist() -> io::Result<Vec<String>> {
     // Skip the first line of output
     let _ = reader.read_line(&mut current_line);
     current_line.clear();
+
+    while reader.read_line(&mut current_line)? != 0 {
+        {
+            let mut fields = current_line.split_whitespace();
+            if let Some(dm) = fields.next() {
+                output.push(dm.into());
+            }
+        }
+
+        current_line.clear();
+    }
+
+    Ok(output)
+}
+
+pub(crate) fn encrypted_devices() -> io::Result<Vec<String>> {
+    let mut current_line = String::with_capacity(64);
+    let mut output = Vec::new();
+
+    let mut reader = BufReader::new(
+        Command::new("dmsetup")
+            .args(&["ls", "--target", "crypt"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?
+            .stdout
+            .expect("failed to execute dmsetup command"),
+    );
 
     while reader.read_line(&mut current_line)? != 0 {
         {
@@ -278,16 +308,78 @@ fn append_newline(input: &[u8]) -> Vec<u8> {
     input
 }
 
-// TODO: Possibly use the cryptsetup crate instead of the cryptsetup command?
+/// Removes the given volume group from the system.
+fn vgremove(group: &str) -> io::Result<()> {
+    exec("vgremove", None, None, &["-ffy".into(), group.into()])
+}
+
+/// Removes the physical volume from the system.
+fn pvremove(physical_volume: &Path) -> io::Result<()> {
+    let args = &["-ffy".into(), physical_volume.into()];
+    exec("pvremove", None, None, args)
+}
+
+fn remove_encrypted_device(device: &Path) -> io::Result<()> {
+    let mounts = Mounts::new().expect("failed to get mounts in deactivate_device_maps");
+    let swaps = Swaps::new().expect("failed to get swaps in deactivate_device_maps");
+    let umount = move |vg: &str| -> io::Result<()> {
+        for lv in lvs(vg)? {
+            if let Some(mount) = mounts.get_mount_point(&lv) {
+                info!(
+                    "libdistinst: unmounting logical volume mounted at {}",
+                    mount.display()
+                );
+                umount(&mount, false)?;
+            } else if let Ok(lv) = lv.canonicalize() {
+                if swaps.get_swapped(&lv) {
+                    swapoff(&lv)?;
+                }
+            }
+        }
+
+        Ok(())
+    };
+
+    let volume_map = pvs()?;
+    let to_deactivate = physical_volumes_to_deactivate(&[device]);
+
+    for pv in &to_deactivate {
+        let dev = CloseBy::Path(&pv);
+        match volume_map.get(pv) {
+            Some(&Some(ref vg)) => umount(vg).and_then(|_| {
+                info!("removing pre-existing LUKS + LVM volumes on {:?}", device);
+                vgdeactivate(vg)
+                    .and_then(|_| vgremove(vg))
+                    .and_then(|_| pvremove(pv))
+                    .and_then(|_| cryptsetup_close(dev))
+            })?,
+            Some(&None) => {
+                cryptsetup_close(dev)?
+            }
+            None => (),
+        }
+    }
+
+    if let Some(ref vg) = volume_map.get(device).and_then(|x| x.as_ref()) {
+        info!("removing pre-existing LVM volumes on {:?}", device);
+        umount(vg)
+            .and_then(|_| vgremove(vg))?
+    }
+
+    Ok(())
+}
 
 /// Creates a LUKS partition from a physical partition. This could be either a LUKS on LVM
 /// configuration, or a LVM on LUKS configurations.
 pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
+    remove_encrypted_device(device)?;
+
     info!(
         "cryptsetup is encrypting {} with {:?}",
         device.display(),
         enc
     );
+
     match (enc.password.as_ref(), enc.keydata.as_ref()) {
         (Some(_password), Some(_keydata)) => unimplemented!(),
         (Some(password), None) => exec(
@@ -396,9 +488,17 @@ pub(crate) fn is_encrypted(device: &Path) -> bool {
     }
 }
 
+pub(crate) enum CloseBy<'a> {
+    Path(&'a Path),
+    Name(&'a str),
+}
+
 /// Closes an encrypted partition.
-pub(crate) fn cryptsetup_close(device: &Path) -> io::Result<()> {
-    let args = &["close".into(), device.into()];
+pub(crate) fn cryptsetup_close(device: CloseBy) -> io::Result<()> {
+    let args = &["close".into(), match device {
+        CloseBy::Path(path) => path.into(),
+        CloseBy::Name(name) => name.into(),
+    }];
     exec("cryptsetup", None, Some(&[4]), args)
 }
 

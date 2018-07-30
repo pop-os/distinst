@@ -26,7 +26,7 @@ extern crate tempdir;
 extern crate serde_derive;
 extern crate serde_xml_rs;
 
-use disk::external::{blockdev, dmlist, pvs, remount_rw, vgactivate, vgdeactivate};
+use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
 use disk::operations::FormatPartitions;
 use itertools::Itertools;
 use rayon::prelude::*;
@@ -130,6 +130,24 @@ pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
             .chain(std::io::stderr())
             .chain(fern::log_file("/tmp/installer.log")?))
         .apply()?;
+    Ok(())
+}
+
+pub fn deactivate_logical_devices() -> io::Result<()> {
+    for luks_pv in encrypted_devices()? {
+        info!("deactivating encrypted device named {}", luks_pv);
+        if let Some(vg) = pvs()?.get(&PathBuf::from(["/dev/mapper/", &luks_pv].concat())) {
+            match *vg {
+                Some(ref vg) => {
+                    vgdeactivate(vg).and_then(|_| cryptsetup_close(CloseBy::Name(&luks_pv)))?;
+                },
+                None => {
+                    cryptsetup_close(CloseBy::Name(&luks_pv))?;
+                },
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -423,11 +441,11 @@ impl Installer {
                         .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?
                     {
                         partitions_to_format.0.extend_from_slice(&partitions.0);
-                    }       
+                    }
                 }
 
                 partitions_to_format.format()?;
-                
+
                 // Optimization: possibly do this while formatting partitions?
                 for disk in &mut disks.physical {
                     disk.reload()?;

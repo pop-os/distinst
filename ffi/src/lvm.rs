@@ -1,4 +1,4 @@
-use distinst::{DiskExt, Disks, LvmDevice, PartitionBuilder, PartitionInfo, Sector};
+use distinst::{deactivate_logical_devices, DiskExt, Disks, LvmDevice, PartitionBuilder, PartitionInfo, Sector};
 use ffi::AsMutPtr;
 use libc;
 
@@ -6,6 +6,17 @@ use super::{get_str, null_check, DistinstDisks, DistinstPartition, DistinstParti
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_deactivate_logical_devices() -> libc::c_int {
+    match deactivate_logical_devices() {
+        Ok(()) => 0,
+        Err(why) => {
+            error!("unable to deactivate logical devices: {}", why);
+            -1
+        }
+    }
+}
 
 // Initializes the initial volume groups within the disks object.
 #[no_mangle]
