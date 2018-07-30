@@ -122,6 +122,34 @@ pub(crate) fn dmlist() -> io::Result<Vec<String>> {
     Ok(output)
 }
 
+pub(crate) fn encrypted_devices() -> io::Result<Vec<String>> {
+    let mut current_line = String::with_capacity(64);
+    let mut output = Vec::new();
+
+    let mut reader = BufReader::new(
+        Command::new("dmsetup")
+            .arg("ls")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?
+            .stdout
+            .expect("failed to execute dmsetup command"),
+    );
+
+    while reader.read_line(&mut current_line)? != 0 {
+        {
+            let mut fields = current_line.split_whitespace();
+            if let Some(dm) = fields.next() {
+                output.push(dm.into());
+            }
+        }
+
+        current_line.clear();
+    }
+
+    Ok(output)
+}
+
 fn swap_exists(path: &Path) -> bool {
     Command::new("swaplabel").arg(path).status().ok().map_or(false, |stat| stat.success())
 }
@@ -227,11 +255,6 @@ pub(crate) fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(
         args.extend(devices.map(|x| x.as_ref().into()));
         args
     })
-}
-
-/// Removes the given volume group from the system.
-pub(crate) fn vgremove(group: &str) -> io::Result<()> {
-    exec("vgremove", None, None, &["-ffy".into(), group.into()])
 }
 
 /// Used to create a logical volume on a volume group.
@@ -401,9 +424,17 @@ pub(crate) fn is_encrypted(device: &Path) -> bool {
     }
 }
 
+pub(crate) enum CloseBy<'a> {
+    Path(&'a Path),
+    Name(&'a str),
+}
+
 /// Closes an encrypted partition.
-pub(crate) fn cryptsetup_close(device: &Path) -> io::Result<()> {
-    let args = &["close".into(), device.into()];
+pub(crate) fn cryptsetup_close(device: CloseBy) -> io::Result<()> {
+    let args = &["close".into(), match device {
+        CloseBy::Path(path) => path.into(),
+        CloseBy::Name(name) => name.into(),
+    }];
     exec("cryptsetup", None, Some(&[4]), args)
 }
 
@@ -419,12 +450,6 @@ pub(crate) fn vgdeactivate(volume_group: &str) -> io::Result<()> {
     info!("libdistinst: deactivating '{}'", volume_group);
     let args = &["-ffyan".into(), volume_group.into()];
     exec("vgchange", None, None, args)
-}
-
-/// Removes the physical volume from the system.
-pub(crate) fn pvremove(physical_volume: &Path) -> io::Result<()> {
-    let args = &["-ffy".into(), physical_volume.into()];
-    exec("pvremove", None, None, args)
 }
 
 /// Obtains the file system on a partition via blkid

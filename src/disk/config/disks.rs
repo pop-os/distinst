@@ -1,5 +1,5 @@
 use super::super::external::{
-    cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove,
+    cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
@@ -215,16 +215,15 @@ impl Disks {
 
         // Handle LVM on LUKS
         for pv in &pvs {
+            let device = CloseBy::Path(&pv);
             match volume_map.get(pv) {
                 Some(&Some(ref vg)) => umount(vg).and_then(|_| {
                     vgdeactivate(vg)
-                        .and_then(|_| vgremove(vg))
-                        .and_then(|_| pvremove(pv))
-                        .and_then(|_| cryptsetup_close(pv))
+                        .and_then(|_| cryptsetup_close(device))
                         .map_err(|why| DiskError::ExternalCommand { why })
                 })?,
                 Some(&None) => {
-                    cryptsetup_close(pv).map_err(|why| DiskError::ExternalCommand { why })?
+                    cryptsetup_close(device).map_err(|why| DiskError::ExternalCommand { why })?
                 }
                 None => (),
             }
@@ -238,7 +237,7 @@ impl Disks {
         {
             if let Some(ref vg) = *entry {
                 umount(vg)
-                    .and_then(|_| vgremove(vg).map_err(|why| DiskError::ExternalCommand { why }))?;
+                    .and_then(|_| vgdeactivate(vg).map_err(|why| DiskError::ExternalCommand { why }))?;
             }
         }
 
@@ -305,7 +304,7 @@ impl Disks {
                     }
 
                     // Attempt to close the device as we've failed to find a VG.
-                    let _ = cryptsetup_close(pv);
+                    let _ = cryptsetup_close(CloseBy::Path(&pv));
 
                     // NOTE: Should we handle this in some way?
                     Err(DecryptionError::DecryptedLacksVG { device: path.to_path_buf() })
