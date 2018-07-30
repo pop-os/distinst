@@ -128,7 +128,7 @@ pub(crate) fn encrypted_devices() -> io::Result<Vec<String>> {
 
     let mut reader = BufReader::new(
         Command::new("dmsetup")
-            .arg("ls")
+            .args(&["ls", "--type", "crypt"])
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()?
