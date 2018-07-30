@@ -117,8 +117,13 @@ pub fn deactivate_logical_devices() -> io::Result<()> {
     for luks_pv in encrypted_devices()? {
         info!("deactivating encrypted device named {}", luks_pv);
         if let Some(vg) = pvs()?.get(&PathBuf::from(["/dev/mapper/", &luks_pv].concat())) {
-            if let Some(ref vg) = *vg {
-                vgdeactivate(vg).and_then(|_| cryptsetup_close(CloseBy::Name(&luks_pv)))?;
+            match *vg {
+                Some(ref vg) => {
+                    vgdeactivate(vg).and_then(|_| cryptsetup_close(CloseBy::Name(&luks_pv)))?;
+                },
+                None => {
+                    cryptsetup_close(CloseBy::Name(&luks_pv))?;
+                },
             }
         }
     }
