@@ -44,6 +44,8 @@ update-locale --reset "LANG=${LANG}"
 
 # Set keyboard settings system-wide
 localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
+SYSTEMCTL_SKIP_REDIRECT=_ openvt -- sh /etc/init.d/console-setup.sh reload
+ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz
 
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"

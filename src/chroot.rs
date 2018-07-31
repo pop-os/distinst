@@ -49,6 +49,9 @@ impl Chroot {
         cmd: S,
         args: I,
     ) -> Result<ExitStatus> {
+        // Ensure that localectl writes to the chroot, instead.
+        let _etc_mount = Mount::new(&self.path.join("etc"), "/etc", "none", BIND, None)?;
+
         let mut command = Command::new("chroot");
         command.arg(&self.path);
         command.arg(cmd.as_ref());
