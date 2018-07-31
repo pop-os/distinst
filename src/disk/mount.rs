@@ -81,13 +81,14 @@ impl Mount {
     /// The `fstype` should contain the file system that will be used, such as `"ext4"`,
     /// or `"vfat"`. If a file system is not valid in the context which the mount is used,
     /// then the value should be `"none"` (as in a binding).
-    pub fn new<P: AsRef<Path>>(
-        src: P,
-        target: &Path,
+    pub fn new<S: AsRef<Path>, T: AsRef<Path>>(
+        src: S,
+        target: T,
         fstype: &str,
         flags: c_ulong,
         options: Option<&str>,
     ) -> Result<Mount> {
+        let target = target.as_ref();
         info!(
             "libdistinst: mounting {} to {}",
             src.as_ref().display(),
