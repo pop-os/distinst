@@ -7,6 +7,7 @@ extern crate derive_new;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
+extern crate fern;
 extern crate itertools;
 #[macro_use]
 extern crate lazy_static;
@@ -18,6 +19,7 @@ extern crate gettextrs;
 extern crate iso3166_1;
 extern crate isolang;
 extern crate rand;
+extern crate rayon;
 extern crate raw_cpuid;
 extern crate tempdir;
 #[macro_use]
@@ -25,7 +27,9 @@ extern crate serde_derive;
 extern crate serde_xml_rs;
 
 use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
+use disk::operations::FormatPartitions;
 use itertools::Itertools;
+use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
@@ -55,13 +59,13 @@ mod envfile;
 mod hardware_support;
 pub mod hostname;
 pub mod locale;
-mod logger;
 mod misc;
 pub mod os_release;
 mod squashfs;
 
 use auto::{validate_before_removing, AccountFiles, Backup, ReinstallError};
 use envfile::EnvFile;
+use log::LevelFilter;
 
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
@@ -97,20 +101,36 @@ macro_rules! file_create {
     }};
 }
 
-/// Initialize logging
-pub fn log<F: Fn(log::LogLevel, &str) + Send + Sync + 'static>(
+/// Initialize logging with the fern logger
+pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
     callback: F,
-) -> Result<(), log::SetLoggerError> {
-    match log::set_logger(|max_log_level| {
-        max_log_level.set(log::LogLevelFilter::Debug);
-        Box::new(logger::Logger::new(callback))
-    }) {
-        Ok(()) => {
-            info!("Logging enabled");
-            Ok(())
-        }
-        Err(err) => Err(err),
-    }
+) -> Result<(), fern::InitError> {
+    fern::Dispatch::new()
+        // Exclude logs for crates that we use
+        .level(LevelFilter::Off)
+        // Include only the logs for this binary
+        .level_for("distinst", LevelFilter::Debug)
+        // This will be used by the front end for display logs in a UI
+        .chain(fern::Output::call(move |record| {
+            callback(record.level(), &format!("{}", record.args()))
+        }))
+        // Whereas this will handle displaying the logs to the terminal & a log file
+        .chain(fern::Dispatch::new()
+            .format(|out, message, record| {
+                out.finish(format_args!(
+                    "[{}] {}: {}",
+                    record.level(),
+                    {
+                        let target = record.target();
+                        target.find(':').map_or(target, |pos| &target[..pos])
+                    },
+                    message
+                ))
+            })
+            .chain(std::io::stderr())
+            .chain(fern::log_file("/tmp/installer.log")?))
+        .apply()?;
+    Ok(())
 }
 
 pub fn deactivate_logical_devices() -> io::Result<()> {
@@ -296,73 +316,100 @@ impl Installer {
     ) -> io::Result<(PathBuf, Vec<String>)> {
         info!("Initializing");
 
-        // Deactivate any open logical volumes & close any encrypted partitions.
-        if let Err(why) = disks.deactivate_device_maps() {
-            error!("lvm deactivation error: {}", why);
-            return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-        }
-
-        // Unmount any mounted devices.
-        if let Err(why) = disks.unmount_devices() {
-            error!("device unmount error: {}", why);
-            return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-        }
-
-        let squashfs = match Path::new(&config.squashfs).canonicalize() {
+        let fetch_squashfs = || match Path::new(&config.squashfs).canonicalize() {
             Ok(squashfs) => if squashfs.exists() {
                 info!("config.squashfs: found at {}", squashfs.display());
-                squashfs
+                Ok(squashfs)
             } else {
                 error!("config.squashfs: supplied file does not exist");
-                return Err(io::Error::new(
+                Err(io::Error::new(
                     io::ErrorKind::NotFound,
                     "invalid squashfs path",
-                ));
+                ))
             },
             Err(err) => {
                 error!("config.squashfs: {}", err);
-                return Err(err);
+                Err(err)
             }
         };
 
-        disks.verify_keyfile_paths()?;
-
-        callback(20);
-
-        let disks_ptr = &*disks as *const Disks;
-        for disk in disks.get_physical_devices_mut() {
-            // This will help us when we are testing in a dev environment.
-            if disk.contains_mount("/", unsafe { &*disks_ptr }) {
-                continue
-            }
-
-            if let Err(why) = disk.unmount_all_partitions_with_target() {
-                error!("unable to unmount partitions");
-                return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-            }
-        }
-
-        callback(80);
-
-        let mut remove_pkgs = Vec::new();
-        {
-            let file = match File::open(&config.remove) {
-                Ok(file) => file,
-                Err(err) => {
-                    error!("config.remove: {}", err);
-                    return Err(err);
-                }
-            };
-
-            for line_res in io::BufReader::new(file).lines() {
-                match line_res {
-                    Ok(line) => remove_pkgs.push(line),
+        let fetch_packages = || {
+            let mut remove_pkgs = Vec::new();
+            {
+                let file = match File::open(&config.remove) {
+                    Ok(file) => file,
                     Err(err) => {
                         error!("config.remove: {}", err);
                         return Err(err);
                     }
+                };
+
+                for line_res in io::BufReader::new(file).lines() {
+                    match line_res {
+                        Ok(line) => remove_pkgs.push(line),
+                        Err(err) => {
+                            error!("config.remove: {}", err);
+                            return Err(err);
+                        }
+                    }
                 }
             }
+
+            Ok(remove_pkgs)
+        };
+
+        let ((res_a, res_b), (res_c, res_d)): (
+            (io::Result<()>, io::Result<Vec<String>>),
+            (io::Result<()>, io::Result<PathBuf>)
+        ) = rayon::join(
+            || rayon::join(
+                || {
+                    // Deactivate any open logical volumes & close any encrypted partitions.
+                    if let Err(why) = disks.deactivate_device_maps() {
+                        error!("lvm deactivation error: {}", why);
+                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
+                    }
+
+                    // Unmount any mounted devices.
+                    if let Err(why) = disks.unmount_devices() {
+                        error!("device unmount error: {}", why);
+                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
+                    }
+
+                    Ok(())
+                },
+                fetch_packages
+            ),
+            || rayon::join(
+                || {
+                    disks.verify_keyfile_paths()?;
+                    Ok(())
+                },
+                fetch_squashfs
+            )
+        );
+
+        let (remove_pkgs, squashfs) = res_a
+            .and(res_c)
+            .and(res_b)
+            .and_then(|pkgs| res_d.map(|squashfs| (pkgs, squashfs)))?;
+
+        let disks_ptr = &*disks as *const Disks;
+        {
+            let borrowed: &Disks = unsafe { &*disks_ptr };
+            disks.physical.iter_mut().map(|disk| {
+                // This will help us when we are testing in a dev environment.
+                if disk.contains_mount("/", borrowed) {
+                    return Ok(());
+                }
+
+                if let Err(why) = disk.unmount_all_partitions_with_target() {
+                    error!("unable to unmount partitions");
+                    return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
+                }
+
+                Ok(())
+            }).collect::<io::Result<()>>()?;
         }
 
         callback(100);
@@ -373,20 +420,44 @@ impl Installer {
     /// Apply all partitioning and formatting changes to the disks
     /// configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
-        for disk in disks.get_physical_devices_mut() {
-            info!(
-                "libdistinst: {}: Committing changes to disk",
-                disk.path().display()
-            );
-            disk.commit()
-                .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
-            callback(100);
-        }
+        let (pvs_result, commit_result): (
+            io::Result<BTreeMap<PathBuf, Option<String>>>,
+            io::Result<()>
+        ) = rayon::join(
+            || {
+                // This collection of physical volumes and their optional volume groups
+                // will be used to obtain a list of volume groups associated with our
+                // modified partitions.
+                pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
+            },
+            || {
+                // Perform layout changes serially, due to libparted thread safety issues,
+                // and collect a list of partitions to format which can be done in parallel.
+                // Once partitions have been formatted in parallel, reload the disk configuration.
+                let mut partitions_to_format = FormatPartitions(Vec::new());
+                for disk in disks.get_physical_devices_mut() {
+                    info!("{}: Committing changes to disk", disk.path().display());
+                    if let Some(partitions) = disk.commit()
+                        .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?
+                    {
+                        partitions_to_format.0.extend_from_slice(&partitions.0);
+                    }
+                }
 
-        // This collection of physical volumes and their optional volume groups
-        // will be used to obtain a list of volume groups associated with our
-        // modified partitions.
-        let pvs = pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?;
+                partitions_to_format.format()?;
+
+                // Optimization: possibly do this while formatting partitions?
+                for disk in &mut disks.physical {
+                    disk.reload()?;
+                }
+
+                Ok(())
+            }
+        );
+
+        let pvs = commit_result.and(pvs_result)?;
+
+        callback(100);
 
         // Utilizes the physical volume collection to generate a vector of volume
         // groups which we will need to deactivate pre-`blockdev`, and will be
@@ -415,9 +486,9 @@ impl Installer {
 
         // This is to ensure that everything's been written and the OS is ready to
         // proceed.
-        for disk in disks.get_physical_devices() {
+        disks.physical.par_iter().for_each(|disk| {
             let _ = blockdev(&disk.path(), &["--flushbufs", "--rereadpt"]);
-        }
+        });
 
         // Give a bit of time to ensure that logical volumes can be re-activated.
         sleep(Duration::from_secs(1));
@@ -505,7 +576,7 @@ impl Installer {
             }
 
             info!(
-                "libdistinst: mounting {} to {}, with {}",
+                "mounting {} to {}, with {}",
                 device_path.display(),
                 target_mount.display(),
                 filesystem
@@ -529,7 +600,7 @@ impl Installer {
         mount_dir: P,
         callback: F,
     ) -> io::Result<()> {
-        info!("libdistinst: Extracting {}", squashfs.as_ref().display());
+        info!("Extracting {}", squashfs.as_ref().display());
         squashfs::extract(squashfs, mount_dir, callback)?;
 
         Ok(())
@@ -545,50 +616,83 @@ impl Installer {
         mut callback: F,
     ) -> io::Result<()> {
         let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
-        info!("libdistinst: Configuring on {}", mount_dir.display());
+        info!("Configuring on {}", mount_dir.display());
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
         let configure = configure_dir.path().join("configure.sh");
 
-        {
+        let install_pkgs: &mut Vec<&str> = &mut match bootloader {
+            Bootloader::Bios => vec!["grub-pc"],
+            Bootloader::Efi => vec!["kernelstub"],
+        };
+
+        let configure_script = || {
             // Write the installer's intallation script to the chroot's temporary directory.
-            info!("libdistinst: writing /tmp/configure.sh");
+            info!("writing /tmp/configure.sh");
             file_create!(&configure, [include_bytes!("scripts/configure.sh")]);
-        }
+            Ok(())
+        };
 
-        callback(15);
-
-        {
+        let lvm_autodetection = || {
             // Ubuntu's LVM auto-detection doesn't seem to work for activating root volumes.
-            info!("libdistinst: applying LVM initramfs autodetect workaround");
+            info!("applying LVM initramfs autodetect workaround");
             fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
             let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
             file_create!(
                 lvm_fix,
                 0o1755,
                 [include_bytes!("scripts/lvm-workaround.sh")]
-            )
-        }
+            );
+            Ok(())
+        };
 
-        callback(30);
-
-        {
+        let generate_fstabs = || {
             let (crypttab, fstab) = disks.generate_fstabs();
 
-            info!("libdistinst: writing /etc/crypttab");
-            file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
-
-            info!("libdistinst: writing /etc/fstab");
-            file_create!(
-                mount_dir.join("etc/fstab"),
-                [FSTAB_HEADER, fstab.as_bytes()]
+            let (a, b) = rayon::join(
+                || {
+                    info!("writing /etc/crypttab");
+                    file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
+                    Ok(())
+                },
+                || {
+                    info!("writing /etc/fstab");
+                    file_create!(
+                        mount_dir.join("etc/fstab"),
+                        [FSTAB_HEADER, fstab.as_bytes()]
+                    );
+                    Ok(())
+                }
             );
-        }
+
+            a.and(b)
+        };
+
+        let disable_nvidia = {
+            let ((a, disable_nvidia), (b, c)): (
+                (io::Result<()>, io::Result<bool>),
+                (io::Result<()>, io::Result<()>)
+            ) = rayon::join(
+                || rayon::join(
+                    configure_script,
+                    || {
+                        if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
+                            hardware_support::append_packages(install_pkgs);
+                        }
+
+                        hardware_support::blacklist::disable_external_graphics(&mount_dir)
+                    }
+                ),
+                || rayon::join(lvm_autodetection, generate_fstabs)
+            );
+
+            a.and(b).and(c).and(disable_nvidia)?
+        };
 
         callback(60);
 
         {
             info!(
-                "libdistinst: chrooting into target on {}",
+                "chrooting into target on {}",
                 mount_dir.display()
             );
             let mut chroot = Chroot::new(&mount_dir)?;
@@ -608,7 +712,7 @@ impl Installer {
             use std::iter;
 
             let root_entry = {
-                info!("libdistinst: retrieving root partition");
+                info!("retrieving root partition");
                 disks
                     .get_physical_devices()
                     .iter()
@@ -649,19 +753,8 @@ impl Installer {
             let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
 
-            let mut install_pkgs: Vec<&str> = match bootloader {
-                Bootloader::Bios => vec!["grub-pc"],
-                Bootloader::Efi => vec!["kernelstub"],
-            };
-
-            if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                hardware_support::append_packages(&mut install_pkgs);
-            }
-
-            let disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir)?;
-
             info!(
-                "libdistinst: will install {:?} bootloader packages",
+                "will install {:?} bootloader packages",
                 install_pkgs
             );
 
@@ -882,7 +975,7 @@ impl Installer {
         let account_files;
 
         let backup = if let Some(ref old_root_uuid) = config.old_root {
-            info!("libdistinst: installing while retaining home");
+            info!("installing while retaining home");
 
             let current_disks =
                 Disks::probe_devices().map_err(|why| ReinstallError::DiskProbe { why })?;
@@ -954,9 +1047,8 @@ impl Installer {
 
                 apply_step!($msg, $action);
             }};
-            // When a step is not provided, the program will simply
             ($msg:expr, $action:expr) => {{
-                info!("libdistinst: starting {} step", $msg);
+                info!("starting {} step", $msg);
                 match $action {
                     Ok(value) => value,
                     Err(err) => {
@@ -978,10 +1070,10 @@ impl Installer {
                     status.percent = percent;
                     self.emit_status(status);
                 }
-            };
+            }
         }
 
-        info!("libdistinst: installing {:?} with {:?}", config, bootloader);
+        info!("installing {:?} with {:?}", config, bootloader);
         self.emit_status(status);
 
         let (squashfs, remove_pkgs) = apply_step!("initializing", {
@@ -995,7 +1087,7 @@ impl Installer {
         // Mount the temporary directory, and all of our mount targets.
         const CHROOT_ROOT: &str = "distinst";
         info!(
-            "libdistinst: mounting temporary chroot directory at {}",
+            "mounting temporary chroot directory at {}",
             CHROOT_ROOT
         );
 
@@ -1006,7 +1098,7 @@ impl Installer {
                 let mut mounts = Installer::mount(&disks, mount_dir.path())?;
 
                 if PARTITIONING_TEST.load(Ordering::SeqCst) {
-                    info!("libdistinst: PARTITION_TEST enabled: exiting before unsquashing");
+                    info!("PARTITION_TEST enabled: exiting before unsquashing");
                     return Ok(());
                 }
 
@@ -1050,7 +1142,7 @@ impl Installer {
     /// let disks = installer.disks().unwrap();
     /// ```
     pub fn disks(&self) -> io::Result<Disks> {
-        info!("libdistinst: probing disks on system");
+        info!("probing disks on system");
         Disks::probe_devices()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
     }
@@ -1063,7 +1155,7 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
             let full_path = entry.path();
             if let Some(path) = entry.file_name().to_str() {
                 if path.ends_with(uuid) {
-                    info!("libdistinst: removing old boot files for {}", path);
+                    info!("removing old boot files for {}", path);
                     fs::remove_dir_all(&full_path)?;
                 }
             }

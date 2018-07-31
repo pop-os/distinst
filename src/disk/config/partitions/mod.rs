@@ -10,9 +10,9 @@ pub use self::limitations::check_partition_size;
 pub use self::os_detect::OS;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
-use super::super::external::{get_label, is_encrypted, pvs};
-use super::super::{LvmEncryption, Mounts, Swaps, PartitionError};
 use super::PVS;
+use super::super::external::{get_label, is_encrypted};
+use super::super::{LvmEncryption, PartitionError, Mounts, Swaps};
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -156,59 +156,28 @@ pub struct PartitionInfo {
 }
 
 impl PartitionInfo {
-    pub fn new_from_ped(partition: &Partition) -> io::Result<Option<PartitionInfo>> {
+    pub(crate) fn new_from_ped(partition: &Partition) -> io::Result<Option<PartitionInfo>> {
         let device_path = partition.get_path()
             .expect("unable to get path from ped partition")
             .to_path_buf();
         info!(
-            "libdistinst: obtaining partition information from {}",
+            "obtaining partition information from {}",
             device_path.display()
         );
-        let mounts = Mounts::new()?;
-        let swaps = Swaps::new()?;
-
-        let original_vg = unsafe {
-            if PVS.is_none() {
-                PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
-            }
-
-            PVS.as_ref()
-                .unwrap()
-                .get(&device_path)
-                .and_then(|vg| vg.as_ref().cloned())
-        };
-
-        if let Some(ref vg) = original_vg.as_ref() {
-            info!("libdistinst: partition belongs to volume group '{}'", vg);
-        }
 
         let filesystem = partition
             .fs_type_name()
-            .and_then(|name| FileSystemType::from_str(name).ok())
-            .or_else(|| {
-                if is_encrypted(&device_path) {
-                    Some(FileSystemType::Luks)
-                } else if original_vg.is_some() {
-                    Some(FileSystemType::Lvm)
-                } else {
-                    None
-                }
-            });
+            .and_then(|name| FileSystemType::from_str(name).ok());
 
         Ok(Some(PartitionInfo {
             bitflags: SOURCE | if partition.is_active() { ACTIVE } else { 0 }
-                | if partition.is_busy() { BUSY } else { 0 }
-                | if swaps.get_swapped(&device_path) {
-                    SWAPPED
-                } else {
-                    0
-                },
+                | if partition.is_busy() { BUSY } else { 0 },
             part_type: match partition.type_get_name() {
                 "primary" => PartitionType::Primary,
                 "logical" => PartitionType::Logical,
                 _ => return Ok(None),
             },
-            mount_point: mounts.get_mount_point(&device_path),
+            mount_point: None,
             target: None,
             filesystem,
             flags: get_flags(partition),
@@ -218,10 +187,38 @@ impl PartitionInfo {
             device_path,
             start_sector: partition.geom_start() as u64,
             end_sector: partition.geom_end() as u64,
-            original_vg,
+            original_vg: None,
             volume_group: None,
             key_id: None,
         }))
+    }
+
+    pub(crate) fn collect_extended_information(&mut self, mounts: &Mounts, swaps: &Swaps) {
+        let device_path = &self.device_path;
+        let original_vg = unsafe {
+            PVS.as_ref()
+                .unwrap()
+                .get(device_path)
+                .and_then(|vg| vg.as_ref().cloned())
+        };
+
+        if let Some(ref vg) = original_vg.as_ref() {
+            info!("partition belongs to volume group '{}'", vg);
+        }
+
+        if self.filesystem.is_none() {
+            self.filesystem = if is_encrypted(device_path) {
+                Some(FileSystemType::Luks)
+            } else if original_vg.is_some() {
+                Some(FileSystemType::Lvm)
+            } else {
+                None
+            };
+        }
+
+        self.mount_point = mounts.get_mount_point(device_path);
+        self.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
+        self.original_vg = original_vg;
     }
 
     pub(crate) fn flag_is_enabled(&self, flag: u8) -> bool { self.bitflags & flag != 0 }
@@ -351,7 +348,7 @@ impl PartitionInfo {
     /// generating entries in "/etc/fstab".
     pub(crate) fn get_block_info(&self) -> Option<BlockInfo> {
         info!(
-            "libdistinst: getting block information for partition at {}",
+            "getting block information for partition at {}",
             self.device_path.display()
         );
 

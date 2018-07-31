@@ -160,7 +160,7 @@ pub trait DiskExt {
         // Ensure that the values aren't already contained within an existing partition.
         if !Self::LOGICAL && builder.part_type != PartitionType::Extended {
             info!(
-                "libdistinst: checking if {}:{} overlaps",
+                "checking if {}:{} overlaps",
                 builder.start_sector, builder.end_sector
             );
 
@@ -183,7 +183,7 @@ pub trait DiskExt {
         // Perform partition table & MSDOS restriction tests.
         match self.validate_partition_table(builder.part_type) {
             Err(PartitionError::PrimaryPartitionsExceeded) => {
-                info!("libdistinst: primary partitions exceeded, resolving");
+                info!("primary partitions exceeded, resolving");
                 builder.part_type = PartitionType::Logical;
             }
             Ok(()) => (),
@@ -191,7 +191,7 @@ pub trait DiskExt {
         };
 
         if builder.part_type == PartitionType::Logical && !self.extended_exists() {
-            info!("libdistinst: adding extended partition");
+            info!("adding extended partition");
             let part = PartitionBuilder::new(
                 builder.start_sector,
                 self.get_partition_after(builder.start_sector)

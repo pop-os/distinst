@@ -4,6 +4,17 @@ use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Result};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+
+use misc::watch_and_set;
+
+lazy_static! {
+    pub(crate) static ref MOUNTS: Arc<RwLock<Mounts>> = {
+        let mounts = Arc::new(RwLock::new(Mounts::new().unwrap()));
+        watch_and_set(mounts.clone(), "/proc/mounts", || Mounts::new().ok());
+        mounts
+    };
+}
 
 /// A mount entry which contains information regarding how and where a device
 /// is mounted.

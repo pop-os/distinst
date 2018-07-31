@@ -8,7 +8,7 @@ pub use self::encryption::LvmEncryption;
 use super::super::external::{
     blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
 };
-use super::super::mounts::Mounts;
+use super::super::mounts::MOUNTS;
 use super::super::{
     DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
     PartitionType, FORMAT, REMOVE, SOURCE,
@@ -104,9 +104,7 @@ impl LvmDevice {
         is_source: bool,
     ) -> LvmDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group.replace("-", "--")));
-
-        // TODO: Optimize this so it's not called for each disk.
-        let mounts = Mounts::new().expect("unable to get mounts within LvmDevice::new");
+        let mounts = MOUNTS.read().expect("unable to get mounts within LvmDevice::new");
 
         LvmDevice {
             model_name: ["LVM ", &volume_group].concat(),
@@ -168,7 +166,7 @@ impl LvmDevice {
     }
 
     pub fn add_partitions(&mut self) {
-        info!("libdistinst: adding partitions to LVM device");
+        info!("adding partitions to LVM device");
         let mut start_sector = 0;
         let _ = vgactivate(&self.volume_group);
         if let Ok(logical_paths) = lvs(&self.volume_group) {
@@ -177,7 +175,7 @@ impl LvmDevice {
                 let mut nth = 0;
                 while !path.exists() {
                     info!(
-                        "libdistinst: waiting 1 second because {:?} does not exist yet",
+                        "waiting 1 second because {:?} does not exist yet",
                         path
                     );
                     if nth == 5 {

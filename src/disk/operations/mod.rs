@@ -12,11 +12,13 @@ use libparted::{
 };
 use std::path::Path;
 use misc;
+use rayon::prelude::*;
+
 
 /// Removes a partition at the given sector from the disk.
 fn remove_partition_by_sector(disk: &mut PedDisk, sector: u64) -> Result<(), DiskError> {
     info!(
-        "libdistinst: removing partition at sector {} on {}",
+        "removing partition at sector {} on {}",
         sector,
         unsafe { disk.get_device().path().display() }
     );
@@ -26,7 +28,7 @@ fn remove_partition_by_sector(disk: &mut PedDisk, sector: u64) -> Result<(), Dis
 
 fn remove_partition_by_number(disk: &mut PedDisk, num: u32) -> Result<(), DiskError> {
     info!(
-        "libdistinst: removing partition {} on {}",
+        "removing partition {} on {}",
         num,
         unsafe { disk.get_device().path().display() }
     );
@@ -39,7 +41,7 @@ fn remove_partition_by_number(disk: &mut PedDisk, num: u32) -> Result<(), DiskEr
 
 /// Obtains a partition from the disk by its ID.
 fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a>, DiskError> {
-    info!("libdistinst: getting partition {} on {}", part, unsafe {
+    info!("getting partition {} on {}", part, unsafe {
         disk.get_device().path().display()
     });
     disk.get_partition(part)
@@ -50,12 +52,12 @@ fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> Result<PedPartition<'a
 
 /// Writes a new partition table to the disk, clobbering it in the process.
 fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), DiskError> {
-    info!("libdistinst: zeroing 1-2048 sectors of {}", device_path.as_ref().display());
+    info!("zeroing 1-2048 sectors of {}", device_path.as_ref().display());
     let _ = misc::zero(&device_path, 2047, 1);
     let _ = wipefs(&device_path);
 
     info!(
-        "libdistinst: writing {:?} table on {}",
+        "writing {:?} table on {}",
         kind,
         device_path.as_ref().display()
     );
@@ -99,7 +101,7 @@ impl<'a> DiskOps<'a> {
     /// generated
     pub(crate) fn remove(self) -> Result<ChangePartitions<'a>, DiskError> {
         info!(
-            "libdistinst: {}: executing remove operations",
+            "{}: executing remove operations",
             self.device_path.display(),
         );
 
@@ -119,12 +121,12 @@ impl<'a> DiskOps<'a> {
 
             if changes_required {
                 info!(
-                    "libdistinst: attempting to remove partitions from {}",
+                    "attempting to remove partitions from {}",
                     self.device_path.display()
                 );
                 commit(&mut disk)?;
                 info!(
-                    "libdistinst: successfully removed partitions from {}",
+                    "successfully removed partitions from {}",
                     self.device_path.display()
                 );
             }
@@ -152,7 +154,7 @@ impl<'a> ChangePartitions<'a> {
     /// modified.
     pub(crate) fn change(self) -> Result<CreatePartitions<'a>, DiskError> {
         info!(
-            "libdistinst: {}: executing change operations",
+            "{}: executing change operations",
             self.device_path.display(),
         );
 
@@ -197,7 +199,7 @@ impl<'a> ChangePartitions<'a> {
 
                 // If the partition needs to be resized/moved, this will execute.
                 if end != change.end || start != change.start {
-                    info!("libdistinst: {} will be resized", change.path.display());
+                    info!("{} will be resized", change.path.display());
                     resize_partitions.push((
                         change.clone(),
                         ResizeOperation::new(
@@ -212,7 +214,7 @@ impl<'a> ChangePartitions<'a> {
 
             if flags_changed || name_changed {
                 if name_changed {
-                    info!("libdistinst: renaming {}", change.num);
+                    info!("renaming {}", change.num);
                 }
 
                 commit(&mut disk)?;
@@ -276,13 +278,13 @@ impl<'a> CreatePartitions<'a> {
     /// If any new partitions were specified, they will be created here.
     pub(crate) fn create(mut self) -> Result<FormatPartitions, DiskError> {
         info!(
-            "libdistinst: {}: executing creation operations",
+            "{}: executing creation operations",
             self.device_path.display(),
         );
 
         for partition in &self.create_partitions {
             info!(
-                "libdistinst: creating partition ({:?}) on {}",
+                "creating partition ({:?}) on {}",
                 partition,
                 self.device_path.display()
             );
@@ -335,7 +337,7 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
     let (start, end) = (geometry.start(), geometry.start() + geometry.length());
 
     info!(
-        "libdistinst: creating new partition with {} sectors: {} - {}",
+        "creating new partition with {} sectors: {} - {}",
         length, start, end
     );
 
@@ -366,7 +368,7 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
 
     // Attempt to write the new partition to the disk.
     info!(
-        "libdistinst: committing new partition ({}:{}) on {}",
+        "committing new partition ({}:{}) on {}",
         start,
         end,
         partition.path.display()
@@ -401,17 +403,16 @@ fn get_partition_id_and_path(path: &Path, start_sector: i64) -> Result<(i32, Pat
     })
 }
 
-pub struct FormatPartitions(Vec<(PathBuf, FileSystemType)>);
+pub struct FormatPartitions(pub Vec<(PathBuf, FileSystemType)>);
 
 impl FormatPartitions {
     // Finally, format all of the modified and created partitions.
     pub fn format(self) -> Result<(), DiskError> {
-        info!("libdistinst: executing format operations");
-        for (part, fs) in self.0 {
-            info!("libdistinst: formatting {} with {:?}", part.display(), fs);
-            mkfs(&part, fs).map_err(|why| DiskError::PartitionFormat { why })?;
-        }
-        Ok(())
+        info!("executing format operations");
+        self.0.par_iter().map(|&(ref part, fs)| {
+            info!("formatting {} with {:?}", part.display(), fs);
+            mkfs(part, fs).map_err(|why| DiskError::PartitionFormat { why })
+        }).collect::<Result<(), DiskError>>()
     }
 }
 

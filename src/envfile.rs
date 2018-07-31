@@ -36,17 +36,17 @@ impl<'a> EnvFile<'a> {
     }
 
     pub fn update(&mut self, key: &str, value: &str) {
-        info!("libdistinst: updating {} with {} in env file", key, value);
+        info!("updating {} with {} in env file", key, value);
         self.store.insert(key.into(), value.into());
     }
 
     pub fn get(&self, key: &str) -> Option<&str> {
-        info!("libdistinst: getting {} from env file", key);
+        info!("getting {} from env file", key);
         self.store.get(key).as_ref().map(|x| x.as_str())
     }
 
     pub fn write(&mut self) -> io::Result<()> {
-        info!("libdistinst: writing recovery changes");
+        info!("writing recovery changes");
         let mut buffer = Vec::with_capacity(1024);
         for (key, value) in &self.store {
             buffer.extend_from_slice(key.as_bytes());

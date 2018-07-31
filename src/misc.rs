@@ -4,7 +4,11 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{self, DirEntry, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hasher;
+use std::sync::{Arc, RwLock};
+use std::thread;
+use std::time::Duration;
 pub use self::layout::*;
 
 mod layout {
@@ -30,6 +34,41 @@ mod layout {
 
         hasher.finish()
     }
+}
+
+pub fn watch_and_set<T, F>(swaps: Arc<RwLock<T>>, file: &'static str, mut create_new: F)
+where T: 'static + Send + Sync,
+      F: 'static + Send + FnMut() -> Option<T>
+{
+    thread::spawn(move || {
+        let buffer = &mut [0u8; 8124];
+        let mut checksum = get_checksum(file, buffer).unwrap_or(0);
+
+        loop {
+            thread::sleep(Duration::from_secs(3));
+            if let Ok(new_checksum) = get_checksum(file, buffer) {
+                if new_checksum != checksum {
+                    checksum = new_checksum;
+                    if let Ok(ref mut swaps) = swaps.write() {
+                        if let Some(new_swaps) = create_new() {
+                            **swaps = new_swaps;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+pub fn get_checksum<P: AsRef<Path>>(path: P, buffer: &mut [u8; 8124]) -> io::Result<u64> {
+    let mut file = File::open(path)?;
+    let mut hasher = DefaultHasher::new();
+
+    while let Ok(read) = file.read(buffer) {
+        hasher.write(&buffer[..read]);
+    }
+
+    Ok(hasher.finish())
 }
 
 /// Obtains the UUID of the given device path by resolving symlinks in `/dev/disk/by-uuid`

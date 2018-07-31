@@ -44,7 +44,7 @@ fn remove_all_except(
     exclude: &[&OsStr],
 ) -> Result<(), ReinstallError> {
     mount_and_then(device, fs, |base| {
-        info!("libdistinst: removing all files except /home");
+        info!("removing all files except /home");
         for entry in base.read_dir().map_err(|why| ReinstallError::IO { why })? {
             if let Ok(entry) = entry {
                 let entry = entry.path();
@@ -81,7 +81,7 @@ impl<'a> Backup<'a> {
         account_files: &'a AccountFiles,
     ) -> Result<Backup<'a>, ReinstallError> {
         mount_and_then(device, fs, |base| {
-            info!("libdistinst: collecting list of user accounts");
+            info!("collecting list of user accounts");
             let dir = if is_root {
                 base.join("home").read_dir()
             } else {
@@ -93,7 +93,7 @@ impl<'a> Backup<'a> {
                     .map(|name| name.file_name())
                     .inspect(|name| {
                         info!(
-                            "libdistinst: backing up {}",
+                            "backing up {}",
                             name.clone().into_string().unwrap()
                         )
                     })
@@ -146,7 +146,7 @@ impl<'a> Backup<'a> {
 
     pub fn restore(&self, device: &Path, fs: FileSystemType) -> Result<(), ReinstallError> {
         mount_and_then(device, fs, |base| {
-            info!("libdistinst: appending user account data to new install");
+            info!("appending user account data to new install");
             let (passwd, group, shadow, gshadow) = (
                 base.join("etc/passwd"),
                 base.join("etc/group"),
@@ -177,7 +177,7 @@ impl<'a> Backup<'a> {
             }
 
             if let Some(ref tz) = self.localtime {
-                info!("libdistinst: restoring /etc/localtime symlink to {:?}", tz);
+                info!("restoring /etc/localtime symlink to {:?}", tz);
                 let path = base.join("etc/localtime");
                 if path.exists() {
                     fs::remove_file(&path)?;
@@ -188,14 +188,14 @@ impl<'a> Backup<'a> {
 
             if let Some(ref tz) = self.timezone {
                 info!(
-                    "libdistinst: restoring /etc/timezone with {}",
+                    "restoring /etc/timezone with {}",
                     String::from_utf8_lossy(tz)
                 );
                 File::create(base.join("etc/timezone")).and_then(|mut file| file.write_all(tz))?;
             }
 
             if let Some(ref networks) = self.networks {
-                info!("libdistinst: restoring NetworkManager configuration");
+                info!("restoring NetworkManager configuration");
                 let network_conf_dir = &base.join("etc/NetworkManager/system-connections/");
                 let _ = fs::create_dir_all(&network_conf_dir);
 

@@ -14,7 +14,7 @@ const PATTERN: &str = "E: ID_SERIAL=";
 /// The `path` should be a value like `/dev/sda`.
 pub fn get_serial(path: &Path) -> io::Result<String> {
     info!(
-        "libdistinst: obtaining serial model from {}",
+        "obtaining serial model from {}",
         path.display()
     );
     Command::new("udevadm")

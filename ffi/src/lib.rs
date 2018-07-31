@@ -126,7 +126,7 @@ pub unsafe extern "C" fn distinst_log(
     callback: DistinstLogCallback,
     user_data: *mut libc::c_void,
 ) -> libc::c_int {
-    use log::LogLevel;
+    use log::Level;
     use DISTINST_LOG_LEVEL::*;
 
     if let Err(why) = null_check(user_data) {
@@ -136,11 +136,11 @@ pub unsafe extern "C" fn distinst_log(
     let user_data_sync = user_data as usize;
     match distinst::log(move |level, message| {
         let c_level = match level {
-            LogLevel::Trace => TRACE,
-            LogLevel::Debug => DEBUG,
-            LogLevel::Info => INFO,
-            LogLevel::Warn => WARN,
-            LogLevel::Error => ERROR,
+            Level::Trace => TRACE,
+            Level::Debug => DEBUG,
+            Level::Info => INFO,
+            Level::Warn => WARN,
+            Level::Error => ERROR,
         };
         let c_message = CString::new(message).unwrap();
         callback(

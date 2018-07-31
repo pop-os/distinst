@@ -4,14 +4,14 @@ pub mod mount;
 mod config;
 mod error;
 mod mounts;
-mod operations;
+pub(crate) mod operations;
 mod serial;
 mod swaps;
 
 pub use self::config::*;
 pub use self::error::{DecryptionError, DiskError, PartitionError, PartitionSizeError};
-pub(crate) use self::mounts::Mounts;
-pub use self::swaps::Swaps;
+pub(crate) use self::mounts::{Mounts, MOUNTS};
+pub(crate) use self::swaps::{Swaps, SWAPS};
 pub use libparted::PartitionFlag;
 use libparted::{Device, DiskType as PedDiskType};
 use std::path::{Path, PathBuf};
