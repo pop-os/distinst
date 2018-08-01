@@ -4,11 +4,9 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{self, DirEntry, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 pub use self::layout::*;
 
 mod layout {
@@ -41,14 +39,13 @@ where T: 'static + Send + Sync,
       F: 'static + Send + FnMut() -> Option<T>
 {
     thread::spawn(move || {
-        let buffer = &mut [0u8; 8124];
-        let mut checksum = get_checksum(file, buffer).unwrap_or(0);
+        let mut modified = get_modified(file).expect("modified time could not be obtained");
 
         loop {
             thread::sleep(Duration::from_secs(3));
-            if let Ok(new_checksum) = get_checksum(file, buffer) {
-                if new_checksum != checksum {
-                    checksum = new_checksum;
+            if let Ok(new_modified) = get_modified(file) {
+                if new_modified != modified {
+                    modified = new_modified;
                     if let Ok(ref mut swaps) = swaps.write() {
                         if let Some(new_swaps) = create_new() {
                             **swaps = new_swaps;
@@ -60,16 +57,10 @@ where T: 'static + Send + Sync,
     });
 }
 
-pub fn get_checksum<P: AsRef<Path>>(path: P, buffer: &mut [u8; 8124]) -> io::Result<u64> {
-    let mut file = File::open(path)?;
-    let mut hasher = DefaultHasher::new();
-
-    while let Ok(read) = file.read(buffer) {
-        if read == 0 { break }
-        hasher.write(&buffer[..read]);
-    }
-
-    Ok(hasher.finish())
+pub fn get_modified<P: AsRef<Path>>(path: P) -> io::Result<SystemTime> {
+    File::open(path)
+        .and_then(|file| file.metadata())
+        .and_then(|metadata| metadata.modified())
 }
 
 /// Obtains the UUID of the given device path by resolving symlinks in `/dev/disk/by-uuid`
