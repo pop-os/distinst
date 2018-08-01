@@ -65,6 +65,7 @@ pub fn get_checksum<P: AsRef<Path>>(path: P, buffer: &mut [u8; 8124]) -> io::Res
     let mut hasher = DefaultHasher::new();
 
     while let Ok(read) = file.read(buffer) {
+        if read == 0 { break }
         hasher.write(&buffer[..read]);
     }
 
