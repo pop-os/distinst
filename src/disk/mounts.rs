@@ -1,9 +1,20 @@
 use std::char;
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
+use std::io::{Error, ErrorKind, Read, Result};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+
+use misc::watch_and_set;
+
+lazy_static! {
+    pub(crate) static ref MOUNTS: Arc<RwLock<Mounts>> = {
+        let mounts = Arc::new(RwLock::new(Mounts::new().unwrap()));
+        watch_and_set(mounts.clone(), "/proc/mounts", || Mounts::new().ok());
+        mounts
+    };
+}
 
 /// A mount entry which contains information regarding how and where a device
 /// is mounted.
@@ -59,16 +70,21 @@ impl Mounts {
         })
     }
 
+    pub(crate) fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<Mounts> {
+        lines.map(Self::parse_line)
+            .collect::<Result<Vec<MountInfo>>>()
+            .map(Mounts)
+    }
+
     pub(crate) fn new() -> Result<Mounts> {
-        let mut ret = Vec::new();
+        let file = File::open("/proc/mounts")
+            .and_then(|mut file| {
+                let length = file.metadata().ok().map_or(0, |x| x.len() as usize);
+                let mut string = String::with_capacity(length);
+                file.read_to_string(&mut string).map(|_| string)
+            })?;
 
-        let file = BufReader::new(File::open("/proc/mounts")?);
-        for line_res in file.lines() {
-            let line = line_res?;
-            ret.push(Self::parse_line(&line)?);
-        }
-
-        Ok(Mounts(ret))
+        Self::parse_from(file.lines())
     }
 
     pub(crate) fn get_mount_point(&self, path: &Path) -> Option<PathBuf> {
@@ -85,5 +101,46 @@ impl Mounts {
             .filter(|mount| &mount.dest.as_os_str().as_bytes()[..path.len()] == path)
             .map(|mount| mount.dest.clone())
             .collect::<Vec<_>>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+    use super::*;
+
+    const SAMPLE: &'static str = r#"sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0
+proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
+udev /dev devtmpfs rw,nosuid,relatime,size=16420480k,nr_inodes=4105120,mode=755 0 0
+tmpfs /run tmpfs rw,nosuid,noexec,relatime,size=3291052k,mode=755 0 0
+/dev/sda2 / ext4 rw,noatime,errors=remount-ro,data=ordered 0 0
+fusectl /sys/fs/fuse/connections fusectl rw,relatime 0 0
+/dev/sda1 /boot/efi vfat rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro 0 0
+/dev/sda6 /mnt/data ext4 rw,noatime,data=ordered 0 0"#;
+
+    #[test]
+    fn mounts() {
+        let mounts = Mounts::parse_from(SAMPLE.lines()).unwrap();
+
+        assert_eq!(
+            mounts.get_mount_point(Path::new("/dev/sda1")).unwrap(),
+            PathBuf::from("/boot/efi")
+        );
+
+        assert_eq!(
+            mounts.mount_starts_with(b"/"),
+            {
+                let mut vec: Vec<PathBuf> = Vec::new();
+                vec.push("/sys".into());
+                vec.push("/proc".into());
+                vec.push("/dev".into());
+                vec.push("/run".into());
+                vec.push("/".into());
+                vec.push("/sys/fs/fuse/connections".into());
+                vec.push("/boot/efi".into());
+                vec.push("/mnt/data".into());
+                vec
+            }
+        );
     }
 }

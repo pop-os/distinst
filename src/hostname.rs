@@ -4,12 +4,11 @@ pub fn is_valid(hostname: &str) -> bool {
             || (byte >= b'0' && byte <= b'9') || byte == b'-'
     }
 
-    // Empty hostnames aren't valid
-    !hostname.is_empty()
-        // First & last characters can't have hyphens
-        && !(hostname.starts_with('-') || hostname.ends_with('-'))
-        // Only a-zA-Z0-9- is allowed
-        && !hostname.bytes().any(|byte| !is_alphanumeric(byte))
+    !(hostname.bytes().any(|byte| !is_alphanumeric(byte))
+        || hostname.ends_with('-')
+        || hostname.starts_with('-')
+        || hostname.is_empty()
+    )
 }
 
 #[cfg(test)]

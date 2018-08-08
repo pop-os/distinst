@@ -77,7 +77,7 @@ impl KeyboardVariant {
     }
 }
 
-const X11_BASE_RULES: &'static str = "/usr/share/X11/xkb/rules/base.xml";
+const X11_BASE_RULES: &str = "/usr/share/X11/xkb/rules/base.xml";
 
 pub fn get_keyboard_layouts() -> io::Result<KeyboardLayouts> {
     deserialize(BufReader::new(File::open(X11_BASE_RULES)?))

@@ -71,10 +71,11 @@ impl InstallOptions {
             };
 
             for device in disks.get_physical_devices() {
-                if !Path::new("/cdrom/recovery.conf").exists() {
-                    if device.contains_mount("/", &disks) || device.contains_mount("/cdrom", &disks) {
-                        continue
-                    }
+                let has_recovery = !Path::new("/cdrom/recovery.conf").exists()
+                    && (device.contains_mount("/", &disks) || device.contains_mount("/cdrom", &disks));
+
+                if has_recovery {
+                    continue
                 }
 
                 let sectors = device.get_sectors();

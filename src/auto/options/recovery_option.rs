@@ -15,7 +15,7 @@ pub struct RecoveryOption {
     pub luks_uuid:     Option<String>,
 }
 
-const RECOVERY_CONF: &'static str = "/cdrom/recovery.conf";
+const RECOVERY_CONF: &str = "/cdrom/recovery.conf";
 
 pub(crate) fn detect_recovery() -> Option<RecoveryOption> {
     let recovery_path = Path::new(RECOVERY_CONF);
@@ -24,7 +24,7 @@ pub(crate) fn detect_recovery() -> Option<RecoveryOption> {
             Ok(env) => env,
             Err(why) => {
                 warn!(
-                    "libdistinst: unable to read recovery configuration: {}",
+                    "unable to read recovery configuration: {}",
                     why
                 );
                 return None;

@@ -1,16 +1,15 @@
 use super::super::external::{
-    cryptsetup_close, cryptsetup_open, lvs, pvremove, pvs, vgdeactivate, vgremove,
+    cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
 use super::super::mount::{self, swapoff, umount};
-use super::super::mounts::Mounts;
-use super::super::swaps::Swaps;
+use super::super::mounts::{MOUNTS};
+use super::super::swaps::{SWAPS};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::{find_partition, find_partition_mut};
-use super::{detect_fs_on_device, Disk, LvmEncryption};
+use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PVS};
 use libparted::{Device, DeviceType};
 use misc::{get_uuid, from_uuid};
 
@@ -24,21 +23,17 @@ use std::time::Duration;
 use std::borrow::Cow;
 use std::ffi::OsStr;
 
+use rayon::prelude::*;
+use rayon::iter::IntoParallelRefIterator;
+
 /// A configuration of disks, both physical and logical.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Disks {
     pub(crate) physical: Vec<Disk>,
     pub(crate) logical:  Vec<LvmDevice>,
 }
 
 impl Disks {
-    pub fn new() -> Disks {
-        Disks {
-            physical: Vec::new(),
-            logical:  Vec::new(),
-        }
-    }
-
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) {
         self.physical.push(disk);
@@ -96,12 +91,12 @@ impl Disks {
 
     /// Searches for a LVM device by the LVM volume group name.
     pub fn get_logical_device(&self, group: &str) -> Option<&LvmDevice> {
-        self.logical.iter().find(|d| &d.volume_group == group)
+        self.logical.iter().find(|d| d.volume_group == group)
     }
 
     /// Searches for a LVM device by the LVM volume group name.
     pub fn get_logical_device_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
-        self.logical.iter_mut().find(|d| &d.volume_group == group)
+        self.logical.iter_mut().find(|d| d.volume_group == group)
     }
 
     /// Searches for a LVM device which is inside of the given LUKS physical volume name.
@@ -109,7 +104,7 @@ impl Disks {
         self.logical.iter().find(|d| {
             d.encryption
                 .as_ref()
-                .map_or(false, |enc| &enc.physical_volume == pv)
+                .map_or(false, |enc| enc.physical_volume == pv)
         })
     }
 
@@ -118,7 +113,7 @@ impl Disks {
         self.logical.iter_mut().find(|d| {
             d.encryption
                 .as_ref()
-                .map_or(false, |enc| &enc.physical_volume == pv)
+                .map_or(false, |enc| enc.physical_volume == pv)
         })
     }
 
@@ -193,13 +188,13 @@ impl Disks {
     /// Deactivates all device maps associated with the inner disks/partitions
     /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
-        let mounts = Mounts::new().expect("failed to get mounts in deactivate_device_maps");
-        let swaps = Swaps::new().expect("failed to get swaps in deactivate_device_maps");
+        let mounts = MOUNTS.read().expect("failed to get mounts in deactivate_device_maps");
+        let swaps = SWAPS.read().expect("failed to get swaps in deactivate_device_maps");
         let umount = move |vg: &str| -> Result<(), DiskError> {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
                 if let Some(mount) = mounts.get_mount_point(&lv) {
                     info!(
-                        "libdistinst: unmounting logical volume mounted at {}",
+                        "unmounting logical volume mounted at {}",
                         mount.display()
                     );
                     umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
@@ -214,42 +209,41 @@ impl Disks {
         };
 
         let devices_to_modify = self.get_device_paths_to_modify();
-        info!("libdistinst: devices to modify: {:?}", devices_to_modify);
+        info!("devices to modify: {:?}", devices_to_modify);
         let volume_map = pvs().map_err(|why| DiskError::ExternalCommand { why })?;
-        info!("libdistinst: volume map: {:?}", volume_map);
+        info!("volume map: {:?}", volume_map);
         let pvs = lvm::physical_volumes_to_deactivate(&devices_to_modify);
-        info!("libdistinst: pvs: {:?}", pvs);
+        info!("pvs: {:?}", pvs);
 
         // Handle LVM on LUKS
-        for pv in &pvs {
+        pvs.par_iter().map(|pv| {
+            let dev = CloseBy::Path(&pv);
             match volume_map.get(pv) {
                 Some(&Some(ref vg)) => umount(vg).and_then(|_| {
                     vgdeactivate(vg)
-                        .and_then(|_| vgremove(vg))
-                        .and_then(|_| pvremove(pv))
-                        .and_then(|_| cryptsetup_close(pv))
+                        .and_then(|_| cryptsetup_close(dev))
                         .map_err(|why| DiskError::ExternalCommand { why })
-                })?,
+                }),
                 Some(&None) => {
-                    cryptsetup_close(pv).map_err(|why| DiskError::ExternalCommand { why })?
+                    cryptsetup_close(dev).map_err(|why| DiskError::ExternalCommand { why })
                 }
-                None => (),
+                None => Ok(()),
             }
-        }
+        }).collect::<Result<(), DiskError>>()?;
 
         // Handle LVM without LUKS
-        for entry in devices_to_modify
+        devices_to_modify
             .iter()
             .filter_map(|dev| volume_map.get(dev))
             .unique()
-        {
-            if let Some(ref vg) = *entry {
-                umount(vg)
-                    .and_then(|_| vgremove(vg).map_err(|why| DiskError::ExternalCommand { why }))?;
-            }
-        }
-
-        Ok(())
+            .map(|entry| {
+                if let Some(ref vg) = *entry {
+                    umount(vg)
+                        .and_then(|_| vgdeactivate(vg).map_err(|why| DiskError::ExternalCommand { why }))
+                } else {
+                    Ok(())
+                }
+            }).collect::<Result<(), DiskError>>()
     }
 
     /// Attempts to decrypt the specified partition.
@@ -260,9 +254,9 @@ impl Disks {
     pub fn decrypt_partition(
         &mut self,
         path: &Path,
-        enc: LvmEncryption,
+        enc: &LvmEncryption,
     ) -> Result<(), DecryptionError> {
-        info!("libdistinst: decrypting partition at {:?}", path);
+        info!("decrypting partition at {:?}", path);
         // An intermediary value that can avoid the borrowck issue.
         let mut new_device = None;
 
@@ -281,7 +275,7 @@ impl Disks {
             let pv = &PathBuf::from(["/dev/mapper/", &enc.physical_volume].concat());
             let mut attempt = 0;
             while !pv.exists() && attempt < 10 {
-                info!("libdistinst: waiting 1 second for {:?} to activate", pv);
+                info!("waiting 1 second for {:?} to activate", pv);
                 attempt += 1;
                 thread::sleep(Duration::from_millis(1000));
             }
@@ -291,7 +285,7 @@ impl Disks {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
 
-                    return Ok(LvmDevice::new(vg, Some(enc.clone()), partition.sectors(), 512, true));
+                    Ok(LvmDevice::new(vg, Some(enc.clone()), partition.sectors(), 512, true))
                 }
                 _ => {
                     // Detect a file system on the device
@@ -312,12 +306,10 @@ impl Disks {
                     }
 
                     // Attempt to close the device as we've failed to find a VG.
-                    let _ = cryptsetup_close(pv);
+                    let _ = cryptsetup_close(CloseBy::Path(&pv));
 
                     // NOTE: Should we handle this in some way?
-                    return Err(DecryptionError::DecryptedLacksVG {
-                        device: path.to_path_buf(),
-                    });
+                    Err(DecryptionError::DecryptedLacksVG { device: path.to_path_buf() })
                 }
             }
         }
@@ -326,13 +318,13 @@ impl Disks {
         for device in &mut self.physical {
             // TODO: NLL
             if let Some(partition) = device.get_file_system_mut() {
-                if &partition.device_path == path {
+                if partition.device_path == path {
                     decrypt(partition, path, &enc)?;
                 }
             }
 
             for partition in device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut()) {
-                if &partition.device_path == path {
+                if partition.device_path == path {
                     new_device = Some(decrypt(partition, path, &enc)?);
                     break
                 }
@@ -357,31 +349,51 @@ impl Disks {
 
     /// Sometimes, physical devices themselves may be mounted directly.
     pub fn unmount_devices(&self) -> Result<(), DiskError> {
-        for device in self.get_physical_devices() {
+        info!("unmounting devices");
+        self.physical.iter().map(|device| {
             if let Some(mount) = device.get_mount_point() {
-                info!(
-                    "libdistinst: unmounting device mounted at {}",
-                    mount.display()
-                );
-                mount::umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
+                if mount != Path::new("/cdrom") {
+                    info!(
+                        "unmounting device mounted at {}",
+                        mount.display()
+                    );
+                    mount::umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
+                }
             }
-        }
 
-        Ok(())
+            Ok(())
+        }).collect::<Result<(), DiskError>>()
     }
 
     /// Probes for and returns disk information for every disk in the system.
     pub fn probe_devices() -> Result<Disks, DiskError> {
-        let mut disks = Disks::new();
+        let mut disks = Disks::default();
         for mut device in Device::devices(true) {
             match device.type_() {
                 DeviceType::PED_DEVICE_UNKNOWN
                 | DeviceType::PED_DEVICE_LOOP
                 | DeviceType::PED_DEVICE_FILE
                 | DeviceType::PED_DEVICE_DM => continue,
-                _ => disks.add(Disk::new(&mut device)?),
+                _ => disks.add(Disk::new(&mut device, false)?),
             }
         }
+
+        // Collect all of the extended partition information for each contained
+        // partition in parallel.
+        let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
+        let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+
+        unsafe {
+            if PVS.is_none() {
+                PVS = Some(pvs().expect("do you have the `lvm2` package installed?"));
+            }
+        }
+
+        disks.physical.par_iter_mut()
+            .flat_map(|device| device.get_partitions_mut())
+            .for_each(|part| {
+                part.collect_extended_information(&mounts, &swaps);
+            });
 
         Ok(disks)
     }
@@ -391,7 +403,7 @@ impl Disks {
     pub fn find_disk<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
         self.physical
             .iter()
-            .find(|disk| &disk.device_path == path.as_ref())
+            .find(|disk| disk.device_path == path.as_ref())
     }
 
     /// Returns a mutable reference to the disk specified by its path, if it
@@ -399,13 +411,13 @@ impl Disks {
     pub fn find_disk_mut<P: AsRef<Path>>(&mut self, path: P) -> Option<&mut Disk> {
         self.physical
             .iter_mut()
-            .find(|disk| &disk.device_path == path.as_ref())
+            .find(|disk| disk.device_path == path.as_ref())
     }
 
     /// Finds the partition block path and associated partition information that is associated with
     /// the given target mount point. Scans both physical and logical partitions.
     pub fn find_partition<'a>(&'a self, target: &Path) -> Option<(&'a Path, &'a PartitionInfo)> {
-        find_partition(&self.physical, target).or(find_partition(&self.logical, target))
+        find_partition(&self.physical, target).or_else(|| find_partition(&self.logical, target))
     }
 
     /// Finds the partition block path and associated partition information that is associated with
@@ -414,8 +426,10 @@ impl Disks {
         &'a mut self,
         target: &Path,
     ) -> Option<(PathBuf, &'a mut PartitionInfo)> {
-        find_partition_mut(&mut self.physical, target)
-            .or(find_partition_mut(&mut self.logical, target))
+        match find_partition_mut(&mut self.physical, target) {
+            partition @ Some(_) => partition,
+            None => find_partition_mut(&mut self.logical, target)
+        }
     }
 
     /// Returns a list of disk & partition paths that match a volume group.
@@ -430,7 +444,7 @@ impl Disks {
                     .volume_group
                     .as_ref()
                     .map(|x| &x.0)
-                    .or(partition.original_vg.as_ref());
+                    .or_else(|| partition.original_vg.as_ref());
 
                 if let Some(ref pvg) = vg {
                     if pvg.as_str() == volume_group {
@@ -488,7 +502,7 @@ impl Disks {
 
     /// Ensure that keyfiles have key paths.
     pub fn verify_keyfile_paths(&self) -> Result<(), DiskError> {
-        info!("libdistinst: verifying if keyfiles have paths");
+        info!("verifying if keyfiles have paths");
         let mut set = HashSet::new();
         'outer: for logical_device in &self.logical {
             if let Some(ref encryption) = logical_device.encryption {
@@ -563,7 +577,7 @@ impl Disks {
             for partition in partitions {
                 if let Some(&mut (_, Some(ref mut enc))) = partition.volume_group.as_mut() {
                     if let Some((ref id, ref mut ppath)) = enc.keydata {
-                        if &*id == &*key {
+                        if *id == *key {
                             *ppath = paths.clone();
                             continue;
                         }
@@ -654,7 +668,7 @@ impl Disks {
                     }
 
                     // 256 MiB should be the minimal size of the ESP partition.
-                    const REQUIRED_SECTORS: u64 = 524288;
+                    const REQUIRED_SECTORS: u64 = 524_288;
 
                     if boot.sectors() < REQUIRED_SECTORS {
                         return Err(io::Error::new(
@@ -680,7 +694,7 @@ impl Disks {
 
     /// Generates the crypttab and fstab files in memory.
     pub(crate) fn generate_fstabs(&self) -> (OsString, OsString) {
-        info!("libdistinst: generating /etc/crypttab & /etc/fstab in memory");
+        info!("generating /etc/crypttab & /etc/fstab in memory");
         let mut crypttab = OsString::with_capacity(1024);
         let mut fstab = OsString::with_capacity(1024);
 
@@ -701,20 +715,7 @@ impl Disks {
 
         fn write_fstab(fstab: &mut OsString, partition: &PartitionInfo) {
             if let Some(entry) = partition.get_block_info() {
-                fstab.reserve_exact(entry.len() + 16);
-                fstab.push("UUID=");
-                fstab.push(&entry.uuid);
-                fstab.push("  ");
-                fstab.push(entry.mount());
-                fstab.push("  ");
-                fstab.push(&entry.fs);
-                fstab.push("  ");
-                fstab.push(&entry.options);
-                fstab.push("  ");
-                fstab.push(if entry.dump { "1" } else { "0" });
-                fstab.push("  ");
-                fstab.push(if entry.pass { "1" } else { "0" });
-                fstab.push("\n");
+                entry.write_fstab(fstab);
             }
         }
 
@@ -756,7 +757,7 @@ impl Disks {
                     match get_uuid(&partition.device_path) {
                         Some(uuid) => {
                             let unique_id =
-                                generate_unique_id("cryptswap").unwrap_or("cryptswap".into());
+                                generate_unique_id("cryptswap").unwrap_or_else(|_| "cryptswap".into());
                             crypttab.push(&unique_id);
                             crypttab.push(" UUID=");
                             crypttab.push(&uuid);
@@ -785,12 +786,12 @@ impl Disks {
         }
 
         info!(
-            "libdistinst: generated the following crypttab data:\n{}",
+            "generated the following crypttab data:\n{}",
             crypttab.to_string_lossy(),
         );
 
         info!(
-            "libdistinst: generated the following fstab data:\n{}",
+            "generated the following fstab data:\n{}",
             fstab.to_string_lossy()
         );
 
@@ -810,7 +811,7 @@ impl Disks {
                     // TODO: NLL
                     let push = match existing_devices
                         .iter_mut()
-                        .find(|d| &d.volume_group == &lvm.0)
+                        .find(|d| d.volume_group == lvm.0)
                     {
                         Some(device) => {
                             device.add_sectors(partition.sectors());
@@ -830,7 +831,7 @@ impl Disks {
                     }
                 } else if let Some(ref vg) = partition.original_vg {
                     eprintln!(
-                        "libdistinst: found existing LVM device on {:?}",
+                        "found existing LVM device on {:?}",
                         partition.get_device_path()
                     );
                     // TODO: NLL
@@ -873,7 +874,7 @@ impl Disks {
     pub fn remove_logical_device(&mut self, volume: &str) {
         let mut remove_id = None;
         for (id, device) in self.logical.iter_mut().enumerate() {
-            if &device.volume_group == volume {
+            if device.volume_group == volume {
                 if device.is_source {
                     device.remove = true;
                 } else {

@@ -1,8 +1,10 @@
 use disk::mount::{Mount, BIND};
 use std::ffi::OsStr;
-use std::io::Result;
+use std::io::{BufRead, BufReader, Result};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
+use std::thread::sleep;
+use std::time::Duration;
 
 /// Defines the location where a `chroot` will be performed, as well as storing
 /// handles to all of the binding mounts that the chroot requires.
@@ -47,6 +49,9 @@ impl Chroot {
         cmd: S,
         args: I,
     ) -> Result<ExitStatus> {
+        // Ensure that localectl writes to the chroot, instead.
+        let _etc_mount = Mount::new(&self.path.join("etc"), "/etc", "none", BIND, None)?;
+
         let mut command = Command::new("chroot");
         command.arg(&self.path);
         command.arg(cmd.as_ref());
@@ -56,10 +61,54 @@ impl Chroot {
 
         debug!("{:?}", command);
 
-        command.output().map(|c| {
-            info!("libdistinst: {}", String::from_utf8_lossy(&c.stderr));
-            c.status
-        })
+        let mut child = command.spawn()?;
+
+        // Raw pointers to child FDs, to work around borrowck.
+        let stdout = child.stdout.as_mut().unwrap() as *mut _;
+        let stderr = child.stderr.as_mut().unwrap() as *mut _;
+
+        // Buffers for the child FDs, to buffer by line.
+        let stdout = &mut BufReader::new(unsafe { &mut *stdout });
+        let stderr = &mut BufReader::new(unsafe { &mut *stderr });
+
+        // Buffer for reading each line from the `BufReader`s
+        let buffer = &mut String::with_capacity(8 * 1024);
+
+        loop {
+            match child.try_wait()? {
+                // The child has been reaped if it has an exit status.
+                Some(c) => break Ok(c),
+                // Pipe any output to logs that may be available.
+                None => {
+                    let mut finished = 0;
+                    loop {
+                        buffer.clear();
+                         match stdout.read_line(buffer) {
+                            Ok(0) | Err(_) => finished |= 1,
+                            Ok(_) => {
+                                info!("{}", buffer.trim());
+                            }
+                        }
+
+                        buffer.clear();
+                        match stderr.read_line(buffer) {
+                            Ok(0) | Err(_) => finished |= 2,
+                            Ok(_) => {
+                                warn!("{}", buffer.trim());
+                            }
+                        }
+
+                        if finished == 3 {
+                            break
+                        } else {
+                            finished = 0;
+                        }
+                    }
+
+                    sleep(Duration::from_millis(1));
+                }
+            }
+        }
     }
 
     /// Return true if the filesystem was unmounted, false if it was already

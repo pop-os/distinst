@@ -8,13 +8,14 @@ pub use self::encryption::LvmEncryption;
 use super::super::external::{
     blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
 };
-use super::super::mounts::Mounts;
+use super::super::mounts::MOUNTS;
 use super::super::{
     DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
     PartitionType, FORMAT, REMOVE, SOURCE,
 };
 use super::get_size;
 use rand::{self, Rng};
+use rand::distributions::Alphanumeric;
 use std::ffi::OsStr;
 use std::{io, thread};
 use std::path::{Path, PathBuf};
@@ -27,7 +28,7 @@ pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     }
 
     loop {
-        let id: String = rand::thread_rng().gen_ascii_chars().take(5).collect();
+        let id: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).collect();
         let id = [prefix, "_", &id].concat();
         if dmlist.contains(&id) {
             continue;
@@ -104,9 +105,7 @@ impl LvmDevice {
         is_source: bool,
     ) -> LvmDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group.replace("-", "--")));
-
-        // TODO: Optimize this so it's not called for each disk.
-        let mounts = Mounts::new().expect("unable to get mounts within LvmDevice::new");
+        let mounts = MOUNTS.read().expect("unable to get mounts within LvmDevice::new");
 
         LvmDevice {
             model_name: ["LVM ", &volume_group].concat(),
@@ -128,7 +127,7 @@ impl LvmDevice {
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub(crate) fn validate(&self) -> Result<(), DiskError> {
-        if self.get_partitions().iter().any(|p| !p.name.is_some()) {
+        if self.get_partitions().iter().any(|p| p.name.is_none()) {
             return Err(DiskError::VolumePartitionLacksLabel);
         }
 
@@ -168,7 +167,7 @@ impl LvmDevice {
     }
 
     pub fn add_partitions(&mut self) {
-        info!("libdistinst: adding partitions to LVM device");
+        info!("adding partitions to LVM device");
         let mut start_sector = 0;
         let _ = vgactivate(&self.volume_group);
         if let Ok(logical_paths) = lvs(&self.volume_group) {
@@ -177,7 +176,7 @@ impl LvmDevice {
                 let mut nth = 0;
                 while !path.exists() {
                     info!(
-                        "libdistinst: waiting 1 second because {:?} does not exist yet",
+                        "waiting 1 second because {:?} does not exist yet",
                         path
                     );
                     if nth == 5 {
@@ -288,8 +287,8 @@ impl LvmDevice {
                 lvremove(&self.volume_group, label)
                     .map_err(|why| DiskError::PartitionRemove { partition: -1, why })?;
             } else if partition.flag_is_enabled(FORMAT) {
-                if let Some(fs) = partition.filesystem.as_ref() {
-                    mkfs(&partition.device_path, fs.clone())
+                if let Some(fs) = partition.filesystem {
+                    mkfs(&partition.device_path, fs)
                         .map_err(|why| DiskError::PartitionFormat { why })?;
                 }
             }

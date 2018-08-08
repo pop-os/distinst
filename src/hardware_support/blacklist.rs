@@ -24,7 +24,7 @@ pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<bool> {
             && modules.iter().any(|x| &x.name == "nvidia" || &x.name == "nouveau");
 
         if disable_nvidia {
-            info!("libdistinst: disabling external NVIDIA graphics by default");
+            info!("disabling external NVIDIA graphics by default");
             let _ = fs::create_dir_all(mount_dir.join("etc/modprobe.d/"));
             OpenOptions::new()
                 .create(true)

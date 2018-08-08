@@ -233,6 +233,11 @@ namespace Distinst {
     }
 
     /**
+     * Deactivates all logical devices. Should be executed at the start of the installer.
+     */
+    public int deactivate_logical_devices ();
+
+    /**
      * Hashes the contents of `/dev/`; useful for detecting layout changes.
      */
     public uint64 device_layout_hash ();

@@ -44,6 +44,8 @@ update-locale --reset "LANG=${LANG}"
 
 # Set keyboard settings system-wide
 localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
+SYSTEMCTL_SKIP_REDIRECT=_ openvt -- sh /etc/init.d/console-setup.sh reload
+ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz
 
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"
@@ -59,8 +61,13 @@ then
     apt-cdrom "${APT_OPTIONS[@]}" add
 fi
 
+# Ensure that no post update scripts exist for initramfs.
+if [ -d "/etc/initramfs/post-update.d/" ]; then
+    rm /etc/initramfs/post-update.d/*
+fi
+
 # Install bootloader packages
-apt-get install -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
+apt-get install -q -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
 
 # Disable APT cdrom
 if [ -d "/cdrom" ]
@@ -88,11 +95,13 @@ else
     update-grub
 fi
 
+RECOVERY_UUID="$(findmnt -n -o UUID /recovery)" || true
+
 # Prepare recovery partition, if it exists
-if [ -d "/boot/efi" -a -d "/cdrom" -a -d "/recovery" ]
+if [ -d "/boot/efi" -a -d "/cdrom" -a -n ${RECOVERY_UUID} ]
 then
     EFI_UUID="$(findmnt -n -o UUID /boot/efi)"
-    RECOVERY_UUID="$(findmnt -n -o UUID /recovery)"
+
     CDROM_UUID="$(findmnt -n -o UUID /cdrom)"
 
     CASPER="casper-${RECOVERY_UUID}"

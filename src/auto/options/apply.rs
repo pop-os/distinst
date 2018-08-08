@@ -105,7 +105,7 @@ fn alongside_config(
     password: Option<String>,
     sectors: u64
 ) -> Result<(), InstallOptionError> {
-    let mut tmp = Disks::new();
+    let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
 
     let mut device = Disk::from_name(&option.device)
@@ -263,7 +263,7 @@ fn recovery_config(
     option: &RecoveryOption,
     password: Option<String>
 ) -> Result<(), InstallOptionError> {
-    let mut tmp = Disks::new();
+    let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
 
     let (lvm, root_vg) = match generate_encryption(password)? {
@@ -285,7 +285,7 @@ fn recovery_config(
             recovery_path = parent;
         }
 
-        info!("libdistinst: recovery disk found at {:?}", recovery_path);
+        info!("recovery disk found at {:?}", recovery_path);
         Disk::from_name(&recovery_path)
             .ok()
             .ok_or(InstallOptionError::DeviceNotFound {
@@ -388,7 +388,7 @@ fn erase_config(
     option: &EraseOption,
     password: Option<String>
 ) -> Result<(), InstallOptionError> {
-    let mut tmp = Disks::new();
+    let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
 
     let bootloader = Bootloader::detect();

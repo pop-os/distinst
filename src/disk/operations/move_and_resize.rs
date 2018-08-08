@@ -39,6 +39,7 @@ pub struct ResizeOperation {
 }
 
 /// Defines how many sectors to skip, and how the partition is.
+#[derive(Clone, Copy)]
 struct OffsetCoordinates {
     skip:   u64,
     offset: i64,
@@ -54,7 +55,7 @@ impl ResizeOperation {
     /// A negative offset means that the partition is moving backwards.
     fn offset(&self) -> OffsetCoordinates {
         info!(
-            "libdistinst: calculating offsets: {} - {} -> {} - {}",
+            "calculating offsets: {} - {} -> {} - {}",
             self.old.start, self.old.end, self.new.start, self.new.end
         );
         assert!(
@@ -139,7 +140,7 @@ where
     let growing = resize.is_growing();
 
     info!(
-        "libdistinst: resize operations: {{ moving: {}, shrinking: {}, growing: {} }}",
+        "resize operations: {{ moving: {}, shrinking: {}, growing: {} }}",
         moving, shrinking, growing
     );
 
@@ -183,7 +184,7 @@ where
         fs => unimplemented!("{:?} handling", fs),
     };
 
-    let fs = match change.filesystem.clone() {
+    let fs = match change.filesystem {
         Some(Fat16) | Some(Fat32) => "vfat",
         Some(fs) => fs.into(),
         None => "none",
@@ -207,14 +208,14 @@ where
     // In addition, the partition in the partition table must be deleted before
     // moving, and recreated with the new size before attempting to grow.
     if shrinking {
-        info!("libdistinst: shrinking {}", change.path.display());
+        info!("shrinking {}", change.path.display());
         resize_partition(cmd, args, &size, &change.path, fs, opts)
             .map_err(|why| DiskError::PartitionResize { why })?;
         delete(change.num as u32)?;
         let (num, path) = create(
             resize.new.start,
             resize.new.end,
-            change.filesystem.clone(),
+            change.filesystem,
             change.new_flags.clone(),
             change.label.clone(),
             change.kind,
@@ -226,7 +227,7 @@ where
         delete(change.num as u32)?;
         if resize.new.start != resize.old.start {
             info!(
-                "libdistinst: moving before growing {}",
+                "moving before growing {}",
                 change.path.display()
             );
             let abs_sectors = resize.absolute_sectors();
@@ -241,7 +242,7 @@ where
         let (num, path) = create(
             resize.new.start,
             resize.new.end,
-            change.filesystem.clone(),
+            change.filesystem,
             change.new_flags.clone(),
             change.label.clone(),
             change.kind,
@@ -250,7 +251,7 @@ where
         change.num = num;
         change.path = path;
 
-        info!("libdistinst: growing {}", change.path.display());
+        info!("growing {}", change.path.display());
         resize_partition(cmd, args, &size, &change.path, fs, opts)
             .map_err(|why| DiskError::PartitionResize { why })?;
     }
@@ -259,7 +260,7 @@ where
     // deleted, and then dd will be used to move the partition before
     // recreating it in the table.
     if moving {
-        info!("libdistinst: moving {}", change.path.display());
+        info!("moving {}", change.path.display());
         delete(change.num as u32)?;
         let abs_sectors = resize.absolute_sectors();
         resize.old.resize_to(abs_sectors); // TODO: NLL
@@ -270,7 +271,7 @@ where
         create(
             resize.new.start,
             resize.new.end,
-            change.filesystem.clone(),
+            change.filesystem,
             change.new_flags,
             change.label,
             change.kind,
@@ -284,7 +285,7 @@ where
 /// should be.
 fn move_partition<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -> io::Result<()> {
     info!(
-        "libdistinst: moving partition on {} with {} sector size: {{ skip: {}; offset: {}; \
+        "moving partition on {} with {} sector size: {{ skip: {}; offset: {}; \
          length: {} }}",
         path.as_ref().display(),
         bs as usize,
@@ -299,7 +300,7 @@ fn move_partition<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -
     let offset_skip = (source_skip as i64 + coords.offset) as u64;
 
     info!(
-        "libdistinst: source sector: {}; offset sector: {}",
+        "source sector: {}; offset sector: {}",
         source_skip, offset_skip
     );
 
@@ -323,7 +324,7 @@ fn move_partition<P: AsRef<Path>>(path: P, coords: OffsetCoordinates, bs: u64) -
 
         let offset = offset_skip + sector;
         disk.seek(SeekFrom::Start(offset * bs))?;
-        disk.write_all(&mut buffer[..bs as usize])?;
+        disk.write_all(&buffer[..bs as usize])?;
     }
 
     disk.sync_all()
@@ -340,7 +341,7 @@ fn resize_partition<P: AsRef<Path>>(
     options: u8,
 ) -> io::Result<()> {
     info!(
-        "libdistinst: resizing {} to {}",
+        "resizing {} to {}",
         path.as_ref().display(),
         size
     );
@@ -376,7 +377,7 @@ fn resize_partition<P: AsRef<Path>>(
         let (npath, _mount) = if options & (BTRFS | XFS) != 0 {
             let temp = TempDir::new("distinst")?;
             info!(
-                "libdistinst: temporarily mounting {} to {}",
+                "temporarily mounting {} to {}",
                 path.as_ref().display(),
                 temp.path().display()
             );
