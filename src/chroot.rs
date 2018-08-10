@@ -1,6 +1,6 @@
 use disk::mount::{Mount, BIND};
 use std::ffi::OsStr;
-use std::io::{BufRead, BufReader, Result};
+use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::thread::sleep;
@@ -50,7 +50,7 @@ impl Chroot {
         args: I,
     ) -> Result<ExitStatus> {
         // Ensure that localectl writes to the chroot, instead.
-        let _etc_mount = Mount::new(&self.path.join("etc"), "/etc", "none", BIND, None)?;
+        let mut etc_mount = Mount::new(&self.path.join("etc"), "/etc", "none", BIND, None)?;
 
         let mut command = Command::new("chroot");
         command.arg(&self.path);
@@ -61,7 +61,10 @@ impl Chroot {
 
         debug!("{:?}", command);
 
-        let mut child = command.spawn()?;
+        let mut child = command.spawn().map_err(|why| Error::new(
+            ErrorKind::Other,
+            format!("chroot command failed to spawn: {}", why)
+        ))?;
 
         // Raw pointers to child FDs, to work around borrowck.
         let stdout = child.stdout.as_mut().unwrap() as *mut _;
@@ -74,8 +77,13 @@ impl Chroot {
         // Buffer for reading each line from the `BufReader`s
         let buffer = &mut String::with_capacity(8 * 1024);
 
-        loop {
-            match child.try_wait()? {
+        let exit_status = loop {
+            let status = child.try_wait().map_err(|why| Error::new(
+                ErrorKind::Other,
+                format!("waiting on chroot child process failed: {}", why)
+            ))?;
+
+            match status {
                 // The child has been reaped if it has an exit status.
                 Some(c) => break Ok(c),
                 // Pipe any output to logs that may be available.
@@ -108,7 +116,10 @@ impl Chroot {
                     sleep(Duration::from_millis(1));
                 }
             }
-        }
+        };
+
+        etc_mount.unmount(false)?;
+        exit_status
     }
 
     /// Return true if the filesystem was unmounted, false if it was already

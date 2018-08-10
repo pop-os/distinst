@@ -440,6 +440,10 @@ impl Disk {
     /// Returns the device type information as a string.
     pub fn get_device_type(&self) -> &str { &self.device_type }
 
+    pub fn get_esp_partitions_mut(&mut self) -> Vec<&mut PartitionInfo> {
+        self.partitions.iter_mut().filter(|p| p.is_esp_partition()).collect()
+    }
+
     /// Obtains an immutable reference to a partition within the partition
     /// scheme.
     pub fn get_partition(&self, partition: i32) -> Option<&PartitionInfo> {

@@ -15,6 +15,7 @@ use super::super::{
 };
 use super::get_size;
 use rand::{self, Rng};
+use rand::distributions::Alphanumeric;
 use std::ffi::OsStr;
 use std::{io, thread};
 use std::path::{Path, PathBuf};
@@ -27,7 +28,7 @@ pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
     }
 
     loop {
-        let id: String = rand::thread_rng().gen_ascii_chars().take(5).collect();
+        let id: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).collect();
         let id = [prefix, "_", &id].concat();
         if dmlist.contains(&id) {
             continue;

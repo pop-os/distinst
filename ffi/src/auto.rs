@@ -1,10 +1,59 @@
 use libc;
 
 use super::{gen_object_ptr, get_str, null_check, DistinstDisks};
-use distinst::auto::{EraseOption, InstallOption, InstallOptions, RecoveryOption, RefreshOption};
+use distinst::auto::{AlongsideMethod, AlongsideOption, EraseOption, InstallOption, InstallOptions,
+    RecoveryOption, RefreshOption};
 use distinst::Disks;
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
+
+#[repr(C)]
+pub struct DistinstAlongsideOption;
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_device(
+    option: *const DistinstAlongsideOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const AlongsideOption);
+    let output = option.device.as_os_str().as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_os(
+    option: *const DistinstAlongsideOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const AlongsideOption);
+    let output = option.get_os().as_bytes();
+    *len = output.len() as libc::c_int;
+    output.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_partition(
+    option: *const DistinstAlongsideOption,
+) -> libc::c_int {
+    let option = &*(option as *const AlongsideOption);
+    match option.method {
+        AlongsideMethod::Shrink { partition, .. } => partition,
+        _ => -1
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_sectors_free(
+    option: *const DistinstAlongsideOption,
+) -> libc::uint64_t {
+    let option = &*(option as *const AlongsideOption);
+    match option.method {
+        AlongsideMethod::Shrink { sectors_free, .. } => sectors_free,
+        AlongsideMethod::Free(ref region) => region.size()
+    }
+}
+
 
 #[repr(C)]
 pub struct DistinstRefreshOption;
@@ -317,9 +366,10 @@ pub unsafe extern "C" fn distinst_recovery_option_get_oem_mode(
 
 #[repr(C)]
 pub enum DISTINST_INSTALL_OPTION_VARIANT {
-    REFRESH,
+    ALONGSIDE,
     ERASE,
     RECOVERY,
+    REFRESH,
 }
 
 #[repr(C)]
@@ -327,6 +377,7 @@ pub struct DistinstInstallOption {
     tag:          DISTINST_INSTALL_OPTION_VARIANT,
     option:       *const libc::c_void,
     encrypt_pass: *const libc::c_char,
+    sectors:      libc::uint64_t,
 }
 
 impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
@@ -341,14 +392,19 @@ impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
 
         unsafe {
             match opt.tag {
-                DISTINST_INSTALL_OPTION_VARIANT::RECOVERY => InstallOption::RecoveryOption {
+                DISTINST_INSTALL_OPTION_VARIANT::ALONGSIDE => InstallOption::Alongside {
+                    option: &*(opt.option as *const AlongsideOption),
+                    password: get_passwd(),
+                    sectors: opt.sectors,
+                },
+                DISTINST_INSTALL_OPTION_VARIANT::RECOVERY => InstallOption::Recovery {
                     option:   &*(opt.option as *const RecoveryOption),
                     password: get_passwd(),
                 },
                 DISTINST_INSTALL_OPTION_VARIANT::REFRESH => {
-                    InstallOption::RefreshOption(&*(opt.option as *const RefreshOption))
-                }
-                DISTINST_INSTALL_OPTION_VARIANT::ERASE => InstallOption::EraseOption {
+                    InstallOption::Refresh(&*(opt.option as *const RefreshOption))
+                },
+                DISTINST_INSTALL_OPTION_VARIANT::ERASE => InstallOption::Erase {
                     option:   &*(opt.option as *const EraseOption),
                     password: get_passwd(),
                 },
@@ -363,6 +419,7 @@ pub unsafe extern "C" fn distinst_install_option_new() -> *mut DistinstInstallOp
         tag:          DISTINST_INSTALL_OPTION_VARIANT::ERASE,
         option:       ptr::null(),
         encrypt_pass: ptr::null(),
+        sectors:      0
     }))
 }
 

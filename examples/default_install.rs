@@ -20,7 +20,9 @@ fn main() {
 
     let mut disks = Disks::probe_devices().unwrap();
 
-    let options = InstallOptions::new(&disks, 0);
+    let required = minimum_disk_size(5_000_000_000) / 512 + 1;
+
+    let options = InstallOptions::new(&disks, required);
 
     let mut config = Config {
         flags:            distinst::MODIFY_BOOT_ORDER | distinst::INSTALL_HARDWARE_SUPPORT,
@@ -34,14 +36,72 @@ fn main() {
         squashfs:         "/cdrom/casper/filesystem.squashfs".into(),
     };
 
+    eprintln!("Options: {:#?}", options);
+
     match action.as_str() {
+        "alongside" => {
+            for (id, option) in options.alongside_options.iter().enumerate() {
+                println!("{}: {}", id, option);
+            }
+
+            let mut buff = String::new();
+            let option = loop {
+                let _ = io::stdout()
+                    .write_all(b"Select an option: ")
+                    .and_then(|_| io::stdout().flush());
+                let stdin = io::stdin();
+                let _ = stdin.lock().read_line(&mut buff);
+                if let Ok(number) = buff[..buff.len() - 1].parse::<usize>() {
+                    buff.clear();
+                    break number;
+                }
+
+                buff.clear();
+            };
+
+            match options.alongside_options.get(option) {
+                Some(option) => {
+                    let option = InstallOption::Alongside {
+                        option,
+                        password: args.next(),
+                        sectors: if let AlongsideMethod::Shrink { sectors_free, ..} = option.method {
+                            loop {
+                                let _ = write!(io::stdout(), "new install size ({} free): ", sectors_free)
+                                    .and_then(|_| io::stdout().flush());
+                                let stdin = io::stdin();
+                                let _ = stdin.lock().read_line(&mut buff);
+                                if let Ok(number) = buff[..buff.len() - 1].parse::<u64>() {
+                                    break number;
+                                }
+
+                                buff.clear();
+                            }
+                        } else {
+                            0
+                        },
+                    };
+
+                    match option.apply(&mut disks) {
+                        Ok(()) => (),
+                        Err(why) => {
+                            eprintln!("failed to apply: {}", why);
+                            return;
+                        }
+                    }
+                }
+                None => {
+                    eprintln!("index out of range");
+                    return;
+                }
+            }
+        }
         "erase" => {
             let disk = args.next().unwrap();
             let disk = Path::new(&disk);
 
             match options.erase_options.iter().find(|opt| &opt.device == disk) {
                 Some(option) => {
-                    let option = InstallOption::EraseOption {
+                    let option = InstallOption::Erase {
                         option,
                         password: args.next(),
                     };
@@ -84,7 +144,7 @@ fn main() {
                     if action.as_str() == "retain" {
                         config.old_root = Some(option.root_part.clone());
                     }
-                    match InstallOption::RefreshOption(option).apply(&mut disks) {
+                    match InstallOption::Refresh(option).apply(&mut disks) {
                         Ok(()) => (),
                         Err(why) => {
                             eprintln!("failed to apply: {}", why);

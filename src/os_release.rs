@@ -27,7 +27,7 @@ fn parse_line(line: &str, skip: usize) -> &str {
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct OsRelease {
     pub bug_report_url:     String,
     pub home_url:           String,

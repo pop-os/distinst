@@ -73,9 +73,10 @@ namespace Distinst {
 
     [CCode (cname = "DISTINST_INSTALL_OPTION_VARIANT", has_type_id = false)]
     public enum InstallOptionVariant {
-        REFRESH,
+        ALONGSIDE,
         ERASE,
         RECOVERY,
+        REFRESH,
     }
 
     /**
@@ -161,6 +162,7 @@ namespace Distinst {
          * Defines which field to use.
          */
         public InstallOptionVariant tag;
+
         /**
          * Available valid values are:
          *
@@ -169,10 +171,16 @@ namespace Distinst {
          * - RefreshOption
          */
         public void* option;
+
         /**
          * The encryption password to optionally use with an erase and install option.
          */
         public string? encrypt_pass;
+
+        /**
+         * The amount of available free space to use, if applicable.
+         */
+        public uint64 sectors;
 
         /**
          * Applies the stored option to the given disks object.

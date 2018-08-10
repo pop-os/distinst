@@ -22,7 +22,7 @@ impl BoolExt for bool {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(large_enum_variant)]
 pub enum OS {
     Windows(String),

@@ -1,9 +1,12 @@
 [package]
 name = "distinst_cli"
-version = "0.3.2"
+version = "0.4.0"
 description = "Distribution Installer Backend"
 repository = "https://github.com/pop-os/distinst"
-authors = ["Jeremy Soller <jackpot51@gmail.com>"]
+authors = [
+    "Jeremy Soller <jackpot51@gmail.com>",
+    "Michael Aaron Murphy <michael@system76.com>"
+]
 license = "LGPL-3.0"
 readme = "README.md"
 
@@ -12,15 +15,15 @@ name = "distinst"
 path = "src/main.rs"
 
 [dependencies]
-clap = "=2.26.0"
+clap = "=2.32.0"
 distinst = { path = ".." }
-libc = "0.2"
-pbr = "1.0"
+libc = "0.2.43"
+pbr = "1.0.1"
 
 [dependencies.failure]
-version = "0.1.1"
+version = "0.1.2"
 default-features = false
 features = ["derive"]
 
 [dependencies.failure_derive]
-version = "0.1.1"
+version = "0.1.2"

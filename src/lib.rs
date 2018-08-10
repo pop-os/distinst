@@ -31,6 +31,7 @@ use disk::operations::FormatPartitions;
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
+use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
 use std::io::{self, BufRead, Read, Write};
@@ -86,6 +87,10 @@ const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
 # <file system>  <mount point>  <type>  <options>  <dump>  <pass>
 ";
 
+pub const DEFAULT_ESP_SECTORS: u64 = 1_024_000;
+pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
+pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
+
 macro_rules! file_create {
     ($path:expr, $perm:expr, [ $($data:expr),+ ]) => {{
         let mut file = File::create($path)?;
@@ -105,7 +110,7 @@ macro_rules! file_create {
 pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
     callback: F,
 ) -> Result<(), fern::InitError> {
-    fern::Dispatch::new()
+    let mut logger = fern::Dispatch::new()
         // Exclude logs for crates that we use
         .level(LevelFilter::Off)
         // Include only the logs for this binary
@@ -128,8 +133,22 @@ pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
                 ))
             })
             .chain(std::io::stderr())
-            .chain(fern::log_file("/tmp/installer.log")?))
-        .apply()?;
+            .chain(fern::log_file("/tmp/installer.log")?));
+
+        // If the home directory exists, add a log there as well.
+        // If the Desktop directory exists within the home directory, write the logs there.
+        if let Some(home) = env::home_dir() {
+            let desktop = home.join("Desktop");
+            let log = if desktop.is_dir() {
+                fern::log_file(&desktop.join("installer.log"))
+            } else {
+                fern::log_file(&home.join("installer.log"))
+            };
+
+            logger = logger.chain(log?);
+        }
+
+        logger.apply()?;
     Ok(())
 }
 
@@ -158,10 +177,16 @@ pub fn device_map_exists(name: &str) -> bool {
 
 /// Gets the minimum number of sectors required. The input should be in sectors, not bytes.
 ///
-/// If the value in `filesystem.size` is lower than that of the default, the
-/// default will be returned instead.
+/// The number of sectors required is calculated through:
+///
+/// - The value in `/cdrom/casper/filesystem.size`
+/// - The size of a default boot / esp partition
+/// - The size of a default swap partition
+/// - The size of a default recovery partition.
+///
+/// The input parameter will undergo a max comparison to the estimated minimum requirement.
 pub fn minimum_disk_size(default: u64) -> u64 {
-    File::open("/cdrom/casper/filesystem.size")
+    let casper_size = File::open("/cdrom/casper/filesystem.size")
         .ok()
         .and_then(|mut file| {
             let capacity = file.metadata().ok().map_or(0, |m| m.len());
@@ -172,7 +197,9 @@ pub fn minimum_disk_size(default: u64) -> u64 {
         })
         // Convert the number of bytes read into sectors required + 1
         .map(|bytes| (bytes / 512) + 1)
-        .map_or(default, |size| size.max(default))
+        .map_or(default, |size| size.max(default));
+
+    casper_size + DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS + DEFAULT_SWAP_SECTORS
 }
 
 /// Installation step
@@ -1130,6 +1157,8 @@ impl Installer {
         if let Some((backup, root_path, root_fs)) = backup {
             backup.restore(&root_path, root_fs)?;
         }
+
+        let _ = deactivate_logical_devices();
 
         Ok(())
     }
