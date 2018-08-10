@@ -31,6 +31,7 @@ use disk::operations::FormatPartitions;
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
+use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
 use std::io::{self, BufRead, Read, Write};
@@ -86,7 +87,7 @@ const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
 # <file system>  <mount point>  <type>  <options>  <dump>  <pass>
 ";
 
-pub const DEFAULT_ESP_SECTORS: u64 = 1024_000;
+pub const DEFAULT_ESP_SECTORS: u64 = 1_024_000;
 pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
 pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
 
@@ -109,7 +110,7 @@ macro_rules! file_create {
 pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
     callback: F,
 ) -> Result<(), fern::InitError> {
-    fern::Dispatch::new()
+    let mut logger = fern::Dispatch::new()
         // Exclude logs for crates that we use
         .level(LevelFilter::Off)
         // Include only the logs for this binary
@@ -132,8 +133,22 @@ pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
                 ))
             })
             .chain(std::io::stderr())
-            .chain(fern::log_file("/tmp/installer.log")?))
-        .apply()?;
+            .chain(fern::log_file("/tmp/installer.log")?));
+
+        // If the home directory exists, add a log there as well.
+        // If the Desktop directory exists within the home directory, write the logs there.
+        if let Some(home) = env::home_dir() {
+            let desktop = home.join("Desktop");
+            let log = if desktop.is_dir() {
+                fern::log_file(&desktop.join("installer.log"))
+            } else {
+                fern::log_file(&home.join("installer.log"))
+            };
+
+            logger = logger.chain(log?);
+        }
+
+        logger.apply()?;
     Ok(())
 }
 
@@ -1142,6 +1157,8 @@ impl Installer {
         if let Some((backup, root_path, root_fs)) = backup {
             backup.restore(&root_path, root_fs)?;
         }
+
+        let _ = deactivate_logical_devices();
 
         Ok(())
     }

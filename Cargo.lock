@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "distinst"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "derive-new 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -216,10 +216,10 @@ dependencies = [
 
 [[package]]
 name = "distinst_cli"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "distinst 0.3.2",
+ "distinst 0.4.0",
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -228,10 +228,10 @@ dependencies = [
 
 [[package]]
 name = "distinst_ffi"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "cbindgen 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "distinst 0.3.2",
+ "distinst 0.4.0",
  "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

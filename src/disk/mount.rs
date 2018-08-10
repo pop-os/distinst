@@ -1,6 +1,6 @@
 use libc::{c_ulong, c_void, mount, swapoff as c_swapoff, umount2, MNT_DETACH, MS_BIND};
 use std::ffi::CString;
-use std::io::{Error, Result};
+use std::io::{Error, ErrorKind, Result};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::ptr;
@@ -16,7 +16,10 @@ pub fn swapoff<P: AsRef<Path>>(dest: P) -> Result<()> {
 
         match c_swapoff(swap_ptr) {
             0 => Ok(()),
-            _err => Err(Error::last_os_error()),
+            _err => Err(Error::new(
+                ErrorKind::Other,
+                format!("failed to swapoff {}: {}", dest.as_ref().display(), Error::last_os_error())
+            )),
         }
     }
 }
@@ -31,7 +34,10 @@ pub fn umount<P: AsRef<Path>>(dest: P, lazy: bool) -> Result<()> {
             .map_or(ptr::null(), |cstr| cstr.as_ptr());
         match umount2(mount_ptr, if lazy { MNT_DETACH } else { 0 }) {
             0 => Ok(()),
-            _err => Err(Error::last_os_error()),
+            _err => Err(Error::new(
+                ErrorKind::Other,
+                format!("failed to unmount {}: {}", dest.as_ref().display(), Error::last_os_error())
+            )),
         }
     }
 }
@@ -42,14 +48,7 @@ pub struct Mounts(pub Vec<Mount>);
 impl Mounts {
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
-        // TODO: Rust 1.23
-        // self.0.iter_mut().rev().map(|mount| mount.unmount(lazy)).collect()
-
-        for mount in self.0.iter_mut().rev() {
-            mount.unmount(lazy)?;
-        }
-
-        Ok(())
+        self.0.iter_mut().rev().map(|mount| mount.unmount(lazy)).collect()
     }
 }
 
@@ -120,7 +119,10 @@ impl Mount {
                 dest:    target.to_path_buf(),
                 mounted: true,
             }),
-            _err => Err(Error::last_os_error()),
+            _err => Err(Error::new(
+                ErrorKind::Other,
+                format!("failed to mount {} to {}: {}", src.as_ref().display(), target.display(), Error::last_os_error())
+            )),
         }
     }
 
