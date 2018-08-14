@@ -110,7 +110,7 @@ macro_rules! file_create {
 pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
     callback: F,
 ) -> Result<(), fern::InitError> {
-    let mut logger = fern::Dispatch::new()
+    fern::Dispatch::new()
         // Exclude logs for crates that we use
         .level(LevelFilter::Off)
         // Include only the logs for this binary
@@ -120,35 +120,49 @@ pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
             callback(record.level(), &format!("{}", record.args()))
         }))
         // Whereas this will handle displaying the logs to the terminal & a log file
-        .chain(fern::Dispatch::new()
-            .format(|out, message, record| {
-                out.finish(format_args!(
-                    "[{}] {}: {}",
-                    record.level(),
-                    {
-                        let target = record.target();
-                        target.find(':').map_or(target, |pos| &target[..pos])
-                    },
-                    message
-                ))
-            })
-            .chain(std::io::stderr())
-            .chain(fern::log_file("/tmp/installer.log")?));
+        .chain({
+            let mut logger = fern::Dispatch::new()
+                .format(|out, message, record| {
+                    out.finish(format_args!(
+                        "[{}] {}: {}",
+                        record.level(),
+                        {
+                            let target = record.target();
+                            target.find(':').map_or(target, |pos| &target[..pos])
+                        },
+                        message
+                    ))
+                })
+                .chain(std::io::stderr());
 
-        // If the home directory exists, add a log there as well.
-        // If the Desktop directory exists within the home directory, write the logs there.
-        if let Some(home) = env::home_dir() {
-            let desktop = home.join("Desktop");
-            let log = if desktop.is_dir() {
-                fern::log_file(&desktop.join("installer.log"))
-            } else {
-                fern::log_file(&home.join("installer.log"))
+            match fern::log_file("/tmp/installer.log") {
+                Ok(log) => logger = logger.chain(log),
+                Err(why) => {
+                    eprintln!("failed to create log file at /tmp/installer.log: {}", why);
+                }
             };
 
-            logger = logger.chain(log?);
-        }
+            // If the home directory exists, add a log there as well.
+            // If the Desktop directory exists within the home directory, write the logs there.
+            if let Some(home) = env::home_dir() {
+                let desktop = home.join("Desktop");
+                let log = if desktop.is_dir() {
+                    fern::log_file(&desktop.join("installer.log"))
+                } else {
+                    fern::log_file(&home.join("installer.log"))
+                };
 
-        logger.apply()?;
+                match log {
+                    Ok(log) => logger = logger.chain(log),
+                    Err(why) => {
+                        eprintln!("failed to set up logging for the home directory: {}", why);
+                    }
+                }
+            }
+
+            logger
+        }).apply()?;
+
     Ok(())
 }
 
