@@ -29,6 +29,7 @@ extern crate serde_xml_rs;
 use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
 use disk::operations::FormatPartitions;
 use itertools::Itertools;
+use os_release::OS_RELEASE;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::env;
@@ -663,7 +664,10 @@ impl Installer {
 
         let install_pkgs: &mut Vec<&str> = &mut match bootloader {
             Bootloader::Bios => vec!["grub-pc"],
-            Bootloader::Efi => vec!["kernelstub"],
+            // We use kernelstub for EFI instead of GRUB, for Pop!_OS
+            Bootloader::Efi if OS_RELEASE.name == "Pop!_OS"=> vec!["kernelstub"],
+            // Ubuntu does not provide kernelstub, so it must use grub-efi instead.
+            Bootloader::Efi => vec!["grub-efi"],
         };
 
         let configure_script = || {
