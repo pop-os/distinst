@@ -78,6 +78,12 @@ pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
 
+/// Configures the keyboard layout in the chroot.
+const LOCALECTL_ARGUMENTS: &str = "localectl set-x11-keymap \"${KBD_LAYOUT}\" \"${KBD_MODEL}\" \"${KBD_VARIANT}\" \
+    && SYSTEMCTL_SKIP_REDIRECT=_ openvt -- sh /etc/init.d/console-setup.sh reload \
+    && ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz \
+    && update-initramfs -u";
+
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
 #
@@ -815,19 +821,8 @@ impl Installer {
                 // Set language to config setting
                 args.push(format!("LANG={}", config.lang));
 
-                // Set preferred keyboard layout
-                args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
-
                 if disable_nvidia {
                     args.push("DISABLE_NVIDIA=1".into());
-                }
-
-                if let Some(ref model) = config.keyboard_model {
-                    args.push(format!("KBD_MODEL={}", model));
-                }
-
-                if let Some(ref variant) = config.keyboard_variant {
-                    args.push(format!("KBD_VARIANT={}", variant));
                 }
 
                 // Set root UUID
@@ -857,13 +852,43 @@ impl Installer {
                 args
             };
 
-            let status = chroot.command("/usr/bin/env", args.iter())?;
+            let mut results = Vec::new();
 
-            if !status.success() {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("configure.sh failed with status: {}", status),
-                ));
+            results.push(chroot.command("/usr/bin/env", args.iter())?);
+            results.push({
+                // Ensure that localectl writes to the chroot, instead.
+                let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", disk::mount::BIND, None)?;
+                let args = {
+                    let mut args = Vec::new();
+
+                    // Clear existing environment
+                    args.push("-i".to_string());
+
+                    // Set preferred keyboard layout
+                    args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
+
+                    if let Some(ref model) = config.keyboard_model {
+                        args.push(format!("KBD_MODEL={}", model));
+                    }
+
+                    if let Some(ref variant) = config.keyboard_variant {
+                        args.push(format!("KBD_VARIANT={}", variant));
+                    }
+
+                    args.extend_from_slice(&["bash".into(), "-c".into(), LOCALECTL_ARGUMENTS.into()]);
+                    args
+                };
+
+                chroot.command("/usr/bin/env", args.iter())?
+            });
+
+            for status in results {
+                if !status.success() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("configure.sh failed with status: {}", status),
+                    ));
+                }
             }
 
             // Ensure that the cdrom binding is unmounted before the chroot.
