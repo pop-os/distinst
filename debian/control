@@ -29,7 +29,6 @@ Depends:
   dmsetup,
   dosfstools,
   e2fsprogs,
-  exfat-utils,
   f2fs-tools,
   fatresize,
   gettext,

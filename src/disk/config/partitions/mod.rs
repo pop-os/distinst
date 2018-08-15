@@ -24,7 +24,7 @@ use misc::get_uuid;
 #[derive(Debug, PartialEq, Copy, Clone, Hash)]
 pub enum FileSystemType {
     Btrfs,
-    Exfat,
+    // Exfat,
     Ext2,
     Ext3,
     Ext4,
@@ -54,7 +54,7 @@ impl FromStr for FileSystemType {
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let type_ = match string {
             "btrfs" => FileSystemType::Btrfs,
-            "exfat" => FileSystemType::Exfat,
+            // "exfat" => FileSystemType::Exfat,
             "ext2" => FileSystemType::Ext2,
             "ext3" => FileSystemType::Ext3,
             "ext4" => FileSystemType::Ext4,
@@ -76,7 +76,7 @@ impl Into<&'static str> for FileSystemType {
     fn into(self) -> &'static str {
         match self {
             FileSystemType::Btrfs => "btrfs",
-            FileSystemType::Exfat => "exfat",
+            // FileSystemType::Exfat => "exfat",
             FileSystemType::Ext2 => "ext2",
             FileSystemType::Ext3 => "ext3",
             FileSystemType::Ext4 => "ext4",
@@ -255,7 +255,7 @@ impl PartitionInfo {
         self.filesystem
             .as_ref()
             .map_or(false, |&fs| match fs {
-                Ntfs | Fat16 | Fat32 | Lvm | Luks | Exfat | Swap => false,
+                Ntfs | Fat16 | Fat32 | Lvm | Luks | Swap => false,
                 Btrfs | Xfs | Ext2 | Ext3 | Ext4 | F2fs => true
             })
     }
@@ -329,7 +329,7 @@ impl PartitionInfo {
     /// this partition.
     pub fn sectors_used(&self, sector_size: u64) -> Option<io::Result<u64>> {
         self.filesystem.and_then(|fs| match fs {
-            Swap | Lvm | Luks | Xfs | F2fs | Exfat => None,
+            Swap | Lvm | Luks | Xfs | F2fs => None,
             _ => Some(get_used_sectors(self.get_device_path(), fs, sector_size)),
         })
     }

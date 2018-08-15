@@ -161,7 +161,7 @@ pub(crate) fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<
     use FileSystemType::*;
     let (cmd, args): (&'static str, &'static [&'static str]) = match kind {
         Btrfs => ("mkfs.btrfs", &["-f"]),
-        Exfat => ("mkfs.exfat", &[]),
+        // Exfat => ("mkfs.exfat", &[]),
         Ext2 => ("mkfs.ext2", &["-F", "-q"]),
         Ext3 => ("mkfs.ext3", &["-F", "-q"]),
         Ext4 => ("mkfs.ext4", &["-F", "-q", "-E", "lazy_itable_init"]),
@@ -191,7 +191,7 @@ fn get_label_cmd(kind: FileSystemType) -> Option<(&'static str, &'static [&'stat
     use FileSystemType::*;
     let cmd: (&'static str, &'static [&'static str]) = match kind {
         Btrfs => ("btrfs", &["filesystem", "label"]),
-        Exfat => ("exfatlabel", &[]),
+        // Exfat => ("exfatlabel", &[]),
         Ext2 | Ext3 | Ext4 => ("e2label", &[]),
         F2fs => unimplemented!(),
         Fat16 | Fat32 => ("dosfslabel", &[]),
