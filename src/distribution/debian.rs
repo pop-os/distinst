@@ -1,6 +1,6 @@
-use std::borrow::Cow;
 use std::io::{self, BufRead};
 use std::process::Command;
+use disk::{Bootloader, FileSystemSupport};
 
 pub fn check_language_support(locale: &str) -> io::Result<Option<Vec<u8>>> {
     // Attempt to run the check-language-support external command.
@@ -92,4 +92,58 @@ fn parse_dependency_line<F: FnMut(&str)>(line: &str, mut func: F) {
     for dep in line.split(',').filter_map(|dep| dep.split_whitespace().next()) {
         func(dep);
     }
+}
+
+pub fn get_required_packages(flags: FileSystemSupport) -> Vec<&'static str> {
+    let mut retain = Vec::new();
+
+    if flags.contains(FileSystemSupport::BTRFS) {
+        retain.extend_from_slice(&["btrfs-progs", "btrfs-tools"]);
+    }
+
+    if flags.contains(FileSystemSupport::EXT4) {
+        retain.push("e2fsprogs");
+    }
+
+    if flags.contains(FileSystemSupport::F2FS) {
+        retain.push("f2fs-tools");
+    }
+
+    if flags.contains(FileSystemSupport::FAT) {
+        retain.extend_from_slice(&["dosfstools", "fatresize"]);
+    }
+
+    if flags.contains(FileSystemSupport::NTFS) {
+        retain.push("ntfs-3g");
+    }
+
+    if flags.contains(FileSystemSupport::XFS) {
+        retain.push("xfsprogs");
+    }
+
+    if flags.contains(FileSystemSupport::LUKS) {
+        retain.extend_from_slice(&["cryptsetup", "cryptsetup-bin"]);
+    }
+
+    if flags.contains(FileSystemSupport::LVM) {
+        retain.push("lvm2");
+    }
+
+    if flags.intersects(FileSystemSupport::LVM | FileSystemSupport::LUKS) {
+        retain.extend_from_slice(&["dmeventd", "dmraid"]);
+    }
+
+    match Bootloader::detect() {
+        Bootloader::Efi => {
+            retain.extend_from_slice(
+                &["grub-efi", "grub-efi-amd64", "grub-efi-amd64-signed",
+                  "shim-signed", "mokutil", "fwupdate-signed", "linux-signed-generic"]
+            );
+        }
+        Bootloader::Bios => {
+            retain.extend_from_slice(&["grub", "grub-pc"]);
+        }
+    }
+
+    retain
 }

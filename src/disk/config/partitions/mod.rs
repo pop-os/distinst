@@ -20,6 +20,19 @@ use std::str::FromStr;
 use FileSystemType::*;
 use misc::get_uuid;
 
+bitflags! {
+    pub struct FileSystemSupport: u8 {
+        const LVM = 1;
+        const LUKS = 2;
+        const FAT = 4;
+        const XFS = 8;
+        const EXT4 = 16;
+        const BTRFS = 32;
+        const NTFS = 64;
+        const F2FS = 128;
+    }
+}
+
 /// Specifies which file system format to use.
 #[derive(Debug, PartialEq, Copy, Clone, Hash)]
 pub enum FileSystemType {

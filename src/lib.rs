@@ -3,6 +3,8 @@
 #![allow(unknown_lints)]
 
 #[macro_use]
+extern crate bitflags;
+#[macro_use]
 extern crate derive_new;
 extern crate failure;
 #[macro_use]
@@ -40,7 +42,6 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT};
 use std::thread::sleep;
 use std::time::Duration;
@@ -366,6 +367,8 @@ impl Installer {
     ) -> io::Result<(PathBuf, Vec<String>)> {
         info!("Initializing");
 
+        let disk_support_flags = disks.get_support_flags();
+
         let fetch_squashfs = || match Path::new(&config.squashfs).canonicalize() {
             Ok(squashfs) => if squashfs.exists() {
                 info!("config.squashfs: found at {}", squashfs.display());
@@ -394,10 +397,15 @@ impl Installer {
                     }
                 };
 
-                // Takes the locale, such as `en_US.UTF-8`, and changes it into `en_US`.
-                let locale = match config.lang.find('.') {
+                let retain = distribution::debian::get_required_packages(disk_support_flags);
+
+                // Takes the locale, such as `en_US.UTF-8`, and changes it into `en`.
+                let locale = match config.lang.find('_') {
                     Some(pos) => &config.lang[..pos],
-                    None => &config.lang
+                    None => match config.lang.find('.') {
+                        Some(pos) => &config.lang[..pos],
+                        None => &config.lang
+                    }
                 };
 
                 // Attempt to run the check-language-support external command.
@@ -432,7 +440,7 @@ impl Installer {
                 for line_res in io::BufReader::new(file).lines() {
                     match line_res {
                         // Only add package if it is not contained within lang_packs.
-                        Ok(line) => if !lang_packs.iter().any(|x| x == &line) {
+                        Ok(line) => if !lang_packs.iter().any(|x| x == &line) && !retain.contains(&line.as_str()) {
                             remove_pkgs.push(line)
                         },
                         Err(err) => {
@@ -805,41 +813,15 @@ impl Installer {
 
             callback(75);
 
-            use std::iter;
-
-            let root_entry = {
-                info!("retrieving root partition");
-                disks
-                    .get_physical_devices()
-                    .iter()
-                    .flat_map(|disk| {
-                        let iterator: Box<Iterator<Item = &PartitionInfo>> = if let Some(ref fs) = disk.file_system {
-                            Box::new(iter::once(fs).chain(disk.partitions.iter()))
-                        } else {
-                            Box::new(disk.partitions.iter())
-                        };
-                        iterator
-                    })
-                    .filter_map(|part| part.get_block_info())
-                    .find(|entry| entry.mount() == "/")
-                    .or_else(|| disks
-                        .get_logical_devices()
-                        .iter()
-                        .flat_map(|disk| {
-                            let iterator: Box<Iterator<Item = &PartitionInfo>> = if let Some(ref fs) = disk.file_system {
-                                Box::new(iter::once(fs).chain(disk.partitions.iter()))
-                            } else {
-                                Box::new(disk.partitions.iter())
-                            };
-                            iterator
-                        })
-                        .filter_map(|part| part.get_block_info())
-                        .find(|entry| entry.mount() == "/"))
-                    .ok_or_else(|| io::Error::new(
-                        io::ErrorKind::Other,
-                        "root partition not found",
-                    ))?
-            };
+            info!("retrieving root partition");
+            let root_entry = disks
+                .get_partitions()
+                .filter_map(|part| part.get_block_info())
+                .find(|entry| entry.mount() == "/")
+                .ok_or_else(|| io::Error::new(
+                    io::ErrorKind::Other,
+                    "root partition not found",
+                ))?;
 
             let luks_uuid = misc::from_uuid(&root_entry.uuid)
                 .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))

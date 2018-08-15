@@ -6,13 +6,15 @@ use super::super::mount::{self, swapoff, umount};
 use super::super::mounts::{MOUNTS};
 use super::super::swaps::{SWAPS};
 use super::super::{
-    Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, PartitionFlag, PartitionInfo,
+    Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, FileSystemSupport,
+    PartitionFlag, PartitionInfo,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PVS};
 use libparted::{Device, DeviceType};
 use misc::{get_uuid, from_uuid};
 
+use FileSystemType::*;
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -89,6 +91,21 @@ impl Disks {
         None
     }
 
+    /// Uses a boxed iterator to get an iterator over all physical partitions.
+    pub fn get_physical_partitions<'a>(&'a self) -> Box<Iterator<Item = &'a PartitionInfo> + 'a> {
+        let iterator = self.get_physical_devices().iter()
+            .flat_map(|disk| {
+                let iterator: Box<Iterator<Item = &PartitionInfo>> = if let Some(ref fs) = disk.file_system {
+                    Box::new(iter::once(fs).chain(disk.partitions.iter()))
+                } else {
+                    Box::new(disk.partitions.iter())
+                };
+                iterator
+            });
+
+        Box::new(iterator)
+    }
+
     /// Searches for a LVM device by the LVM volume group name.
     pub fn get_logical_device(&self, group: &str) -> Option<&LvmDevice> {
         self.logical.iter().find(|d| d.volume_group == group)
@@ -124,6 +141,26 @@ impl Disks {
     /// configuration.
     pub fn get_logical_devices_mut(&mut self) -> &mut [LvmDevice] { &mut self.logical }
 
+    /// Uses a boxed iterator to get an iterator over all logical partitions.
+    pub fn get_logical_partitions<'a>(&'a self) -> Box<Iterator<Item = &'a PartitionInfo> + 'a> {
+        let iterator = self.get_logical_devices().iter()
+            .flat_map(|disk| {
+                let iterator: Box<Iterator<Item = &PartitionInfo>> = if let Some(ref fs) = disk.file_system {
+                    Box::new(iter::once(fs).chain(disk.partitions.iter()))
+                } else {
+                    Box::new(disk.partitions.iter())
+                };
+                iterator
+            });
+
+        Box::new(iterator)
+    }
+
+    /// Get all partitions across all physical and logical devices.
+    pub fn get_partitions<'a>(&'a self) -> Box<Iterator<Item = &'a PartitionInfo> + 'a> {
+        Box::new(self.get_physical_partitions().chain(self.get_logical_partitions()))
+    }
+
     /// Returns a list of device paths which will be modified by this
     /// configuration.
     pub fn get_device_paths_to_modify(&self) -> Vec<PathBuf> {
@@ -158,15 +195,13 @@ impl Disks {
 
     /// Obtains the partition which contains the given target.
     pub fn get_partition_with_target(&self, target: &Path) -> Option<&PartitionInfo> {
-        self.get_physical_devices().iter().flat_map(|dev| dev.get_partitions())
-            .chain(self.get_logical_devices().iter().flat_map(|dev| dev.get_partitions()))
+        self.get_partitions()
             .find(|part| part.target.as_ref().map_or(false, |p| p.as_path() == target))
     }
 
     /// Obtains the partition which contains the given device path
     pub fn get_partition_by_path<P: AsRef<Path>>(&self, target: P) -> Option<&PartitionInfo> {
-        self.get_physical_devices().iter().flat_map(|dev| dev.get_partitions())
-            .chain(self.get_logical_devices().iter().flat_map(|dev| dev.get_partitions()))
+        self.get_partitions()
             .find(|part| part.get_device_path() == target.as_ref())
     }
 
@@ -183,6 +218,27 @@ impl Disks {
 
     pub fn get_partition_by_uuid_mut<U: AsRef<str>>(&mut self, target: U) -> Option<&mut PartitionInfo> {
         from_uuid(target.as_ref()).and_then(move |ref target| self.get_partition_by_path_mut(target))
+    }
+
+    /// Reports file systems that need to be supported in the install.
+    pub fn get_support_flags(&self) -> FileSystemSupport {
+        let mut flags = FileSystemSupport::empty();
+
+        for partition in self.get_partitions() {
+            match partition.filesystem {
+                Some(Btrfs) => flags |= FileSystemSupport::BTRFS,
+                Some(Ext2) | Some(Ext3) | Some(Ext4) => flags |= FileSystemSupport::EXT4,
+                Some(F2fs) => flags |= FileSystemSupport::F2FS,
+                Some(Fat16) | Some(Fat32) => flags |= FileSystemSupport::FAT,
+                Some(Ntfs) => flags |= FileSystemSupport::NTFS,
+                Some(Xfs) => flags |= FileSystemSupport::XFS,
+                Some(Luks) => flags |= FileSystemSupport::LUKS,
+                Some(Lvm) => flags |= FileSystemSupport::LVM,
+                _ => continue
+            };
+        }
+
+        flags
     }
 
     /// Deactivates all device maps associated with the inner disks/partitions
