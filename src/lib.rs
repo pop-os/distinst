@@ -58,6 +58,7 @@ pub use misc::device_layout_hash;
 pub mod auto;
 mod chroot;
 mod disk;
+mod distribution;
 mod envfile;
 mod hardware_support;
 pub mod hostname;
@@ -394,21 +395,7 @@ impl Installer {
                 };
 
                 // Attempt to run the check-language-support external command.
-                let check_language_support = Command::new("check-language-support")
-                    .args(&["-l", locale, "--show-installed"])
-                    .output();
-
-                // If the command executed, get the standard output.
-                let lang_output = match check_language_support {
-                    Ok(output) => Some(output.stdout),
-                    Err(ref e) if e.kind() == io::ErrorKind::NotFound => None,
-                    Err(why) => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            format!("failed to spawn check-language-support: {}", why)
-                        ));
-                    }
-                };
+                let lang_output = distribution::debian::check_language_support(&locale)?;
 
                 // Variable for storing a value that may be allocated.
                 let lang_output_;
@@ -419,11 +406,18 @@ impl Installer {
                     Some(output) => {
                         // Packages in the output are delimited with spaces.
                         // This is collected as a Cow<'_, str>.
-                        lang_output_ = output.split(|&x| x == b' ')
+                        let packages = output.split(|&x| x == b' ')
                             .map(|x| String::from_utf8_lossy(x))
                             .collect::<Vec<_>>();
 
-                        &lang_output_[..]
+                        match distribution::debian::dependencies_of(&packages) {
+                            Some(dependencies) => {
+                                eprintln!("found {:?}", dependencies);
+                                lang_output_ = dependencies;
+                                &lang_output_[..]
+                            }
+                            None => &[]
+                        }
                     }
                     None => &[]
                 };
