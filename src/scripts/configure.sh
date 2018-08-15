@@ -61,6 +61,12 @@ if [ -d "/etc/initramfs/post-update.d/" ]; then
     rm /etc/initramfs/post-update.d/*
 fi
 
+# Copy the kernel from the cdrom mount, if it is missing.
+if [ -e /cdrom/casper/vmlinuz -a ! -e /vmlinuz ]
+then
+   cp /cdrom/casper/vmlinuz "$(realpath /vmlinuz)"
+fi
+
 # Install bootloader packages
 apt-get install -q -y "${APT_OPTIONS[@]}" "${INSTALL_PKGS[@]}"
 

@@ -29,7 +29,7 @@ extern crate serde_xml_rs;
 use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
 use disk::operations::FormatPartitions;
 use itertools::Itertools;
-use os_release::OS_RELEASE;
+use os_release::OsRelease;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::env;
@@ -647,11 +647,15 @@ impl Installer {
         squashfs: P,
         mount_dir: P,
         callback: F,
-    ) -> io::Result<()> {
+    ) -> io::Result<OsRelease> {
         info!("Extracting {}", squashfs.as_ref().display());
+        let mount_dir = mount_dir.as_ref();
         squashfs::extract(squashfs, mount_dir, callback)?;
-
-        Ok(())
+        OsRelease::new_from(&mount_dir.join("etc/os-release"))
+            .map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to parse /etc/os-release from extracted image: {}", why)
+            ))
     }
 
     /// Configures the new install after it has been extracted.
@@ -660,6 +664,7 @@ impl Installer {
         mount_dir: P,
         bootloader: Bootloader,
         config: &Config,
+        iso_os_release: &OsRelease,
         remove_pkgs: I,
         mut callback: F,
     ) -> io::Result<()> {
@@ -671,7 +676,7 @@ impl Installer {
         let install_pkgs: &mut Vec<&str> = &mut match bootloader {
             Bootloader::Bios => vec!["grub-pc"],
             // We use kernelstub for EFI instead of GRUB, for Pop!_OS
-            Bootloader::Efi if OS_RELEASE.name == "Pop!_OS"=> vec!["kernelstub"],
+            Bootloader::Efi if &iso_os_release.name == "Pop!_OS"=> vec!["kernelstub"],
             // Ubuntu does not provide kernelstub, so it must use grub-efi instead.
             Bootloader::Efi => vec!["grub-efi"],
         };
@@ -727,7 +732,7 @@ impl Installer {
                     configure_script,
                     || {
                         if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                            hardware_support::append_packages(install_pkgs);
+                            hardware_support::append_packages(install_pkgs, &iso_os_release);
                         }
 
                         hardware_support::blacklist::disable_external_graphics(&mount_dir)
@@ -912,6 +917,7 @@ impl Installer {
         mount_dir: &Path,
         bootloader: Bootloader,
         config: &Config,
+        iso_os_release: &OsRelease,
         mut callback: F,
     ) -> io::Result<()> {
         // Obtain the root device & partition, with an optional EFI device & partition.
@@ -978,17 +984,29 @@ impl Installer {
                         }
                     }
                     Bootloader::Efi => {
-                        let status = chroot.command(
-                            "bootctl",
-                            &[
-                                // Install systemd-boot
-                                "install",
-                                // Provide path to ESP
-                                "--path=/boot/efi",
-                                // Do not set EFI variables
-                                "--no-variables",
-                            ][..],
-                        )?;
+                        let status = if &iso_os_release.name == "Pop!_OS" {
+                            chroot.command(
+                                "bootctl",
+                                &[
+                                    // Install systemd-boot
+                                    "install",
+                                    // Provide path to ESP
+                                    "--path=/boot/efi",
+                                    // Do not set EFI variables
+                                    "--no-variables",
+                                ][..],
+                            )?
+                        } else {
+                            chroot.command(
+                                "/usr/bin/env",
+                                &[
+                                    "GRUB_ENABLE_CRYPTODISK=y",
+                                    "grub-install",
+                                    "--target=x86_64-efi",
+                                    "--efi-directory=/boot/efi",
+                                ]
+                            )?
+                        };
 
                         if !status.success() {
                             return Err(io::Error::new(
@@ -1007,9 +1025,13 @@ impl Installer {
                                 efi_part_num.as_ref(),
                                 "--write-signature".as_ref(),
                                 "--label".as_ref(),
-                                os_release::OS_RELEASE.pretty_name.as_ref(),
+                                iso_os_release.pretty_name.as_ref(),
                                 "--loader".as_ref(),
-                                "\\EFI\\systemd\\systemd-bootx64.efi".as_ref(),
+                                if &iso_os_release.name == "Pop!_OS" {
+                                    "\\EFI\\systemd\\systemd-bootx64.efi".as_ref()
+                                } else {
+                                    "\\EFI\\GRUB\\grubx64.efi".as_ref()
+                                },
                             ][..];
 
                             let status = chroot.command("efibootmgr", args)?;
@@ -1115,7 +1137,7 @@ impl Installer {
                 status.percent = 0;
                 self.emit_status(status);
 
-                apply_step!($msg, $action);
+                apply_step!($msg, $action)
             }};
             ($msg:expr, $action:expr) => {{
                 info!("starting {} step", $msg);
@@ -1161,6 +1183,9 @@ impl Installer {
             CHROOT_ROOT
         );
 
+        // Stores the `OsRelease` parsed from the ISO's extracted image.
+        let iso_os_release: OsRelease;
+
         {
             let mount_dir = TempDir::new(CHROOT_ROOT)?;
 
@@ -1172,7 +1197,7 @@ impl Installer {
                     return Ok(());
                 }
 
-                apply_step!(Step::Extract, "extraction", {
+                iso_os_release = apply_step!(Step::Extract, "extraction", {
                     Installer::extract(squashfs.as_path(), mount_dir.path(), percent!())
                 });
 
@@ -1182,13 +1207,14 @@ impl Installer {
                         mount_dir.path(),
                         bootloader,
                         &config,
+                        &iso_os_release,
                         &remove_pkgs,
                         percent!(),
                     )
                 });
 
                 apply_step!(Step::Bootloader, "bootloader", {
-                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, percent!())
+                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, &iso_os_release, percent!())
                 });
 
                 mounts.unmount(false)?;
