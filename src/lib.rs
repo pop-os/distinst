@@ -387,26 +387,35 @@ impl Installer {
                     }
                 };
 
-                // Takes a locale, such as `en_US.UTF-8`, and changes it into `en_US`.
-                let locale = match config.lang.find('.') {
-                    Some(pos) => &config.lang[..pos],
-                    None => &config.lang
-                };
+                // May or may not store the output of check-language-support.
+                let lang_output;
 
-                // A list of language packages in the ISO that should be kept, even if they are
-                // listed in the remove manifest.
-                let lang_output = Command::new("check-language-support")
-                    .args(&[&["--language=", locale].concat(), "--show-installed"])
-                    .output()
-                    .map_err(|why| io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("failed to spawn check-language-support: {}", why)
-                    ))?;
+                // On Debian systems, use check-langauge-support if it is available.
+                let lang_packs = if OS_RELEASE.id_like == "debian" {
+                    // Takes a locale, such as `en_US.UTF-8`, and changes it into `en_US`.
+                    let locale = match config.lang.find('.') {
+                        Some(pos) => &config.lang[..pos],
+                        None => &config.lang
+                    };
 
-                // Packages in the output are delimited with spaces.
-                let lang_packs = lang_output.stdout.split(|&x| x == b' ')
+                    // A list of language packages in the ISO that should be kept, even if they are
+                    // listed in the remove manifest.
+                    lang_output = Command::new("check-language-support")
+                        .args(&["-l", locale, "--show-installed"])
+                        .output()
+                        .map_err(|why| io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("failed to spawn check-language-support: {}", why)
+                        ))?;
+
+                    // Packages in the output are delimited with spaces.
+                    // This is collected as a Cow<'_, str>.
+                    lang_output.stdout.split(|&x| x == b' ')
                         .map(|x| String::from_utf8_lossy(x))
-                        .collect::<Vec<_>>();
+                        .collect::<Vec<_>>()
+                } else {
+                    vec![]
+                };
 
                 // Collects the packages that are to be removed from the install.
                 for line_res in io::BufReader::new(file).lines() {
