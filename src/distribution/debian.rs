@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
 use disk::{Bootloader, FileSystemSupport};
@@ -23,64 +24,53 @@ pub fn check_language_support(locale: &str) -> io::Result<Option<Vec<u8>>> {
     Ok(output)
 }
 
-pub fn dependencies_of<'a, P: 'a + AsRef<str>>(deps: &[P]) -> Option<Vec<String>> {
+// This is a hack to work around issues with Ubuntu's manifest-remove file.
+// This will get the immediate dependencies of the given packages.
+pub fn get_dependencies_from_list<P: AsRef<str>>(deps: &[P]) -> Option<Vec<String>> {
     if deps.is_empty() {
         return None;
     }
 
-    let deps = DependencyIterator::new(deps)
-        // Recursively include dependencies of all found dependencies.
-        .filter_map(|deps| dependencies_of(&deps))
-        .flat_map(|deps| deps)
-        // Include the dependencies we searched against, too.
-        .chain(deps.iter().map(|x| x.as_ref().to_owned()))
-        .collect::<Vec<String>>();
+    let mut outer = HashSet::new();
 
-    Some(deps)
-}
-
-struct DependencyIterator<'a, P: 'a> {
-    dependencies: &'a [P],
-    read: usize
-}
-
-impl<'a, P: AsRef<str>> DependencyIterator<'a, P> {
-    pub fn new(dependencies: &'a [P]) -> Self {
-        DependencyIterator { dependencies, read: 0 }
-    }
-}
-
-impl<'a, P: AsRef<str>> Iterator for DependencyIterator<'a, P> {
-    type Item = Vec<String>;
-
-    fn next(&mut self) -> Option<Vec<String>> {
-        let dep = self.dependencies.get(self.read)?;
-        self.read += 1;
-
-        let output = Command::new("apt-cache")
-            .args(&["show", dep.as_ref()])
-            .output()
-            .ok()?;
-
-        let mut dependencies = Vec::new();
-
-        {
-            let dependencies = &mut dependencies;
-            for line in io::Cursor::new(output.stdout).lines() {
-                if let Ok(line) = line {
-                    if ! line.starts_with("Depends:") {
-                        continue
-                    }
-
-                    parse_dependency_line(
-                        line[8..].trim(),
-                        |dep| dependencies.push(dep.to_owned())
-                    );
+    {
+        let outer = &mut outer;
+        for dep in deps {
+            get_dependencies_from_package(dep, |dep| {
+                let dep = dep.to_owned();
+                if !outer.contains(&dep) {
+                    outer.insert(dep);
                 }
-            }
+            });
         }
 
-        Some(dependencies)
+        for dep in deps {
+            outer.insert(dep.as_ref().to_owned());
+        }
+    }
+
+    Some(outer.into_iter().collect())
+}
+
+fn get_dependencies_from_package<A: FnMut(&str), P: AsRef<str>>(dep: P, mut action: A) {
+    let output = Command::new("apt-cache")
+        .args(&["show", dep.as_ref()])
+        .output()
+        .ok();
+
+    if let Some(output) = output {
+        for line in io::Cursor::new(output.stdout).lines() {
+            if let Ok(line) = line {
+                if ! line.starts_with("Depends:") {
+                    continue
+                }
+
+                parse_dependency_line(
+                    line[8..].trim(),
+                    |dep| action(dep)
+                );
+            }
+        }
     }
 }
 

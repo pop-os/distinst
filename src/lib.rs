@@ -424,7 +424,7 @@ impl Installer {
                             .map(|x| String::from_utf8_lossy(x))
                             .collect::<Vec<_>>();
 
-                        match distribution::debian::dependencies_of(&packages) {
+                        match distribution::debian::get_dependencies_from_list(&packages) {
                             Some(dependencies) => {
                                 eprintln!("found {:?}", dependencies);
                                 lang_output_ = dependencies;
