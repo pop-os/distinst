@@ -40,6 +40,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT};
 use std::thread::sleep;
 use std::time::Duration;
@@ -386,9 +387,34 @@ impl Installer {
                     }
                 };
 
+                // Takes a locale, such as `en_US.UTF-8`, and changes it into `en_US`.
+                let locale = match config.lang.find('.') {
+                    Some(pos) => &config.lang[..pos],
+                    None => &config.lang
+                };
+
+                // A list of language packages in the ISO that should be kept, even if they are
+                // listed in the remove manifest.
+                let lang_output = Command::new("check-language-support")
+                    .args(&[&["--language=", locale].concat(), "--show-installed"])
+                    .output()
+                    .map_err(|why| io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("failed to spawn check-language-support: {}", why)
+                    ))?;
+
+                // Packages in the output are delimited with spaces.
+                let lang_packs = lang_output.stdout.split(|&x| x == b' ')
+                        .map(|x| String::from_utf8_lossy(x))
+                        .collect::<Vec<_>>();
+
+                // Collects the packages that are to be removed from the install.
                 for line_res in io::BufReader::new(file).lines() {
                     match line_res {
-                        Ok(line) => remove_pkgs.push(line),
+                        // Only add package if it is not contained within lang_packs.
+                        Ok(line) => if !lang_packs.iter().any(|x| x == &line) {
+                            remove_pkgs.push(line)
+                        },
                         Err(err) => {
                             error!("config.remove: {}", err);
                             return Err(err);
