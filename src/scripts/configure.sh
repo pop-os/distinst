@@ -77,6 +77,12 @@ fi
 
 echo "ROOT_UUID = $ROOT_UUID"
 
+# Copy the kernel from the cdrom mount, if it is missing.
+if [ -e /cdrom/casper/vmlinuz -a ! -e /vmlinuz ]
+then
+   cp /cdrom/casper/vmlinuz "$(realpath /vmlinuz)"
+fi
+
 BOOT_OPTIONS="quiet loglevel=0 systemd.show_status=false splash"
 
 # Update bootloader configuration
