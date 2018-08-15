@@ -37,7 +37,7 @@ fn system76_driver(os_release: &OsRelease) -> Option<&'static str> {
 }
 
 fn nvidia_driver(os_release: &OsRelease) -> Option<&'static str> {
-    if &os_release.id_like == "debian"
+    if &os_release.name == "Pop!_OS"
         && vendor().map_or(false, |vendor| vendor.starts_with("System76"))
     {
         return Some("system76-driver-nvidia");

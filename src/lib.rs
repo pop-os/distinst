@@ -984,17 +984,29 @@ impl Installer {
                         }
                     }
                     Bootloader::Efi => {
-                        let status = chroot.command(
-                            "bootctl",
-                            &[
-                                // Install systemd-boot
-                                "install",
-                                // Provide path to ESP
-                                "--path=/boot/efi",
-                                // Do not set EFI variables
-                                "--no-variables",
-                            ][..],
-                        )?;
+                        let status = if &iso_os_release.name == "Pop!_OS" {
+                            chroot.command(
+                                "bootctl",
+                                &[
+                                    // Install systemd-boot
+                                    "install",
+                                    // Provide path to ESP
+                                    "--path=/boot/efi",
+                                    // Do not set EFI variables
+                                    "--no-variables",
+                                ][..],
+                            )?
+                        } else {
+                            chroot.command(
+                                "/usr/bin/env",
+                                &[
+                                    "GRUB_ENABLE_CRYPTODISK=y",
+                                    "grub-install",
+                                    "--target=x86_64-efi",
+                                    "--efi-directory=/boot/efi",
+                                ]
+                            )?
+                        };
 
                         if !status.success() {
                             return Err(io::Error::new(
@@ -1015,7 +1027,11 @@ impl Installer {
                                 "--label".as_ref(),
                                 iso_os_release.pretty_name.as_ref(),
                                 "--loader".as_ref(),
-                                "\\EFI\\systemd\\systemd-bootx64.efi".as_ref(),
+                                if &iso_os_release.name == "Pop!_OS" {
+                                    "\\EFI\\systemd\\systemd-bootx64.efi".as_ref()
+                                } else {
+                                    "\\EFI\\GRUB\\grubx64.efi".as_ref()
+                                },
                             ][..];
 
                             let status = chroot.command("efibootmgr", args)?;
