@@ -42,11 +42,6 @@ ln -sf "../run/resolvconf/resolv.conf" "/etc/resolv.conf"
 locale-gen --purge "${LANG}"
 update-locale --reset "LANG=${LANG}"
 
-# Set keyboard settings system-wide
-localectl set-x11-keymap "${KBD_LAYOUT}" "${KBD_MODEL}" "${KBD_VARIANT}"
-SYSTEMCTL_SKIP_REDIRECT=_ openvt -- sh /etc/init.d/console-setup.sh reload
-ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz
-
 # Remove installer packages
 apt-get purge -y "${PURGE_PKGS[@]}"
 apt-get autoremove -y --purge
@@ -64,6 +59,12 @@ fi
 # Ensure that no post update scripts exist for initramfs.
 if [ -d "/etc/initramfs/post-update.d/" ]; then
     rm /etc/initramfs/post-update.d/*
+fi
+
+# Copy the kernel from the cdrom mount, if it is missing.
+if [ -e /cdrom/casper/vmlinuz -a ! -e /vmlinuz ]
+then
+   cp /cdrom/casper/vmlinuz "$(realpath /vmlinuz)"
 fi
 
 # Install bootloader packages

@@ -29,7 +29,7 @@ extern crate serde_xml_rs;
 use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
 use disk::operations::FormatPartitions;
 use itertools::Itertools;
-use os_release::OS_RELEASE;
+use os_release::OsRelease;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::env;
@@ -79,6 +79,12 @@ pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
 
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
+
+/// Configures the keyboard layout in the chroot.
+const LOCALECTL_ARGUMENTS: &str = "localectl set-x11-keymap \"${KBD_LAYOUT}\" \"${KBD_MODEL}\" \"${KBD_VARIANT}\" \
+    && SYSTEMCTL_SKIP_REDIRECT=_ openvt -- sh /etc/init.d/console-setup.sh reload \
+    && ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz \
+    && update-initramfs -u";
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
@@ -681,11 +687,15 @@ impl Installer {
         squashfs: P,
         mount_dir: P,
         callback: F,
-    ) -> io::Result<()> {
+    ) -> io::Result<OsRelease> {
         info!("Extracting {}", squashfs.as_ref().display());
+        let mount_dir = mount_dir.as_ref();
         squashfs::extract(squashfs, mount_dir, callback)?;
-
-        Ok(())
+        OsRelease::new_from(&mount_dir.join("etc/os-release"))
+            .map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to parse /etc/os-release from extracted image: {}", why)
+            ))
     }
 
     /// Configures the new install after it has been extracted.
@@ -694,6 +704,7 @@ impl Installer {
         mount_dir: P,
         bootloader: Bootloader,
         config: &Config,
+        iso_os_release: &OsRelease,
         remove_pkgs: I,
         mut callback: F,
     ) -> io::Result<()> {
@@ -705,7 +716,7 @@ impl Installer {
         let install_pkgs: &mut Vec<&str> = &mut match bootloader {
             Bootloader::Bios => vec!["grub-pc"],
             // We use kernelstub for EFI instead of GRUB, for Pop!_OS
-            Bootloader::Efi if OS_RELEASE.name == "Pop!_OS"=> vec!["kernelstub"],
+            Bootloader::Efi if &iso_os_release.name == "Pop!_OS"=> vec!["kernelstub"],
             // Ubuntu does not provide kernelstub, so it must use grub-efi instead.
             Bootloader::Efi => vec!["grub-efi"],
         };
@@ -761,7 +772,7 @@ impl Installer {
                     configure_script,
                     || {
                         if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                            hardware_support::append_packages(install_pkgs);
+                            hardware_support::append_packages(install_pkgs, &iso_os_release);
                         }
 
                         hardware_support::blacklist::disable_external_graphics(&mount_dir)
@@ -855,19 +866,8 @@ impl Installer {
                 // Set language to config setting
                 args.push(format!("LANG={}", config.lang));
 
-                // Set preferred keyboard layout
-                args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
-
                 if disable_nvidia {
                     args.push("DISABLE_NVIDIA=1".into());
-                }
-
-                if let Some(ref model) = config.keyboard_model {
-                    args.push(format!("KBD_MODEL={}", model));
-                }
-
-                if let Some(ref variant) = config.keyboard_variant {
-                    args.push(format!("KBD_VARIANT={}", variant));
                 }
 
                 // Set root UUID
@@ -897,13 +897,43 @@ impl Installer {
                 args
             };
 
-            let status = chroot.command("/usr/bin/env", args.iter())?;
+            let mut results = Vec::new();
 
-            if !status.success() {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("configure.sh failed with status: {}", status),
-                ));
+            results.push(chroot.command("/usr/bin/env", args.iter())?);
+            results.push({
+                // Ensure that localectl writes to the chroot, instead.
+                let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", disk::mount::BIND, None)?;
+                let args = {
+                    let mut args = Vec::new();
+
+                    // Clear existing environment
+                    args.push("-i".to_string());
+
+                    // Set preferred keyboard layout
+                    args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
+
+                    if let Some(ref model) = config.keyboard_model {
+                        args.push(format!("KBD_MODEL={}", model));
+                    }
+
+                    if let Some(ref variant) = config.keyboard_variant {
+                        args.push(format!("KBD_VARIANT={}", variant));
+                    }
+
+                    args.extend_from_slice(&["bash".into(), "-c".into(), LOCALECTL_ARGUMENTS.into()]);
+                    args
+                };
+
+                chroot.command("/usr/bin/env", args.iter())?
+            });
+
+            for status in results {
+                if !status.success() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("configure.sh failed with status: {}", status),
+                    ));
+                }
             }
 
             // Ensure that the cdrom binding is unmounted before the chroot.
@@ -927,6 +957,7 @@ impl Installer {
         mount_dir: &Path,
         bootloader: Bootloader,
         config: &Config,
+        iso_os_release: &OsRelease,
         mut callback: F,
     ) -> io::Result<()> {
         // Obtain the root device & partition, with an optional EFI device & partition.
@@ -993,17 +1024,29 @@ impl Installer {
                         }
                     }
                     Bootloader::Efi => {
-                        let status = chroot.command(
-                            "bootctl",
-                            &[
-                                // Install systemd-boot
-                                "install",
-                                // Provide path to ESP
-                                "--path=/boot/efi",
-                                // Do not set EFI variables
-                                "--no-variables",
-                            ][..],
-                        )?;
+                        let status = if &iso_os_release.name == "Pop!_OS" {
+                            chroot.command(
+                                "bootctl",
+                                &[
+                                    // Install systemd-boot
+                                    "install",
+                                    // Provide path to ESP
+                                    "--path=/boot/efi",
+                                    // Do not set EFI variables
+                                    "--no-variables",
+                                ][..],
+                            )?
+                        } else {
+                            chroot.command(
+                                "/usr/bin/env",
+                                &[
+                                    "GRUB_ENABLE_CRYPTODISK=y",
+                                    "grub-install",
+                                    "--target=x86_64-efi",
+                                    "--efi-directory=/boot/efi",
+                                ]
+                            )?
+                        };
 
                         if !status.success() {
                             return Err(io::Error::new(
@@ -1022,9 +1065,13 @@ impl Installer {
                                 efi_part_num.as_ref(),
                                 "--write-signature".as_ref(),
                                 "--label".as_ref(),
-                                os_release::OS_RELEASE.pretty_name.as_ref(),
+                                iso_os_release.pretty_name.as_ref(),
                                 "--loader".as_ref(),
-                                "\\EFI\\systemd\\systemd-bootx64.efi".as_ref(),
+                                if &iso_os_release.name == "Pop!_OS" {
+                                    "\\EFI\\systemd\\systemd-bootx64.efi".as_ref()
+                                } else {
+                                    "\\EFI\\GRUB\\grubx64.efi".as_ref()
+                                },
                             ][..];
 
                             let status = chroot.command("efibootmgr", args)?;
@@ -1130,7 +1177,7 @@ impl Installer {
                 status.percent = 0;
                 self.emit_status(status);
 
-                apply_step!($msg, $action);
+                apply_step!($msg, $action)
             }};
             ($msg:expr, $action:expr) => {{
                 info!("starting {} step", $msg);
@@ -1176,6 +1223,9 @@ impl Installer {
             CHROOT_ROOT
         );
 
+        // Stores the `OsRelease` parsed from the ISO's extracted image.
+        let iso_os_release: OsRelease;
+
         {
             let mount_dir = TempDir::new(CHROOT_ROOT)?;
 
@@ -1187,7 +1237,7 @@ impl Installer {
                     return Ok(());
                 }
 
-                apply_step!(Step::Extract, "extraction", {
+                iso_os_release = apply_step!(Step::Extract, "extraction", {
                     Installer::extract(squashfs.as_path(), mount_dir.path(), percent!())
                 });
 
@@ -1197,13 +1247,14 @@ impl Installer {
                         mount_dir.path(),
                         bootloader,
                         &config,
+                        &iso_os_release,
                         &remove_pkgs,
                         percent!(),
                     )
                 });
 
                 apply_step!(Step::Bootloader, "bootloader", {
-                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, percent!())
+                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, &iso_os_release, percent!())
                 });
 
                 mounts.unmount(false)?;
