@@ -9,7 +9,7 @@ use std::time::Duration;
 /// Defines the location where a `chroot` will be performed, as well as storing
 /// handles to all of the binding mounts that the chroot requires.
 pub struct Chroot {
-    path:       PathBuf,
+    pub path:   PathBuf,
     dev_mount:  Mount,
     pts_mount:  Mount,
     proc_mount: Mount,
@@ -49,9 +49,6 @@ impl Chroot {
         cmd: S,
         args: I,
     ) -> Result<ExitStatus> {
-        // Ensure that localectl writes to the chroot, instead.
-        let mut etc_mount = Mount::new(&self.path.join("etc"), "/etc", "none", BIND, None)?;
-
         let mut command = Command::new("chroot");
         command.arg(&self.path);
         command.arg(cmd.as_ref());
@@ -77,7 +74,7 @@ impl Chroot {
         // Buffer for reading each line from the `BufReader`s
         let buffer = &mut String::with_capacity(8 * 1024);
 
-        let exit_status = loop {
+        loop {
             let status = child.try_wait().map_err(|why| Error::new(
                 ErrorKind::Other,
                 format!("waiting on chroot child process failed: {}", why)
@@ -116,10 +113,7 @@ impl Chroot {
                     sleep(Duration::from_millis(1));
                 }
             }
-        };
-
-        etc_mount.unmount(false)?;
-        exit_status
+        }
     }
 
     /// Return true if the filesystem was unmounted, false if it was already
