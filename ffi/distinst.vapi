@@ -57,7 +57,6 @@ namespace Distinst {
     public enum FileSystemType {
         NONE,
         BTRFS,
-        EXFAT,
         EXT2,
         EXT3,
         EXT4,
