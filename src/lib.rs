@@ -29,7 +29,7 @@ extern crate serde_xml_rs;
 use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
 use disk::operations::FormatPartitions;
 use itertools::Itertools;
-use os_release::OS_RELEASE;
+use os_release::OsRelease;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::env;
@@ -732,7 +732,7 @@ impl Installer {
                     configure_script,
                     || {
                         if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                            hardware_support::append_packages(install_pkgs);
+                            hardware_support::append_packages(install_pkgs, &iso_os_release);
                         }
 
                         hardware_support::blacklist::disable_external_graphics(&mount_dir)
@@ -917,6 +917,7 @@ impl Installer {
         mount_dir: &Path,
         bootloader: Bootloader,
         config: &Config,
+        iso_os_release: &OsRelease,
         mut callback: F,
     ) -> io::Result<()> {
         // Obtain the root device & partition, with an optional EFI device & partition.
@@ -1012,7 +1013,7 @@ impl Installer {
                                 efi_part_num.as_ref(),
                                 "--write-signature".as_ref(),
                                 "--label".as_ref(),
-                                os_release::OS_RELEASE.pretty_name.as_ref(),
+                                iso_os_release.pretty_name.as_ref(),
                                 "--loader".as_ref(),
                                 "\\EFI\\systemd\\systemd-bootx64.efi".as_ref(),
                             ][..];
@@ -1120,7 +1121,7 @@ impl Installer {
                 status.percent = 0;
                 self.emit_status(status);
 
-                apply_step!($msg, $action);
+                apply_step!($msg, $action)
             }};
             ($msg:expr, $action:expr) => {{
                 info!("starting {} step", $msg);
@@ -1167,7 +1168,7 @@ impl Installer {
         );
 
         // Stores the `OsRelease` parsed from the ISO's extracted image.
-        let iso_os_release;
+        let iso_os_release: OsRelease;
 
         {
             let mount_dir = TempDir::new(CHROOT_ROOT)?;
@@ -1180,7 +1181,7 @@ impl Installer {
                     return Ok(());
                 }
 
-                iso_release = apply_step!(Step::Extract, "extraction", {
+                iso_os_release = apply_step!(Step::Extract, "extraction", {
                     Installer::extract(squashfs.as_path(), mount_dir.path(), percent!())
                 });
 
@@ -1197,7 +1198,7 @@ impl Installer {
                 });
 
                 apply_step!(Step::Bootloader, "bootloader", {
-                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, percent!())
+                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, &iso_os_release, percent!())
                 });
 
                 mounts.unmount(false)?;

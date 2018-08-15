@@ -12,22 +12,39 @@ use self::modules::Module;
 
 // NOTE: Distributions should provide their distro ID and associated packages here, if applicable.
 
-package!(amd_microcode {
-    like "debian" => "amd64-microcode"
-});
+fn amd_microcode(os_release: &OsRelease) -> Option<&'static str> {
+    if &os_release.id_like == "debian" {
+        Some("amd64-microcode")
+    } else {
+        None
+    }
+}
 
-package!(intel_microcode {
-    like "debian" => "intel-microcode"
-});
+fn intel_microcode(os_release: &OsRelease) -> Option<&'static str> {
+    if &os_release.id_like == "debian" {
+        Some("intel-microcode")
+    } else {
+        None
+    }
+}
 
-package!(system76_driver {
-    like "debian" => "system76-driver"
-});
+fn system76_driver(os_release: &OsRelease) -> Option<&'static str> {
+    if &os_release.name == "Pop!_OS" {
+        Some("system76-driver")
+    } else {
+        None
+    }
+}
 
-package!(nvidia_driver {
-    like "debian", vendor "System76" => "system76-driver-nvidia"
-});
+fn nvidia_driver(os_release: &OsRelease) -> Option<&'static str> {
+    if &os_release.id_like == "debian"
+        && vendor().map_or(false, |vendor| vendor.starts_with("System76"))
+    {
+        return Some("system76-driver-nvidia");
+    }
 
+    None
+}
 pub fn append_packages(install_pkgs: &mut Vec<&'static str>, os_release: &OsRelease) {
     append_packages!(os_release, install_pkgs {
         processor_support,
