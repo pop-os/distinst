@@ -647,11 +647,15 @@ impl Installer {
         squashfs: P,
         mount_dir: P,
         callback: F,
-    ) -> io::Result<()> {
+    ) -> io::Result<OsRelease> {
         info!("Extracting {}", squashfs.as_ref().display());
+        let mount_dir = mount_dir.as_ref();
         squashfs::extract(squashfs, mount_dir, callback)?;
-
-        Ok(())
+        OsRelease::new_from(&mount_dir.join("etc/os-release"))
+            .map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to parse /etc/os-release from extracted image: {}", why)
+            ))
     }
 
     /// Configures the new install after it has been extracted.
@@ -660,6 +664,7 @@ impl Installer {
         mount_dir: P,
         bootloader: Bootloader,
         config: &Config,
+        iso_os_release: &OsRelease,
         remove_pkgs: I,
         mut callback: F,
     ) -> io::Result<()> {
@@ -671,7 +676,7 @@ impl Installer {
         let install_pkgs: &mut Vec<&str> = &mut match bootloader {
             Bootloader::Bios => vec!["grub-pc"],
             // We use kernelstub for EFI instead of GRUB, for Pop!_OS
-            Bootloader::Efi if OS_RELEASE.name == "Pop!_OS"=> vec!["kernelstub"],
+            Bootloader::Efi if &iso_os_release.name == "Pop!_OS"=> vec!["kernelstub"],
             // Ubuntu does not provide kernelstub, so it must use grub-efi instead.
             Bootloader::Efi => vec!["grub-efi"],
         };
@@ -1161,6 +1166,9 @@ impl Installer {
             CHROOT_ROOT
         );
 
+        // Stores the `OsRelease` parsed from the ISO's extracted image.
+        let iso_os_release;
+
         {
             let mount_dir = TempDir::new(CHROOT_ROOT)?;
 
@@ -1172,7 +1180,7 @@ impl Installer {
                     return Ok(());
                 }
 
-                apply_step!(Step::Extract, "extraction", {
+                iso_release = apply_step!(Step::Extract, "extraction", {
                     Installer::extract(squashfs.as_path(), mount_dir.path(), percent!())
                 });
 
@@ -1182,6 +1190,7 @@ impl Installer {
                         mount_dir.path(),
                         bootloader,
                         &config,
+                        &iso_os_release,
                         &remove_pkgs,
                         percent!(),
                     )

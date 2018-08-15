@@ -1,7 +1,7 @@
 use std::fs::File;
 use raw_cpuid::CpuId;
 use std::io::Read;
-use os_release::OS_RELEASE;
+use os_release::OsRelease;
 
 pub mod blacklist;
 #[macro_use]
@@ -28,18 +28,18 @@ package!(nvidia_driver {
     like "debian", vendor "System76" => "system76-driver-nvidia"
 });
 
-pub fn append_packages(install_pkgs: &mut Vec<&'static str>) {
-    append_packages!(install_pkgs {
+pub fn append_packages(install_pkgs: &mut Vec<&'static str>, os_release: &OsRelease) {
+    append_packages!(os_release, install_pkgs {
         processor_support,
         vendor_support,
         graphics_support
     });
 }
 
-fn graphics_support() -> Option<&'static str> {
+fn graphics_support(os_release: &OsRelease) -> Option<&'static str> {
     Module::all().ok().and_then(|modules| {
         if modules.iter().any(|x| &x.name == "nvidia") {
-            return nvidia_driver();
+            return nvidia_driver(os_release);
         }
 
         None
@@ -47,11 +47,11 @@ fn graphics_support() -> Option<&'static str> {
 }
 
 /// Microcode packages for specific processor vendors.
-fn processor_support() -> Option<&'static str> {
+fn processor_support(os_release: &OsRelease) -> Option<&'static str> {
     if let Some(vf) = CpuId::new().get_vendor_info() {
         return match vf.as_string() {
-            "AuthenticAMD" => amd_microcode(),
-            "GenuineIntel" => intel_microcode(),
+            "AuthenticAMD" => amd_microcode(os_release),
+            "GenuineIntel" => intel_microcode(os_release),
             _ => None
         };
     }
@@ -60,10 +60,10 @@ fn processor_support() -> Option<&'static str> {
 }
 
 /// Hardware enablement packages for hardware from specific vendors.
-fn vendor_support() -> Option<&'static str> {
+fn vendor_support(os_release: &OsRelease) -> Option<&'static str> {
     if let Some(vendor) = vendor() {
         // NOTE: Vendors should add their logic & package names here.
-        vendor!(vendor.trim() => {
+        vendor!(os_release, vendor.trim() => {
             starts_with "System76" => system76_driver
         });
     }
