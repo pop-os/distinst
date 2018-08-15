@@ -387,34 +387,45 @@ impl Installer {
                     }
                 };
 
-                // May or may not store the output of check-language-support.
-                let lang_output;
+                // Takes the locale, such as `en_US.UTF-8`, and changes it into `en_US`.
+                let locale = match config.lang.find('.') {
+                    Some(pos) => &config.lang[..pos],
+                    None => &config.lang
+                };
 
-                // On Debian systems, use check-langauge-support if it is available.
-                let lang_packs = if OS_RELEASE.id_like == "debian" {
-                    // Takes a locale, such as `en_US.UTF-8`, and changes it into `en_US`.
-                    let locale = match config.lang.find('.') {
-                        Some(pos) => &config.lang[..pos],
-                        None => &config.lang
-                    };
+                // Attempt to run the check-language-support external command.
+                let check_language_support = Command::new("check-language-support")
+                    .args(&["-l", locale, "--show-installed"])
+                    .output();
 
-                    // A list of language packages in the ISO that should be kept, even if they are
-                    // listed in the remove manifest.
-                    lang_output = Command::new("check-language-support")
-                        .args(&["-l", locale, "--show-installed"])
-                        .output()
-                        .map_err(|why| io::Error::new(
+                // If the command executed, get the standard output.
+                let lang_output = match check_language_support {
+                    Ok(output) => Some(output.stdout),
+                    Err(ref e) if e.kind() == io::ErrorKind::NotFound => None,
+                    Err(why) => {
+                        return Err(io::Error::new(
                             io::ErrorKind::Other,
                             format!("failed to spawn check-language-support: {}", why)
-                        ))?;
+                        ));
+                    }
+                };
 
-                    // Packages in the output are delimited with spaces.
-                    // This is collected as a Cow<'_, str>.
-                    lang_output.stdout.split(|&x| x == b' ')
-                        .map(|x| String::from_utf8_lossy(x))
-                        .collect::<Vec<_>>()
-                } else {
-                    vec![]
+                // Variable for storing a value that may be allocated.
+                let lang_output_;
+
+                // Collect a list of language packages to retain. If the command was not
+                // found, an empty array will be returned.
+                let lang_packs = match lang_output.as_ref() {
+                    Some(output) => {
+                        // Packages in the output are delimited with spaces.
+                        // This is collected as a Cow<'_, str>.
+                        lang_output_ = output.split(|&x| x == b' ')
+                            .map(|x| String::from_utf8_lossy(x))
+                            .collect::<Vec<_>>();
+
+                        &lang_output_[..]
+                    }
+                    None => &[]
                 };
 
                 // Collects the packages that are to be removed from the install.
