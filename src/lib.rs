@@ -68,11 +68,13 @@ pub mod hostname;
 pub mod locale;
 mod misc;
 pub mod os_release;
+mod state;
 mod squashfs;
 
 use auto::{validate_before_removing, AccountFiles, Backup, ReinstallError};
 use envfile::EnvFile;
 use log::LevelFilter;
+use self::state::InstallerState;
 
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
@@ -1088,7 +1090,6 @@ impl Installer {
         Ok(())
     }
 
-    // TODO: Rewrite this as a state machine without needing the macros.
     /// The user will use this method to hand off installation tasks to distinst.
     ///
     /// The `disks` field contains all of the disks configuration information that will be
@@ -1152,72 +1153,31 @@ impl Installer {
         let disk_support_flags = disks.get_support_flags();
         let retain = distribution::debian::get_required_packages(disk_support_flags);
 
-        let mut status = Status {
-            step:    Step::Init,
-            percent: 0,
-        };
+        info!("installing {:?} with {:?}", config, bootloader);
 
-        macro_rules! apply_step {
-            // When a step is provided, that step will be set. This branch will then invoke a
-            // second call to the macro, which will execute the branch below this one.
-            ($step:expr, $msg:expr, $action:expr) => {{
-                unsafe {
-                    libc::sync();
-                }
-
-                if KILL_SWITCH.load(Ordering::SeqCst) {
-                    return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
-                }
-
-                status.step = $step;
-                status.percent = 0;
-                self.emit_status(status);
-
-                apply_step!($msg, $action)
-            }};
-            ($msg:expr, $action:expr) => {{
-                info!("starting {} step", $msg);
-                match $action {
-                    Ok(value) => value,
-                    Err(err) => {
-                        error!("{} error: {}", $msg, err);
-                        let error = Error {
-                            step: status.step,
-                            err,
-                        };
-                        self.emit_error(&error);
-                        return Err(error.err);
-                    }
-                }
-            }};
-        }
+        let steps = &mut InstallerState::new(self);
 
         macro_rules! percent {
-            () => {
+            ($steps:expr) => {
                 |percent| {
-                    status.percent = percent;
-                    self.emit_status(status);
+                    $steps.status.percent = percent;
+                    let status = $steps.status;
+                    $steps.emit_status(status);
                 }
             }
         }
 
-        info!("installing {:?} with {:?}", config, bootloader);
-        self.emit_status(status);
+        let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
+            Installer::initialize(&mut disks, config, &retain, percent!(steps))
+        })?;
 
-        let (squashfs, remove_pkgs) = apply_step!("initializing", {
-            Installer::initialize(&mut disks, config, &retain, percent!())
-        });
-
-        apply_step!(Step::Partition, "partitioning", {
-            Installer::partition(&mut disks, percent!())
-        });
+        steps.apply(Step::Partition, "partitioning", |steps| {
+            Installer::partition(&mut disks, percent!(steps))
+        })?;
 
         // Mount the temporary directory, and all of our mount targets.
         const CHROOT_ROOT: &str = "distinst";
-        info!(
-            "mounting temporary chroot directory at {}",
-            CHROOT_ROOT
-        );
+        info!("mounting temporary chroot directory at {}", CHROOT_ROOT);
 
         // Stores the `OsRelease` parsed from the ISO's extracted image.
         let iso_os_release: OsRelease;
@@ -1225,36 +1185,41 @@ impl Installer {
         {
             let mount_dir = TempDir::new(CHROOT_ROOT)?;
 
-            {
-                let mut mounts = Installer::mount(&disks, mount_dir.path())?;
+            let mut mounts = Installer::mount(&disks, mount_dir.path())?;
 
-                if PARTITIONING_TEST.load(Ordering::SeqCst) {
-                    info!("PARTITION_TEST enabled: exiting before unsquashing");
-                    return Ok(());
-                }
-
-                iso_os_release = apply_step!(Step::Extract, "extraction", {
-                    Installer::extract(squashfs.as_path(), mount_dir.path(), percent!())
-                });
-
-                apply_step!(Step::Configure, "configuration", {
-                    Installer::configure(
-                        &disks,
-                        mount_dir.path(),
-                        &config,
-                        &retain,
-                        &iso_os_release,
-                        &remove_pkgs,
-                        percent!(),
-                    )
-                });
-
-                apply_step!(Step::Bootloader, "bootloader", {
-                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, &iso_os_release, percent!())
-                });
-
-                mounts.unmount(false)?;
+            if PARTITIONING_TEST.load(Ordering::SeqCst) {
+                info!("PARTITION_TEST enabled: exiting before unsquashing");
+                return Ok(());
             }
+
+            iso_os_release = steps.apply(Step::Extract, "extracting", |steps| {
+                Installer::extract(squashfs.as_path(), mount_dir.path(), percent!(steps))
+            })?;
+
+            steps.apply(Step::Configure, "configuring chroot", |steps| {
+                Installer::configure(
+                    &disks,
+                    mount_dir.path(),
+                    &config,
+                    &retain,
+                    &iso_os_release,
+                    &remove_pkgs,
+                    percent!(steps),
+                )
+            })?;
+
+            steps.apply(Step::Bootloader, "configuring bootloader", |steps| {
+                Installer::bootloader(
+                    &disks,
+                    mount_dir.path(),
+                    bootloader,
+                    &config,
+                    &iso_os_release,
+                    percent!(steps)
+                )
+            })?;
+
+            mounts.unmount(false)?;
 
             mount_dir.close()?;
         }
