@@ -96,6 +96,7 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
     }
 }
 
+
 pub fn get_required_packages(flags: FileSystemSupport) -> Vec<&'static str> {
     let mut retain = Vec::new();
 
@@ -128,7 +129,7 @@ pub fn get_required_packages(flags: FileSystemSupport) -> Vec<&'static str> {
     }
 
     if flags.intersects(FileSystemSupport::LVM | FileSystemSupport::LUKS) {
-        retain.extend_from_slice(&["lvm2", "dmeventd", "dmraid"]);
+        retain.extend_from_slice(&["lvm2", "dmeventd", "dmraid", "kpartx", "kpartx-boot"]);
     }
 
     retain

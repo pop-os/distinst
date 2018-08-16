@@ -109,7 +109,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use super::*;
 
-    const SAMPLE: &'static str = r#"sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0
+    const SAMPLE: &str = r#"sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0
 proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
 udev /dev devtmpfs rw,nosuid,relatime,size=16420480k,nr_inodes=4105120,mode=755 0 0
 tmpfs /run tmpfs rw,nosuid,noexec,relatime,size=3291052k,mode=755 0 0

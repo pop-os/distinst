@@ -35,7 +35,7 @@ fn parse_serial(data: &[u8]) -> io::Result<String> {
 mod tests {
     use super::*;
 
-    const SAMPLE: &'static str = r#"P: /devices/pci0000:00/0000:00:17.0/ata4/host3/target3:0:0/3:0:0:0/block/sda
+    const SAMPLE: &str = r#"P: /devices/pci0000:00/0000:00:17.0/ata4/host3/target3:0:0/3:0:0:0/block/sda
 N: sda
 S: disk/by-id/ata-Samsung_SSD_850_EVO_500GB_S21HNXAG806916N
 S: disk/by-id/wwn-0x5002538d403d649a

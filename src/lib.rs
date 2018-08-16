@@ -6,6 +6,7 @@
 extern crate bitflags;
 #[macro_use]
 extern crate cascade;
+extern crate dirs;
 #[macro_use]
 extern crate derive_new;
 extern crate failure;
@@ -32,11 +33,11 @@ extern crate serde_xml_rs;
 
 use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
 use disk::operations::FormatPartitions;
+use disk::mount::BIND;
 use itertools::Itertools;
 use os_release::OsRelease;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
-use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
 use std::io::{self, BufRead, Read, Write};
@@ -68,11 +69,13 @@ pub mod hostname;
 pub mod locale;
 mod misc;
 pub mod os_release;
+mod state;
 mod squashfs;
 
 use auto::{validate_before_removing, AccountFiles, Backup, ReinstallError};
 use envfile::EnvFile;
 use log::LevelFilter;
+use self::state::InstallerState;
 
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
@@ -156,7 +159,7 @@ pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
 
             // If the home directory exists, add a log there as well.
             // If the Desktop directory exists within the home directory, write the logs there.
-            if let Some(home) = env::home_dir() {
+            if let Some(home) = dirs::home_dir() {
                 let desktop = home.join("Desktop");
                 let log = if desktop.is_dir() {
                     fern::log_file(&desktop.join("installer.log"))
@@ -294,6 +297,8 @@ pub struct Installer {
 }
 
 impl Installer {
+    const CHROOT_ROOT: &'static str = "distinst";
+
     /// Create a new installer object
     ///
     /// ```ignore,rust
@@ -452,36 +457,45 @@ impl Installer {
             Ok(remove_pkgs)
         };
 
-        let ((res_a, res_b), (res_c, res_d)): (
-            (io::Result<()>, io::Result<Vec<String>>),
-            (io::Result<()>, io::Result<PathBuf>)
-        ) = rayon::join(
-            || rayon::join(
-                || {
-                    // Deactivate any open logical volumes & close any encrypted partitions.
-                    if let Err(why) = disks.deactivate_device_maps() {
-                        error!("lvm deactivation error: {}", why);
-                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-                    }
+        let verify_disks = |disks: &Disks| {
+            disks.verify_keyfile_paths()?;
+            Ok(())
+        };
 
-                    // Unmount any mounted devices.
-                    if let Err(why) = disks.unmount_devices() {
-                        error!("device unmount error: {}", why);
-                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-                    }
+        let mut res_a = Ok(());
+        let mut res_b = Ok(Vec::new());
+        let mut res_c = Ok(());
+        let mut res_d = Ok(PathBuf::new());
 
-                    Ok(())
-                },
-                fetch_packages
-            ),
-            || rayon::join(
-                || {
-                    disks.verify_keyfile_paths()?;
-                    Ok(())
-                },
-                fetch_squashfs
-            )
-        );
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                // Deactivate any open logical volumes & close any encrypted partitions.
+                if let Err(why) = disks.deactivate_device_maps() {
+                    error!("device map deactivation error: {}", why);
+                    res_a = Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("device map deactivation error: {}", why)
+                    ));
+                    return
+                }
+
+                // Unmount any mounted devices.
+                if let Err(why) = disks.unmount_devices() {
+                    error!("device unmount error: {}", why);
+                    res_a = Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("device unmount error: {}", why)
+                    ));
+                    return
+                }
+
+                res_a = Ok(());
+            });
+
+            s.spawn(|_| res_b = fetch_packages());
+            s.spawn(|_| res_c = verify_disks(disks));
+            s.spawn(|_| res_d = fetch_squashfs());
+        });
 
         let (remove_pkgs, squashfs) = res_a
             .and(res_c)
@@ -532,7 +546,10 @@ impl Installer {
                 for disk in disks.get_physical_devices_mut() {
                     info!("{}: Committing changes to disk", disk.path().display());
                     if let Some(partitions) = disk.commit()
-                        .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?
+                        .map_err(|why| io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("disk commit error: {}", why)
+                        ))?
                     {
                         partitions_to_format.0.extend_from_slice(&partitions.0);
                     }
@@ -540,12 +557,9 @@ impl Installer {
 
                 partitions_to_format.format()?;
 
-                // Optimization: possibly do this while formatting partitions?
-                for disk in &mut disks.physical {
-                    disk.reload()?;
-                }
-
-                Ok(())
+                disks.physical.iter_mut()
+                    .map(|disk| disk.reload().map_err(io::Error::from))
+                    .collect()
             }
         );
 
@@ -556,24 +570,16 @@ impl Installer {
         // Utilizes the physical volume collection to generate a vector of volume
         // groups which we will need to deactivate pre-`blockdev`, and will be
         // reactivated post-`blockdev`.
-        let vgs = disks
-            .get_physical_devices()
-            .iter()
-            .flat_map(|disk| {
-                disk.get_partitions()
-                    .iter()
-                    .filter_map(|part| match pvs.get(&part.device_path) {
-                        Some(&Some(ref vg)) => Some(vg.clone()),
-                        _ => None,
-                    })
+        let vgs = disks.get_physical_partitions()
+            .filter_map(|part| match pvs.get(&part.device_path) {
+                Some(&Some(ref vg)) => Some(vg.clone()),
+                _ => None,
             })
             .unique()
             .collect::<Vec<String>>();
 
         // Deactivate logical volumes so that blockdev will not fail.
-        vgs.iter()
-            .map(|vg| vgdeactivate(vg))
-            .collect::<io::Result<()>>()?;
+        vgs.iter().map(|vg| vgdeactivate(vg)).collect::<io::Result<()>>()?;
 
         // Ensure that the logical volumes have had time to deactivate.
         sleep(Duration::from_secs(1));
@@ -588,31 +594,21 @@ impl Installer {
         sleep(Duration::from_secs(1));
 
         // Reactivate the logical volumes.
-        vgs.iter()
-            .map(|vg| vgactivate(vg))
-            .collect::<io::Result<()>>()?;
+        vgs.iter().map(|vg| vgactivate(vg)).collect::<io::Result<()>>()?;
 
         disks
             .commit_logical_partitions()
-            .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
+            .map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to commit logical partitions: {}", why)
+            ))
     }
 
     /// Mount all target paths defined within the provided `disks`
     /// configuration.
     fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
-        let physical_targets = disks
-            .get_physical_devices()
-            .iter()
-            .flat_map(|disk| disk.file_system.as_ref().into_iter().chain(disk.partitions.iter()))
+        let targets = disks.get_partitions()
             .filter(|part| part.target.is_some() && part.filesystem.is_some());
-
-        let logical_targets = disks
-            .get_logical_devices()
-            .iter()
-            .flat_map(|disk| disk.file_system.as_ref().into_iter().chain(disk.partitions.iter()))
-            .filter(|part| part.target.is_some() && part.filesystem.is_some());
-
-        let targets = physical_targets.chain(logical_targets);
 
         let mut mounts = Vec::new();
 
@@ -768,22 +764,24 @@ impl Installer {
         };
 
         let disable_nvidia = {
-            let ((a, disable_nvidia), (b, c)): (
-                (io::Result<()>, io::Result<bool>),
-                (io::Result<()>, io::Result<()>)
-            ) = rayon::join(
-                || rayon::join(
-                    configure_script,
-                    || {
-                        if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                            hardware_support::append_packages(install_pkgs, &iso_os_release);
-                        }
+            let mut a = Ok(());
+            let mut b = Ok(());
+            let mut c = Ok(());
+            let mut disable_nvidia = Ok(false);
 
-                        hardware_support::blacklist::disable_external_graphics(&mount_dir)
+            rayon::scope(|s| {
+                s.spawn(|_| a = configure_script());
+                s.spawn(|_| b = lvm_autodetection());
+                s.spawn(|_| c = generate_fstabs());
+                s.spawn(|_| {
+                    if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
+                        hardware_support::append_packages(install_pkgs, &iso_os_release);
                     }
-                ),
-                || rayon::join(lvm_autodetection, generate_fstabs)
-            );
+
+                    disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir)
+                });
+
+            });
 
             a.and(b).and(c).and(disable_nvidia)?
         };
@@ -832,80 +830,62 @@ impl Installer {
                 install_pkgs
             );
 
-            let args = {
-                let mut args = Vec::new();
-
+            let mut args = cascade! {
+                args: Vec::new();
                 // Clear existing environment
-                args.push("-i".to_string());
-
+                ..push("-i".to_string());
                 // Set hostname to be set
-                args.push(format!("HOSTNAME={}", config.hostname));
-
+                ..push(format!("HOSTNAME={}", config.hostname));
                 // Set language to config setting
-                args.push(format!("LANG={}", config.lang));
-
-                if disable_nvidia {
-                    args.push("DISABLE_NVIDIA=1".into());
-                }
-
+                ..push(format!("LANG={}", config.lang));
                 // Set root UUID
-                args.push(format!("ROOT_UUID={}", root_uuid));
-
-                args.push(format!("LUKS_UUID={}", match luks_uuid.as_ref() {
-                    Some(ref uuid) => uuid.as_str(),
-                    None => ""
-                }));
-
+                ..push(format!("ROOT_UUID={}", root_uuid));
+                // Optionally set the LUKS UUID
+                ..push(format!("LUKS_UUID={}", luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())));
+                // Disable NVIDIA graphics if set.
+                ..push(format!("DISABLE_NVIDIA={}", if disable_nvidia { "1" } else { "0" }));
                 // Run configure script with bash
-                args.push("bash".to_string());
-
+                ..push("bash".to_string());
                 // Path to configure script in chroot
-                args.push(configure_chroot.to_str().unwrap().to_string());
-
-                // Remove installer packages
-                for pkg in remove_pkgs {
-                    if !install_pkgs.contains(&pkg.as_ref()) {
-                        args.push(format!("-{}", pkg.as_ref()));
-                    }
-                }
-
-                for pkg in install_pkgs {
-                    // Install bootloader packages
-                    args.push(pkg.to_string());
-                }
-
-                args
+                ..push(configure_chroot.to_str().unwrap().to_string());
             };
 
-            let mut results = Vec::new();
+            // Remove installer packages
+            for pkg in remove_pkgs {
+                if !install_pkgs.contains(&pkg.as_ref()) {
+                    args.push(format!("-{}", pkg.as_ref()));
+                }
+            }
 
-            results.push(chroot.command("/usr/bin/env", args.iter())?);
-            results.push({
-                // Ensure that localectl writes to the chroot, instead.
-                let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", disk::mount::BIND, None)?;
-                let args = {
-                    let mut args = Vec::new();
+            // Install bootloader packages
+            for pkg in install_pkgs {
+                args.push(pkg.to_string());
+            }
 
-                    // Clear existing environment
-                    args.push("-i".to_string());
+            let results = cascade! {
+                Vec::with_capacity(2);
+                ..push(chroot.command("/usr/bin/env", args.iter())?);
+                ..push({
+                    // Ensure that localectl writes to the chroot, instead.
+                    let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", BIND, None)?;
 
-                    // Set preferred keyboard layout
-                    args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
+                    let args = cascade! {
+                        Vec::new();
+                        // Clear existing environment
+                        ..push("-i".to_string());
+                        // Set preferred keyboard layout
+                        ..push(format!("KBD_LAYOUT={}", config.keyboard_layout));
+                        // Set the keyboard model, if it was set.
+                        ..push(format!("KBD_MODEL={}", config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or("")));
+                        // Set the keyboard variant, if it was set.
+                        ..push(format!("KBD_VARIANT={}", config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or("")));
+                        // Attach the localectl commands that are to be executed by Bash.
+                        ..extend_from_slice(&["bash".into(), "-c".into(), LOCALECTL_ARGUMENTS.into()]);
+                    };
 
-                    if let Some(ref model) = config.keyboard_model {
-                        args.push(format!("KBD_MODEL={}", model));
-                    }
-
-                    if let Some(ref variant) = config.keyboard_variant {
-                        args.push(format!("KBD_VARIANT={}", variant));
-                    }
-
-                    args.extend_from_slice(&["bash".into(), "-c".into(), LOCALECTL_ARGUMENTS.into()]);
-                    args
-                };
-
-                chroot.command("/usr/bin/env", args.iter())?
-            });
+                    chroot.command("/usr/bin/env", args.iter())?
+                });
+            };
 
             for status in results {
                 if !status.success() {
@@ -944,13 +924,11 @@ impl Installer {
         let ((root_dev, _root_part), boot_opt) = disks.get_base_partitions(bootloader);
 
         let mut efi_part_num = 0;
-        let bootloader_dev = match boot_opt {
-            Some((dev, dev_part)) => {
-                efi_part_num = dev_part.number;
-                dev
-            }
-            None => root_dev,
-        };
+
+        let bootloader_dev = boot_opt.map_or(root_dev, |(dev, dev_part)| {
+            efi_part_num = dev_part.number;
+            dev
+        });
 
         info!(
             "{}: installing bootloader for {:?}",
@@ -1004,6 +982,7 @@ impl Installer {
                         }
                     }
                     Bootloader::Efi => {
+                        let name = &iso_os_release.name;
                         let status = if &iso_os_release.name == "Pop!_OS" {
                             chroot.command(
                                 "bootctl",
@@ -1020,23 +999,31 @@ impl Installer {
                             chroot.command(
                                 "/usr/bin/env",
                                 &[
-                                    "GRUB_ENABLE_CRYPTODISK=y",
-                                    "grub-install",
-                                    "--target=x86_64-efi",
-                                    "--efi-directory=/boot/efi",
-                                    "--boot-directory=/boot/efi/EFI/ubuntu",
-                                    "--bootloader=GRUB",
-                                    "--modules=part_gpt part_msdos"
+                                    "bash",
+                                    "-c",
+                                    "echo GRUB_ENABLE_CRYPTODISK=y >> /etc/default/grub"
                                 ]
                             )?;
 
                             chroot.command(
-                                "/usr/bin/env",
+                                "grub-install",
                                 &[
-                                    "grub-mkconfig",
-                                    "-o",
-                                    "/boot/efi/EFI/ubuntu/grub/grub.cfg"
+                                    "--target=x86_64-efi",
+                                    "--efi-directory=/boot/efi",
+                                    &format!("--boot-directory=/boot/efi/EFI/{}", name),
+                                    &format!("--bootloader={}", name),
+                                    "--recheck",
                                 ]
+                            )?;
+
+                            chroot.command(
+                                "grub-mkconfig",
+                                &[ "-o", &format!("/boot/efi/EFI/{}/grub/grub.cfg", name)]
+                            )?;
+
+                            chroot.command(
+                                "update-initramfs",
+                                &["-c", "-k", "all"]
                             )?
                         };
 
@@ -1049,6 +1036,12 @@ impl Installer {
 
                         if config.flags & MODIFY_BOOT_ORDER != 0 {
                             let efi_part_num = efi_part_num.to_string();
+                            let loader = if &iso_os_release.name == "Pop!_OS" {
+                                "\\EFI\\systemd\\systemd-bootx64.efi".into()
+                            } else {
+                                format!("\\EFI\\{}\\grubx64.efi", name)
+                            };
+
                             let args: &[&OsStr] = &[
                                 "--create".as_ref(),
                                 "--disk".as_ref(),
@@ -1059,11 +1052,7 @@ impl Installer {
                                 "--label".as_ref(),
                                 iso_os_release.pretty_name.as_ref(),
                                 "--loader".as_ref(),
-                                if &iso_os_release.name == "Pop!_OS" {
-                                    "\\EFI\\systemd\\systemd-bootx64.efi".as_ref()
-                                } else {
-                                    "\\EFI\\ubuntu\\grubx64.efi".as_ref()
-                                },
+                                loader.as_ref()
                             ][..];
 
                             let status = chroot.command("efibootmgr", args)?;
@@ -1151,110 +1140,71 @@ impl Installer {
         let disk_support_flags = disks.get_support_flags();
         let retain = distribution::debian::get_required_packages(disk_support_flags);
 
-        let mut status = Status {
-            step:    Step::Init,
-            percent: 0,
-        };
+        info!("installing {:?} with {:?}", config, bootloader);
 
-        macro_rules! apply_step {
-            // When a step is provided, that step will be set. This branch will then invoke a
-            // second call to the macro, which will execute the branch below this one.
-            ($step:expr, $msg:expr, $action:expr) => {{
-                unsafe {
-                    libc::sync();
-                }
-
-                if KILL_SWITCH.load(Ordering::SeqCst) {
-                    return Err(io::Error::new(io::ErrorKind::Interrupted, "process killed"));
-                }
-
-                status.step = $step;
-                status.percent = 0;
-                self.emit_status(status);
-
-                apply_step!($msg, $action)
-            }};
-            ($msg:expr, $action:expr) => {{
-                info!("starting {} step", $msg);
-                match $action {
-                    Ok(value) => value,
-                    Err(err) => {
-                        error!("{} error: {}", $msg, err);
-                        let error = Error {
-                            step: status.step,
-                            err,
-                        };
-                        self.emit_error(&error);
-                        return Err(error.err);
-                    }
-                }
-            }};
-        }
+        let steps = &mut InstallerState::new(self);
 
         macro_rules! percent {
-            () => {
+            ($steps:expr) => {
                 |percent| {
-                    status.percent = percent;
-                    self.emit_status(status);
+                    $steps.status.percent = percent;
+                    let status = $steps.status;
+                    $steps.emit_status(status);
                 }
             }
         }
 
-        info!("installing {:?} with {:?}", config, bootloader);
-        self.emit_status(status);
+        let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
+            Installer::initialize(&mut disks, config, &retain, percent!(steps))
+        })?;
 
-        let (squashfs, remove_pkgs) = apply_step!("initializing", {
-            Installer::initialize(&mut disks, config, &retain, percent!())
-        });
-
-        apply_step!(Step::Partition, "partitioning", {
-            Installer::partition(&mut disks, percent!())
-        });
+        steps.apply(Step::Partition, "partitioning", |steps| {
+            Installer::partition(&mut disks, percent!(steps))
+        })?;
 
         // Mount the temporary directory, and all of our mount targets.
-        const CHROOT_ROOT: &str = "distinst";
-        info!(
-            "mounting temporary chroot directory at {}",
-            CHROOT_ROOT
-        );
+        info!("mounting temporary chroot directory at {}", Self::CHROOT_ROOT);
 
         // Stores the `OsRelease` parsed from the ISO's extracted image.
         let iso_os_release: OsRelease;
 
         {
-            let mount_dir = TempDir::new(CHROOT_ROOT)?;
+            let mount_dir = TempDir::new(Self::CHROOT_ROOT)?;
+            let mut mounts = Installer::mount(&disks, mount_dir.path())?;
 
-            {
-                let mut mounts = Installer::mount(&disks, mount_dir.path())?;
-
-                if PARTITIONING_TEST.load(Ordering::SeqCst) {
-                    info!("PARTITION_TEST enabled: exiting before unsquashing");
-                    return Ok(());
-                }
-
-                iso_os_release = apply_step!(Step::Extract, "extraction", {
-                    Installer::extract(squashfs.as_path(), mount_dir.path(), percent!())
-                });
-
-                apply_step!(Step::Configure, "configuration", {
-                    Installer::configure(
-                        &disks,
-                        mount_dir.path(),
-                        &config,
-                        &retain,
-                        &iso_os_release,
-                        &remove_pkgs,
-                        percent!(),
-                    )
-                });
-
-                apply_step!(Step::Bootloader, "bootloader", {
-                    Installer::bootloader(&disks, mount_dir.path(), bootloader, &config, &iso_os_release, percent!())
-                });
-
-                mounts.unmount(false)?;
+            if PARTITIONING_TEST.load(Ordering::SeqCst) {
+                info!("PARTITION_TEST enabled: exiting before unsquashing");
+                return Ok(());
             }
 
+            iso_os_release = steps.apply(Step::Extract, "extracting", |steps| {
+                Installer::extract(squashfs.as_path(), mount_dir.path(), percent!(steps))
+            })?;
+
+            steps.apply(Step::Configure, "configuring chroot", |steps| {
+                Installer::configure(
+                    &disks,
+                    mount_dir.path(),
+                    &config,
+                    &retain,
+                    &iso_os_release,
+                    &remove_pkgs,
+                    percent!(steps),
+                )
+            })?;
+
+            steps.apply(Step::Bootloader, "configuring bootloader", |steps| {
+                Installer::bootloader(
+                    &disks,
+                    mount_dir.path(),
+                    bootloader,
+                    &config,
+                    &iso_os_release,
+                    percent!(steps)
+                )
+            })?;
+
+            mounts.unmount(false)?;
             mount_dir.close()?;
         }
 
@@ -1277,7 +1227,10 @@ impl Installer {
     pub fn disks(&self) -> io::Result<Disks> {
         info!("probing disks on system");
         Disks::probe_devices()
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
+            .map_err(|err| io::Error::new(
+                io::ErrorKind::Other,
+                format!("disk probing error: {}", err)
+            ))
     }
 }
 
@@ -1300,12 +1253,7 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
     let recovery_path = Path::new("/cdrom/recovery.conf");
     if recovery_path.exists() {
         let recovery_conf = &mut EnvFile::new(recovery_path)?;
-
-        let luks_value = if let Some(uuid) = luks_uuid {
-            if root_uuid == uuid { "" } else { uuid }
-        } else {
-            ""
-        };
+        let luks_value = luks_uuid.map_or("", |uuid| if root_uuid == uuid { "" } else { uuid});
 
         recovery_conf.update("LUKS_UUID", luks_value);
 
@@ -1342,7 +1290,6 @@ fn mount_efivars(mount_dir: &Path) -> io::Result<Option<Mount>> {
 }
 
 fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<Mount>> {
-    use disk::mount::BIND;
     if source.exists() {
         let _ = fs::create_dir_all(&target);
         Ok(Some(Mount::new(&source, &target, "none", BIND, None)?))

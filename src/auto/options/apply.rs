@@ -142,8 +142,8 @@ fn alongside_config(
         let mut create_esp = false;
 
         {
-            let partitions = device.partitions.iter_mut();
-            match partitions.filter(|p| p.is_esp_partition() && p.sectors() > 819_200).next() {
+            let mut partitions = device.partitions.iter_mut();
+            match partitions.find(|p| p.is_esp_partition() && p.sectors() > 819_200) {
                 Some(esp) => esp.set_mount("/boot/efi".into()),
                 None => create_esp = true
             }

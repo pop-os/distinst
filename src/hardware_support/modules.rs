@@ -40,7 +40,7 @@ impl Module {
 mod tests {
     use super::*;
 
-    const SAMPLE: &'static str = r#"snd_hda_intel 40960 9 - Live 0x0000000000000000
+    const SAMPLE: &str = r#"snd_hda_intel 40960 9 - Live 0x0000000000000000
 snd_hda_codec 126976 4 snd_hda_codec_hdmi,snd_hda_codec_realtek,snd_hda_codec_generic,snd_hda_intel, Live 0x0000000000000000
 snd_hda_core 81920 5 snd_hda_codec_hdmi,snd_hda_codec_realtek,snd_hda_codec_generic,snd_hda_intel,snd_hda_codec, Live 0x0000000000000000
 nvidia_drm 40960 11 - Live 0x0000000000000000 (POE)

@@ -480,7 +480,7 @@ Please make a test run using both the -n and -s options before real resizing!"#;
     #[test]
     fn ntfs_usage() {
         let reader = NTFS_INPUT.lines().map(|x| Ok(x.into()));
-        assert_eq!(get_ntfs_usage(reader, 512).unwrap(), 133256);
+        assert_eq!(get_ntfs_usage(reader, 512).unwrap(), 133_256);
     }
 
     const BTRFS_INPUT: &str = r#"Label: none  uuid: 8a69ba4c-6cf5-46cc-aff3-f0c23251a21b
