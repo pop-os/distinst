@@ -834,80 +834,62 @@ impl Installer {
                 install_pkgs
             );
 
-            let args = {
-                let mut args = Vec::new();
-
+            let mut args = cascade! {
+                args: Vec::new();
                 // Clear existing environment
-                args.push("-i".to_string());
-
+                ..push("-i".to_string());
                 // Set hostname to be set
-                args.push(format!("HOSTNAME={}", config.hostname));
-
+                ..push(format!("HOSTNAME={}", config.hostname));
                 // Set language to config setting
-                args.push(format!("LANG={}", config.lang));
-
-                if disable_nvidia {
-                    args.push("DISABLE_NVIDIA=1".into());
-                }
-
+                ..push(format!("LANG={}", config.lang));
                 // Set root UUID
-                args.push(format!("ROOT_UUID={}", root_uuid));
-
-                args.push(format!("LUKS_UUID={}", match luks_uuid.as_ref() {
-                    Some(ref uuid) => uuid.as_str(),
-                    None => ""
-                }));
-
+                ..push(format!("ROOT_UUID={}", root_uuid));
+                // Optionally set the LUKS UUID
+                ..push(format!("LUKS_UUID={}", luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())));
+                // Disable NVIDIA graphics if set.
+                ..push(format!("DISABLE_NVIDIA={}", if disable_nvidia { "1" } else { "0" }));
                 // Run configure script with bash
-                args.push("bash".to_string());
-
+                ..push("bash".to_string());
                 // Path to configure script in chroot
-                args.push(configure_chroot.to_str().unwrap().to_string());
-
-                // Remove installer packages
-                for pkg in remove_pkgs {
-                    if !install_pkgs.contains(&pkg.as_ref()) {
-                        args.push(format!("-{}", pkg.as_ref()));
-                    }
-                }
-
-                for pkg in install_pkgs {
-                    // Install bootloader packages
-                    args.push(pkg.to_string());
-                }
-
-                args
+                ..push(configure_chroot.to_str().unwrap().to_string());
             };
 
-            let mut results = Vec::new();
+            // Remove installer packages
+            for pkg in remove_pkgs {
+                if !install_pkgs.contains(&pkg.as_ref()) {
+                    args.push(format!("-{}", pkg.as_ref()));
+                }
+            }
 
-            results.push(chroot.command("/usr/bin/env", args.iter())?);
-            results.push({
-                // Ensure that localectl writes to the chroot, instead.
-                let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", disk::mount::BIND, None)?;
-                let args = {
-                    let mut args = Vec::new();
+            // Install bootloader packages
+            for pkg in install_pkgs {
+                args.push(pkg.to_string());
+            }
 
-                    // Clear existing environment
-                    args.push("-i".to_string());
+            let results = cascade! {
+                Vec::with_capacity(2);
+                ..push(chroot.command("/usr/bin/env", args.iter())?);
+                ..push({
+                    // Ensure that localectl writes to the chroot, instead.
+                    let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", disk::mount::BIND, None)?;
 
-                    // Set preferred keyboard layout
-                    args.push(format!("KBD_LAYOUT={}", config.keyboard_layout));
+                    let args = cascade! {
+                        Vec::new();
+                        // Clear existing environment
+                        ..push("-i".to_string());
+                        // Set preferred keyboard layout
+                        ..push(format!("KBD_LAYOUT={}", config.keyboard_layout));
+                        // Set the keyboard model, if it was set.
+                        ..push(format!("KBD_MODEL={}", config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or("")));
+                        // Set the keyboard variant, if it was set.
+                        ..push(format!("KBD_VARIANT={}", config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or("")));
+                        // Attach the localectl commands that are to be executed by Bash.
+                        ..extend_from_slice(&["bash".into(), "-c".into(), LOCALECTL_ARGUMENTS.into()]);
+                    };
 
-                    if let Some(ref model) = config.keyboard_model {
-                        args.push(format!("KBD_MODEL={}", model));
-                    }
-
-                    if let Some(ref variant) = config.keyboard_variant {
-                        args.push(format!("KBD_VARIANT={}", variant));
-                    }
-
-                    args.extend_from_slice(&["bash".into(), "-c".into(), LOCALECTL_ARGUMENTS.into()]);
-                    args
-                };
-
-                chroot.command("/usr/bin/env", args.iter())?
-            });
+                    chroot.command("/usr/bin/env", args.iter())?
+                });
+            };
 
             for status in results {
                 if !status.success() {

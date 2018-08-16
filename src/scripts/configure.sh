@@ -150,7 +150,7 @@ EOF
 fi
 
 # This is allowed to fail
-if [ $DISABLE_NVIDIA ]; then
+if [ $DISABLE_NVIDIA -eq "1" ]; then
     systemctl disable nvidia-fallback.service || true
 fi
 
