@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
 use disk::{Bootloader, FileSystemSupport};
+use os_release::OsRelease;
 
 pub fn check_language_support(locale: &str) -> io::Result<Option<Vec<u8>>> {
     // Attempt to run the check-language-support external command.
@@ -84,6 +85,17 @@ fn parse_dependency_line<F: FnMut(&str)>(line: &str, mut func: F) {
     }
 }
 
+pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str] {
+    match Bootloader::detect() {
+        Bootloader::Bios => &["grub", "grub-pc"],
+        Bootloader::Efi if os_release.name == "Pop!_OS" => &["kernelstub"],
+        Bootloader::Efi => {
+            &["grub-efi", "grub-efi-amd64", "grub-efi-amd64-signed",
+              "shim-signed", "mokutil", "fwupdate-signed", "linux-signed-generic"]
+        }
+    }
+}
+
 pub fn get_required_packages(flags: FileSystemSupport) -> Vec<&'static str> {
     let mut retain = Vec::new();
 
@@ -100,7 +112,7 @@ pub fn get_required_packages(flags: FileSystemSupport) -> Vec<&'static str> {
     }
 
     if flags.contains(FileSystemSupport::FAT) {
-        retain.extend_from_slice(&["dosfstools", "fatresize"]);
+        retain.push("dosfstools");
     }
 
     if flags.contains(FileSystemSupport::NTFS) {
@@ -115,24 +127,8 @@ pub fn get_required_packages(flags: FileSystemSupport) -> Vec<&'static str> {
         retain.extend_from_slice(&["cryptsetup", "cryptsetup-bin"]);
     }
 
-    if flags.contains(FileSystemSupport::LVM) {
-        retain.push("lvm2");
-    }
-
     if flags.intersects(FileSystemSupport::LVM | FileSystemSupport::LUKS) {
-        retain.extend_from_slice(&["dmeventd", "dmraid"]);
-    }
-
-    match Bootloader::detect() {
-        Bootloader::Efi => {
-            retain.extend_from_slice(
-                &["grub-efi", "grub-efi-amd64", "grub-efi-amd64-signed",
-                  "shim-signed", "mokutil", "fwupdate-signed", "linux-signed-generic"]
-            );
-        }
-        Bootloader::Bios => {
-            retain.extend_from_slice(&["grub", "grub-pc"]);
-        }
+        retain.extend_from_slice(&["lvm2", "dmeventd", "dmraid"]);
     }
 
     retain

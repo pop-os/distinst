@@ -39,6 +39,7 @@ serde_derive = "1.0.21"
 serde-xml-rs = "0.2.1"
 tempdir = "0.3.7"
 bitflags = "1.0.3"
+cascade = "0.1.2"
 
 [dependencies.failure]
 version = "0.1.2"
