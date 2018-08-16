@@ -99,7 +99,7 @@ fn main() {
             let disk = args.next().unwrap();
             let disk = Path::new(&disk);
 
-            match options.erase_options.iter().find(|opt| &opt.device == disk) {
+            match options.erase_options.iter().find(|opt| opt.device == disk) {
                 Some(option) => {
                     let option = InstallOption::Erase {
                         option,

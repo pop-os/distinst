@@ -1088,6 +1088,7 @@ impl Installer {
         Ok(())
     }
 
+    // TODO: Rewrite this as a state machine without needing the macros.
     /// The user will use this method to hand off installation tasks to distinst.
     ///
     /// The `disks` field contains all of the disks configuration information that will be

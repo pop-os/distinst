@@ -103,7 +103,7 @@ mod tests {
     use std::path::PathBuf;
     use std::ffi::OsString;
 
-    const SAMPLE: &'static str = r#"Filename				Type		Size	Used	Priority
+    const SAMPLE: &str = r#"Filename				Type		Size	Used	Priority
 /dev/sda5                               partition	8388600	0	-2"#;
 
     #[test]

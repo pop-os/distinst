@@ -178,7 +178,7 @@ impl InstallOptions {
         }
 
         let mut alongside_options = Vec::new();
-        for (device, data) in other_os.into_iter() {
+        for (device, data) in other_os {
             if data.systems.len() == 1 {
                 if required_space < data.sectors_free {
                     alongside_options.push(AlongsideOption {

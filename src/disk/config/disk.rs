@@ -833,7 +833,7 @@ impl Disk {
                     ops.remove()
                         .and_then(|ops| ops.change())
                         .and_then(|ops| ops.create())
-                        .map(|format| Some(format))
+                        .map(Some)
                 }
             })
         })
