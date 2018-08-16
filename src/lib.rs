@@ -3,6 +3,10 @@
 #![allow(unknown_lints)]
 
 #[macro_use]
+extern crate bitflags;
+#[macro_use]
+extern crate cascade;
+#[macro_use]
 extern crate derive_new;
 extern crate failure;
 #[macro_use]
@@ -57,6 +61,7 @@ pub use misc::device_layout_hash;
 pub mod auto;
 mod chroot;
 mod disk;
+mod distribution;
 mod envfile;
 mod hardware_support;
 pub mod hostname;
@@ -360,6 +365,7 @@ impl Installer {
     fn initialize<F: FnMut(i32)>(
         disks: &mut Disks,
         config: &Config,
+        retain: &[&str],
         mut callback: F,
     ) -> io::Result<(PathBuf, Vec<String>)> {
         info!("Initializing");
@@ -392,9 +398,49 @@ impl Installer {
                     }
                 };
 
+                // Takes the locale, such as `en_US.UTF-8`, and changes it into `en`.
+                let locale = match config.lang.find('_') {
+                    Some(pos) => &config.lang[..pos],
+                    None => match config.lang.find('.') {
+                        Some(pos) => &config.lang[..pos],
+                        None => &config.lang
+                    }
+                };
+
+                // Attempt to run the check-language-support external command.
+                let lang_output = distribution::debian::check_language_support(&locale)?;
+
+                // Variable for storing a value that may be allocated.
+                let lang_output_;
+
+                // Collect a list of language packages to retain. If the command was not
+                // found, an empty array will be returned.
+                let lang_packs = match lang_output.as_ref() {
+                    Some(output) => {
+                        // Packages in the output are delimited with spaces.
+                        // This is collected as a Cow<'_, str>.
+                        let packages = output.split(|&x| x == b' ')
+                            .map(|x| String::from_utf8_lossy(x))
+                            .collect::<Vec<_>>();
+
+                        match distribution::debian::get_dependencies_from_list(&packages) {
+                            Some(dependencies) => {
+                                lang_output_ = dependencies;
+                                &lang_output_[..]
+                            }
+                            None => &[]
+                        }
+                    }
+                    None => &[]
+                };
+
+                // Collects the packages that are to be removed from the install.
                 for line_res in io::BufReader::new(file).lines() {
                     match line_res {
-                        Ok(line) => remove_pkgs.push(line),
+                        // Only add package if it is not contained within lang_packs.
+                        Ok(line) => if !lang_packs.iter().any(|x| x == &line) && !retain.contains(&line.as_str()) {
+                            remove_pkgs.push(line)
+                        },
                         Err(err) => {
                             error!("config.remove: {}", err);
                             return Err(err);
@@ -662,8 +708,8 @@ impl Installer {
     fn configure<P: AsRef<Path>, S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
         disks: &Disks,
         mount_dir: P,
-        bootloader: Bootloader,
         config: &Config,
+        retain: &[&'static str],
         iso_os_release: &OsRelease,
         remove_pkgs: I,
         mut callback: F,
@@ -673,12 +719,10 @@ impl Installer {
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
         let configure = configure_dir.path().join("configure.sh");
 
-        let install_pkgs: &mut Vec<&str> = &mut match bootloader {
-            Bootloader::Bios => vec!["grub-pc"],
-            // We use kernelstub for EFI instead of GRUB, for Pop!_OS
-            Bootloader::Efi if &iso_os_release.name == "Pop!_OS"=> vec!["kernelstub"],
-            // Ubuntu does not provide kernelstub, so it must use grub-efi instead.
-            Bootloader::Efi => vec!["grub-efi"],
+        let install_pkgs = &mut cascade! {
+            Vec::with_capacity(32);
+            ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release));
+            ..extend_from_slice(retain);
         };
 
         let configure_script = || {
@@ -765,41 +809,15 @@ impl Installer {
 
             callback(75);
 
-            use std::iter;
-
-            let root_entry = {
-                info!("retrieving root partition");
-                disks
-                    .get_physical_devices()
-                    .iter()
-                    .flat_map(|disk| {
-                        let iterator: Box<Iterator<Item = &PartitionInfo>> = if let Some(ref fs) = disk.file_system {
-                            Box::new(iter::once(fs).chain(disk.partitions.iter()))
-                        } else {
-                            Box::new(disk.partitions.iter())
-                        };
-                        iterator
-                    })
-                    .filter_map(|part| part.get_block_info())
-                    .find(|entry| entry.mount() == "/")
-                    .or_else(|| disks
-                        .get_logical_devices()
-                        .iter()
-                        .flat_map(|disk| {
-                            let iterator: Box<Iterator<Item = &PartitionInfo>> = if let Some(ref fs) = disk.file_system {
-                                Box::new(iter::once(fs).chain(disk.partitions.iter()))
-                            } else {
-                                Box::new(disk.partitions.iter())
-                            };
-                            iterator
-                        })
-                        .filter_map(|part| part.get_block_info())
-                        .find(|entry| entry.mount() == "/"))
-                    .ok_or_else(|| io::Error::new(
-                        io::ErrorKind::Other,
-                        "root partition not found",
-                    ))?
-            };
+            info!("retrieving root partition");
+            let root_entry = disks
+                .get_partitions()
+                .filter_map(|part| part.get_block_info())
+                .find(|entry| entry.mount() == "/")
+                .ok_or_else(|| io::Error::new(
+                    io::ErrorKind::Other,
+                    "root partition not found",
+                ))?;
 
             let luks_uuid = misc::from_uuid(&root_entry.uuid)
                 .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
@@ -844,14 +862,16 @@ impl Installer {
                 // Path to configure script in chroot
                 args.push(configure_chroot.to_str().unwrap().to_string());
 
+                // Remove installer packages
+                for pkg in remove_pkgs {
+                    if !install_pkgs.contains(&pkg.as_ref()) {
+                        args.push(format!("-{}", pkg.as_ref()));
+                    }
+                }
+
                 for pkg in install_pkgs {
                     // Install bootloader packages
                     args.push(pkg.to_string());
-                }
-
-                for pkg in remove_pkgs {
-                    // Remove installer packages
-                    args.push(format!("-{}", pkg.as_ref()));
                 }
 
                 args
@@ -1004,6 +1024,18 @@ impl Installer {
                                     "grub-install",
                                     "--target=x86_64-efi",
                                     "--efi-directory=/boot/efi",
+                                    "--boot-directory=/boot/efi/EFI/ubuntu",
+                                    "--bootloader=GRUB",
+                                    "--modules=part_gpt part_msdos"
+                                ]
+                            )?;
+
+                            chroot.command(
+                                "/usr/bin/env",
+                                &[
+                                    "grub-mkconfig",
+                                    "-o",
+                                    "/boot/efi/EFI/ubuntu/grub/grub.cfg"
                                 ]
                             )?
                         };
@@ -1030,7 +1062,7 @@ impl Installer {
                                 if &iso_os_release.name == "Pop!_OS" {
                                     "\\EFI\\systemd\\systemd-bootx64.efi".as_ref()
                                 } else {
-                                    "\\EFI\\GRUB\\grubx64.efi".as_ref()
+                                    "\\EFI\\ubuntu\\grubx64.efi".as_ref()
                                 },
                             ][..];
 
@@ -1116,6 +1148,9 @@ impl Installer {
         let bootloader = Bootloader::detect();
         disks.verify_partitions(bootloader)?;
 
+        let disk_support_flags = disks.get_support_flags();
+        let retain = distribution::debian::get_required_packages(disk_support_flags);
+
         let mut status = Status {
             step:    Step::Init,
             percent: 0,
@@ -1169,7 +1204,7 @@ impl Installer {
         self.emit_status(status);
 
         let (squashfs, remove_pkgs) = apply_step!("initializing", {
-            Installer::initialize(&mut disks, config, percent!())
+            Installer::initialize(&mut disks, config, &retain, percent!())
         });
 
         apply_step!(Step::Partition, "partitioning", {
@@ -1205,8 +1240,8 @@ impl Installer {
                     Installer::configure(
                         &disks,
                         mount_dir.path(),
-                        bootloader,
                         &config,
+                        &retain,
                         &iso_os_release,
                         &remove_pkgs,
                         percent!(),

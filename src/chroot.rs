@@ -3,8 +3,7 @@ use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
-use std::thread::sleep;
-use std::time::Duration;
+use std::thread;
 
 /// Defines the location where a `chroot` will be performed, as well as storing
 /// handles to all of the binding mounts that the chroot requires.
@@ -63,57 +62,38 @@ impl Chroot {
             format!("chroot command failed to spawn: {}", why)
         ))?;
 
-        // Raw pointers to child FDs, to work around borrowck.
-        let stdout = child.stdout.as_mut().unwrap() as *mut _;
-        let stderr = child.stderr.as_mut().unwrap() as *mut _;
-
-        // Buffers for the child FDs, to buffer by line.
-        let stdout = &mut BufReader::new(unsafe { &mut *stdout });
-        let stderr = &mut BufReader::new(unsafe { &mut *stderr });
-
-        // Buffer for reading each line from the `BufReader`s
-        let buffer = &mut String::with_capacity(8 * 1024);
-
-        loop {
-            let status = child.try_wait().map_err(|why| Error::new(
-                ErrorKind::Other,
-                format!("waiting on chroot child process failed: {}", why)
-            ))?;
-
-            match status {
-                // The child has been reaped if it has an exit status.
-                Some(c) => break Ok(c),
-                // Pipe any output to logs that may be available.
-                None => {
-                    let mut finished = 0;
-                    loop {
-                        buffer.clear();
-                         match stdout.read_line(buffer) {
-                            Ok(0) | Err(_) => finished |= 1,
-                            Ok(_) => {
-                                info!("{}", buffer.trim());
-                            }
-                        }
-
-                        buffer.clear();
-                        match stderr.read_line(buffer) {
-                            Ok(0) | Err(_) => finished |= 2,
-                            Ok(_) => {
-                                warn!("{}", buffer.trim());
-                            }
-                        }
-
-                        if finished == 3 {
-                            break
-                        } else {
-                            finished = 0;
-                        }
+        let mut stdout = BufReader::new(child.stdout.take().unwrap());
+        thread::spawn(move || {
+            let buffer = &mut String::with_capacity(8 * 1024);
+            loop {
+                buffer.clear();
+                match stdout.read_line(buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {
+                        info!("{}", buffer.trim_right());
                     }
-
-                    sleep(Duration::from_millis(1));
                 }
             }
-        }
+        });
+
+        let mut stderr = BufReader::new(child.stderr.take().unwrap());
+        thread::spawn(move || {
+            let buffer = &mut String::with_capacity(8 * 1024);
+            loop {
+                buffer.clear();
+                match stderr.read_line(buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {
+                        warn!("{}", buffer.trim_right());
+                    }
+                }
+            }
+        });
+
+        child.wait().map_err(|why| Error::new(
+            ErrorKind::Other,
+            format!("waiting on chroot child process failed: {}", why)
+        ))
     }
 
     /// Return true if the filesystem was unmounted, false if it was already
