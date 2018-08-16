@@ -6,6 +6,7 @@
 extern crate bitflags;
 #[macro_use]
 extern crate cascade;
+extern crate dirs;
 #[macro_use]
 extern crate derive_new;
 extern crate failure;
@@ -32,11 +33,11 @@ extern crate serde_xml_rs;
 
 use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
 use disk::operations::FormatPartitions;
+use disk::mount::BIND;
 use itertools::Itertools;
 use os_release::OsRelease;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
-use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, Permissions};
 use std::io::{self, BufRead, Read, Write};
@@ -158,7 +159,7 @@ pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
 
             // If the home directory exists, add a log there as well.
             // If the Desktop directory exists within the home directory, write the logs there.
-            if let Some(home) = env::home_dir() {
+            if let Some(home) = dirs::home_dir() {
                 let desktop = home.join("Desktop");
                 let log = if desktop.is_dir() {
                     fern::log_file(&desktop.join("installer.log"))
@@ -296,6 +297,8 @@ pub struct Installer {
 }
 
 impl Installer {
+    const CHROOT_ROOT: &'static str = "distinst";
+
     /// Create a new installer object
     ///
     /// ```ignore,rust
@@ -454,36 +457,45 @@ impl Installer {
             Ok(remove_pkgs)
         };
 
-        let ((res_a, res_b), (res_c, res_d)): (
-            (io::Result<()>, io::Result<Vec<String>>),
-            (io::Result<()>, io::Result<PathBuf>)
-        ) = rayon::join(
-            || rayon::join(
-                || {
-                    // Deactivate any open logical volumes & close any encrypted partitions.
-                    if let Err(why) = disks.deactivate_device_maps() {
-                        error!("lvm deactivation error: {}", why);
-                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-                    }
+        let verify_disks = |disks: &Disks| {
+            disks.verify_keyfile_paths()?;
+            Ok(())
+        };
 
-                    // Unmount any mounted devices.
-                    if let Err(why) = disks.unmount_devices() {
-                        error!("device unmount error: {}", why);
-                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
-                    }
+        let mut res_a = Ok(());
+        let mut res_b = Ok(Vec::new());
+        let mut res_c = Ok(());
+        let mut res_d = Ok(PathBuf::new());
 
-                    Ok(())
-                },
-                fetch_packages
-            ),
-            || rayon::join(
-                || {
-                    disks.verify_keyfile_paths()?;
-                    Ok(())
-                },
-                fetch_squashfs
-            )
-        );
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                // Deactivate any open logical volumes & close any encrypted partitions.
+                if let Err(why) = disks.deactivate_device_maps() {
+                    error!("device map deactivation error: {}", why);
+                    res_a = Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("device map deactivation error: {}", why)
+                    ));
+                    return
+                }
+
+                // Unmount any mounted devices.
+                if let Err(why) = disks.unmount_devices() {
+                    error!("device unmount error: {}", why);
+                    res_a = Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("device unmount error: {}", why)
+                    ));
+                    return
+                }
+
+                res_a = Ok(());
+            });
+
+            s.spawn(|_| res_b = fetch_packages());
+            s.spawn(|_| res_c = verify_disks(disks));
+            s.spawn(|_| res_d = fetch_squashfs());
+        });
 
         let (remove_pkgs, squashfs) = res_a
             .and(res_c)
@@ -534,7 +546,10 @@ impl Installer {
                 for disk in disks.get_physical_devices_mut() {
                     info!("{}: Committing changes to disk", disk.path().display());
                     if let Some(partitions) = disk.commit()
-                        .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))?
+                        .map_err(|why| io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("disk commit error: {}", why)
+                        ))?
                     {
                         partitions_to_format.0.extend_from_slice(&partitions.0);
                     }
@@ -542,12 +557,9 @@ impl Installer {
 
                 partitions_to_format.format()?;
 
-                // Optimization: possibly do this while formatting partitions?
-                for disk in &mut disks.physical {
-                    disk.reload()?;
-                }
-
-                Ok(())
+                disks.physical.iter_mut()
+                    .map(|disk| disk.reload().map_err(io::Error::from))
+                    .collect()
             }
         );
 
@@ -558,24 +570,16 @@ impl Installer {
         // Utilizes the physical volume collection to generate a vector of volume
         // groups which we will need to deactivate pre-`blockdev`, and will be
         // reactivated post-`blockdev`.
-        let vgs = disks
-            .get_physical_devices()
-            .iter()
-            .flat_map(|disk| {
-                disk.get_partitions()
-                    .iter()
-                    .filter_map(|part| match pvs.get(&part.device_path) {
-                        Some(&Some(ref vg)) => Some(vg.clone()),
-                        _ => None,
-                    })
+        let vgs = disks.get_physical_partitions()
+            .filter_map(|part| match pvs.get(&part.device_path) {
+                Some(&Some(ref vg)) => Some(vg.clone()),
+                _ => None,
             })
             .unique()
             .collect::<Vec<String>>();
 
         // Deactivate logical volumes so that blockdev will not fail.
-        vgs.iter()
-            .map(|vg| vgdeactivate(vg))
-            .collect::<io::Result<()>>()?;
+        vgs.iter().map(|vg| vgdeactivate(vg)).collect::<io::Result<()>>()?;
 
         // Ensure that the logical volumes have had time to deactivate.
         sleep(Duration::from_secs(1));
@@ -590,31 +594,21 @@ impl Installer {
         sleep(Duration::from_secs(1));
 
         // Reactivate the logical volumes.
-        vgs.iter()
-            .map(|vg| vgactivate(vg))
-            .collect::<io::Result<()>>()?;
+        vgs.iter().map(|vg| vgactivate(vg)).collect::<io::Result<()>>()?;
 
         disks
             .commit_logical_partitions()
-            .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
+            .map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to commit logical partitions: {}", why)
+            ))
     }
 
     /// Mount all target paths defined within the provided `disks`
     /// configuration.
     fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
-        let physical_targets = disks
-            .get_physical_devices()
-            .iter()
-            .flat_map(|disk| disk.file_system.as_ref().into_iter().chain(disk.partitions.iter()))
+        let targets = disks.get_partitions()
             .filter(|part| part.target.is_some() && part.filesystem.is_some());
-
-        let logical_targets = disks
-            .get_logical_devices()
-            .iter()
-            .flat_map(|disk| disk.file_system.as_ref().into_iter().chain(disk.partitions.iter()))
-            .filter(|part| part.target.is_some() && part.filesystem.is_some());
-
-        let targets = physical_targets.chain(logical_targets);
 
         let mut mounts = Vec::new();
 
@@ -770,22 +764,24 @@ impl Installer {
         };
 
         let disable_nvidia = {
-            let ((a, disable_nvidia), (b, c)): (
-                (io::Result<()>, io::Result<bool>),
-                (io::Result<()>, io::Result<()>)
-            ) = rayon::join(
-                || rayon::join(
-                    configure_script,
-                    || {
-                        if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                            hardware_support::append_packages(install_pkgs, &iso_os_release);
-                        }
+            let mut a = Ok(());
+            let mut b = Ok(());
+            let mut c = Ok(());
+            let mut disable_nvidia = Ok(false);
 
-                        hardware_support::blacklist::disable_external_graphics(&mount_dir)
+            rayon::scope(|s| {
+                s.spawn(|_| a = configure_script());
+                s.spawn(|_| b = lvm_autodetection());
+                s.spawn(|_| c = generate_fstabs());
+                s.spawn(|_| {
+                    if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
+                        hardware_support::append_packages(install_pkgs, &iso_os_release);
                     }
-                ),
-                || rayon::join(lvm_autodetection, generate_fstabs)
-            );
+
+                    disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir)
+                });
+
+            });
 
             a.and(b).and(c).and(disable_nvidia)?
         };
@@ -871,7 +867,7 @@ impl Installer {
                 ..push(chroot.command("/usr/bin/env", args.iter())?);
                 ..push({
                     // Ensure that localectl writes to the chroot, instead.
-                    let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", disk::mount::BIND, None)?;
+                    let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", BIND, None)?;
 
                     let args = cascade! {
                         Vec::new();
@@ -928,13 +924,11 @@ impl Installer {
         let ((root_dev, _root_part), boot_opt) = disks.get_base_partitions(bootloader);
 
         let mut efi_part_num = 0;
-        let bootloader_dev = match boot_opt {
-            Some((dev, dev_part)) => {
-                efi_part_num = dev_part.number;
-                dev
-            }
-            None => root_dev,
-        };
+
+        let bootloader_dev = boot_opt.map_or(root_dev, |(dev, dev_part)| {
+            efi_part_num = dev_part.number;
+            dev
+        });
 
         info!(
             "{}: installing bootloader for {:?}",
@@ -1169,15 +1163,13 @@ impl Installer {
         })?;
 
         // Mount the temporary directory, and all of our mount targets.
-        const CHROOT_ROOT: &str = "distinst";
-        info!("mounting temporary chroot directory at {}", CHROOT_ROOT);
+        info!("mounting temporary chroot directory at {}", Self::CHROOT_ROOT);
 
         // Stores the `OsRelease` parsed from the ISO's extracted image.
         let iso_os_release: OsRelease;
 
         {
-            let mount_dir = TempDir::new(CHROOT_ROOT)?;
-
+            let mount_dir = TempDir::new(Self::CHROOT_ROOT)?;
             let mut mounts = Installer::mount(&disks, mount_dir.path())?;
 
             if PARTITIONING_TEST.load(Ordering::SeqCst) {
@@ -1213,7 +1205,6 @@ impl Installer {
             })?;
 
             mounts.unmount(false)?;
-
             mount_dir.close()?;
         }
 
@@ -1236,7 +1227,10 @@ impl Installer {
     pub fn disks(&self) -> io::Result<Disks> {
         info!("probing disks on system");
         Disks::probe_devices()
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{}", err)))
+            .map_err(|err| io::Error::new(
+                io::ErrorKind::Other,
+                format!("disk probing error: {}", err)
+            ))
     }
 }
 
@@ -1259,12 +1253,7 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
     let recovery_path = Path::new("/cdrom/recovery.conf");
     if recovery_path.exists() {
         let recovery_conf = &mut EnvFile::new(recovery_path)?;
-
-        let luks_value = if let Some(uuid) = luks_uuid {
-            if root_uuid == uuid { "" } else { uuid }
-        } else {
-            ""
-        };
+        let luks_value = luks_uuid.map_or("", |uuid| if root_uuid == uuid { "" } else { uuid});
 
         recovery_conf.update("LUKS_UUID", luks_value);
 
@@ -1301,7 +1290,6 @@ fn mount_efivars(mount_dir: &Path) -> io::Result<Option<Mount>> {
 }
 
 fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<Mount>> {
-    use disk::mount::BIND;
     if source.exists() {
         let _ = fs::create_dir_all(&target);
         Ok(Some(Mount::new(&source, &target, "none", BIND, None)?))
