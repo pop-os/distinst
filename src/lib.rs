@@ -1006,6 +1006,7 @@ impl Installer {
                         }
                     }
                     Bootloader::Efi => {
+                        let name = &iso_os_release.name;
                         let status = if &iso_os_release.name == "Pop!_OS" {
                             chroot.command(
                                 "bootctl",
@@ -1022,23 +1023,31 @@ impl Installer {
                             chroot.command(
                                 "/usr/bin/env",
                                 &[
-                                    "GRUB_ENABLE_CRYPTODISK=y",
-                                    "grub-install",
-                                    "--target=x86_64-efi",
-                                    "--efi-directory=/boot/efi",
-                                    "--boot-directory=/boot/efi/EFI/ubuntu",
-                                    "--bootloader=GRUB",
-                                    "--modules=part_gpt part_msdos"
+                                    "bash",
+                                    "-c",
+                                    "echo GRUB_ENABLE_CRYPTODISK=y >> /etc/default/grub"
                                 ]
                             )?;
 
                             chroot.command(
-                                "/usr/bin/env",
+                                "grub-install",
                                 &[
-                                    "grub-mkconfig",
-                                    "-o",
-                                    "/boot/efi/EFI/ubuntu/grub/grub.cfg"
+                                    "--target=x86_64-efi",
+                                    "--efi-directory=/boot/efi",
+                                    &format!("--boot-directory=/boot/efi/EFI/{}", name),
+                                    &format!("--bootloader={}", name),
+                                    "--recheck",
                                 ]
+                            )?;
+
+                            chroot.command(
+                                "grub-mkconfig",
+                                &[ "-o", &format!("/boot/efi/EFI/{}/grub/grub.cfg", name)]
+                            )?;
+
+                            chroot.command(
+                                "update-initramfs",
+                                &["-c", "-k", "all"]
                             )?
                         };
 
@@ -1051,6 +1060,12 @@ impl Installer {
 
                         if config.flags & MODIFY_BOOT_ORDER != 0 {
                             let efi_part_num = efi_part_num.to_string();
+                            let loader = if &iso_os_release.name == "Pop!_OS" {
+                                "\\EFI\\systemd\\systemd-bootx64.efi".into()
+                            } else {
+                                format!("\\EFI\\{}\\grubx64.efi", name)
+                            };
+
                             let args: &[&OsStr] = &[
                                 "--create".as_ref(),
                                 "--disk".as_ref(),
@@ -1061,11 +1076,7 @@ impl Installer {
                                 "--label".as_ref(),
                                 iso_os_release.pretty_name.as_ref(),
                                 "--loader".as_ref(),
-                                if &iso_os_release.name == "Pop!_OS" {
-                                    "\\EFI\\systemd\\systemd-bootx64.efi".as_ref()
-                                } else {
-                                    "\\EFI\\ubuntu\\grubx64.efi".as_ref()
-                                },
+                                loader.as_ref()
                             ][..];
 
                             let status = chroot.command("efibootmgr", args)?;
