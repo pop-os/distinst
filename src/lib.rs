@@ -33,7 +33,6 @@ extern crate serde_xml_rs;
 
 use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, remount_rw, vgactivate, vgdeactivate, CloseBy};
 use disk::operations::FormatPartitions;
-use disk::mount::BIND;
 use itertools::Itertools;
 use os_release::OsRelease;
 use rayon::prelude::*;
@@ -51,7 +50,8 @@ use std::time::Duration;
 use tempdir::TempDir;
 
 pub use chroot::Chroot;
-pub use disk::mount::{Mount, Mounts};
+pub use command::Command;
+pub use disk::mount::{BIND, Mount, Mounts};
 pub use disk::{
     generate_unique_id, Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks,
     FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag,
@@ -60,7 +60,9 @@ pub use disk::{
 pub use misc::device_layout_hash;
 
 pub mod auto;
-mod chroot;
+pub mod chroot;
+pub mod command;
+mod configure;
 mod disk;
 mod distribution;
 mod envfile;
@@ -85,12 +87,6 @@ pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
 
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
-
-/// Configures the keyboard layout in the chroot.
-const LOCALECTL_ARGUMENTS: &str = "localectl set-x11-keymap \"${KBD_LAYOUT}\" \"${KBD_MODEL}\" \"${KBD_VARIANT}\" \
-    && SYSTEMCTL_SKIP_REDIRECT=_ openvt -- sh /etc/init.d/console-setup.sh reload \
-    && ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz \
-    && update-initramfs -u";
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
@@ -701,13 +697,13 @@ impl Installer {
     }
 
     /// Configures the new install after it has been extracted.
-    fn configure<P: AsRef<Path>, S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
+    fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         disks: &Disks,
         mount_dir: P,
         config: &Config,
         retain: &[&'static str],
         iso_os_release: &OsRelease,
-        remove_pkgs: I,
+        remove_pkgs: &[S],
         mut callback: F,
     ) -> io::Result<()> {
         let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
@@ -830,76 +826,65 @@ impl Installer {
                 install_pkgs
             );
 
-            let mut args = cascade! {
-                args: Vec::new();
-                // Clear existing environment
-                ..push("-i".to_string());
-                // Set hostname to be set
-                ..push(format!("HOSTNAME={}", config.hostname));
-                // Set language to config setting
-                ..push(format!("LANG={}", config.lang));
-                // Set root UUID
-                ..push(format!("ROOT_UUID={}", root_uuid));
-                // Optionally set the LUKS UUID
-                ..push(format!("LUKS_UUID={}", luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())));
-                // Disable NVIDIA graphics if set.
-                ..push(format!("DISABLE_NVIDIA={}", if disable_nvidia { "1" } else { "0" }));
-                // Run configure script with bash
-                ..push("bash".to_string());
-                // Path to configure script in chroot
-                ..push(configure_chroot.to_str().unwrap().to_string());
-            };
+            // let mut args = cascade! {
+            //     args: Vec::new();
+            //     // Clear existing environment
+            //     ..push("-i".to_string());
+            //     // Set hostname to be set
+            //     ..push(format!("HOSTNAME={}", config.hostname));
+            //     // Set language to config setting
+            //     ..push(format!("LANG={}", config.lang));
+            //     // Set root UUID
+            //     ..push(format!("ROOT_UUID={}", root_uuid));
+            //     // Optionally set the LUKS UUID
+            //     ..push(format!("LUKS_UUID={}", ));
+            //     // Run configure script with bash
+            //     ..push("bash".to_string());
+            //     // Path to configure script in chroot
+            //     ..push(configure_chroot.to_str().unwrap().to_string());
+            // };
 
             // Remove installer packages
-            for pkg in remove_pkgs {
-                if !install_pkgs.contains(&pkg.as_ref()) {
-                    args.push(format!("-{}", pkg.as_ref()));
-                }
+            let remove: Vec<&str> = remove_pkgs.iter()
+                .filter(|pkg| !install_pkgs.contains(&pkg.as_ref()))
+                .map(|x| x.as_ref())
+                .collect();
+
+            chroot.clear_envs(true);
+            chroot.env("DEBIAN_FRONTEND", "noninteractive");
+            chroot.env("HOME", "/root");
+            chroot.env("LC_ALL", &config.lang);
+            chroot.env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin");
+
+            // TODO: Possibly run some actions in parallel?
+            let mut chroot = configure::ChrootConfigure::new(chroot);
+            chroot.hostname(&config.hostname)?;
+            chroot.hosts(&config.hostname)?;
+            chroot.generate_machine_id()?;
+            chroot.netresolve()?;
+            chroot.generate_locale(&config.lang)?;
+            chroot.apt_remove(&remove)?;
+            chroot.cdrom_add()?;
+            chroot.etc_cleanup()?;
+            chroot.kernel_copy()?;
+            chroot.apt_install(&install_pkgs)?;
+            chroot.cdrom_disable()?;
+            chroot.bootloader()?;
+            chroot.recovery(
+                config,
+                &iso_os_release.name,
+                &root_uuid,
+                luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())
+            )?;
+            if disable_nvidia {
+                chroot.disable_nvidia();
             }
-
-            // Install bootloader packages
-            for pkg in install_pkgs {
-                args.push(pkg.to_string());
-            }
-
-            let results = cascade! {
-                Vec::with_capacity(2);
-                ..push(chroot.command("/usr/bin/env", args.iter())?);
-                ..push({
-                    // Ensure that localectl writes to the chroot, instead.
-                    let _etc_mount = Mount::new(&chroot.path.join("etc"), "/etc", "none", BIND, None)?;
-
-                    let args = cascade! {
-                        Vec::new();
-                        // Clear existing environment
-                        ..push("-i".to_string());
-                        // Set preferred keyboard layout
-                        ..push(format!("KBD_LAYOUT={}", config.keyboard_layout));
-                        // Set the keyboard model, if it was set.
-                        ..push(format!("KBD_MODEL={}", config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or("")));
-                        // Set the keyboard variant, if it was set.
-                        ..push(format!("KBD_VARIANT={}", config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or("")));
-                        // Attach the localectl commands that are to be executed by Bash.
-                        ..extend_from_slice(&["bash".into(), "-c".into(), LOCALECTL_ARGUMENTS.into()]);
-                    };
-
-                    chroot.command("/usr/bin/env", args.iter())?
-                });
-            };
-
-            for status in results {
-                if !status.success() {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("configure.sh failed with status: {}", status),
-                    ));
-                }
-            }
+            chroot.update_initramfs()?;
+            chroot.keyboard_layout(config)?;
 
             // Ensure that the cdrom binding is unmounted before the chroot.
             drop(cdrom_mount);
             drop(efivars_mount);
-
             cdrom_target.map(|target| fs::remove_dir(&target));
             chroot.unmount(false)?;
         }
@@ -962,7 +947,7 @@ impl Installer {
 
                 match bootloader {
                     Bootloader::Bios => {
-                        let status = chroot.command(
+                        chroot.command(
                             "grub-install",
                             &[
                                 // Recreate device map
@@ -972,18 +957,11 @@ impl Installer {
                                 // Install to the bootloader_dev device
                                 bootloader_dev.to_str().unwrap().to_owned(),
                             ],
-                        )?;
-
-                        if !status.success() {
-                            return Err(io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("grub-install failed with status: {}", status),
-                            ));
-                        }
+                        ).run()?;
                     }
                     Bootloader::Efi => {
                         let name = &iso_os_release.name;
-                        let status = if &iso_os_release.name == "Pop!_OS" {
+                        if &iso_os_release.name == "Pop!_OS" {
                             chroot.command(
                                 "bootctl",
                                 &[
@@ -994,7 +972,7 @@ impl Installer {
                                     // Do not set EFI variables
                                     "--no-variables",
                                 ][..],
-                            )?
+                            ).run()?;
                         } else {
                             chroot.command(
                                 "/usr/bin/env",
@@ -1003,7 +981,7 @@ impl Installer {
                                     "-c",
                                     "echo GRUB_ENABLE_CRYPTODISK=y >> /etc/default/grub"
                                 ]
-                            )?;
+                            ).run()?;
 
                             chroot.command(
                                 "grub-install",
@@ -1014,24 +992,17 @@ impl Installer {
                                     &format!("--bootloader={}", name),
                                     "--recheck",
                                 ]
-                            )?;
+                            ).run()?;
 
                             chroot.command(
                                 "grub-mkconfig",
                                 &[ "-o", &format!("/boot/efi/EFI/{}/grub/grub.cfg", name)]
-                            )?;
+                            ).run()?;
 
                             chroot.command(
                                 "update-initramfs",
                                 &["-c", "-k", "all"]
-                            )?
-                        };
-
-                        if !status.success() {
-                            return Err(io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("bootctl failed with status: {}", status),
-                            ));
+                            ).run()?;
                         }
 
                         if config.flags & MODIFY_BOOT_ORDER != 0 {
@@ -1055,14 +1026,7 @@ impl Installer {
                                 loader.as_ref()
                             ][..];
 
-                            let status = chroot.command("efibootmgr", args)?;
-
-                            if !status.success() {
-                                return Err(io::Error::new(
-                                    io::ErrorKind::Other,
-                                    format!("efibootmgr failed with status: {}", status),
-                                ));
-                            }
+                            chroot.command("efibootmgr", args).run()?;
                         }
                     }
                 }

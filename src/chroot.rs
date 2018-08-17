@@ -1,25 +1,27 @@
 use disk::mount::{Mount, BIND};
 use std::ffi::OsStr;
-use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
+use std::io::Result;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Stdio};
-use std::thread;
+use std::process::{Stdio};
+use command::Command;
 
 /// Defines the location where a `chroot` will be performed, as well as storing
 /// handles to all of the binding mounts that the chroot requires.
-pub struct Chroot {
+pub struct Chroot<'a> {
     pub path:   PathBuf,
     dev_mount:  Mount,
     pts_mount:  Mount,
     proc_mount: Mount,
     run_mount:  Mount,
     sys_mount:  Mount,
+    clear_envs: bool,
+    envs: Vec<(&'a str, &'a str)>
 }
 
-impl Chroot {
+impl<'a> Chroot<'a> {
     /// Performs binding mounts of all required paths to ensure that a chroot
     /// is successful.
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Chroot> {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref().canonicalize()?;
         let dev_mount = Mount::new("/dev", &path.join("dev"), "none", BIND, None)?;
         let pts_mount = Mount::new(
@@ -39,61 +41,40 @@ impl Chroot {
             proc_mount,
             run_mount,
             sys_mount,
+            clear_envs: false,
+            envs: Vec::new()
         })
+    }
+
+    pub fn env(&mut self, key: &'a str, value: &'a str) {
+        self.envs.push((key, value));
+    }
+
+    pub fn clear_envs(&mut self, clear: bool) {
+        self.clear_envs = clear;
     }
 
     /// Executes an external command with `chroot`.
     pub fn command<S: AsRef<OsStr>, T: AsRef<OsStr>, I: IntoIterator<Item = T>>(
-        &mut self,
+        &self,
         cmd: S,
         args: I,
-    ) -> Result<ExitStatus> {
+    ) -> Command {
         let mut command = Command::new("chroot");
         command.arg(&self.path);
         command.arg(cmd.as_ref());
         command.args(args);
         command.stderr(Stdio::piped());
         command.stdout(Stdio::piped());
+        if self.clear_envs {
+            command.env_clear();
+        }
 
-        debug!("{:?}", command);
+        for (ref key, ref value) in &self.envs {
+            command.env(key, value);
+        }
 
-        let mut child = command.spawn().map_err(|why| Error::new(
-            ErrorKind::Other,
-            format!("chroot command failed to spawn: {}", why)
-        ))?;
-
-        let mut stdout = BufReader::new(child.stdout.take().unwrap());
-        thread::spawn(move || {
-            let buffer = &mut String::with_capacity(8 * 1024);
-            loop {
-                buffer.clear();
-                match stdout.read_line(buffer) {
-                    Ok(0) | Err(_) => break,
-                    Ok(_) => {
-                        info!("{}", buffer.trim_right());
-                    }
-                }
-            }
-        });
-
-        let mut stderr = BufReader::new(child.stderr.take().unwrap());
-        thread::spawn(move || {
-            let buffer = &mut String::with_capacity(8 * 1024);
-            loop {
-                buffer.clear();
-                match stderr.read_line(buffer) {
-                    Ok(0) | Err(_) => break,
-                    Ok(_) => {
-                        warn!("{}", buffer.trim_right());
-                    }
-                }
-            }
-        });
-
-        child.wait().map_err(|why| Error::new(
-            ErrorKind::Other,
-            format!("waiting on chroot child process failed: {}", why)
-        ))
+        command
     }
 
     /// Return true if the filesystem was unmounted, false if it was already
@@ -108,7 +89,7 @@ impl Chroot {
     }
 }
 
-impl Drop for Chroot {
+impl<'a> Drop for Chroot<'a> {
     fn drop(&mut self) {
         // Ensure unmounting
         let _ = self.sys_mount.unmount(true);
