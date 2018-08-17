@@ -937,13 +937,13 @@ impl Installer {
                 chroot.disable_nvidia();
             }
 
-            chroot.update_initramfs()?;
-            callback(85);
-
             chroot.keyboard_layout(config).map_err(|why| io::Error::new(
                 io::ErrorKind::Other,
                 format!("failed to set keyboard layout: {}", why)
             ))?;
+            callback(85);
+
+            chroot.update_initramfs()?;
             callback(90);
 
             // Ensure that the cdrom binding is unmounted before the chroot.
