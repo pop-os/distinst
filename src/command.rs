@@ -33,14 +33,21 @@ impl Command {
     pub fn stdout(&mut self, stdio: Stdio) { self.0.stdout(stdio); }
 
     pub fn run_with_stdout(&mut self) -> io::Result<String> {
-        info!("running {:?}", self.0);
+        let cmd = format!("{:?}", self.0);
+        info!("running {}", cmd);
 
-        let mut child = self.0.spawn().map_err(|why| Error::new(
+        self.0.stdout(Stdio::piped());
+
+        let child = self.0.spawn().map_err(|why| Error::new(
             ErrorKind::Other,
             format!("chroot command failed to spawn: {}", why)
         ))?;
 
         child.wait_with_output()
+            .map_err(|why| Error::new(
+                ErrorKind::Other,
+                format!("failed to get output of {}: {}", cmd, why)
+            ))
             .and_then(|output| {
                 String::from_utf8(output.stdout)
                     .map_err(|why| Error::new(

@@ -712,6 +712,9 @@ impl Installer {
         info!("Configuring on {}", mount_dir.display());
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
 
+        // Pop!_OS does not need the retain workaround.
+        let retain = if iso_os_release.name == "Pop!_OS" { &[] } else { retain };
+
         let install_pkgs = &mut cascade! {
             Vec::with_capacity(32);
             ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release));
@@ -820,31 +823,107 @@ impl Installer {
             chroot.env("LC_ALL", &config.lang);
             chroot.env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin");
 
-            // TODO: Possibly run some actions in parallel?
             let mut chroot = configure::ChrootConfigure::new(chroot);
-            chroot.hostname(&config.hostname)?;
-            chroot.hosts(&config.hostname)?;
-            chroot.generate_machine_id()?;
-            chroot.netresolve()?;
-            chroot.generate_locale(&config.lang)?;
-            chroot.apt_remove(&remove)?;
-            chroot.cdrom_add()?;
-            chroot.etc_cleanup()?;
-            chroot.kernel_copy()?;
-            chroot.apt_install(&install_pkgs)?;
-            chroot.cdrom_disable()?;
-            chroot.bootloader()?;
-            chroot.recovery(
-                config,
-                &iso_os_release.name,
-                &root_uuid,
-                luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())
-            )?;
+
+            // TODO: use a macro to make this more manageable.
+
+            let mut hostname = Ok(());
+            let mut hosts = Ok(());
+            let mut machine_id = Ok(());
+            let mut netresolv = Ok(());
+            let mut locale = Ok(());
+            let mut apt_remove = Ok(());
+            let mut etc_cleanup = Ok(());
+            let mut kernel_copy = Ok(());
+
+            rayon::scope(|s| {
+                s.spawn(|_| {
+                    hostname = chroot.hostname(&config.hostname);
+                    hosts = chroot.hosts(&config.hostname);
+                    machine_id = chroot.generate_machine_id();
+                    netresolv = chroot.netresolve();
+                    locale = chroot.generate_locale(&config.lang);
+                    etc_cleanup = chroot.etc_cleanup();
+                    kernel_copy = chroot.kernel_copy();
+                });
+                s.spawn(|_| apt_remove = chroot.apt_remove(&remove));
+            });
+
+            hostname.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to write hostname: {}", why)
+            ))?;
+
+            hosts.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to write hosts: {}", why)
+            ))?;
+
+            machine_id.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to write unique machine id: {}", why)
+            ))?;
+
+            netresolv.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to link netresolv: {}", why)
+            ))?;
+
+            locale.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to generate locales: {}", why)
+            ))?;
+
+            apt_remove.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to remove packages: {}", why)
+            ))?;
+
+            etc_cleanup.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to remove pre-existing files in /etc: {}", why)
+            ))?;
+
+            let (apt_install, recovery) = rayon::join(
+                || {
+                    chroot.cdrom_add()?;
+                    chroot.apt_install(&install_pkgs)?;
+                    chroot.cdrom_disable()
+                },
+                || {
+                    chroot.recovery(
+                        config,
+                        &iso_os_release.name,
+                        &root_uuid,
+                        luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())
+                    )
+                }
+            );
+
+            apt_install.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to install packages: {}", why)
+            ))?;
+
+            recovery.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to create recovery partition: {}", why)
+            ))?;
+
+            chroot.bootloader().map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to install bootloader: {}", why)
+            ))?;
+
             if disable_nvidia {
                 chroot.disable_nvidia();
             }
+
             chroot.update_initramfs()?;
-            chroot.keyboard_layout(config)?;
+            chroot.keyboard_layout(config).map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to set keyboard layout: {}", why)
+            ))?;
 
             // Ensure that the cdrom binding is unmounted before the chroot.
             drop(cdrom_mount);

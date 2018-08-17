@@ -1,9 +1,9 @@
 use {Chroot, Command, Config};
 use disk::mount::{BIND, Mount};
-use std::env;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::Path;
+use misc;
 
 const APT_OPTIONS: &[&str] = &[
     "-o", "Acquire::cdrom::AutoDetect=0",
@@ -75,11 +75,11 @@ impl<'a> ChrootConfigure<'a> {
             // TODO: fs::read_to_string()
             let mut buffer = String::new();
             {
-                let mut file = fs::File::open(&sources_list)?;
+                let mut file = misc::open(&sources_list)?;
                 file.read_to_string(&mut buffer)?;
             }
 
-            let mut file = fs::File::create(&sources_list)?;
+            let mut file = misc::create(&sources_list)?;
             file.write_all(buffer.replace("deb cdrom:", "# deb cdrom:").as_bytes())
         } else {
             Ok(())
@@ -129,13 +129,13 @@ impl<'a> ChrootConfigure<'a> {
 
     pub fn hostname(&self, hostname: &str) -> io::Result<()> {
         info!("setting hostname to {}", hostname);
-        let mut file = fs::File::create(self.chroot.path.join("etc/hostname"))?;
+        let mut file = misc::create(&self.chroot.path.join("etc/hostname"))?;
         writeln!(&mut file, "{}", hostname)
     }
 
     pub fn hosts(&self, hostname: &str) -> io::Result<()> {
         info!("setting hosts file");
-        let mut file = fs::File::create(self.chroot.path.join("etc/hosts"))?;
+        let mut file = misc::create(&self.chroot.path.join("etc/hosts"))?;
         writeln!(&mut file, r#"127.0.0.1	localhost
 ::1		localhost
 127.0.1.1	{0}.localdomain	{0}"#, hostname)
@@ -202,22 +202,25 @@ impl<'a> ChrootConfigure<'a> {
 
         if recovery_path.exists() && Path::new("/boot/efi").is_dir() && Path::new("/cdrom").is_dir() {
             info!("creating recovery partition");
-
             let recovery_uuid = Command::new("findmnt")
                 .args(&["-n", "-o", "UUID"])
                 .arg(&recovery_path)
                 .run_with_stdout()?;
+            let recovery_uuid = recovery_uuid.trim();
 
             let efi_uuid = Command::new("findmnt")
-                .args(&["-n", "-o", "UUID", "/boot/efi"])
+                .args(&["-n", "-o", "UUID"])
+                .arg(&self.chroot.path.join("boot/efi"))
                 .run_with_stdout()?;
+            let efi_uuid = efi_uuid.trim();
 
             let cdrom_uuid = Command::new("findmnt")
                 .args(&["-n", "-o", "UUID", "/cdrom"])
                 .run_with_stdout()?;
+            let cdrom_uuid = cdrom_uuid.trim();
 
-            let casper = ["casper-", &recovery_uuid].concat();
-            let recovery = ["Recovery-", &recovery_uuid].concat();
+            let casper = ["casper-", recovery_uuid].concat();
+            let recovery = ["Recovery-", recovery_uuid].concat();
 
             if recovery_uuid != cdrom_uuid {
                 self.chroot.command("rsync", &[
@@ -254,10 +257,9 @@ OEM_MODE=0
 
             // Copy initrd and vmlinuz to EFI partition
             let recovery_path = self.chroot.path.join("recovery/recovery.conf");
-            let mut recovery_file = fs::File::create(&recovery_path)?;
+            let mut recovery_file = misc::create(&recovery_path)?;
             recovery_file.write_all(recovery_data.as_bytes())?;
 
-            // Create bootloader configuration
             let efi_recovery = ["boot/efi/EFI/", recovery.as_str()].concat();
             let efi_initrd = self.chroot.path.join([&efi_recovery, "/initrd.gz"].concat());
             let efi_vmlinuz = self.chroot.path.join([&efi_recovery, "/vmlinuz.efi"].concat());
@@ -265,8 +267,9 @@ OEM_MODE=0
             let casper_vmlinuz = self.chroot.path.join(["recovery/", &casper, "/vmlinuz.efi"].concat());
 
             fs::create_dir_all(self.chroot.path.join(efi_recovery))?;
-            io::copy(&mut fs::File::open(casper_initrd)?, &mut fs::File::create(efi_initrd)?)?;
-            io::copy(&mut fs::File::open(casper_vmlinuz)?, &mut fs::File::create(efi_vmlinuz)?)?;
+
+            misc::cp(&casper_initrd, &efi_initrd)?;
+            misc::cp(&casper_vmlinuz, &efi_vmlinuz)?;
 
             let rec_entry_data = format!(r#"title {0} recovery
 linux /EFI/{1}/vmlinuz.efi
@@ -278,10 +281,13 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
                 BOOT_OPTIONS,
                 casper
             );
-            let rec_entry_path = self.chroot.path.join(
-                ["boot/efi/loader/entries/", recovery.as_str(), ".conf"].concat()
-            );
-            let mut rec_entry_file = fs::File::create(&rec_entry_path)?;
+            let loader_entries = self.chroot.path.join("boot/efi/loader/entries/");
+            if ! loader_entries.exists() {
+                fs::create_dir_all(&loader_entries)?;
+            }
+
+            let rec_entry_path = loader_entries.join([recovery.as_str(), ".conf"].concat());
+            let mut rec_entry_file = misc::create(&rec_entry_path)?;
             rec_entry_file.write_all(rec_entry_data.as_bytes())?;
         }
 
@@ -289,6 +295,9 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
     }
 
     pub fn update_initramfs(&self) -> io::Result<()> {
-        self.chroot.command("update-initramfs", &["-u"]).run()
+        self.chroot.command("update-initramfs", &["-u"]).run().map_err(|why| io::Error::new(
+            io::ErrorKind::Other,
+            format!("failed to update initramfs: {}", why)
+        ))
     }
 }
