@@ -14,7 +14,7 @@ use configure::*;
 use distinst::{
     Config, DecryptionError, Disk, DiskError, Disks, FileSystemType, Installer,
     LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
-    Sector, Step, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER
+    Sector, Step, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER, NO_EFI_VARIABLES
 };
 use errors::DistinstError;
 
@@ -26,8 +26,6 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
-
-
 
 fn main() {
     let matches = App::new("distinst")
@@ -135,6 +133,11 @@ fn main() {
                 .help("performs an EFI installation even if the running system is BIOS")
         )
         .arg(
+            Arg::with_name("no-efi-vars")
+                .long("no-efi-vars")
+                .help("disables mounting of the efivars directory")
+        )
+        .arg(
             Arg::with_name("delete")
                 .short("d")
                 .long("delete")
@@ -186,9 +189,7 @@ fn main() {
         )
         .get_matches();
 
-    if let Err(err) = distinst::log(|_level, message| {
-        println!("{}", message);
-    }) {
+    if let Err(err) = distinst::log(|_level, _message| {}) {
         eprintln!("Failed to initialize logging: {}", err);
     }
 
@@ -254,14 +255,18 @@ fn main() {
 
         configure_signal_handling();
 
-        if matches.occurrences_of("test") != 0 {
-            PARTITIONING_TEST.store(true, Ordering::SeqCst);
+        if matches.is_present("test") {
+            PARTITIONING_TEST.store(true, Ordering::Relaxed);
         }
 
-        if matches.occurrences_of("force-bios") != 0 {
-            FORCE_BOOTLOADER.store(1, Ordering::SeqCst);
-        } else if matches.occurrences_of("force-efi") != 0 {
-            FORCE_BOOTLOADER.store(2, Ordering::SeqCst);
+        if matches.is_present("force-bios") {
+            FORCE_BOOTLOADER.store(1, Ordering::Relaxed);
+        } else if matches.is_present("force-efi") {
+            FORCE_BOOTLOADER.store(2, Ordering::Relaxed);
+        }
+
+        if matches.is_present("no-efi-vars") {
+            NO_EFI_VARIABLES.store(true, Ordering::Relaxed);
         }
 
         fn take_optional_string(argument: Option<&str>) -> Option<String> {

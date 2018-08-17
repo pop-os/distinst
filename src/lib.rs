@@ -88,6 +88,8 @@ pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
 
+pub static NO_EFI_VARIABLES: AtomicBool = ATOMIC_BOOL_INIT;
+
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
 #
@@ -794,13 +796,6 @@ impl Installer {
             let cdrom_mount = mount_cdrom(&mount_dir)?;
             let cdrom_target = cdrom_mount.as_ref().map(|x| x.dest().to_path_buf());
 
-            let configure_chroot = configure.strip_prefix(&mount_dir).map_err(|err| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Path::strip_prefix failed: {}", err),
-                )
-            })?;
-
             callback(75);
 
             info!("retrieving root partition");
@@ -821,28 +816,7 @@ impl Installer {
             let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
 
-            info!(
-                "will install {:?} bootloader packages",
-                install_pkgs
-            );
-
-            // let mut args = cascade! {
-            //     args: Vec::new();
-            //     // Clear existing environment
-            //     ..push("-i".to_string());
-            //     // Set hostname to be set
-            //     ..push(format!("HOSTNAME={}", config.hostname));
-            //     // Set language to config setting
-            //     ..push(format!("LANG={}", config.lang));
-            //     // Set root UUID
-            //     ..push(format!("ROOT_UUID={}", root_uuid));
-            //     // Optionally set the LUKS UUID
-            //     ..push(format!("LUKS_UUID={}", ));
-            //     // Run configure script with bash
-            //     ..push("bash".to_string());
-            //     // Path to configure script in chroot
-            //     ..push(configure_chroot.to_str().unwrap().to_string());
-            // };
+            info!("will install {:?} bootloader packages", install_pkgs);
 
             // Remove installer packages
             let remove: Vec<&str> = remove_pkgs.iter()
@@ -1248,9 +1222,14 @@ fn mount_cdrom(mount_dir: &Path) -> io::Result<Option<Mount>> {
 }
 
 fn mount_efivars(mount_dir: &Path) -> io::Result<Option<Mount>> {
-    let efivars_source = Path::new("/sys/firmware/efi/efivars");
-    let efivars_target = mount_dir.join("sys/firmware/efi/efivars");
-    mount_bind_if_exists(&efivars_source, &efivars_target)
+    if NO_EFI_VARIABLES.load(Ordering::Relaxed) {
+        info!("was ordered to not mount the efivars directory");
+        Ok(None)
+    } else {
+        let efivars_source = Path::new("/sys/firmware/efi/efivars");
+        let efivars_target = mount_dir.join("sys/firmware/efi/efivars");
+        mount_bind_if_exists(&efivars_source, &efivars_target)
+    }
 }
 
 fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<Mount>> {

@@ -70,7 +70,7 @@ impl<'a> Chroot<'a> {
             command.env_clear();
         }
 
-        for (ref key, ref value) in &self.envs {
+        for &(key, value) in &self.envs {
             command.env(key, value);
         }
 
