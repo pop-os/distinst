@@ -99,7 +99,7 @@ fi
 RECOVERY_UUID="$(findmnt -n -o UUID /recovery)" || true
 
 # Prepare recovery partition, if it exists
-if [ -d "/boot/efi" -a -d "/cdrom" -a -n ${RECOVERY_UUID} ]
+if [ -d "/boot/efi" -a -d "/cdrom" -a -n "${RECOVERY_UUID}" ]
 then
     EFI_UUID="$(findmnt -n -o UUID /boot/efi)"
 
@@ -108,7 +108,7 @@ then
     CASPER="casper-${RECOVERY_UUID}"
     RECOVERY="Recovery-${RECOVERY_UUID}"
 
-    if [ $RECOVERY_UUID != $CDROM_UUID ]; then
+    if [ "$RECOVERY_UUID" != "$CDROM_UUID" ]; then
         # Copy .disk, dists, and pool
         rsync -KLav "/cdrom/.disk" "/cdrom/dists" "/cdrom/pool" "/recovery"
 
@@ -150,7 +150,7 @@ EOF
 fi
 
 # This is allowed to fail
-if [ $DISABLE_NVIDIA -eq "1" ]; then
+if [ "$DISABLE_NVIDIA" -eq "1" ]; then
     systemctl disable nvidia-fallback.service || true
 fi
 
