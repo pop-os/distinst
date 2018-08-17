@@ -711,19 +711,11 @@ impl Installer {
         let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
         info!("Configuring on {}", mount_dir.display());
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
-        let configure = configure_dir.path().join("configure.sh");
 
         let install_pkgs = &mut cascade! {
             Vec::with_capacity(32);
             ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release));
             ..extend_from_slice(retain);
-        };
-
-        let configure_script = || {
-            // Write the installer's intallation script to the chroot's temporary directory.
-            info!("writing /tmp/configure.sh");
-            file_create!(&configure, [include_bytes!("scripts/configure.sh")]);
-            Ok(())
         };
 
         let lvm_autodetection = || {
@@ -762,13 +754,11 @@ impl Installer {
         };
 
         let disable_nvidia = {
-            let mut a = Ok(());
             let mut b = Ok(());
             let mut c = Ok(());
             let mut disable_nvidia = Ok(false);
 
             rayon::scope(|s| {
-                s.spawn(|_| a = configure_script());
                 s.spawn(|_| b = lvm_autodetection());
                 s.spawn(|_| c = generate_fstabs());
                 s.spawn(|_| {
@@ -781,7 +771,7 @@ impl Installer {
 
             });
 
-            a.and(b).and(c).and(disable_nvidia)?
+            b.and(c).and(disable_nvidia)?
         };
 
         callback(60);
