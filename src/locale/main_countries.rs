@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
+use misc;
 
 lazy_static! {
     pub static ref MAIN_COUNTRIES: BTreeMap<String, String> = get_main_countries();
@@ -13,7 +13,7 @@ pub fn get_main_country(code: &str) -> Option<&'static str> {
 }
 
 pub fn get_main_countries() -> BTreeMap<String, String> {
-    let file = match File::open(MAIN_COUNTRIES_PATH) {
+    let file = match misc::open(MAIN_COUNTRIES_PATH) {
         Ok(mut file) => file,
         Err(why) => {
             eprintln!(

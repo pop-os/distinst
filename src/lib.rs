@@ -38,7 +38,7 @@ use os_release::OsRelease;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::{self, File, Permissions};
+use std::fs::{self, Permissions};
 use std::io::{self, BufRead, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
@@ -106,14 +106,14 @@ pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
 
 macro_rules! file_create {
     ($path:expr, $perm:expr, [ $($data:expr),+ ]) => {{
-        let mut file = File::create($path)?;
+        let mut file = misc::create($path)?;
         $(file.write_all($data)?;)+
         file.set_permissions(Permissions::from_mode($perm))?;
         file.sync_all()?;
     }};
 
     ($path:expr, [ $($data:expr),+ ]) => {{
-        let mut file = File::create($path)?;
+        let mut file = misc::create($path)?;
         $(file.write_all($data)?;)+
         file.sync_all()?;
     }};
@@ -213,7 +213,7 @@ pub fn device_map_exists(name: &str) -> bool {
 ///
 /// The input parameter will undergo a max comparison to the estimated minimum requirement.
 pub fn minimum_disk_size(default: u64) -> u64 {
-    let casper_size = File::open("/cdrom/casper/filesystem.size")
+    let casper_size = misc::open("/cdrom/casper/filesystem.size")
         .ok()
         .and_then(|mut file| {
             let capacity = file.metadata().ok().map_or(0, |m| m.len());
@@ -393,7 +393,7 @@ impl Installer {
         let fetch_packages = || {
             let mut remove_pkgs = Vec::new();
             {
-                let file = match File::open(&config.remove) {
+                let file = match misc::open(&config.remove) {
                     Ok(file) => file,
                     Err(err) => {
                         error!("config.remove: {}", err);
@@ -747,13 +747,13 @@ impl Installer {
             let (a, b) = rayon::join(
                 || {
                     info!("writing /etc/crypttab");
-                    file_create!(mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
+                    file_create!(&mount_dir.join("etc/crypttab"), [crypttab.as_bytes()]);
                     Ok(())
                 },
                 || {
                     info!("writing /etc/fstab");
                     file_create!(
-                        mount_dir.join("etc/fstab"),
+                        &mount_dir.join("etc/fstab"),
                         [FSTAB_HEADER, fstab.as_bytes()]
                     );
                     Ok(())
@@ -790,7 +790,16 @@ impl Installer {
                 "chrooting into target on {}",
                 mount_dir.display()
             );
-            let mut chroot = Chroot::new(&mount_dir)?;
+
+            let chroot = cascade! {
+                Chroot::new(&mount_dir)?;
+                ..clear_envs(true);
+                ..env("DEBIAN_FRONTEND", "noninteractive");
+                ..env("HOME", "/root");
+                ..env("LC_ALL", &config.lang);
+                ..env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin");
+            };
+
             let efivars_mount = mount_efivars(&mount_dir)?;
             let cdrom_mount = mount_cdrom(&mount_dir)?;
             let cdrom_target = cdrom_mount.as_ref().map(|x| x.dest().to_path_buf());
@@ -826,17 +835,8 @@ impl Installer {
                 .collect();
             callback(35);
 
-            chroot.clear_envs(true);
-            chroot.env("DEBIAN_FRONTEND", "noninteractive");
-            chroot.env("HOME", "/root");
-            chroot.env("LC_ALL", &config.lang);
-            chroot.env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin");
-            callback(45);
-
-            let mut chroot = configure::ChrootConfigure::new(chroot);
-
             // TODO: use a macro to make this more manageable.
-
+            let mut chroot = configure::ChrootConfigure::new(chroot);
             let mut hostname = Ok(());
             let mut hosts = Ok(());
             let mut machine_id = Ok(());

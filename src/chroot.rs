@@ -60,12 +60,15 @@ impl<'a> Chroot<'a> {
         cmd: S,
         args: I,
     ) -> Command {
-        let mut command = Command::new("chroot");
-        command.arg(&self.path);
-        command.arg(cmd.as_ref());
-        command.args(args);
-        command.stderr(Stdio::piped());
-        command.stdout(Stdio::piped());
+        let mut command = cascade! {
+            Command::new("chroot");
+            ..arg(&self.path);
+            ..arg(cmd.as_ref());
+            ..args(args);
+            ..stderr(Stdio::piped());
+            ..stdout(Stdio::piped());
+        };
+
         if self.clear_envs {
             command.env_clear();
         }

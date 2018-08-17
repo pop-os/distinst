@@ -1,6 +1,7 @@
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
+use misc;
 use super::Module;
 
 const POWER: &str = "etc/modprobe.d/system76-power.conf";
@@ -52,7 +53,7 @@ const DMI_PATH_PRODUCT_VERSION: &str = "/sys/class/dmi/id/product_version";
 
 fn product_version() -> String {
     let mut output = String::new();
-    if let Ok(mut file) = File::open(DMI_PATH_PRODUCT_VERSION) {
+    if let Ok(mut file) = misc::open(DMI_PATH_PRODUCT_VERSION) {
         let _ = file.read_to_string(&mut output);
         output = output.trim().into();
     }

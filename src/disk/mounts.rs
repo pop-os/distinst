@@ -1,12 +1,10 @@
 use std::char;
 use std::ffi::OsString;
-use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Result};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-
-use misc::watch_and_set;
+use misc::{self, watch_and_set};
 
 lazy_static! {
     pub(crate) static ref MOUNTS: Arc<RwLock<Mounts>> = {
@@ -77,7 +75,7 @@ impl Mounts {
     }
 
     pub(crate) fn new() -> Result<Mounts> {
-        let file = File::open("/proc/mounts")
+        let file = misc::open("/proc/mounts")
             .and_then(|mut file| {
                 let length = file.metadata().ok().map_or(0, |x| x.len() as usize);
                 let mut string = String::with_capacity(length);

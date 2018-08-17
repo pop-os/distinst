@@ -11,9 +11,8 @@ use super::super::{
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::{get_device, open_disk, PVS};
 use libparted::{Device, DeviceType, Disk as PedDisk};
-
+use misc;
 use std::collections::BTreeSet;
-use std::fs::File;
 use std::io::{self, Read};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -296,7 +295,7 @@ impl Disk {
             ].concat(),
         );
 
-        File::open(path.join("queue/rotational"))
+        misc::open(path.join("queue/rotational"))
             .ok()
             .and_then(|file| file.bytes().next())
             .map_or(false, |res| res.ok().map_or(false, |byte| byte == b'1'))

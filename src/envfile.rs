@@ -65,7 +65,6 @@ mod tests {
     use misc;
     use tempdir::TempDir;
     use std::collections::BTreeMap;
-    use std::fs::File;
     use std::io::Write;
 
     const SAMPLE: &str = r#"EFI_UUID=DFFD-D047
@@ -85,7 +84,7 @@ ROOT_UUID=2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c
         let path = &tempdir.path().join("recovery.conf");
 
         {
-            let mut file = File::create(path).unwrap();
+            let mut file = misc::create(path).unwrap();
             file.write_all(SAMPLE.as_bytes()).unwrap();
         }
 
@@ -111,7 +110,7 @@ ROOT_UUID=2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c
         let path = &tempdir.path().join("recovery.conf");
 
         {
-            let mut file = File::create(path).unwrap();
+            let mut file = misc::create(path).unwrap();
             file.write_all(SAMPLE.as_bytes()).unwrap();
         }
 

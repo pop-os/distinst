@@ -191,7 +191,7 @@ impl<'a> Backup<'a> {
                     "restoring /etc/timezone with {}",
                     String::from_utf8_lossy(tz)
                 );
-                File::create(base.join("etc/timezone")).and_then(|mut file| file.write_all(tz))?;
+                misc::create(base.join("etc/timezone")).and_then(|mut file| file.write_all(tz))?;
             }
 
             if let Some(ref networks) = self.networks {
@@ -210,7 +210,7 @@ impl<'a> Backup<'a> {
 }
 
 fn create_network_conf(base: &Path, conn: &OsStr, data: &[u8]) {
-    let result = File::create(base.join(conn)).and_then(|mut file| {
+    let result = misc::create(base.join(conn)).and_then(|mut file| {
         file.write_all(data)
             .and_then(|_| file.set_permissions(Permissions::from_mode(0o600)))
     });

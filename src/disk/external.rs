@@ -6,7 +6,7 @@ use disk::mount::{umount, swapoff};
 use disk::{Mounts, Swaps};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::{File, Permissions};
+use std::fs::Permissions;
 use std::io::Read;
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -15,6 +15,7 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
 use tempdir::TempDir;
+use misc;
 
 /// A generic function for executing a variety external commands.
 fn exec(
@@ -631,11 +632,11 @@ fn generate_keyfile(path: &Path) -> io::Result<()> {
     info!("generating keyfile at {}", path.display());
     // Generate the key in memory from /dev/urandom.
     let mut key = [0u8; 512];
-    let mut urandom = File::open("/dev/urandom")?;
+    let mut urandom = misc::open("/dev/urandom")?;
     urandom.read_exact(&mut key)?;
 
     // Open the keyfile and write the key, ensuring it is readable only to root.
-    let mut keyfile = File::create(path)?;
+    let mut keyfile = misc::create(path)?;
     keyfile.set_permissions(Permissions::from_mode(0o0400))?;
     keyfile.write_all(&key)?;
     keyfile.sync_all()

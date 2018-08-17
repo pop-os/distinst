@@ -1,5 +1,5 @@
+use misc;
 use std::io::{self, Read};
-use std::fs::File;
 
 #[derive(Debug, PartialEq)]
 pub struct Module {
@@ -25,7 +25,7 @@ impl Module {
     }
 
     pub fn all() -> io::Result<Vec<Module>> {
-        let file = File::open("/proc/modules")
+        let file = misc::open("/proc/modules")
             .and_then(|mut file| {
                 let length = file.metadata().ok().map_or(0, |x| x.len() as usize);
                 let mut string = String::with_capacity(length);

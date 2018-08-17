@@ -34,17 +34,17 @@ mod layout {
     }
 }
 
-pub fn open(path: &Path) -> io::Result<File> {
-    File::open(path).map_err(|why| io::Error::new(
+pub fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
+    File::open(&path).map_err(|why| io::Error::new(
         io::ErrorKind::Other,
-        format!("unable to open file at {:?}: {}", path, why)
+        format!("unable to open file at {:?}: {}", path.as_ref(), why)
     ))
 }
 
-pub fn create(path: &Path) -> io::Result<File> {
-    File::create(path).map_err(|why| io::Error::new(
+pub fn create<P: AsRef<Path>>(path: P) -> io::Result<File> {
+    File::create(&path).map_err(|why| io::Error::new(
         io::ErrorKind::Other,
-        format!("unable to create file at {:?}: {}", path, why)
+        format!("unable to create file at {:?}: {}", path.as_ref(), why)
     ))
 }
 
@@ -79,7 +79,7 @@ where T: 'static + Send + Sync,
 }
 
 pub fn get_modified<P: AsRef<Path>>(path: P) -> io::Result<SystemTime> {
-    File::open(path)
+    open(path)
         .and_then(|file| file.metadata())
         .and_then(|metadata| metadata.modified())
 }
@@ -209,7 +209,7 @@ pub(crate) fn resolve_parent(name: &str) -> Option<PathBuf> {
 
 pub(crate) fn zero<P: AsRef<Path>>(device: P, sectors: u64, offset: u64) -> io::Result<()> {
     let zeroed_sector = [0; 512];
-    File::open(device.as_ref())
+    open(device.as_ref())
         .and_then(|mut file| {
             if offset != 0 {
                 file.seek(SeekFrom::Start(512 * offset)).map(|_| ())?;
@@ -222,12 +222,12 @@ pub(crate) fn zero<P: AsRef<Path>>(device: P, sectors: u64, offset: u64) -> io::
 // TODO: These will be no longer be required once Rust is updated in the repos to 1.26.0
 
 pub fn read<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
-    File::open(path).and_then(|mut file| {
+    open(path).and_then(|mut file| {
         let mut buffer = Vec::with_capacity(file.metadata().ok().map_or(0, |x| x.len()) as usize);
         file.read_to_end(&mut buffer).map(|_| buffer)
     })
 }
 
 pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::Result<()> {
-    File::create(path).and_then(|mut file| file.write_all(contents.as_ref()))
+    create(path).and_then(|mut file| file.write_all(contents.as_ref()))
 }

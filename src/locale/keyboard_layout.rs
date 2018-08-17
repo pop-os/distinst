@@ -1,6 +1,6 @@
 use serde_xml_rs::deserialize;
 use std::io::{self, BufReader};
-use std::fs::File;
+use misc;
 
 #[derive(Debug, Deserialize)]
 pub struct KeyboardLayouts {
@@ -80,6 +80,6 @@ impl KeyboardVariant {
 const X11_BASE_RULES: &str = "/usr/share/X11/xkb/rules/base.xml";
 
 pub fn get_keyboard_layouts() -> io::Result<KeyboardLayouts> {
-    deserialize(BufReader::new(File::open(X11_BASE_RULES)?))
+    deserialize(BufReader::new(misc::open(X11_BASE_RULES)?))
         .map_err(|why| io::Error::new(io::ErrorKind::InvalidData, format!("{}", why)))
 }

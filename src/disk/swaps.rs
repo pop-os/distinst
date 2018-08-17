@@ -1,10 +1,9 @@
 use std::ffi::OsString;
-use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Result};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use misc::watch_and_set;
+use misc::{self, watch_and_set};
 
 lazy_static! {
     pub(crate) static ref SWAPS: Arc<RwLock<Swaps>> = {
@@ -82,7 +81,7 @@ impl Swaps {
     }
 
     pub fn new() -> Result<Swaps> {
-        let file = File::open("/proc/swaps")
+        let file = misc::open("/proc/swaps")
             .and_then(|mut file| {
                 let length = file.metadata().ok().map_or(0, |x| x.len() as usize);
                 let mut string = String::with_capacity(length);
