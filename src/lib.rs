@@ -563,7 +563,7 @@ impl Installer {
 
         let pvs = commit_result.and(pvs_result)?;
 
-        callback(100);
+        callback(25);
 
         // Utilizes the physical volume collection to generate a vector of volume
         // groups which we will need to deactivate pre-`blockdev`, and will be
@@ -581,6 +581,7 @@ impl Installer {
 
         // Ensure that the logical volumes have had time to deactivate.
         sleep(Duration::from_secs(1));
+        callback(50);
 
         // This is to ensure that everything's been written and the OS is ready to
         // proceed.
@@ -590,16 +591,20 @@ impl Installer {
 
         // Give a bit of time to ensure that logical volumes can be re-activated.
         sleep(Duration::from_secs(1));
+        callback(75);
 
         // Reactivate the logical volumes.
         vgs.iter().map(|vg| vgactivate(vg)).collect::<io::Result<()>>()?;
 
-        disks
+        let res = disks
             .commit_logical_partitions()
             .map_err(|why| io::Error::new(
                 io::ErrorKind::Other,
                 format!("failed to commit logical partitions: {}", why)
-            ))
+            ));
+
+        callback(100);
+        res
     }
 
     /// Mount all target paths defined within the provided `disks`
@@ -721,6 +726,8 @@ impl Installer {
             ..extend_from_slice(retain);
         };
 
+        callback(5);
+
         let lvm_autodetection = || {
             // Ubuntu's LVM auto-detection doesn't seem to work for activating root volumes.
             info!("applying LVM initramfs autodetect workaround");
@@ -769,15 +776,14 @@ impl Installer {
                         hardware_support::append_packages(install_pkgs, &iso_os_release);
                     }
 
-                    disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir)
+                    disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir);
                 });
 
             });
 
+            callback(10);
             b.and(c).and(disable_nvidia)?
         };
-
-        callback(60);
 
         {
             info!(
@@ -789,7 +795,7 @@ impl Installer {
             let cdrom_mount = mount_cdrom(&mount_dir)?;
             let cdrom_target = cdrom_mount.as_ref().map(|x| x.dest().to_path_buf());
 
-            callback(75);
+            callback(15);
 
             info!("retrieving root partition");
             let root_entry = disks
@@ -801,27 +807,31 @@ impl Installer {
                     "root partition not found",
                 ))?;
 
+            callback(20);
+
             let luks_uuid = misc::from_uuid(&root_entry.uuid)
                 .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
                 .and_then(|ref path| misc::get_uuid(path))
                 .and_then(|uuid| if uuid == root_entry.uuid { None } else { Some(uuid)});
 
+            callback(25);
+
             let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
+            callback(30);
 
-            info!("will install {:?} bootloader packages", install_pkgs);
-
-            // Remove installer packages
             let remove: Vec<&str> = remove_pkgs.iter()
                 .filter(|pkg| !install_pkgs.contains(&pkg.as_ref()))
                 .map(|x| x.as_ref())
                 .collect();
+            callback(35);
 
             chroot.clear_envs(true);
             chroot.env("DEBIAN_FRONTEND", "noninteractive");
             chroot.env("HOME", "/root");
             chroot.env("LC_ALL", &config.lang);
             chroot.env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin");
+            callback(45);
 
             let mut chroot = configure::ChrootConfigure::new(chroot);
 
@@ -846,7 +856,9 @@ impl Installer {
                     etc_cleanup = chroot.etc_cleanup();
                     kernel_copy = chroot.kernel_copy();
                 });
-                s.spawn(|_| apt_remove = chroot.apt_remove(&remove));
+                s.spawn(|_| {
+                    apt_remove = chroot.apt_remove(&remove);
+                });
             });
 
             hostname.map_err(|why| io::Error::new(
@@ -884,6 +896,8 @@ impl Installer {
                 format!("failed to remove pre-existing files in /etc: {}", why)
             ))?;
 
+            callback(70);
+
             let (apt_install, recovery) = rayon::join(
                 || {
                     chroot.cdrom_add()?;
@@ -910,30 +924,37 @@ impl Installer {
                 format!("failed to create recovery partition: {}", why)
             ))?;
 
+            callback(75);
+
             chroot.bootloader().map_err(|why| io::Error::new(
                 io::ErrorKind::Other,
                 format!("failed to install bootloader: {}", why)
             ))?;
+
+            callback(80);
 
             if disable_nvidia {
                 chroot.disable_nvidia();
             }
 
             chroot.update_initramfs()?;
+            callback(85);
+
             chroot.keyboard_layout(config).map_err(|why| io::Error::new(
                 io::ErrorKind::Other,
                 format!("failed to set keyboard layout: {}", why)
             ))?;
+            callback(90);
 
             // Ensure that the cdrom binding is unmounted before the chroot.
             drop(cdrom_mount);
             drop(efivars_mount);
             cdrom_target.map(|target| fs::remove_dir(&target));
             chroot.unmount(false)?;
+            callback(95);
         }
 
         configure_dir.close()?;
-
         callback(100);
 
         Ok(())

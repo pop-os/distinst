@@ -162,9 +162,7 @@ impl<'a> ChrootConfigure<'a> {
             "-s",
             "/etc/console-setup/cached_UTF-8_del.kmap.gz",
             "/etc/console-setup/cached.kmap.gz"
-        ]).run()?;
-
-        self.update_initramfs()
+        ]).run()
     }
 
     pub fn kernel_copy(&self) -> io::Result<()> {
