@@ -86,6 +86,9 @@ pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
 
+
+pub static NO_EFI_VARIABLES: AtomicBool = ATOMIC_BOOL_INIT;
+
 /// Configures the keyboard layout in the chroot.
 const LOCALECTL_ARGUMENTS: &str = "localectl set-x11-keymap \"${KBD_LAYOUT}\" \"${KBD_MODEL}\" \"${KBD_VARIANT}\" \
     && SYSTEMCTL_SKIP_REDIRECT=_ openvt -- sh /etc/init.d/console-setup.sh reload \
@@ -1284,9 +1287,14 @@ fn mount_cdrom(mount_dir: &Path) -> io::Result<Option<Mount>> {
 }
 
 fn mount_efivars(mount_dir: &Path) -> io::Result<Option<Mount>> {
-    let efivars_source = Path::new("/sys/firmware/efi/efivars");
-    let efivars_target = mount_dir.join("sys/firmware/efi/efivars");
-    mount_bind_if_exists(&efivars_source, &efivars_target)
+    if NO_EFI_VARIABLES.load(Ordering::Relaxed) {
+        info!("was ordered to not mount the efivars directory");
+        Ok(None)
+    } else {
+        let efivars_source = Path::new("/sys/firmware/efi/efivars");
+        let efivars_target = mount_dir.join("sys/firmware/efi/efivars");
+        mount_bind_if_exists(&efivars_source, &efivars_target)
+    }
 }
 
 fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<Mount>> {
