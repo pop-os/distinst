@@ -119,6 +119,17 @@ macro_rules! file_create {
     }};
 }
 
+macro_rules! map_errors {
+    ( $( $var:expr => $value:expr );+ ) => {
+        $(
+            $var.map_err(|why| io::Error::new(
+                io::ErrorKind::Other,
+                format!("{}: {}", $value, why)
+            ))?;
+        );+
+    }
+}
+
 /// Initialize logging with the fern logger
 pub fn log<F: Fn(log::Level, &str) + Send + Sync + 'static>(
     callback: F,
@@ -764,8 +775,8 @@ impl Installer {
         };
 
         let disable_nvidia = {
-            let mut b = Ok(());
-            let mut c = Ok(());
+            let mut b: io::Result<()> = Ok(());
+            let mut c: io::Result<()> = Ok(());
             let mut disable_nvidia = Ok(false);
 
             rayon::scope(|s| {
@@ -782,7 +793,12 @@ impl Installer {
             });
 
             callback(10);
-            b.and(c).and(disable_nvidia)?
+            map_errors! {
+                b => "lvm autodetection error";
+                c => "failed to generate fstab / crypttab"
+            }
+
+            disable_nvidia?
         };
 
         {
@@ -837,6 +853,7 @@ impl Installer {
 
             // TODO: use a macro to make this more manageable.
             let mut chroot = configure::ChrootConfigure::new(chroot);
+
             let mut hostname = Ok(());
             let mut hosts = Ok(());
             let mut machine_id = Ok(());
@@ -861,40 +878,16 @@ impl Installer {
                 });
             });
 
-            hostname.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to write hostname: {}", why)
-            ))?;
-
-            hosts.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to write hosts: {}", why)
-            ))?;
-
-            machine_id.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to write unique machine id: {}", why)
-            ))?;
-
-            netresolv.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to link netresolv: {}", why)
-            ))?;
-
-            locale.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to generate locales: {}", why)
-            ))?;
-
-            apt_remove.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to remove packages: {}", why)
-            ))?;
-
-            etc_cleanup.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to remove pre-existing files in /etc: {}", why)
-            ))?;
+            map_errors! {
+                hostname => "failed to write hostname";
+                hosts => "failed to write hosts";
+                machine_id => "failed to write unique machine id";
+                netresolv => "failed to link netresolve";
+                locale => "failed to generate locales";
+                apt_remove => "failed to remove packages";
+                etc_cleanup => "failed to remove pre-existing files in /etc";
+                kernel_copy => "failed to copy kernel from casper to chroot"
+            }
 
             callback(70);
 
@@ -914,15 +907,10 @@ impl Installer {
                 }
             );
 
-            apt_install.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to install packages: {}", why)
-            ))?;
-
-            recovery.map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to create recovery partition: {}", why)
-            ))?;
+            map_errors! {
+                apt_install => "failed to install packages";
+                recovery => "failed to create recovery partition"
+            }
 
             callback(75);
 
