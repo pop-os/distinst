@@ -1,18 +1,28 @@
 use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
-use disk::{Bootloader, FileSystemSupport};
+use chroot::Chroot;
+use disk::{Bootloader, Disks, FileSystemSupport};
 use os_release::OsRelease;
 
-pub fn check_language_support(locale: &str) -> io::Result<Option<Vec<u8>>> {
+pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<String>> {
+    // Takes the locale, such as `en_US.UTF-8`, and changes it into `en`.
+    let locale = match lang.find('_') {
+        Some(pos) => &lang[..pos],
+        None => match lang.find('.') {
+            Some(pos) => &lang[..pos],
+            None => &lang
+        }
+    };
+
     // Attempt to run the check-language-support external command.
-    let check_language_support = Command::new("check-language-support")
-        .args(&["-l", locale, "--show-installed"])
-        .output();
+    let check_language_support = chroot.command("check_language_support", &[
+        "-l", locale, "--show-installed"
+    ]).run_with_stdout();
 
     // If the command executed, get the standard output.
     let output = match check_language_support {
-        Ok(output) => Some(output.stdout),
+        Ok(output) => Some(output),
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => None,
         Err(why) => {
             return Err(io::Error::new(
@@ -97,7 +107,14 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
 }
 
 
-pub fn get_required_packages(flags: FileSystemSupport) -> Vec<&'static str> {
+pub fn get_required_packages(disks: &Disks, release: &OsRelease) -> Vec<&'static str> {
+    let flags = disks.get_support_flags();
+
+    // Pop!_OS does not need this workaround.
+    if release.name == "Pop!_OS" {
+        return vec![];
+    }
+
     let mut retain = Vec::new();
 
     if flags.contains(FileSystemSupport::BTRFS) {
