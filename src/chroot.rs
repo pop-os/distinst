@@ -42,9 +42,43 @@ impl Chroot {
         })
     }
 
+    pub fn command_with_stdout<S: AsRef<OsStr>, T: AsRef<OsStr>, I: IntoIterator<Item = T>>(
+        &self,
+        cmd: S,
+        args: I,
+    ) -> Result<String> {
+        let mut command = Command::new("chroot");
+        command.arg(&self.path);
+        command.arg(cmd.as_ref());
+        command.args(args);
+        command.stderr(Stdio::piped());
+        command.stdout(Stdio::piped());
+
+        let cmd = format!("{:?}", command);
+        debug!("{}", cmd);
+
+        let child = command.spawn().map_err(|why| Error::new(
+            ErrorKind::Other,
+            format!("chroot command failed to spawn: {}", why)
+        ))?;
+
+        child.wait_with_output()
+            .map_err(|why| Error::new(
+                ErrorKind::Other,
+                format!("failed to get output of {}: {}", cmd, why)
+            ))
+            .and_then(|output| {
+                String::from_utf8(output.stdout)
+                    .map_err(|why| Error::new(
+                        ErrorKind::Other,
+                        format!("command output has invalid UTF-8: {}", why)
+                    ))
+            })
+    }
+
     /// Executes an external command with `chroot`.
     pub fn command<S: AsRef<OsStr>, T: AsRef<OsStr>, I: IntoIterator<Item = T>>(
-        &mut self,
+        &self,
         cmd: S,
         args: I,
     ) -> Result<ExitStatus> {
