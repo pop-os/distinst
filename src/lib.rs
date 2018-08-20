@@ -718,6 +718,9 @@ impl Installer {
         let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
         let configure = configure_dir.path().join("configure.sh");
 
+        // Pop!_OS does not need the retain workaround.
+        let retain = if iso_os_release.name == "Pop!_OS" { &[] } else { retain };
+
         let install_pkgs = &mut cascade! {
             Vec::with_capacity(32);
             ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release));
