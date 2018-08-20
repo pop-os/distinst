@@ -1,18 +1,19 @@
 use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
+use chroot::Chroot;
 use disk::{Bootloader, FileSystemSupport};
 use os_release::OsRelease;
 
-pub fn check_language_support(locale: &str) -> io::Result<Option<Vec<u8>>> {
+pub fn check_language_support(locale: &str, chroot: &Chroot) -> io::Result<Option<String>> {
     // Attempt to run the check-language-support external command.
-    let check_language_support = Command::new("check-language-support")
-        .args(&["-l", locale, "--show-installed"])
-        .output();
+    let check_language_support = chroot.command_with_stdout("check_language_support", &[
+        "-l", locale, "--show-installed"
+    ]);
 
     // If the command executed, get the standard output.
     let output = match check_language_support {
-        Ok(output) => Some(output.stdout),
+        Ok(output) => Some(output),
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => None,
         Err(why) => {
             return Err(io::Error::new(
