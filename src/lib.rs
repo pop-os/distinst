@@ -788,27 +788,10 @@ impl Installer {
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
 
             let (retain, lang_output) = rayon::join(
-                || {
-                    let disk_support_flags = disks.get_support_flags();
-                    if iso_os_release.name == "Pop!_OS" {
-                        vec![]
-                    } else {
-                        distribution::debian::get_required_packages(disk_support_flags)
-                    }
-                },
-                || {
-                    // Takes the locale, such as `en_US.UTF-8`, and changes it into `en`.
-                    let locale = match config.lang.find('_') {
-                        Some(pos) => &config.lang[..pos],
-                        None => match config.lang.find('.') {
-                            Some(pos) => &config.lang[..pos],
-                            None => &config.lang
-                        }
-                    };
-
-                    // Attempt to run the check-language-support external command.
-                    distribution::debian::check_language_support(&locale, &chroot)
-                }
+                // Get packages required by this disk configuration.
+                || distribution::debian::get_required_packages(&disks, iso_os_release),
+                // Attempt to run the check-language-support external command.
+                || distribution::debian::check_language_support(&config.lang, &chroot)
             );
 
             let lang_output = lang_output?;

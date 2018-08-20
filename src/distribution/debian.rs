@@ -2,10 +2,19 @@ use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
 use chroot::Chroot;
-use disk::{Bootloader, FileSystemSupport};
+use disk::{Bootloader, Disks, FileSystemSupport};
 use os_release::OsRelease;
 
-pub fn check_language_support(locale: &str, chroot: &Chroot) -> io::Result<Option<String>> {
+pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<String>> {
+    // Takes the locale, such as `en_US.UTF-8`, and changes it into `en`.
+    let locale = match lang.find('_') {
+        Some(pos) => &lang[..pos],
+        None => match lang.find('.') {
+            Some(pos) => &lang[..pos],
+            None => &lang
+        }
+    };
+
     // Attempt to run the check-language-support external command.
     let check_language_support = chroot.command_with_stdout("check_language_support", &[
         "-l", locale, "--show-installed"
@@ -98,7 +107,14 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
 }
 
 
-pub fn get_required_packages(flags: FileSystemSupport) -> Vec<&'static str> {
+pub fn get_required_packages(disks: &Disks, release: &OsRelease) -> Vec<&'static str> {
+    let flags = disks.get_support_flags();
+
+    // Pop!_OS does not need this workaround.
+    if release.name == "Pop!_OS" {
+        return vec![];
+    }
+
     let mut retain = Vec::new();
 
     if flags.contains(FileSystemSupport::BTRFS) {
