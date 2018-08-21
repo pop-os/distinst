@@ -86,7 +86,7 @@ pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
 
-
+/// Even if the system is EFI, the efivars directory will not be mounted in the chroot.
 pub static NO_EFI_VARIABLES: AtomicBool = ATOMIC_BOOL_INIT;
 
 /// Configures the keyboard layout in the chroot.

@@ -1,5 +1,5 @@
 use super::super::{
-    DiskError, Disks, PartitionBuilder, PartitionError, PartitionInfo,
+    DiskError, Disks, PartitionBuilder, PartitionInfo,
     PartitionTable, PartitionType, Sector,
 };
 use super::partitions::{check_partition_size, REMOVE};
@@ -99,7 +99,7 @@ pub trait DiskExt {
     }
 
     /// Validates that the partitions are valid for the partition table
-    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), PartitionError>;
+    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError>;
 
     /// If a given start and end range overlaps a pre-existing partition, that
     /// partition's number will be returned to indicate a potential conflict.
@@ -182,7 +182,7 @@ pub trait DiskExt {
 
         // Perform partition table & MSDOS restriction tests.
         match self.validate_partition_table(builder.part_type) {
-            Err(PartitionError::PrimaryPartitionsExceeded) => {
+            Err(DiskError::PrimaryPartitionsExceeded) => {
                 info!("primary partitions exceeded, resolving");
                 builder.part_type = PartitionType::Logical;
             }
@@ -209,7 +209,8 @@ pub trait DiskExt {
         let fs = builder.filesystem;
         let partition = builder.build();
         if let Some(fs) = fs {
-            check_partition_size(partition.sectors() * self.get_sector_size(), fs)?;
+            check_partition_size(partition.sectors() * self.get_sector_size(), fs)
+                .map_err(|why| DiskError::new_partition_error(partition.device_path.clone(), why))?;
         }
 
         self.push_partition(partition);

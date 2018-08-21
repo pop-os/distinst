@@ -34,14 +34,16 @@ pub enum PartitionTable {
 
 /// Gets a `libparted::Device` from the given name.
 pub(crate) fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
-    info!("getting device at {}", name.as_ref().display());
-    Device::get(name).map_err(|why| DiskError::DeviceGet { why })
+    let device = name.as_ref();
+    info!("getting device at {}", device.display());
+    Device::get(device).map_err(|why| DiskError::DeviceGet { device: device.to_path_buf(), why })
 }
 
 /// Gets and opens a `libparted::Device` from the given name.
 pub(crate) fn open_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
-    info!("opening device at {}", name.as_ref().display());
-    Device::new(name).map_err(|why| DiskError::DeviceGet { why })
+    let device = name.as_ref();
+    info!("opening device at {}", device.display());
+    Device::new(device).map_err(|why| DiskError::DeviceGet { device: device.to_path_buf(), why })
 }
 
 /// Opens a `libparted::Disk` from a `libparted::Device`.
@@ -59,7 +61,10 @@ pub(crate) fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskE
                         Bootloader::Bios => PedDiskType::get("msdos").unwrap(),
                         Bootloader::Efi => PedDiskType::get("gpt").unwrap(),
                     },
-                ).map_err(|why| DiskError::DiskNew { why })
+                ).map_err(|why| DiskError::DiskNew {
+                    device: (&*device).path().to_path_buf(),
+                    why
+                })
             }
         }
     }
@@ -70,7 +75,11 @@ pub(crate) fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
     info!("committing changes to {}", unsafe {
         disk.get_device().path().display()
     });
-    disk.commit().map_err(|why| DiskError::DiskCommit { why })
+
+    disk.commit().map_err(|why| DiskError::DiskCommit {
+        device: unsafe { disk.get_device() }.path().to_path_buf(),
+        why
+    })
 }
 
 /// Flushes the OS cache, return a `DiskError` on failure.
