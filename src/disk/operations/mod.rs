@@ -68,8 +68,13 @@ fn mklabel<P: AsRef<Path>>(device_path: P, kind: PartitionTable) -> Result<(), D
             PartitionTable::Msdos => PedDiskType::get("msdos").unwrap(),
         };
 
+        let device_path = device.path().to_path_buf();
+
         PedDisk::new_fresh(&mut device, kind)
-            .map_err(|why| DiskError::DiskFresh { why })
+            .map_err(|why| DiskError::DiskFresh {
+                device: device_path,
+                why
+            })
             .and_then(|mut disk| {
                 commit(&mut disk).and_then(|_| sync(&mut unsafe { disk.get_device() }))
             })
@@ -347,7 +352,10 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
 
     let mut disk = open_disk(device)?;
     let mut part = PedPartition::new(&disk, part_type, fs_type.as_ref(), start, end)
-        .map_err(|why| DiskError::PartitionCreate { why })?;
+        .map_err(|why| DiskError::new_partition_error(
+            partition.path.clone(),
+            PartitionError::PartitionCreate { why }
+        ))?;
 
     for &flag in &partition.flags {
         if part.is_flag_available(flag) && part.set_flag(flag, true).is_err() {
@@ -364,7 +372,10 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
     // Add the partition, and commit the changes to the disk.
     let constraint = geometry.exact().expect("exact constraint not found");
     disk.add_partition(&mut part, &constraint)
-        .map_err(|why| DiskError::PartitionCreate { why })?;
+        .map_err(|why| DiskError::new_partition_error(
+            partition.path.clone(),
+            PartitionError::PartitionCreate { why }
+        ))?;
 
     // Attempt to write the new partition to the disk.
     info!(
@@ -411,7 +422,10 @@ impl FormatPartitions {
         info!("executing format operations");
         self.0.par_iter().map(|&(ref part, fs)| {
             info!("formatting {} with {:?}", part.display(), fs);
-            mkfs(part, fs).map_err(|why| DiskError::PartitionFormat { why })
+            mkfs(part, fs).map_err(|why| DiskError::new_partition_error(
+                part.clone(),
+                PartitionError::PartitionFormat { why }
+            ))
         }).collect::<Result<(), DiskError>>()
     }
 }
