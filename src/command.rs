@@ -65,33 +65,37 @@ impl Command {
             format!("chroot command failed to spawn: {}", why)
         ))?;
 
-        let mut stdout = BufReader::new(child.stdout.take().unwrap());
-        thread::spawn(move || {
-            let buffer = &mut String::with_capacity(8 * 1024);
-            loop {
-                buffer.clear();
-                match stdout.read_line(buffer) {
-                    Ok(0) | Err(_) => break,
-                    Ok(_) => {
-                        info!("{}", buffer.trim_right());
+        if let Some(stdout) = child.stdout.take() {
+            let mut stdout = BufReader::new(stdout);
+            thread::spawn(move || {
+                let buffer = &mut String::with_capacity(8 * 1024);
+                loop {
+                    buffer.clear();
+                    match stdout.read_line(buffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(_) => {
+                            info!("{}", buffer.trim_right());
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
-        let mut stderr = BufReader::new(child.stderr.take().unwrap());
-        thread::spawn(move || {
-            let buffer = &mut String::with_capacity(8 * 1024);
-            loop {
-                buffer.clear();
-                match stderr.read_line(buffer) {
-                    Ok(0) | Err(_) => break,
-                    Ok(_) => {
-                        warn!("{}", buffer.trim_right());
+        if let Some(stderr) = child.stderr.take() {
+            let mut stderr = BufReader::new(stderr);
+            thread::spawn(move || {
+                let buffer = &mut String::with_capacity(8 * 1024);
+                loop {
+                    buffer.clear();
+                    match stderr.read_line(buffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(_) => {
+                            warn!("{}", buffer.trim_right());
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
         let status = child.wait().map_err(|why| Error::new(
             ErrorKind::Other,
