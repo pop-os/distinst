@@ -1,4 +1,4 @@
-use disk::external::{blockdev, pvs, vgactivate, vgdeactivate};
+use process::external::{blockdev, pvs, vgactivate, vgdeactivate};
 use disk::Disks;
 use disk::operations::FormatPartitions;
 use itertools::Itertools;

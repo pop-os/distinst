@@ -1,7 +1,6 @@
-pub(crate) mod external;
 pub mod mount;
 
-mod config;
+pub(crate) mod config;
 mod error;
 mod mounts;
 pub(crate) mod operations;

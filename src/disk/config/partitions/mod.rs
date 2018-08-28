@@ -11,7 +11,7 @@ pub use self::os_detect::OS;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
 use super::PVS;
-use super::super::external::{get_label, is_encrypted};
+use process::external::{get_label, is_encrypted};
 use super::super::{LvmEncryption, PartitionError, Mounts, Swaps};
 use libparted::{Partition, PartitionFlag};
 use std::io;

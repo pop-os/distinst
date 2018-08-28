@@ -1,4 +1,4 @@
-use super::external::{blockdev, fsck};
+use process::external::{blockdev, fsck};
 use super::mount::Mount;
 use super::FileSystemType::*;
 use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionError, PartitionFlag, PartitionType};

@@ -1,4 +1,4 @@
-use disk::external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
+use process::external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
 use disk::DiskError;
 use std::fmt;
 use std::path::{Path, PathBuf};

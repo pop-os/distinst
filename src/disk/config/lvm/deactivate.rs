@@ -1,5 +1,5 @@
 use super::physical_volumes_to_deactivate;
-use disk::external::{cryptsetup_close, lvs, pvs, vgdeactivate, CloseBy};
+use process::external::{cryptsetup_close, lvs, pvs, vgdeactivate, CloseBy};
 use disk::mount::{swapoff, umount};
 use disk::{MOUNTS, SWAPS};
 use std::io;

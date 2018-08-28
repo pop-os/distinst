@@ -1,9 +1,8 @@
 //! A collection of external commands used throughout the program.
 
-use super::config::lvm::{deactivate_devices, physical_volumes_to_deactivate};
-use super::{FileSystemType, LvmEncryption};
+use disk::config::lvm::{deactivate_devices, physical_volumes_to_deactivate};
 use disk::mount::{umount, swapoff};
-use disk::{Mounts, Swaps};
+use disk::{FileSystemType, LvmEncryption, Mounts, Swaps};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::Permissions;

@@ -31,7 +31,7 @@ extern crate tempdir;
 extern crate serde_derive;
 extern crate serde_xml_rs;
 
-use disk::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, vgdeactivate, CloseBy};
+use process::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, vgdeactivate, CloseBy};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT};

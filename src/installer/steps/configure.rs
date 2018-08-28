@@ -15,7 +15,7 @@ use process::ChrootConfigurator;
 use {INSTALL_HARDWARE_SUPPORT, misc, hardware_support};
 
 use process::Chroot;
-use disk::external::remount_rw;
+use process::external::remount_rw;
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.

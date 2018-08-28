@@ -1,4 +1,4 @@
-use super::super::external::{
+use process::external::{
     cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};

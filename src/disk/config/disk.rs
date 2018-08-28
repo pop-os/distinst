@@ -3,7 +3,7 @@ use super::super::mounts::MOUNTS;
 use super::super::swaps::SWAPS;
 use super::super::operations::*;
 use super::super::serial::get_serial;
-use super::super::external::{is_encrypted, pvs};
+use process::external::{is_encrypted, pvs};
 use super::super::{
     check_partition_size, DiskError, DiskExt, Disks, FileSystemType, PartitionError, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType,

@@ -5,7 +5,7 @@ mod encryption;
 pub(crate) use self::deactivate::deactivate_devices;
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
-use super::super::external::{
+use process::external::{
     blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
 };
 use super::super::mounts::MOUNTS;
