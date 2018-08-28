@@ -1,5 +1,5 @@
 use {Chroot, Command, Config};
-use disk::mount::{BIND, Mount};
+use mnt::{BIND, Mount};
 use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Write};

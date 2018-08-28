@@ -2,9 +2,7 @@ use process::external::{
     cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
-use super::super::mount::{self, swapoff, umount};
-use super::super::mounts::{MOUNTS};
-use super::super::swaps::{SWAPS};
+use mnt::{self, swapoff, umount, MOUNTS, SWAPS};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, FileSystemSupport,
     PartitionFlag, PartitionInfo,
@@ -419,7 +417,7 @@ impl Disks {
                         "unmounting device mounted at {}",
                         mount.display()
                     );
-                    mount::umount(&mount, false).map_err(|why| DiskError::Unmount {
+                    mnt::umount(&mount, false).map_err(|why| DiskError::Unmount {
                         device: device.get_device_path().to_path_buf(),
                         why
                     })?;

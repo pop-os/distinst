@@ -10,7 +10,7 @@ pub use self::initialize::*;
 pub use self::mount::*;
 pub use self::partition::*;
 
-use disk::mount::{BIND, Mount};
+use mnt::{BIND, Mount};
 use std::io;
 use std::fs;
 use std::path::Path;

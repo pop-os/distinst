@@ -1,6 +1,4 @@
-use super::super::mount::{swapoff, umount};
-use super::super::mounts::MOUNTS;
-use super::super::swaps::SWAPS;
+use mnt::{swapoff, umount, MOUNTS, SWAPS};
 use super::super::operations::*;
 use super::super::serial::get_serial;
 use process::external::{is_encrypted, pvs};

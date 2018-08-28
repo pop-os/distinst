@@ -1,5 +1,5 @@
 use disk::{Disks, FileSystemType};
-use disk::mount::{Mount, Mounts};
+use mnt::{Mount, Mounts};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;

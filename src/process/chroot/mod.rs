@@ -2,7 +2,7 @@ mod configure;
 
 pub use self::configure::ChrootConfigurator;
 
-use disk::mount::{Mount, BIND};
+use mnt::{Mount, BIND};
 use std::ffi::OsStr;
 use std::io::Result;
 use std::path::{Path, PathBuf};

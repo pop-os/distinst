@@ -1,5 +1,5 @@
 use process::external::{blockdev, fsck};
-use super::mount::Mount;
+use mnt::Mount;
 use super::FileSystemType::*;
 use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionError, PartitionFlag, PartitionType};
 use std::fs::OpenOptions;

@@ -7,9 +7,9 @@ use std::sync::{Arc, RwLock};
 use misc::{self, watch_and_set};
 
 lazy_static! {
-    pub(crate) static ref MOUNTS: Arc<RwLock<Mounts>> = {
-        let mounts = Arc::new(RwLock::new(Mounts::new().unwrap()));
-        watch_and_set(mounts.clone(), "/proc/mounts", || Mounts::new().ok());
+    pub(crate) static ref MOUNTS: Arc<RwLock<MountList>> = {
+        let mounts = Arc::new(RwLock::new(MountList::new().unwrap()));
+        watch_and_set(mounts.clone(), "/proc/mounts", || MountList::new().ok());
         mounts
     };
 }
@@ -21,9 +21,9 @@ pub(crate) struct MountInfo {
     pub(crate) dest:   PathBuf,
 }
 
-pub(crate) struct Mounts(Vec<MountInfo>);
+pub(crate) struct MountList(Vec<MountInfo>);
 
-impl Mounts {
+impl MountList {
     fn parse_value(value: &str) -> Result<OsString> {
         let mut ret = Vec::new();
 
@@ -68,13 +68,13 @@ impl Mounts {
         })
     }
 
-    pub(crate) fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<Mounts> {
+    pub(crate) fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<MountList> {
         lines.map(Self::parse_line)
             .collect::<Result<Vec<MountInfo>>>()
-            .map(Mounts)
+            .map(MountList)
     }
 
-    pub(crate) fn new() -> Result<Mounts> {
+    pub(crate) fn new() -> Result<MountList> {
         let file = misc::open("/proc/mounts")
             .and_then(|mut file| {
                 let length = file.metadata().ok().map_or(0, |x| x.len() as usize);
@@ -118,7 +118,7 @@ fusectl /sys/fs/fuse/connections fusectl rw,relatime 0 0
 
     #[test]
     fn mounts() {
-        let mounts = Mounts::parse_from(SAMPLE.lines()).unwrap();
+        let mounts = MountList::parse_from(SAMPLE.lines()).unwrap();
 
         assert_eq!(
             mounts.get_mount_point(Path::new("/dev/sda1")).unwrap(),

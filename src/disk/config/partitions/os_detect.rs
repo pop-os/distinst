@@ -1,4 +1,4 @@
-use super::super::super::mount::Mount;
+use mnt::Mount;
 use super::FileSystemType;
 use std::io::{BufRead, BufReader};
 use std::path::Path;

@@ -1,8 +1,8 @@
 //! A collection of external commands used throughout the program.
 
 use disk::config::lvm::{deactivate_devices, physical_volumes_to_deactivate};
-use disk::mount::{umount, swapoff};
-use disk::{FileSystemType, LvmEncryption, Mounts, Swaps};
+use mnt::{umount, swapoff, MountList, Swaps};
+use disk::{FileSystemType, LvmEncryption};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::Permissions;
@@ -320,7 +320,7 @@ fn pvremove(physical_volume: &Path) -> io::Result<()> {
 }
 
 fn remove_encrypted_device(device: &Path) -> io::Result<()> {
-    let mounts = Mounts::new().expect("failed to get mounts in deactivate_device_maps");
+    let mounts = MountList::new().expect("failed to get mounts in deactivate_device_maps");
     let swaps = Swaps::new().expect("failed to get swaps in deactivate_device_maps");
     let umount = move |vg: &str| -> io::Result<()> {
         for lv in lvs(vg)? {

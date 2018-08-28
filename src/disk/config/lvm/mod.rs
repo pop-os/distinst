@@ -8,7 +8,7 @@ pub use self::encryption::LvmEncryption;
 use process::external::{
     blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
 };
-use super::super::mounts::MOUNTS;
+use mnt::MOUNTS;
 use super::super::{
     DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
     PartitionType, FORMAT, REMOVE, SOURCE,
