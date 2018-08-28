@@ -137,20 +137,22 @@ impl DiskExt for Disk {
 
     fn get_table_type(&self) -> Option<PartitionTable> { self.table_type }
 
-    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), PartitionError> {
+    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError> {
         match self.table_type {
             Some(PartitionTable::Gpt) => (),
             Some(PartitionTable::Msdos) => {
                 let (primary, logical) = self.get_partition_type_count();
                 if part_type == PartitionType::Primary {
                     if primary == 4 || (primary == 3 && logical != 0) {
-                        return Err(PartitionError::PrimaryPartitionsExceeded);
+                        return Err(DiskError::PrimaryPartitionsExceeded);
                     }
                 } else if primary == 4 {
-                    return Err(PartitionError::PrimaryPartitionsExceeded);
+                    return Err(DiskError::PrimaryPartitionsExceeded);
                 }
             }
-            None => return Err(PartitionError::PartitionTableNotFound),
+            None => return Err(DiskError::PartitionTableNotFound {
+                device: self.get_device_path().to_path_buf()
+            }),
         }
 
         Ok(())
@@ -303,7 +305,7 @@ impl Disk {
     }
 
     /// Unmounts all partitions on the device
-    pub fn unmount_all_partitions(&mut self) -> Result<(), io::Error> {
+    pub fn unmount_all_partitions(&mut self) -> Result<(), (PathBuf, io::Error)> {
         info!(
             "unmount all partitions on {}",
             self.path().display()
@@ -321,17 +323,18 @@ impl Disk {
                     mount.display()
                 );
 
-                umount(mount, false)?;
+                umount(mount, false).map_err(|why| {
+                    (partition.get_device_path().to_path_buf(), why)
+                })?;
             }
 
             partition.mount_point = None;
 
             if partition.flag_is_enabled(SWAPPED) {
-                info!(
-                    "unswapping '{}'",
-                    partition.get_device_path().display(),
-                );
-                swapoff(&partition.get_device_path())?;
+                info!("unswapping '{}'", partition.get_device_path().display());
+                swapoff(&partition.get_device_path()).map_err(|why| {
+                    (partition.get_device_path().to_path_buf(), why)
+                })?;
             }
 
             partition.flag_disable(SWAPPED);
@@ -397,7 +400,7 @@ impl Disk {
             self.path().display()
         );
         self.unmount_all_partitions()
-            .map_err(|why| DiskError::Unmount { why })?;
+            .map_err(|(device, why)| DiskError::Unmount { device, why })?;
 
         self.partitions.clear();
         self.mklabel = true;
@@ -478,7 +481,10 @@ impl Disk {
             if end < partition.start_sector
                 || end - partition.start_sector <= (10 * 1024 * 1024) / sector_size
             {
-                return Err(DiskError::ResizeTooSmall);
+                return Err(DiskError::new_partition_error(
+                    partition.device_path.clone(),
+                    PartitionError::ResizeTooSmall
+                ));
             }
 
             backup = partition.end_sector;
@@ -556,7 +562,7 @@ impl Disk {
             .ok_or(DiskError::PartitionNotFound { partition })
             .and_then(|partition| {
                 check_partition_size(partition.sectors() * sector_size, fs)
-                    .map_err(DiskError::from)
+                    .map_err(|why| DiskError::new_partition_error(partition.device_path.clone(), why))
                     .map(|_| {
                         partition.format_with(fs);
                         ()
