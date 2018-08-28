@@ -1,7 +1,8 @@
 use libc;
 use std::io;
 use std::sync::atomic::Ordering;
-use super::{Installer, Status, Error, Step, KILL_SWITCH};
+use super::{Installer, Status, Error, Step};
+use KILL_SWITCH;
 
 pub struct InstallerState<'a> {
     pub installer: &'a mut Installer,

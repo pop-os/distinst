@@ -1,7 +1,8 @@
 use {Chroot, Command, Config};
 use disk::mount::{BIND, Mount};
+use std::collections::HashSet;
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::Path;
 use misc;
 
@@ -20,20 +21,49 @@ pub struct ChrootConfigure<'a> {
 impl<'a> ChrootConfigure<'a> {
     pub fn new(chroot: Chroot<'a>) -> Self { Self { chroot }}
 
+    /// Unmount the chroot.
     pub fn unmount(&mut self, lazy: bool) -> io::Result<()> {
         self.chroot.unmount(lazy)
     }
 
+    /// Avoid reinstalling packages that are already installed.
+    fn apt_install_filter<'b>(&self, packages: &[&'b str]) -> io::Result<Vec<&'b str>> {
+        info!("filtering packages to be installed: {:?}", packages);
+
+        let stdout = self.chroot.command("dpkg-query", &cascade! {
+            Vec::with_capacity(packages.len() + 1);
+            ..push("-s");
+            ..extend_from_slice(packages);
+        }).run_with_stdout()?;
+
+        let mut to_install = packages.into_iter().map(|x| *x).collect::<HashSet<&str>>();
+        let mut package_entry = "";
+
+        for line in stdout.lines() {
+            if line.starts_with("Package:") {
+                package_entry = &line[9..];
+            } else if line.starts_with("Status:") && ! line.ends_with("install ok installed") {
+                to_install.remove(package_entry);
+            }
+        }
+
+        Ok(to_install.into_iter().collect::<Vec<&str>>())
+    }
+
+    /// Install the given packages if they are not already installed.
     pub fn apt_install(&self, packages: &[&str]) -> io::Result<()> {
+        let packages = self.apt_install_filter(packages)?;
+
         info!("installing packages: {:?}", packages);
         self.chroot.command("apt-get", &cascade! {
             Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
             ..extend_from_slice(&["install", "-q", "-y"]);
             ..extend_from_slice(APT_OPTIONS);
-            ..extend_from_slice(packages);
+            ..extend_from_slice(&packages);
         }).run()
     }
 
+    /// Remove the given packages from the system, if they are installed.
     pub fn apt_remove(&self, packages: &[&str]) -> io::Result<()> {
         info!("removing packages: {:?}", packages);
         self.chroot.command("apt-get", &cascade! {
@@ -44,6 +74,7 @@ impl<'a> ChrootConfigure<'a> {
         self.chroot.command("apt-get", &["autoremove", "-y", "--purge"]).run()
     }
 
+    /// Configure the bootloader on the system.
     pub fn bootloader(&self) -> io::Result<()> {
         info!("configuring bootloader");
         let result = self.chroot.command("kernelstub", &[
@@ -68,24 +99,21 @@ impl<'a> ChrootConfigure<'a> {
         }
     }
 
+    /// Add the apt repository on the image, so that packages may be installed from it.
     pub fn cdrom_add(&self) -> io::Result<()> {
         if Path::new("/cdrom").exists() {
             info!("adding apt-cdrom to /etc/apt/sources.list");
-            let sources_list = self.chroot.path.join("etc/apt/sources.list");
-            // TODO: fs::read_to_string()
-            let mut buffer = String::new();
-            {
-                let mut file = misc::open(&sources_list)?;
-                file.read_to_string(&mut buffer)?;
-            }
-
-            let mut file = misc::create(&sources_list)?;
-            file.write_all(buffer.replace("deb cdrom:", "# deb cdrom:").as_bytes())
+            self.chroot.command("apt-cdrom", &cascade! {
+                Vec::with_capacity(APT_OPTIONS.len() + 1);
+                ..extend_from_slice(APT_OPTIONS);
+                ..push("add");
+            }).run()
         } else {
             Ok(())
         }
     }
 
+    /// Disable that repository, now that they system has been installed.
     pub fn cdrom_disable(&self) -> io::Result<()> {
         if Path::new("/cdrom").exists() {
             info!("disabling apt-cdrom from /etc/apt/sources.list");
@@ -99,6 +127,7 @@ impl<'a> ChrootConfigure<'a> {
         }
     }
 
+    /// Disable the nvidia fallback service.
     pub fn disable_nvidia(&self) {
         info!("attempting to disable nvidia-fallback.service");
         let args = &["disable", "nvidia-fallback.service"];
@@ -107,6 +136,7 @@ impl<'a> ChrootConfigure<'a> {
         }
     }
 
+    /// Remove files from /etc/ that may interfere with a reinstall.
     pub fn etc_cleanup(&self) -> io::Result<()> {
         let initramfs_post_update = self.chroot.path.join("etc/initramfs/post-update.d/");
         if initramfs_post_update.is_dir() {
@@ -116,23 +146,27 @@ impl<'a> ChrootConfigure<'a> {
         }
     }
 
+    /// Use locale-gen and update-locale to set the locale of the machine.
     pub fn generate_locale(&self, locale: &str) -> io::Result<()> {
         info!("generating locales via `locale-gen` and `update-locale`");
         self.chroot.command("locale-gen", &["--purge", locale]).run()?;
         self.chroot.command("update-locale", &["--reset", &["LANG=", locale].concat()]).run()
     }
 
+    /// Generate a new machine ID for /var/lib/dbus/machine-id
     pub fn generate_machine_id(&self) -> io::Result<()> {
         info!("generating machine id via `dbus-uuidgen`");
-        self.chroot.command("sh", &["-c", "dbus-uuidgen > /etc/hostname"]).run()
+        self.chroot.command("sh", &["-c", "dbus-uuidgen > /var/lib/dbus/machine-id"]).run()
     }
 
+    /// Set the hostname of the new install.
     pub fn hostname(&self, hostname: &str) -> io::Result<()> {
         info!("setting hostname to {}", hostname);
         let mut file = misc::create(&self.chroot.path.join("etc/hostname"))?;
         writeln!(&mut file, "{}", hostname)
     }
 
+    /// Create a default hosts file for the new install.
     pub fn hosts(&self, hostname: &str) -> io::Result<()> {
         info!("setting hosts file");
         let mut file = misc::create(&self.chroot.path.join("etc/hosts"))?;
@@ -141,6 +175,7 @@ impl<'a> ChrootConfigure<'a> {
 127.0.1.1	{0}.localdomain	{0}"#, hostname)
     }
 
+    /// Set the keyboard layout so that the layout will function, even within the decryption screen.
     pub fn keyboard_layout(&self, config: &Config) -> io::Result<()> {
         info!("configuring keyboard layout");
         // Ensure that localectl writes to the chroot, instead.
@@ -165,6 +200,7 @@ impl<'a> ChrootConfigure<'a> {
         ]).run()
     }
 
+    /// In case the kernel is located outside of the squashfs image, find it.
     pub fn kernel_copy(&self) -> io::Result<()> {
         let cdrom_kernel = Path::new("/cdrom/casper/vmlinuz");
         let chroot_kernel = self.chroot.path.join("vmlinuz");
