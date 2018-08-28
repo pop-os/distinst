@@ -36,8 +36,7 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT};
 
-pub use chroot::Chroot;
-pub use command::Command;
+pub use process::{Chroot, Command};
 pub use disk::mount::{BIND, Mount, Mounts};
 pub use disk::{
     generate_unique_id, Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks,
@@ -56,11 +55,10 @@ mod misc;
 mod squashfs;
 
 pub mod auto;
-pub mod chroot;
-pub mod command;
 pub mod hostname;
 pub mod locale;
 pub mod os_release;
+pub mod process;
 
 pub use self::installer::*;
 pub use self::logging::log;

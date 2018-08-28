@@ -14,11 +14,11 @@ const APT_OPTIONS: &[&str] = &[
 
 const BOOT_OPTIONS: &str = "quiet loglevel=0 systemd.show_status=false splash";
 
-pub struct ChrootConfigure<'a> {
+pub struct ChrootConfigurator<'a> {
     chroot: Chroot<'a>
 }
 
-impl<'a> ChrootConfigure<'a> {
+impl<'a> ChrootConfigurator<'a> {
     pub fn new(chroot: Chroot<'a>) -> Self { Self { chroot }}
 
     /// Unmount the chroot.

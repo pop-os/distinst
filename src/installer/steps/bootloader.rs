@@ -1,5 +1,5 @@
 use {Config, MODIFY_BOOT_ORDER};
-use chroot::Chroot;
+use process::Chroot;
 use disk::{Bootloader, Disks};
 use os_release::OsRelease;
 use std::ffi::{OsStr, OsString};

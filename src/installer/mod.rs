@@ -1,4 +1,3 @@
-mod configure;
 mod state;
 mod steps;
 
@@ -12,8 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use tempdir::TempDir;
 
-pub use chroot::Chroot;
-pub use command::Command;
+pub use process::Chroot;
+pub use process::Command;
 pub use disk::mount::{BIND, Mount, Mounts};
 pub use self::steps::Step;
 

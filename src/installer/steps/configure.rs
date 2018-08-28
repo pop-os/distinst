@@ -11,10 +11,10 @@ use distribution;
 use Config;
 use rayon;
 use super::*;
-use super::super::configure::ChrootConfigure;
+use process::ChrootConfigurator;
 use {INSTALL_HARDWARE_SUPPORT, misc, hardware_support};
 
-use chroot::Chroot;
+use process::Chroot;
 use disk::external::remount_rw;
 
 /// Self-explanatory -- the fstab file will be generated with this header.
@@ -223,7 +223,7 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         install_pkgs.extend_from_slice(&retain);
 
         // TODO: use a macro to make this more manageable.
-        let mut chroot = ChrootConfigure::new(chroot);
+        let mut chroot = ChrootConfigurator::new(chroot);
 
         let mut hostname = Ok(());
         let mut hosts = Ok(());

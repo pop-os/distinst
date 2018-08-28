@@ -1,9 +1,13 @@
+mod configure;
+
+pub use self::configure::ChrootConfigurator;
+
 use disk::mount::{Mount, BIND};
 use std::ffi::OsStr;
 use std::io::Result;
 use std::path::{Path, PathBuf};
 use std::process::{Stdio};
-use command::Command;
+use process::Command;
 
 /// Defines the location where a `chroot` will be performed, as well as storing
 /// handles to all of the binding mounts that the chroot requires.

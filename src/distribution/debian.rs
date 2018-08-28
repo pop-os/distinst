@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
-use chroot::Chroot;
+use process::Chroot;
 use disk::{Bootloader, Disks, FileSystemSupport};
 use os_release::OsRelease;
 
