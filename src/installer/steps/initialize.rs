@@ -99,15 +99,13 @@ pub fn initialize<F: FnMut(i32)>(
         .and(res_b)
         .and_then(|pkgs| res_d.map(|squashfs| (pkgs, squashfs)))?;
 
-    let disks_ptr = &*disks as *const Disks;
-    {
-        let borrowed: &Disks = unsafe { &*disks_ptr };
-        disks.physical.iter_mut().map(|disk| {
-            // This will help us when we are testing in a dev environment.
-            if disk.contains_mount("/", borrowed) {
-                return Ok(());
-            }
+    let unmount = disks.physical.iter()
+        .map(|disk| !disk.contains_mount("/", disks))
+        .collect::<Vec<bool>>();
 
+    disks.physical.iter_mut().zip(unmount.into_iter())
+        .filter(|(_, unmount)| *unmount)
+        .map(|(disk, _)| {
             if let Err(why) = disk.unmount_all_partitions_with_target() {
                 error!("unable to unmount partitions");
                 return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
@@ -115,7 +113,6 @@ pub fn initialize<F: FnMut(i32)>(
 
             Ok(())
         }).collect::<io::Result<()>>()?;
-    }
 
     callback(100);
 
