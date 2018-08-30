@@ -104,7 +104,7 @@ pub fn initialize<F: FnMut(i32)>(
         .collect::<Vec<bool>>();
 
     disks.physical.iter_mut().zip(unmount.into_iter())
-        .filter(|(_, unmount)| *unmount)
+        .filter(|&(_, unmount)| unmount)
         .map(|(disk, _)| {
             if let Err(why) = disk.unmount_all_partitions_with_target() {
                 error!("unable to unmount partitions");
