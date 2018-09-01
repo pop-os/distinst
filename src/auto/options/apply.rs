@@ -86,6 +86,7 @@ impl<'a> InstallOption<'a> {
             InstallOption::Refresh(option) => {
                 refresh_config(disks, option)?;
             }
+            // Perform a recovery install
             InstallOption::Recovery { option, password } => {
                 recovery_config(disks, option, password)?;
             }

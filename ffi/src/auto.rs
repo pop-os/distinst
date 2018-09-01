@@ -476,6 +476,18 @@ pub unsafe extern "C" fn distinst_install_options_destroy(options: *mut Distinst
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_has_refresh_options(
+    options: *const DistinstInstallOptions
+) -> bool {
+    if null_check(options).is_err() {
+        return false;
+    }
+
+    let options = &*(options as *const InstallOptions);
+    ! options.refresh_options.is_empty ()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_install_options_get_refresh_options(
     options: *const DistinstInstallOptions,
     len: *mut libc::c_int,
@@ -493,6 +505,18 @@ pub unsafe extern "C" fn distinst_install_options_get_refresh_options(
 
     *len = output.len() as libc::c_int;
     Box::into_raw(output.into_boxed_slice()) as *mut *const DistinstRefreshOption
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_has_erase_options(
+    options: *const DistinstInstallOptions
+) -> bool {
+    if null_check(options).is_err() {
+        return false;
+    }
+
+    let options = &*(options as *const InstallOptions);
+    ! options.erase_options.is_empty ()
 }
 
 #[no_mangle]

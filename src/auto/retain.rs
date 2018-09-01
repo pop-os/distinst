@@ -6,7 +6,7 @@ use misc;
 
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, OpenOptions, Permissions};
-use std::io::{self, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::{Path, PathBuf};
@@ -93,13 +93,14 @@ impl<'a> Backup<'a> {
                     .map(|name| name.file_name())
                     .inspect(|name| {
                         info!(
-                            "backing up {}",
+                            "found user account: {}",
                             name.clone().into_string().unwrap()
                         )
                     })
                     .collect::<Vec<OsString>>()
             })?;
 
+            info!("retaining /etc/localtime");
             let localtime = base.join("etc/localtime");
             let localtime = if localtime.exists() {
                 localtime.canonicalize().ok().and_then(|ref p| get_timezone_path(p))
@@ -107,6 +108,7 @@ impl<'a> Backup<'a> {
                 None
             };
 
+            info!("retaining /etc/timezone");
             let timezone = base.join("etc/timezone");
             let timezone = if timezone.exists() {
                 misc::read(&timezone).ok()
@@ -114,6 +116,7 @@ impl<'a> Backup<'a> {
                 None
             };
 
+            info!("retaining /etc/NetworkManager/system-connections/");
             let networks = base
                 .join("etc/NetworkManager/system-connections/")
                 .read_dir()
@@ -154,14 +157,16 @@ impl<'a> Backup<'a> {
                 base.join("etc/gshadow"),
             );
 
-            let (mut passwd, mut group, mut shadow, mut gshadow) = open(&passwd)
-                .and_then(|p| open(&group).map(|g| (p, g)))
-                .and_then(|(p, g)| open(&shadow).map(|s| (p, g, s)))
-                .and_then(|(p, g, s)| open(&gshadow).map(|gs| (p, g, s, gs)))
+            let (mut passwd, mut group, mut shadow, mut gshadow) = open(&passwd, true)
+                .and_then(|p| open(&group, false).map(|g| (p, g)))
+                .and_then(|(p, g)| open(&shadow, true).map(|s| (p, g, s)))
+                .and_then(|(p, g, s)| open(&gshadow, true).map(|gs| (p, g, s, gs)))
                 .map_err(|why| ReinstallError::AccountsObtain {
                     why,
                     step: "append",
                 })?;
+
+            group.seek(SeekFrom::End(0));
 
             fn append(entry: &[u8]) -> Vec<u8> {
                 let mut entry = entry.to_owned();
@@ -174,6 +179,36 @@ impl<'a> Backup<'a> {
                 let _ = group.write_all(&append(user.group));
                 let _ = shadow.write_all(&append(user.shadow));
                 let _ = gshadow.write_all(&append(user.gshadow));
+
+                if ! user.secondary_groups.is_empty() {
+                    group.seek(SeekFrom::Start(0));
+                    let groups_data = {
+                        let mut buffer = Vec::with_capacity(group.metadata().ok().map_or(0, |x| x.len()) as usize);
+                        group.read_to_end(&mut buffer);
+                        buffer
+                    };
+
+                    let mut groups = super::accounts::lines::<Vec<(Vec<u8>, Vec<u8>)>>(&groups_data);
+                    for &group in &user.secondary_groups {
+                        for entry in &mut groups {
+                            if entry.0.as_slice() == group {
+                                entry.1.push(b',');
+                            }
+                            entry.1.extend_from_slice(group);
+                        }
+                    }
+
+                    let serialized = groups.into_iter()
+                        .map(|(_, entry)| entry)
+                        .fold(Vec::new(), |mut acc, entry| {
+                            acc.extend_from_slice(&entry);
+                            acc.push(b'\n');
+                            acc
+                        });
+
+                    group.seek(SeekFrom::Start(0));
+                    group.write_all(&serialized);
+                }
             }
 
             if let Some(ref tz) = self.localtime {
@@ -220,7 +255,9 @@ fn create_network_conf(base: &Path, conn: &OsStr, data: &[u8]) {
     }
 }
 
-fn open(path: &Path) -> io::Result<File> { OpenOptions::new().write(true).append(true).open(path) }
+fn open(path: &Path, append: bool) -> io::Result<File> {
+    OpenOptions::new().read(true).write(true).append(append).open(path)
+}
 
 fn get_timezone_path(tz: &Path) -> Option<PathBuf> {
     let raw = tz.as_os_str().as_bytes();

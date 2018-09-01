@@ -193,15 +193,17 @@ impl Installer {
         let backup = if let Some(ref old_root_uuid) = config.old_root {
             info!("installing while retaining home");
 
-            let current_disks =
-                Disks::probe_devices().map_err(|why| ReinstallError::DiskProbe { why })?;
-            let old_root = current_disks
+            eprintln!("searching for {}", old_root_uuid);
+            let old_root = disks
                 .get_partition_by_uuid(old_root_uuid)
                 .ok_or(ReinstallError::NoRootPartition)?;
+
+            eprintln!("searching for new root");
             let new_root = disks
                 .get_partition_with_target(Path::new("/"))
                 .ok_or(ReinstallError::NoRootPartition)?;
 
+            eprintln!("searching for home");
             let (home, home_is_root) = disks
                 .get_partition_with_target(Path::new("/home"))
                 .map_or((old_root, true), |p| (p, false));
