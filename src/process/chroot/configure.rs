@@ -193,6 +193,11 @@ impl<'a> ChrootConfigurator<'a> {
             "openvt", "--", "sh", "/etc/init.d/console-setup.sh", "reload"
         ]).run()?;
 
+        let cached_file = self.chroot.path.join("etc/console-setup/cached.kmap.gz");
+        if cached_file.exists () {
+            fs::remove_file(cached_file)?;
+        }
+
         self.chroot.command("ln", &[
             "-s",
             "/etc/console-setup/cached_UTF-8_del.kmap.gz",
@@ -258,11 +263,11 @@ impl<'a> ChrootConfigurator<'a> {
 
             if recovery_uuid != cdrom_uuid {
                 self.chroot.command("rsync", &[
-                    "-KLav", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"
+                    "-KLavc", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"
                 ]).run()?;
 
                 self.chroot.command("rsync", &[
-                    "-KLav", "/cdrom/casper/", &["/recovery/", &casper].concat()
+                    "-KLavc", "/cdrom/casper/", &["/recovery/", &casper].concat()
                 ]).run()?;
             }
 

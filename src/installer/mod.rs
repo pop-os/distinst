@@ -180,7 +180,7 @@ impl Installer {
         Ok(())
     }
 
-    /// Create a backup of key data on the system, execute the given function, and then restore
+    /// Create a backup of key data on the system, execute the given functi on, and then restore
     /// that backup. If a backup is not requested for the configuration, then it will just
     /// execute the given function.
     fn backup<F: FnMut(Disks, &Config) -> io::Result<()>>(
@@ -193,11 +193,10 @@ impl Installer {
         let backup = if let Some(ref old_root_uuid) = config.old_root {
             info!("installing while retaining home");
 
-            let current_disks =
-                Disks::probe_devices().map_err(|why| ReinstallError::DiskProbe { why })?;
-            let old_root = current_disks
+            let old_root = disks
                 .get_partition_by_uuid(old_root_uuid)
                 .ok_or(ReinstallError::NoRootPartition)?;
+
             let new_root = disks
                 .get_partition_with_target(Path::new("/"))
                 .ok_or(ReinstallError::NoRootPartition)?;

@@ -1,5 +1,6 @@
 //! An assortment of useful basic functions useful throughout the project.
 
+use std::borrow::Cow;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, DirEntry, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -31,6 +32,20 @@ mod layout {
         }
 
         hasher.finish()
+    }
+}
+
+pub fn canonicalize<'a>(path: &'a Path) -> Cow<'a, Path> {
+    if let Ok(mut new) = path.canonicalize() {
+        while let Ok(tmp) = new.canonicalize() {
+            if new == tmp {
+                break
+            }
+            new = tmp;
+        }
+        Cow::Owned(new)
+    } else {
+        Cow::Borrowed(path)
     }
 }
 
