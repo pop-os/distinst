@@ -201,6 +201,7 @@ impl Installer {
                 .get_partition_with_target(Path::new("/"))
                 .ok_or(ReinstallError::NoRootPartition)?;
 
+            eprintln!("searching for home");
             let (home, home_is_root) = disks
                 .get_partition_with_target(Path::new("/home"))
                 .map_or((old_root, true), |p| (p, false));
