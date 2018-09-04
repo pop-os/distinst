@@ -10,7 +10,7 @@ use super::super::{
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PVS};
 use libparted::{Device, DeviceType};
-use misc::{self, get_uuid, from_uuid};
+use misc::{self, from_uuid, get_uuid, hasher};
 
 use FileSystemType::*;
 use itertools::Itertools;
@@ -808,6 +808,8 @@ impl Disks {
             }
         }
 
+        let mut swap_uuids: Vec<u64> = Vec::new();
+
         for (is_unencrypted, luks_parent, partition) in partitions {
             if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
                 let password: Cow<'static, OsStr> =
@@ -845,8 +847,11 @@ impl Disks {
                 if is_unencrypted {
                     match get_uuid(&partition.device_path) {
                         Some(uuid) => {
-                            let unique_id =
-                                generate_unique_id("cryptswap").unwrap_or_else(|_| "cryptswap".into());
+                            let unique_id = generate_unique_id("cryptswap", &swap_uuids)
+                                .unwrap_or_else(|_| "cryptswap".into());
+
+                            swap_uuids.push(hasher(&unique_id));
+
                             crypttab.push(&unique_id);
                             crypttab.push(" UUID=");
                             crypttab.push(&uuid);

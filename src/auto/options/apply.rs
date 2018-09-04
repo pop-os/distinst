@@ -57,8 +57,8 @@ fn generate_encryption(
 ) -> Result<Option<(LvmEncryption, String)>, InstallOptionError> {
     let value = match password {
         Some(pass) => {
-            let (root, encrypted_vg) = generate_unique_id("data")
-                .and_then(|r| generate_unique_id("cryptdata").map(|e| (r, e)))
+            let (root, encrypted_vg) = generate_unique_id("data", &[])
+                .and_then(|r| generate_unique_id("cryptdata", &[]).map(|e| (r, e)))
                 .map_err(|why| InstallOptionError::GenerateID { why })?;
 
             let root_vg = root.clone();

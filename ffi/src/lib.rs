@@ -89,7 +89,7 @@ pub unsafe extern "C" fn distinst_generate_unique_id(
 ) -> *mut libc::c_char {
     get_str(prefix)
         .ok()
-        .and_then(|prefix| distinst::generate_unique_id(prefix).ok().map(to_cstr))
+        .and_then(|prefix| distinst::generate_unique_id(prefix, &[]).ok().map(to_cstr))
         .unwrap_or(ptr::null_mut())
 }
 

@@ -1,8 +1,10 @@
 //! An assortment of useful basic functions useful throughout the project.
 
 use std::borrow::Cow;
+use std::collections::hash_map::DefaultHasher;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, DirEntry, File};
+use std::hash::{Hash, Hasher};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -33,6 +35,12 @@ mod layout {
 
         hasher.finish()
     }
+}
+
+pub fn hasher<T: Hash>(key: &T) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    hasher.finish()
 }
 
 pub fn canonicalize<'a>(path: &'a Path) -> Cow<'a, Path> {

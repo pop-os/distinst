@@ -8,6 +8,7 @@ pub use self::encryption::LvmEncryption;
 use process::external::{
     blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
 };
+use misc::hasher;
 use mnt::MOUNTS;
 use super::super::{
     DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
@@ -21,16 +22,16 @@ use std::{io, thread};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
+pub fn generate_unique_id(prefix: &str, exclude_hashes: &[u64]) -> io::Result<String> {
     let dmlist = dmlist()?;
-    if !dmlist.iter().any(|x| x.as_str() == prefix) {
+    if ! dmlist.iter().any(|x| x.as_str() == prefix) && ! exclude_hashes.contains(&hasher(&prefix)) {
         return Ok(prefix.into());
     }
 
     loop {
         let id: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).collect();
         let id = [prefix, "_", &id].concat();
-        if dmlist.contains(&id) {
+        if dmlist.contains(&id) || exclude_hashes.contains(&hasher(&id)) {
             continue;
         }
         return Ok(id);
