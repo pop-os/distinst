@@ -194,6 +194,7 @@ fn main() {
                 pb.show_speed = false;
                 pb.show_counter = false;
                 pb.message(match status.step {
+                    Step::Backup => "Backing up files",
                     Step::Init => "Initializing",
                     Step::Partition => "Partitioning disk ",
                     Step::Extract => "Extracting filesystem ",

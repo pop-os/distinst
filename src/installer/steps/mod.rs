@@ -20,6 +20,7 @@ use std::sync::atomic::Ordering;
 /// Installation step
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Step {
+    Backup,
     Init,
     Partition,
     Extract,

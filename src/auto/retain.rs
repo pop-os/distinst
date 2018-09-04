@@ -16,7 +16,7 @@ pub fn remove_root(
     root_path: &Path,
     root_fs: FileSystemType,
 ) -> Result<(), ReinstallError> {
-    info!("removing all files except /home");
+    info!("removing all files except /home. This may take a while...");
     mount_and_then(root_path, root_fs, |base| {
         read_and_exclude(base, &[OsStr::new("home")], |entry| {
             if entry.is_dir() {
@@ -35,15 +35,16 @@ pub fn move_root(
     root_path: &Path,
     root_fs: FileSystemType,
 ) -> Result<(), ReinstallError> {
-    info!("moving original system to /linux.old/");
     mount_and_then(root_path, root_fs, |base| {
         let old_root = base.join("linux.old");
 
         // Remove an old, old root if it already exists.
         if old_root.exists () {
+            info!("removing original /linux.old directory. This may take a while...");
             fs::remove_dir_all(&old_root)?;
         }
 
+        info!("moving original system to /linux.old");
         fs::create_dir(&old_root)?;
 
         // Migrate the current root system to the old root path.

@@ -14,6 +14,7 @@ namespace Distinst {
 
     [CCode (cname = "DISTINST_STEP", has_type_id = false)]
     public enum Step {
+        BACKUP,
         INIT,
         PARTITION,
         EXTRACT,

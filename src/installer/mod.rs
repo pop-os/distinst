@@ -20,6 +20,16 @@ pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
 pub const KEEP_OLD_ROOT: u8 = 0b100;
 
+macro_rules! percent {
+    ($steps:expr) => {
+        |percent| {
+            $steps.status.percent = percent;
+            let status = $steps.status;
+            $steps.emit_status(status);
+        }
+    }
+}
+
 /// Installer configuration
 #[derive(Debug)]
 pub struct Config {
@@ -102,7 +112,9 @@ impl Installer {
     ///
     /// If `config.old_root` is set, then home at that location will be retained.
     pub fn install(&mut self, disks: Disks, config: &Config) -> io::Result<()> {
-        Self::backup(disks, config, |mut disks, config| {
+        let steps = &mut InstallerState::new(self);
+
+        Self::backup(disks, config, steps, |mut disks, config, steps| {
             if !hostname::is_valid(&config.hostname) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -114,18 +126,6 @@ impl Installer {
             disks.verify_partitions(bootloader)?;
 
             info!("installing {:?} with {:?}", config, bootloader);
-
-            let steps = &mut InstallerState::new(self);
-
-            macro_rules! percent {
-                ($steps:expr) => {
-                    |percent| {
-                        $steps.status.percent = percent;
-                        let status = $steps.status;
-                        $steps.emit_status(status);
-                    }
-                }
-            }
 
             let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
                 Installer::initialize(&mut disks, config, percent!(steps))
@@ -184,9 +184,10 @@ impl Installer {
     /// Create a backup of key data on the system, execute the given functi on, and then restore
     /// that backup. If a backup is not requested for the configuration, then it will just
     /// execute the given function.
-    fn backup<F: FnMut(Disks, &Config) -> io::Result<()>>(
+    fn backup<F: FnMut(Disks, &Config, &mut InstallerState) -> io::Result<()>>(
         disks: Disks,
         config: &Config,
+        steps: &mut InstallerState,
         mut func: F
     ) -> io::Result<()> {
         let account_files;
@@ -223,15 +224,27 @@ impl Installer {
             let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
 
             account_files = AccountFiles::new(old_root_path, old_root_fs)?;
-            let backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
-            validate_backup_conditions(&disks, &config.squashfs)?;
 
-            if config.flags & KEEP_OLD_ROOT != 0 {
-                move_root(old_root_path, old_root_fs)?;
-            } else {
-                remove_root(old_root_path, old_root_fs)?;
-                old_backup = Some((old_root_path.to_path_buf(), old_root_fs));
-            }
+            let backup = steps.apply(Step::Backup, "backing up", |steps| {
+                let mut callback = percent!(steps);
+
+                let backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
+                callback(25);
+
+                validate_backup_conditions(&disks, &config.squashfs)?;
+                callback(50);
+
+                if config.flags & KEEP_OLD_ROOT != 0 {
+                    move_root(old_root_path, old_root_fs)?;
+                } else {
+                    remove_root(old_root_path, old_root_fs)?;
+                    old_backup = Some((old_root_path.to_path_buf(), old_root_fs));
+                }
+
+                callback(100);
+
+                Ok(backup)
+            })?;
 
             Some((backup, root_path, root_fs))
         } else {
@@ -239,7 +252,7 @@ impl Installer {
         };
 
         // Do the destructive action of reinstalling the system.
-        if let Err(why) = func(disks, config) {
+        if let Err(why) = func(disks, config, steps) {
             error!("errored while installing system: {}", why);
 
             if let Some((path, fs)) = old_backup {
