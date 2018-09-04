@@ -82,6 +82,21 @@ pub fn recover_root(root_path: &Path, root_fs: FileSystemType) -> Result<(), Rei
     })
 }
 
+/// Delete the /linux.old directory withint the given device.
+pub fn delete_old_install(root_path: &Path, root_fs: FileSystemType) -> Result<(), ReinstallError> {
+    info!("removing the /linux.old directory at {:?}. This may take a while...", root_path);
+    mount_and_then(root_path, root_fs, |base| {
+        let old_root = base.join("linux.old");
+
+        // Remove an old, old root if it already exists.
+        if old_root.exists () {
+            fs::remove_dir_all(&old_root)?;
+        }
+
+        Ok(())
+    })
+}
+
 /// Checks to see if the backup install has a chance to succeed, before starting it.
 pub fn validate_backup_conditions<P: AsRef<Path>>(disks: &Disks, path: P) -> Result<(), ReinstallError> {
     partition_configuration_is_valid(&disks)

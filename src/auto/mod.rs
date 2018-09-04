@@ -5,6 +5,7 @@ mod retain;
 pub(crate) use self::accounts::{AccountFiles, UserData};
 pub use self::options::*;
 pub(crate) use self::retain::*;
+pub use self::retain::delete_old_install;
 
 use super::{DiskError, FileSystemType, Mount};
 use tempdir::TempDir;

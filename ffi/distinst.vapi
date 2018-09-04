@@ -254,6 +254,11 @@ namespace Distinst {
     public int deactivate_logical_devices ();
 
     /**
+     * Delete the /linux.old directory within the specified partition.
+     */
+    public int delete_old_install (string device_path, FileSystemType file_system);
+
+    /**
      * Hashes the contents of `/dev/`; useful for detecting layout changes.
      */
     public uint64 device_layout_hash ();
