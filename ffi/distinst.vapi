@@ -121,17 +121,25 @@ namespace Distinst {
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class RefreshOption {
         /**
+         * If true, the original system may be kept in a backup directory.
+         */
+        public bool can_retain_old ();
+
+        /**
          * The OS name string obtained from the disk.
          */
         public unowned uint8[] get_os_name ();
+
         /**
          * The OS pretty name obtained from the disk.
          */
         public unowned uint8[] get_os_pretty_name ();
+
         /**
          * The OS version string obtained from the disk.
          */
         public unowned uint8[] get_os_version ();
+
         /**
          * The UUID of the root partition.
          */

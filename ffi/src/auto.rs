@@ -59,6 +59,17 @@ pub unsafe extern "C" fn distinst_alongside_option_get_sectors_free(
 pub struct DistinstRefreshOption;
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_refresh_option_can_retain_old(
+    option: *const DistinstRefreshOption,
+) -> bool {
+    if null_check(option).is_err() {
+        return false;
+    }
+
+    (&*(option as *const RefreshOption)).can_retain_old
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_refresh_option_get_os_name(
     option: *const DistinstRefreshOption,
     len: *mut libc::c_int,

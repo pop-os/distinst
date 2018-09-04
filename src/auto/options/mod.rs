@@ -46,24 +46,26 @@ impl InstallOptions {
 
             let mut check_partition = |part: &PartitionInfo| -> Option<OS> {
                 if part.is_linux_compatible() {
-                    match part.probe_os() {
-                        Some(os) => {
-                            if let OS::Linux { ref info, ref home, ref efi, ref recovery } = os {
-                                refresh_options.push(RefreshOption {
-                                    os_name:        info.name.clone(),
-                                    os_pretty_name: info.pretty_name.clone(),
-                                    os_version:     info.version.clone(),
-                                    root_part:      get_uuid(part.get_device_path())
-                                        .expect("root device did not have uuid"),
-                                    home_part:      home.clone(),
-                                    efi_part:       efi.clone(),
-                                    recovery_part:  recovery.clone(),
-                                });
-                            }
+                    if let Some(os) = part.probe_os() {
+                        if let OS::Linux { ref info, ref home, ref efi, ref recovery } = os {
+                            refresh_options.push(RefreshOption {
+                                os_name:        info.name.clone(),
+                                os_pretty_name: info.pretty_name.clone(),
+                                os_version:     info.version.clone(),
+                                root_part:      get_uuid(part.get_device_path())
+                                    .expect("root device did not have uuid"),
+                                home_part:      home.clone(),
+                                efi_part:       efi.clone(),
+                                recovery_part:  recovery.clone(),
+                                can_retain_old: if let Some(Ok(used)) = part.sectors_used(512) {
+                                     part.sectors() - used > required_space
+                                } else {
+                                    false
+                                }
+                            });
+                        }
 
-                            return Some(os);
-                        },
-                        None => (),
+                        return Some(os);
                     }
                 }
 
