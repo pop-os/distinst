@@ -60,6 +60,18 @@ pub fn move_root(
 pub fn recover_root(root_path: &Path, root_fs: FileSystemType) -> Result<(), ReinstallError> {
     info!("attempting to restore the original system");
     mount_and_then(root_path, root_fs, |base| {
+        // Remove files installed by the installer.
+        read_and_exclude(base, &[OsStr::new("home"), OsStr::new("linux.old")], |entry| {
+            if entry.is_dir() {
+                fs::remove_dir_all(entry)?;
+            } else {
+                fs::remove_file(entry)?;
+            }
+
+            Ok(())
+        })?;
+
+        // Restore original files.
         let old_root = base.join("linux.old");
         read_and_exclude(&old_root, &[], |entry| {
             let filename = entry.file_name().expect("root entry without file name");
