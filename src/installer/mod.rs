@@ -2,7 +2,7 @@ mod state;
 mod steps;
 
 use {PARTITIONING_TEST, deactivate_logical_devices, hostname, squashfs};
-use auto::{remove_root, move_root, AccountFiles, Backup, ReinstallError};
+use auto::{recover_root, remove_root, move_root, validate_backup_conditions, AccountFiles, Backup, ReinstallError};
 use disk::{Bootloader, Disks};
 use os_release::OsRelease;
 use self::state::InstallerState;
@@ -190,6 +190,7 @@ impl Installer {
         mut func: F
     ) -> io::Result<()> {
         let account_files;
+        let mut old_backup = None;
 
         let backup = if let Some(ref old_root_uuid) = config.old_root {
             info!("installing while retaining home");
@@ -215,18 +216,21 @@ impl Installer {
             let root_fs = new_root
                 .filesystem
                 .ok_or_else(|| ReinstallError::NoFilesystem)?;
+            let old_root_path = old_root.get_device_path();
             let old_root_fs = old_root
                 .filesystem
                 .ok_or_else(|| ReinstallError::NoFilesystem)?;
             let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
 
-            account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
+            account_files = AccountFiles::new(old_root_path, old_root_fs)?;
             let backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
+            validate_backup_conditions(&disks, &config.squashfs)?;
 
             if config.flags & KEEP_OLD_ROOT != 0 {
-                move_root(&disks, &config.squashfs, old_root.get_device_path(), old_root_fs)?;
+                move_root(old_root_path, old_root_fs)?;
             } else {
-                remove_root(&disks, &config.squashfs, old_root.get_device_path(), old_root_fs)?;
+                remove_root(old_root_path, old_root_fs)?;
+                old_backup = Some((old_root_path.to_path_buf(), old_root_fs));
             }
 
             Some((backup, root_path, root_fs))
@@ -235,7 +239,15 @@ impl Installer {
         };
 
         // Do the destructive action of reinstalling the system.
-        func(disks, config)?;
+        if let Err(why) = func(disks, config) {
+            error!("errored while installing system: {}", why);
+
+            if let Some((path, fs)) = old_backup {
+                recover_root(&path, fs)?;
+            }
+
+            return Err(why);
+        }
 
         // Then restore the backup, if it exists.
         if let Some((backup, root_path, root_fs)) = backup {

@@ -11,15 +11,13 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-pub fn remove_root<P: AsRef<Path>>(
-    disks: &Disks,
-    path: P,
+/// Removes all files in the chroot at `/`, except for `/home`.
+pub fn remove_root(
     root_path: &Path,
     root_fs: FileSystemType,
 ) -> Result<(), ReinstallError> {
-    validate(disks, path)?;
+    info!("removing all files except /home");
     mount_and_then(root_path, root_fs, |base| {
-        info!("removing all files except /home");
         read_and_exclude(base, &[OsStr::new("home")], |entry| {
             if entry.is_dir() {
                 fs::remove_dir_all(entry)?;
@@ -32,13 +30,12 @@ pub fn remove_root<P: AsRef<Path>>(
     })
 }
 
-pub fn move_root<P: AsRef<Path>>(
-    disks: &Disks,
-    path: P,
+/// Migrate the original system to the `/linux.old/` directory, excluding `/home`.
+pub fn move_root(
     root_path: &Path,
     root_fs: FileSystemType,
 ) -> Result<(), ReinstallError> {
-    validate(disks, path)?;
+    info!("moving original system to /linux.old/");
     mount_and_then(root_path, root_fs, |base| {
         let old_root = base.join("linux.old");
 
@@ -59,7 +56,21 @@ pub fn move_root<P: AsRef<Path>>(
     })
 }
 
-fn validate<P: AsRef<Path>>(disks: &Disks, path: P) -> Result<(), ReinstallError> {
+/// If a refresh install fails, this can be used to restore the original system.
+pub fn recover_root(root_path: &Path, root_fs: FileSystemType) -> Result<(), ReinstallError> {
+    info!("attempting to restore the original system");
+    mount_and_then(root_path, root_fs, |base| {
+        let old_root = base.join("linux.old");
+        read_and_exclude(&old_root, &[], |entry| {
+            let filename = entry.file_name().expect("root entry without file name");
+            fs::rename(entry, base.join(filename))?;
+            Ok(())
+        })
+    })
+}
+
+/// Checks to see if the backup install has a chance to succeed, before starting it.
+pub fn validate_backup_conditions<P: AsRef<Path>>(disks: &Disks, path: P) -> Result<(), ReinstallError> {
     partition_configuration_is_valid(&disks)
         .and_then(|_| install_media_exists(path.as_ref()))
 }
