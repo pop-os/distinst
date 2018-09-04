@@ -11,20 +11,61 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-pub fn validate_before_removing<P: AsRef<Path>>(
+pub fn remove_root<P: AsRef<Path>>(
     disks: &Disks,
     path: P,
-    home_path: &Path,
-    home_fs: FileSystemType,
+    root_path: &Path,
+    root_fs: FileSystemType,
 ) -> Result<(), ReinstallError> {
+    validate(disks, path)?;
+    mount_and_then(root_path, root_fs, |base| {
+        info!("removing all files except /home");
+        read_and_exclude(base, &[OsStr::new("home")], |entry| {
+            if entry.is_dir() {
+                fs::remove_dir_all(entry)?;
+            } else {
+                fs::remove_file(entry)?;
+            }
+
+            Ok(())
+        })
+    })
+}
+
+pub fn move_root<P: AsRef<Path>>(
+    disks: &Disks,
+    path: P,
+    root_path: &Path,
+    root_fs: FileSystemType,
+) -> Result<(), ReinstallError> {
+    validate(disks, path)?;
+    mount_and_then(root_path, root_fs, |base| {
+        let old_root = base.join("linux.old");
+
+        // Remove an old, old root if it already exists.
+        if old_root.exists () {
+            fs::remove_dir_all(&old_root)?;
+        }
+
+        fs::create_dir(&old_root)?;
+
+        // Migrate the current root system to the old root path.
+        let exclude = &[OsStr::new("home"), OsStr::new("linux.old")];
+        read_and_exclude(base, exclude, |entry| {
+            let filename = entry.file_name().expect("root entry without file name");
+            fs::rename(entry, base.join("linux.old").join(filename))?;
+            Ok(())
+        })
+    })
+}
+
+fn validate<P: AsRef<Path>>(disks: &Disks, path: P) -> Result<(), ReinstallError> {
     partition_configuration_is_valid(&disks)
         .and_then(|_| install_media_exists(path.as_ref()))
-        .and_then(|_| remove_all_except(home_path, home_fs, &[OsStr::new("home")]))
 }
 
 fn partition_configuration_is_valid(disks: &Disks) -> Result<(), ReinstallError> {
-    disks
-        .verify_partitions(Bootloader::detect())
+    disks.verify_partitions(Bootloader::detect())
         .map_err(|why| ReinstallError::InvalidPartitionConfiguration { why })
 }
 
@@ -38,32 +79,25 @@ fn install_media_exists(path: &Path) -> Result<(), ReinstallError> {
     }
 }
 
-fn remove_all_except(
-    device: &Path,
-    fs: FileSystemType,
+fn read_and_exclude<F: FnMut(&Path) -> Result<(), ReinstallError>>(
+    path: &Path,
     exclude: &[&OsStr],
+    mut func: F
 ) -> Result<(), ReinstallError> {
-    mount_and_then(device, fs, |base| {
-        info!("removing all files except /home");
-        for entry in base.read_dir().map_err(|why| ReinstallError::IO { why })? {
-            if let Ok(entry) = entry {
-                let entry = entry.path();
-                if let Some(filename) = entry.file_name() {
-                    if exclude.contains(&filename) {
-                        continue;
-                    }
-                }
-
-                if entry.is_dir() {
-                    let _ = fs::remove_dir_all(entry);
-                } else {
-                    let _ = fs::remove_file(entry);
+    for entry in path.read_dir()? {
+        if let Ok(entry) = entry {
+            let entry = entry.path();
+            if let Some(filename) = entry.file_name() {
+                if exclude.contains(&filename) {
+                    continue;
                 }
             }
-        }
 
-        Ok(())
-    })
+            func(&entry)?;
+        }
+    }
+
+    Ok(())
 }
 
 pub struct Backup<'a> {
@@ -88,17 +122,15 @@ impl<'a> Backup<'a> {
                 base.read_dir()
             };
 
-            let users = dir.map_err(|why| ReinstallError::IO { why }).map(|dir| {
-                dir.filter_map(|entry| entry.ok())
-                    .map(|name| name.file_name())
-                    .inspect(|name| {
-                        info!(
-                            "found user account: {}",
-                            name.clone().into_string().unwrap()
-                        )
-                    })
-                    .collect::<Vec<OsString>>()
-            })?;
+            let users = dir?.filter_map(|entry| entry.ok())
+                .map(|name| name.file_name())
+                .inspect(|name| {
+                    info!(
+                        "found user account: {}",
+                        name.clone().into_string().unwrap()
+                    )
+                })
+                .collect::<Vec<OsString>>();
 
             info!("retaining /etc/localtime");
             let localtime = base.join("etc/localtime");
@@ -166,7 +198,7 @@ impl<'a> Backup<'a> {
                     step: "append",
                 })?;
 
-            group.seek(SeekFrom::End(0));
+            group.seek(SeekFrom::End(0))?;
 
             fn append(entry: &[u8]) -> Vec<u8> {
                 let mut entry = entry.to_owned();
@@ -181,10 +213,10 @@ impl<'a> Backup<'a> {
                 let _ = gshadow.write_all(&append(user.gshadow));
 
                 if ! user.secondary_groups.is_empty() {
-                    group.seek(SeekFrom::Start(0));
+                    group.seek(SeekFrom::Start(0))?;
                     let groups_data = {
                         let mut buffer = Vec::with_capacity(group.metadata().ok().map_or(0, |x| x.len()) as usize);
-                        group.read_to_end(&mut buffer);
+                        group.read_to_end(&mut buffer)?;
                         buffer
                     };
 
@@ -206,8 +238,8 @@ impl<'a> Backup<'a> {
                             acc
                         });
 
-                    group.seek(SeekFrom::Start(0));
-                    group.write_all(&serialized);
+                    group.seek(SeekFrom::Start(0))?;
+                    group.write_all(&serialized)?;
                 }
             }
 
@@ -222,10 +254,7 @@ impl<'a> Backup<'a> {
             }
 
             if let Some(ref tz) = self.timezone {
-                info!(
-                    "restoring /etc/timezone with {}",
-                    String::from_utf8_lossy(tz)
-                );
+                info!("restoring /etc/timezone with {}", String::from_utf8_lossy(tz));
                 misc::create(base.join("etc/timezone")).and_then(|mut file| file.write_all(tz))?;
             }
 

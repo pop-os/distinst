@@ -2,7 +2,7 @@ mod state;
 mod steps;
 
 use {PARTITIONING_TEST, deactivate_logical_devices, hostname, squashfs};
-use auto::{validate_before_removing, AccountFiles, Backup, ReinstallError};
+use auto::{remove_root, move_root, AccountFiles, Backup, ReinstallError};
 use disk::{Bootloader, Disks};
 use os_release::OsRelease;
 use self::state::InstallerState;
@@ -18,6 +18,7 @@ pub use self::steps::Step;
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
+pub const KEEP_OLD_ROOT: u8 = 0b100;
 
 /// Installer configuration
 #[derive(Debug)]
@@ -201,7 +202,6 @@ impl Installer {
                 .get_partition_with_target(Path::new("/"))
                 .ok_or(ReinstallError::NoRootPartition)?;
 
-            eprintln!("searching for home");
             let (home, home_is_root) = disks
                 .get_partition_with_target(Path::new("/home"))
                 .map_or((old_root, true), |p| (p, false));
@@ -223,7 +223,11 @@ impl Installer {
             account_files = AccountFiles::new(old_root.get_device_path(), old_root_fs)?;
             let backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
 
-            validate_before_removing(&disks, &config.squashfs, home_path, home_fs)?;
+            if config.flags & KEEP_OLD_ROOT != 0 {
+                move_root(&disks, &config.squashfs, old_root.get_device_path(), old_root_fs)?;
+            } else {
+                remove_root(&disks, &config.squashfs, old_root.get_device_path(), old_root_fs)?;
+            }
 
             Some((backup, root_path, root_fs))
         } else {

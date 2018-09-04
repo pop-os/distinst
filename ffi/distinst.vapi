@@ -23,6 +23,7 @@ namespace Distinst {
 
     public const uint8 MODIFY_BOOT_ORDER;
     public const uint8 INSTALL_HARDWARE_SUPPORT;
+    public const uint8 KEEP_OLD_ROOT;
 
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
