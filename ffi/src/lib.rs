@@ -21,9 +21,9 @@ pub use self::os::*;
 pub use self::partition::*;
 pub use self::sector::*;
 
-pub const DISTINST_MODIFY_BOOT_ORDER:        u8 = distinst::MODIFY_BOOT_ORDER;
-pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = distinst::INSTALL_HARDWARE_SUPPORT;
-pub const DISTINST_KEEP_OLD_ROOT:            u8 = distinst::KEEP_OLD_ROOT;
+pub const DISTINST_MODIFY_BOOT_ORDER:        u8 = 0b1;
+pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
+pub const DISTINST_KEEP_OLD_ROOT:            u8 = 0b100;
 
 use std::io;
 
