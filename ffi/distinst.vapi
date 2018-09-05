@@ -928,7 +928,7 @@ namespace Distinst {
 
     public delegate void StatusCallback (Distinst.Status status);
 
-    public delegate bool RequestCallback ();
+    public delegate void RequestCallback ();
 
     int log (Distinst.LogCallback callback);
 
@@ -940,7 +940,8 @@ namespace Distinst {
         public void on_error (Distinst.ErrorCallback callback);
         public void emit_status (Distinst.Status error);
         public void on_status (Distinst.StatusCallback callback);
-        public void on_request_keep_backup (Distinst.RequestCallback callback);
+        public void set_backup_response (bool response);
+        public void on_keep_backup_request (Distinst.RequestCallback callback);
         public int install (owned Distinst.Disks disks, Distinst.Config config);
     }
 }

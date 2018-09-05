@@ -1,6 +1,8 @@
 use libc;
 use std::io;
 use std::sync::atomic::Ordering;
+use std::thread;
+use std::time::Duration;
 use super::{Installer, Status, Error, Step};
 use KILL_SWITCH;
 
@@ -45,8 +47,20 @@ impl<'a> InstallerState<'a> {
         }
     }
 
-    pub fn emit_request_keep_backup(&mut self) -> bool {
-        self.installer.emit_request_keep_backup()
+    /// Request the caller to ask the user whether they want to keep the backup folder or not.
+    pub fn emit_keep_backup_request(&mut self) -> bool {
+        self.installer.emit_keep_backup_request()
+    }
+
+    /// Polls for the backup response until it is set.
+    pub fn get_keep_backup_response(&mut self) -> bool {
+        info!("waiting for keep backup response");
+        while self.installer.backup_response.is_none() {
+            thread::sleep(Duration::from_millis(16));
+        }
+
+        info!("received response");
+        self.installer.backup_response.take().unwrap()
     }
 
     pub fn emit_status(&mut self, status: Status) {

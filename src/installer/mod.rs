@@ -71,7 +71,8 @@ pub struct Status {
 pub struct Installer {
     error_cb:  Option<Box<FnMut(&Error)>>,
     status_cb: Option<Box<FnMut(&Status)>>,
-    keep_backup_cb: Option<Box<FnMut() -> bool>>,
+    keep_backup_request_cb: Option<Box<FnMut()>>,
+    backup_response: Option<bool>,
 }
 
 impl Default for Installer {
@@ -82,7 +83,12 @@ impl Default for Installer {
     /// let installer = Installer::new();
     /// ```
     fn default() -> Installer {
-        Self { error_cb: None, status_cb: None, keep_backup_cb: None }
+        Self {
+            error_cb: None,
+            status_cb: None,
+            keep_backup_request_cb: None,
+            backup_response: None
+        }
     }
 }
 
@@ -265,14 +271,19 @@ impl Installer {
 
         // Then restore the backup, if it exists.
         if let Some((backup, root_path, root_fs)) = backup {
+            info!("applying backup");
             backup.restore(&root_path, root_fs)?;
 
-            if ! steps.emit_request_keep_backup() {
+            if steps.emit_keep_backup_request() && ! steps.get_keep_backup_response() {
                 if let Err(why) = delete_old_install(&root_path, root_fs) {
                     warn!("failed to delete old install: {}", why);
                 }
             }
         }
+
+        info!("finishing job");
+        let mut callback = percent!(steps);
+        callback(100);
 
         Ok(())
     }
@@ -294,9 +305,17 @@ impl Installer {
         }
     }
 
-    pub fn emit_request_keep_backup(&mut self) -> bool {
-        self.keep_backup_cb.as_mut().map_or(false, |func| func())
+    /// Set the error callback
+    ///
+    /// ```ignore,rust
+    /// use distinst::Installer;
+    /// let mut installer = Installer::new();
+    /// installer.on_error(|error| println!("{:?}", error));
+    /// ```
+    pub fn on_error<F: FnMut(&Error) + 'static>(&mut self, callback: F) {
+        self.error_cb = Some(Box::new(callback));
     }
+
 
     /// Send a status message
     ///
@@ -314,23 +333,6 @@ impl Installer {
         }
     }
 
-    /// Set the error callback
-    ///
-    /// ```ignore,rust
-    /// use distinst::Installer;
-    /// let mut installer = Installer::new();
-    /// installer.on_error(|error| println!("{:?}", error));
-    /// ```
-    pub fn on_error<F: FnMut(&Error) + 'static>(&mut self, callback: F) {
-        self.error_cb = Some(Box::new(callback));
-    }
-
-
-    /// Set the callback for keeping an old install.
-    pub fn on_request_keep_backup<F: FnMut() -> bool + 'static>(&mut self, callback: F) {
-        self.keep_backup_cb = Some(Box::new(callback));
-    }
-
     /// Set the status callback
     ///
     /// ```ignore,rust
@@ -340,6 +342,22 @@ impl Installer {
     /// ```
     pub fn on_status<F: FnMut(&Status) + 'static>(&mut self, callback: F) {
         self.status_cb = Some(Box::new(callback));
+    }
+
+    pub fn emit_keep_backup_request(&mut self) -> bool {
+        self.keep_backup_request_cb.as_mut().map_or(
+            false,
+            |func| { func(); true }
+        )
+    }
+
+    /// Set the callback for keeping an old install.
+    pub fn on_keep_backup_request<F: FnMut() + 'static>(&mut self, callback: F) {
+        self.keep_backup_request_cb = Some(Box::new(callback));
+    }
+
+    pub fn set_backup_response(&mut self, response: bool) {
+        self.backup_response = Some(response);
     }
 
     fn initialize<F: FnMut(i32)>(disks: &mut Disks, config: &Config, callback: F)

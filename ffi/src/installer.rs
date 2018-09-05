@@ -73,7 +73,7 @@ pub type DistinstStatusCallback =
     extern "C" fn(status: *const DistinstStatus, user_data: *mut libc::c_void);
 
 /// Installer request keep backup callback.
-pub type DistinstRequestCallback = extern "C" fn() -> bool;
+pub type DistinstRequestCallback = extern "C" fn(user_data: *mut libc::c_void);
 
 /// An installer object
 #[repr(C)]
@@ -146,11 +146,20 @@ pub unsafe extern "C" fn distinst_installer_on_status(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_installer_on_request_keep_backup(
+pub unsafe extern "C" fn distinst_installer_set_backup_response(
+    installer: *mut DistinstInstaller,
+    response: bool
+) {
+    (*(installer as *mut Installer)).set_backup_response(response);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_installer_on_keep_backup_request(
     installer: *mut DistinstInstaller,
     callback: DistinstRequestCallback,
+    user_data: *mut libc::c_void,
 ) {
-    (*(installer as *mut Installer)).on_request_keep_backup(move || callback());
+    (*(installer as *mut Installer)).on_keep_backup_request(move || callback(user_data));
 }
 
 /// Install using this installer, whilst retaining home & user accounts.

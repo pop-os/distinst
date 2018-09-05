@@ -149,7 +149,7 @@ pub fn bootloader<F: FnMut(i32)>(
         }
     }
 
-    callback(100);
+    callback(99);
 
     Ok(())
 }
