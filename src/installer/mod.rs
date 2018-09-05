@@ -71,8 +71,6 @@ pub struct Status {
 pub struct Installer {
     error_cb:  Option<Box<FnMut(&Error)>>,
     status_cb: Option<Box<FnMut(&Status)>>,
-    keep_backup_request_cb: Option<Box<FnMut()>>,
-    backup_response: Option<bool>,
 }
 
 impl Default for Installer {
@@ -86,8 +84,6 @@ impl Default for Installer {
         Self {
             error_cb: None,
             status_cb: None,
-            keep_backup_request_cb: None,
-            backup_response: None
         }
     }
 }
@@ -269,15 +265,14 @@ impl Installer {
             return Err(why);
         }
 
+
         // Then restore the backup, if it exists.
         if let Some((backup, root_path, root_fs)) = backup {
             info!("applying backup");
             backup.restore(&root_path, root_fs)?;
 
-            if steps.emit_keep_backup_request() && ! steps.get_keep_backup_response() {
-                if let Err(why) = delete_old_install(&root_path, root_fs) {
-                    warn!("failed to delete old install: {}", why);
-                }
+            if let Err(why) = delete_old_install(&root_path, root_fs) {
+                warn!("failed to delete old install: {}", why);
             }
         }
 
@@ -342,22 +337,6 @@ impl Installer {
     /// ```
     pub fn on_status<F: FnMut(&Status) + 'static>(&mut self, callback: F) {
         self.status_cb = Some(Box::new(callback));
-    }
-
-    pub fn emit_keep_backup_request(&mut self) -> bool {
-        self.keep_backup_request_cb.as_mut().map_or(
-            false,
-            |func| { func(); true }
-        )
-    }
-
-    /// Set the callback for keeping an old install.
-    pub fn on_keep_backup_request<F: FnMut() + 'static>(&mut self, callback: F) {
-        self.keep_backup_request_cb = Some(Box::new(callback));
-    }
-
-    pub fn set_backup_response(&mut self, response: bool) {
-        self.backup_response = Some(response);
     }
 
     fn initialize<F: FnMut(i32)>(disks: &mut Disks, config: &Config, callback: F)
