@@ -32,6 +32,25 @@ impl Command {
     pub fn stderr(&mut self, stdio: Stdio) { self.0.stderr(stdio); }
     pub fn stdout(&mut self, stdio: Stdio) { self.0.stdout(stdio); }
 
+    fn redirect<R: io::Read + Send + 'static, F: FnMut(&str) + Send + 'static>(
+        reader: Option<R>,
+        mut writer: F
+    ) {
+        if let Some(reader) = reader {
+            let mut reader = BufReader::new(reader);
+            thread::spawn(move || {
+                let buffer = &mut String::with_capacity(8 * 1024);
+                loop {
+                    buffer.clear();
+                    match reader.read_line(buffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(_) => writer(buffer.trim_right())
+                    }
+                }
+            });
+        }
+    }
+
     pub fn run_with_stdout(&mut self) -> io::Result<String> {
         let cmd = format!("{:?}", self.0);
         info!("running {}", cmd);
@@ -65,37 +84,8 @@ impl Command {
             format!("chroot command failed to spawn: {}", why)
         ))?;
 
-        if let Some(stdout) = child.stdout.take() {
-            let mut stdout = BufReader::new(stdout);
-            thread::spawn(move || {
-                let buffer = &mut String::with_capacity(8 * 1024);
-                loop {
-                    buffer.clear();
-                    match stdout.read_line(buffer) {
-                        Ok(0) | Err(_) => break,
-                        Ok(_) => {
-                            info!("{}", buffer.trim_right());
-                        }
-                    }
-                }
-            });
-        }
-
-        if let Some(stderr) = child.stderr.take() {
-            let mut stderr = BufReader::new(stderr);
-            thread::spawn(move || {
-                let buffer = &mut String::with_capacity(8 * 1024);
-                loop {
-                    buffer.clear();
-                    match stderr.read_line(buffer) {
-                        Ok(0) | Err(_) => break,
-                        Ok(_) => {
-                            warn!("{}", buffer.trim_right());
-                        }
-                    }
-                }
-            });
-        }
+        Self::redirect(child.stdout.take(), |msg| info!("{}", msg));
+        Self::redirect(child.stderr.take(), |msg| warn!("{}", msg));
 
         let status = child.wait().map_err(|why| Error::new(
             ErrorKind::Other,
