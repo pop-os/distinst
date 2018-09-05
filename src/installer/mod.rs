@@ -237,9 +237,9 @@ impl Installer {
 
                 if config.flags & KEEP_OLD_ROOT != 0 {
                     move_root(old_root_path, old_root_fs)?;
+                    old_backup = Some((old_root_path.to_path_buf(), old_root_fs));
                 } else {
                     remove_root(old_root_path, old_root_fs)?;
-                    old_backup = Some((old_root_path.to_path_buf(), old_root_fs));
                 }
 
                 callback(100);
