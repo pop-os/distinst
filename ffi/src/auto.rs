@@ -10,35 +10,6 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
 
-#[no_mangle]
-pub unsafe extern "C" fn distinst_delete_old_install (
-    device_path: *const libc::c_char,
-    file_system: DISTINST_FILE_SYSTEM_TYPE
-) -> libc::c_int {
-    if null_check(device_path).is_err() {
-        return 1;
-    }
-
-    let file_system: Option<FileSystemType> = file_system.into();
-    match file_system {
-        Some(fs) => {
-            let cpath = CStr::from_ptr(device_path);
-            let opath = OsStr::from_bytes(cpath.to_bytes());
-            match delete_old_install(Path::new(opath), fs) {
-                Ok(()) => 0,
-                Err(why) => {
-                    error!("failed to delete old Linux installation: {}", why);
-                    2
-                }
-            }
-        }
-        None => {
-            error!("value of DISTINST_FILE_SYSTEM_TYPE parameter in distisnt_delete_old_install was invalid");
-            3
-        }
-    }
-}
-
 #[repr(C)]
 pub struct DistinstAlongsideOption;
 

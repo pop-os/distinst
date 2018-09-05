@@ -45,6 +45,10 @@ impl<'a> InstallerState<'a> {
         }
     }
 
+    pub fn emit_request_keep_backup(&mut self) -> bool {
+        self.installer.emit_request_keep_backup()
+    }
+
     pub fn emit_status(&mut self, status: Status) {
         self.installer.emit_status(status);
     }

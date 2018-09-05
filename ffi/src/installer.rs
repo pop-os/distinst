@@ -72,6 +72,9 @@ pub struct DistinstStatus {
 pub type DistinstStatusCallback =
     extern "C" fn(status: *const DistinstStatus, user_data: *mut libc::c_void);
 
+/// Installer request keep backup callback.
+pub type DistinstRequestCallback = extern "C" fn() -> bool;
+
 /// An installer object
 #[repr(C)]
 pub struct DistinstInstaller;
@@ -140,6 +143,14 @@ pub unsafe extern "C" fn distinst_installer_on_status(
             user_data,
         )
     });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_installer_on_request_keep_backup(
+    installer: *mut DistinstInstaller,
+    callback: DistinstRequestCallback,
+) {
+    (*(installer as *mut Installer)).on_request_keep_backup(move || callback());
 }
 
 /// Install using this installer, whilst retaining home & user accounts.
