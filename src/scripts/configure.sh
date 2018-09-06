@@ -33,7 +33,8 @@ echo "127.0.0.1	localhost
 127.0.1.1	${HOSTNAME}.localdomain	${HOSTNAME}" > /etc/hosts
 
 # Generate a machine ID
-dbus-uuidgen > "/var/lib/dbus/machine-id"
+dbus-uuidgen > "/etc/machine-id"
+ln -sf "/etc/machine-id" "/var/lib/dbus/machine-id"
 
 # Correctly specify resolv.conf
 ln -sf "../run/resolvconf/resolv.conf" "/etc/resolv.conf"
