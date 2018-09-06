@@ -253,10 +253,16 @@ impl Disks {
                         "unmounting logical volume mounted at {}",
                         mount.display()
                     );
-                    umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
+                    umount(&mount, false).map_err(|why| DiskError::Unmount {
+                        device: lv,
+                        why
+                    })?;
                 } else if let Ok(lv) = lv.canonicalize() {
                     if swaps.get_swapped(&lv) {
-                        swapoff(&lv).map_err(|why| DiskError::Unmount { why })?;
+                        swapoff(&lv).map_err(|why| DiskError::Unmount {
+                            device: lv,
+                            why
+                        })?;
                     }
                 }
             }
@@ -413,7 +419,10 @@ impl Disks {
                         "unmounting device mounted at {}",
                         mount.display()
                     );
-                    mount::umount(&mount, false).map_err(|why| DiskError::Unmount { why })?;
+                    mount::umount(&mount, false).map_err(|why| DiskError::Unmount {
+                        device: device.get_device_path().to_path_buf(),
+                        why
+                    })?;
                 }
             }
 

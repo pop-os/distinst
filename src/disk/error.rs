@@ -1,5 +1,6 @@
 use std::io;
 use std::path::PathBuf;
+use disk::config::partitions::FileSystemType;
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -7,18 +8,18 @@ use std::path::PathBuf;
 pub enum DiskError {
     #[fail(display = "decryption error: {}", why)]
     Decryption { why: DecryptionError },
-    #[fail(display = "unable to get device: {}", why)]
-    DeviceGet { why: io::Error },
+    #[fail(display = "unable to get device at {:?}: {}", device, why)]
+    DeviceGet { device: PathBuf, why: io::Error },
     #[fail(display = "unable to probe for devices")]
     DeviceProbe,
-    #[fail(display = "unable to commit changes to disk: {}", why)]
-    DiskCommit { why: io::Error },
-    #[fail(display = "unable to format partition table: {}", why)]
-    DiskFresh { why: io::Error },
-    #[fail(display = "unable to find disk")]
-    DiskGet,
-    #[fail(display = "unable to open disk: {}", why)]
-    DiskNew { why: io::Error },
+    #[fail(display = "unable to commit changes to disk ({:?}): {}", device, why)]
+    DiskCommit { device: PathBuf, why: io::Error },
+    #[fail(display = "unable to format partition table on {:?}: {}", device, why)]
+    DiskFresh { device: PathBuf, why: io::Error },
+    #[fail(display = "unable to find disk at {:?}", device)]
+    DiskGet { device: PathBuf },
+    #[fail(display = "unable to open disk at {:?}: {}", device, why)]
+    DiskNew {device: PathBuf,  why: io::Error },
     #[fail(display = "unable to sync disk changes with OS: {}", why)]
     DiskSync { why: io::Error },
     #[fail(display = "unable to encrypt volume '{:?}': {}", volume, why)]
@@ -53,22 +54,45 @@ pub enum DiskError {
     MountsObtain { why: io::Error },
     #[fail(display = "new partition could not be found")]
     NewPartNotFound,
-    #[fail(display = "no file system was found on the partition")]
-    NoFilesystem,
-    #[fail(display = "unable to create partition: {}", why)]
-    PartitionCreate { why: io::Error },
-    #[fail(display = "partition error: {}", why)]
-    PartitionError { why: PartitionError },
-    #[fail(display = "unable to format partition: {}", why)]
-    PartitionFormat { why: io::Error },
+    #[fail(display = "partition error ({:?}): {}", partition, why)]
+    PartitionError { partition: PathBuf, why: PartitionError },
     #[fail(display = "partition {} not be found on disk", partition)]
     PartitionNotFound { partition: i32 },
-    #[fail(display = "partition overlaps other partitions")]
-    PartitionOverlaps,
+    #[fail(display = "partition exceeds size of disk")]
+    PartitionOOB,
     #[fail(display = "unable to remove partition {}: {}", partition, why)]
     PartitionRemove { partition: i32, why: io::Error },
     #[fail(display = "unable to remove partition at sector {}: {}", sector, why)]
     PartitionRemoveBySector { sector: u64, why: io::Error },
+    #[fail(display = "partition table not found on disk ({:?})", device)]
+    PartitionTableNotFound { device: PathBuf },
+    #[fail(display = "unable to create physical volume from '{}': {}", volume, why)]
+    PhysicalVolumeCreate { volume: String, why: io::Error },
+    #[fail(display = "too many primary partitions in MSDOS partition table")]
+    PrimaryPartitionsExceeded,
+    #[fail(display = "multiple devices had the same volume group: currently unsupported")]
+    SameGroup,
+    #[fail(display = "sector overlaps partition {}", id)]
+    SectorOverlaps { id: i32 },
+    #[fail(display = "unable to get serial model of device: {}", why)]
+    SerialGet { why: io::Error },
+    #[fail(display = "unable to unmount partition(s) on {:?}: {}", device, why)]
+    Unmount { device: PathBuf, why: io::Error },
+    #[fail(display = "unable to create volume group '{}' on {:?}: {}", vg, device, why)]
+    VolumeGroupCreate { device: PathBuf, vg: String, why: io::Error },
+    #[fail(display = "logical partition on {:?} lacks a label", device)]
+    VolumePartitionLacksLabel { device: PathBuf },
+}
+
+#[derive(Debug, Fail)]
+/// An error that involves partitions.
+pub enum PartitionError {
+    #[fail(display = "no file system was found on the partition")]
+    NoFilesystem,
+    #[fail(display = "unable to format partition: {}", why)]
+    PartitionFormat { why: io::Error },
+    #[fail(display = "partition overlaps other partitions")]
+    PartitionOverlaps,
     #[fail(display = "unable to move partition: {}", why)]
     PartitionMove { why: io::Error },
     #[fail(display = "unable to resize partition: {}", why)]
@@ -77,38 +101,14 @@ pub enum DiskError {
     PartitionTooLarge { size: u64, max:  u64 },
     #[fail(display = "partition was too small (size: {}, min: {})", size, min)]
     PartitionTooSmall { size: u64, min:  u64 },
-    #[fail(display = "partition exceeds size of disk")]
-    PartitionOOB,
-    #[fail(display = "unable to create physical volume from '{}': {}", volume, why)]
-    PhysicalVolumeCreate { volume: String, why: io::Error },
+    #[fail(display = "unable to create partition: {}", why)]
+    PartitionCreate { why: io::Error },
     #[fail(display = "partition resize value is too small")]
     ResizeTooSmall,
-    #[fail(display = "multiple devices had the same volume group: currently unsupported")]
-    SameGroup,
-    #[fail(display = "sector overlaps partition {}", id)]
-    SectorOverlaps { id: i32 },
-    #[fail(display = "unable to get serial model of device: {}", why)]
-    SerialGet { why: io::Error },
-    #[fail(display = "unable to unmount partition(s): {}", why)]
-    Unmount { why: io::Error },
-    #[fail(display = "shrinking not supported for this file system")]
-    UnsupportedShrinking,
-    #[fail(display = "volume activation failed: {}", why)]
-    VolumeActivation { why: io::Error },
-    #[fail(display = "unable to create volume group: {}", why)]
-    VolumeGroupCreate { why: io::Error },
-    #[fail(display = "volume partition lacks a label")]
-    VolumePartitionLacksLabel,
-}
-
-#[derive(Debug, Fail)]
-pub enum PartitionError {
     #[fail(display = "shrink value too high")]
     ShrinkValueTooHigh,
-    #[fail(display = "too many primary partitions in MSDOS partition table")]
-    PrimaryPartitionsExceeded,
-    #[fail(display = "partition table not found on disk")]
-    PartitionTableNotFound,
+    #[fail(display = "shrinking not supported for {:?}", fs)]
+    UnsupportedShrinking { fs: FileSystemType },
 }
 
 #[derive(Debug, Fail)]
@@ -125,13 +125,15 @@ impl From<DecryptionError> for DiskError {
     fn from(why: DecryptionError) -> DiskError { DiskError::Decryption { why } }
 }
 
-impl From<PartitionError> for DiskError {
-    fn from(why: PartitionError) -> DiskError { DiskError::PartitionError { why } }
+impl DiskError {
+    pub fn new_partition_error<E: Into<PartitionError>>(partition: PathBuf, why: E) -> DiskError {
+        DiskError::PartitionError { partition, why: why.into() }
+    }
 }
 
 impl From<DiskError> for io::Error {
     fn from(err: DiskError) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, format!("{}", err))
+        io::Error::new(io::ErrorKind::Other, format!("an I/O error occurred: {}", err))
     }
 }
 
@@ -140,11 +142,11 @@ pub enum PartitionSizeError {
     TooLarge(u64, u64),
 }
 
-impl From<PartitionSizeError> for DiskError {
-    fn from(err: PartitionSizeError) -> DiskError {
+impl From<PartitionSizeError> for PartitionError {
+    fn from(err: PartitionSizeError) -> PartitionError {
         match err {
-            PartitionSizeError::TooSmall(size, min) => DiskError::PartitionTooSmall { size, min },
-            PartitionSizeError::TooLarge(size, max) => DiskError::PartitionTooLarge { size, max },
+            PartitionSizeError::TooSmall(size, min) => PartitionError::PartitionTooSmall { size, min },
+            PartitionSizeError::TooLarge(size, max) => PartitionError::PartitionTooLarge { size, max },
         }
     }
 }

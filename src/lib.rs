@@ -86,7 +86,7 @@ pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
 
-
+/// Even if the system is EFI, the efivars directory will not be mounted in the chroot.
 pub static NO_EFI_VARIABLES: AtomicBool = ATOMIC_BOOL_INIT;
 
 /// Configures the keyboard layout in the chroot.
@@ -373,7 +373,6 @@ impl Installer {
     fn initialize<F: FnMut(i32)>(
         disks: &mut Disks,
         config: &Config,
-        retain: &[&str],
         mut callback: F,
     ) -> io::Result<(PathBuf, Vec<String>)> {
         info!("Initializing");
@@ -406,49 +405,11 @@ impl Installer {
                     }
                 };
 
-                // Takes the locale, such as `en_US.UTF-8`, and changes it into `en`.
-                let locale = match config.lang.find('_') {
-                    Some(pos) => &config.lang[..pos],
-                    None => match config.lang.find('.') {
-                        Some(pos) => &config.lang[..pos],
-                        None => &config.lang
-                    }
-                };
-
-                // Attempt to run the check-language-support external command.
-                let lang_output = distribution::debian::check_language_support(&locale)?;
-
-                // Variable for storing a value that may be allocated.
-                let lang_output_;
-
-                // Collect a list of language packages to retain. If the command was not
-                // found, an empty array will be returned.
-                let lang_packs = match lang_output.as_ref() {
-                    Some(output) => {
-                        // Packages in the output are delimited with spaces.
-                        // This is collected as a Cow<'_, str>.
-                        let packages = output.split(|&x| x == b' ')
-                            .map(|x| String::from_utf8_lossy(x))
-                            .collect::<Vec<_>>();
-
-                        match distribution::debian::get_dependencies_from_list(&packages) {
-                            Some(dependencies) => {
-                                lang_output_ = dependencies;
-                                &lang_output_[..]
-                            }
-                            None => &[]
-                        }
-                    }
-                    None => &[]
-                };
-
                 // Collects the packages that are to be removed from the install.
                 for line_res in io::BufReader::new(file).lines() {
                     match line_res {
                         // Only add package if it is not contained within lang_packs.
-                        Ok(line) => if !lang_packs.iter().any(|x| x == &line) && !retain.contains(&line.as_str()) {
-                            remove_pkgs.push(line)
-                        },
+                        Ok(line) => remove_pkgs.push(line),
                         Err(err) => {
                             error!("config.remove: {}", err);
                             return Err(err);
@@ -704,13 +665,12 @@ impl Installer {
     }
 
     /// Configures the new install after it has been extracted.
-    fn configure<P: AsRef<Path>, S: AsRef<str>, I: IntoIterator<Item = S>, F: FnMut(i32)>(
+    fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         disks: &Disks,
         mount_dir: P,
         config: &Config,
-        retain: &[&'static str],
         iso_os_release: &OsRelease,
-        remove_pkgs: I,
+        remove_pkgs: &[S],
         mut callback: F,
     ) -> io::Result<()> {
         let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
@@ -721,7 +681,6 @@ impl Installer {
         let install_pkgs = &mut cascade! {
             Vec::with_capacity(32);
             ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release));
-            ..extend_from_slice(retain);
         };
 
         let configure_script = || {
@@ -828,10 +787,46 @@ impl Installer {
             let root_uuid = &root_entry.uuid;
             update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
 
-            info!(
-                "will install {:?} bootloader packages",
-                install_pkgs
+            let (retain, lang_output) = rayon::join(
+                // Get packages required by this disk configuration.
+                || distribution::debian::get_required_packages(&disks, iso_os_release),
+                // Attempt to run the check-language-support external command.
+                || distribution::debian::check_language_support(&config.lang, &chroot)
             );
+
+            let lang_output = lang_output?;
+
+            // Variable for storing a value that may be allocated.
+            let lang_output_;
+
+            // Collect a list of language packages to retain. If the command was not
+            // found, an empty array will be returned.
+            let lang_packs = match lang_output.as_ref() {
+                Some(output) => {
+                    // Packages in the output are delimited with spaces.
+                    // This is collected as a Cow<'_, str>.
+                    let packages = output.split_whitespace().collect::<Vec<_>>();
+
+                    match distribution::debian::get_dependencies_from_list(&packages) {
+                        Some(dependencies) => {
+                            lang_output_ = dependencies;
+                            &lang_output_[..]
+                        }
+                        None => &[]
+                    }
+                }
+                None => &[]
+            };
+
+            // Filter the discovered language packs and retained packages from the remove list.
+            let remove_pkgs = remove_pkgs.into_iter()
+                .map(AsRef::as_ref)
+                .filter(|pkg| !lang_packs.iter().any(|x| pkg == x) && !retain.contains(&pkg))
+                .collect::<Vec<&str>>();
+
+            // Add the retained packages to the list of packages to be installed.
+            // There are some packages that Ubuntu will still remove even if they've been removed from the removal list.
+            install_pkgs.extend_from_slice(&retain);
 
             let mut args = cascade! {
                 args: Vec::new();
@@ -855,8 +850,8 @@ impl Installer {
 
             // Remove installer packages
             for pkg in remove_pkgs {
-                if !install_pkgs.contains(&pkg.as_ref()) {
-                    args.push(format!("-{}", pkg.as_ref()));
+                if !install_pkgs.contains(&pkg) {
+                    args.push(format!("-{}", pkg));
                 }
             }
 
@@ -1140,9 +1135,6 @@ impl Installer {
         let bootloader = Bootloader::detect();
         disks.verify_partitions(bootloader)?;
 
-        let disk_support_flags = disks.get_support_flags();
-        let retain = distribution::debian::get_required_packages(disk_support_flags);
-
         info!("installing {:?} with {:?}", config, bootloader);
 
         let steps = &mut InstallerState::new(self);
@@ -1158,7 +1150,7 @@ impl Installer {
         }
 
         let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
-            Installer::initialize(&mut disks, config, &retain, percent!(steps))
+            Installer::initialize(&mut disks, config, percent!(steps))
         })?;
 
         steps.apply(Step::Partition, "partitioning", |steps| {
@@ -1189,7 +1181,6 @@ impl Installer {
                     &disks,
                     mount_dir.path(),
                     &config,
-                    &retain,
                     &iso_os_release,
                     &remove_pkgs,
                     percent!(steps),

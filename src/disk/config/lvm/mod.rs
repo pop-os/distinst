@@ -88,7 +88,7 @@ impl DiskExt for LvmDevice {
 
     fn get_table_type(&self) -> Option<PartitionTable> { None }
 
-    fn validate_partition_table(&self, _part_type: PartitionType) -> Result<(), PartitionError> {
+    fn validate_partition_table(&self, _part_type: PartitionType) -> Result<(), DiskError> {
         Ok(())
     }
 
@@ -128,7 +128,9 @@ impl LvmDevice {
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub(crate) fn validate(&self) -> Result<(), DiskError> {
         if self.get_partitions().iter().any(|p| p.name.is_none()) {
-            return Err(DiskError::VolumePartitionLacksLabel);
+            return Err(DiskError::VolumePartitionLacksLabel {
+                device: self.get_device_path().to_path_buf()
+            });
         }
 
         Ok(())
@@ -141,7 +143,11 @@ impl LvmDevice {
         I: Iterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        vgcreate(&self.volume_group, blocks).map_err(|why| DiskError::VolumeGroupCreate { why })
+        vgcreate(&self.volume_group, blocks).map_err(|why| DiskError::VolumeGroupCreate {
+            device: self.get_device_path().to_path_buf(),
+            vg: self.volume_group.clone(),
+            why
+        })
     }
 
     pub fn get_last_sector(&self) -> u64 {
@@ -289,7 +295,10 @@ impl LvmDevice {
             } else if partition.flag_is_enabled(FORMAT) {
                 if let Some(fs) = partition.filesystem {
                     mkfs(&partition.device_path, fs)
-                        .map_err(|why| DiskError::PartitionFormat { why })?;
+                        .map_err(|why| DiskError::new_partition_error(
+                            partition.device_path.clone(),
+                            PartitionError::PartitionFormat { why }
+                        ))?;
                 }
             }
         }

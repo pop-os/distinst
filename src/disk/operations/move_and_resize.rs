@@ -1,7 +1,7 @@
 use super::external::{blockdev, fsck};
 use super::mount::Mount;
 use super::FileSystemType::*;
-use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionFlag, PartitionType};
+use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionError, PartitionFlag, PartitionType};
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -171,7 +171,10 @@ where
         Some(Swap) => unreachable!("Disk::diff() handles this"),
         Some(Xfs) => {
             if shrinking {
-                return Err(DiskError::UnsupportedShrinking);
+                return Err(DiskError::new_partition_error(
+                    change.path.clone(),
+                    PartitionError::UnsupportedShrinking { fs: Xfs }
+                ));
             }
 
             (
@@ -210,7 +213,11 @@ where
     if shrinking {
         info!("shrinking {}", change.path.display());
         resize_partition(cmd, args, &size, &change.path, fs, opts)
-            .map_err(|why| DiskError::PartitionResize { why })?;
+            .map_err(|why| DiskError::new_partition_error(
+                change.path.clone(),
+                PartitionError::PartitionResize { why }
+        ))?;
+
         delete(change.num as u32)?;
         let (num, path) = create(
             resize.new.start,
@@ -234,7 +241,10 @@ where
             resize.old.resize_to(abs_sectors); // TODO: NLL
 
             move_partition(&change.device_path, resize.offset(), change.sector_size)
-                .map_err(|why| DiskError::PartitionMove { why })?;
+                .map_err(|why| DiskError::new_partition_error(
+                    change.path.clone(),
+                    PartitionError::PartitionMove { why }
+                ))?;
 
             moving = false;
         }
@@ -253,7 +263,10 @@ where
 
         info!("growing {}", change.path.display());
         resize_partition(cmd, args, &size, &change.path, fs, opts)
-            .map_err(|why| DiskError::PartitionResize { why })?;
+            .map_err(|why| DiskError::new_partition_error(
+                change.path.clone(),
+                PartitionError::PartitionResize { why }
+            ))?;
     }
 
     // If the partition is to be moved, then we will ensure that it has been
@@ -266,7 +279,10 @@ where
         resize.old.resize_to(abs_sectors); // TODO: NLL
 
         move_partition(&change.device_path, resize.offset(), change.sector_size)
-            .map_err(|why| DiskError::PartitionMove { why })?;
+            .map_err(|why| DiskError::new_partition_error(
+                change.path.clone(),
+                PartitionError::PartitionMove { why }
+            ))?;
 
         create(
             resize.new.start,
