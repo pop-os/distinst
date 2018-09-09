@@ -114,7 +114,8 @@ impl Installer {
     /// will be applied when configuring the new installation.
     ///
     /// If `config.old_root` is set, then home at that location will be retained.
-    pub fn install(&mut self, disks: Disks, config: &Config) -> io::Result<()> {
+    pub fn install(&mut self, mut disks: Disks, config: &Config) -> io::Result<()> {
+        disks.remove_untouched_disks();
         let steps = &mut InstallerState::new(self);
 
         Self::backup(disks, config, steps, |mut disks, config, steps| {

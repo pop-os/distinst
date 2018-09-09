@@ -282,6 +282,15 @@ impl Disk {
     /// Returns the serial of the device, filled in by the manufacturer.
     pub fn get_serial(&self) -> &str { &self.serial }
 
+    pub fn is_being_modified(&self) -> bool {
+        self.partitions.iter().any(|x| {
+            x.bitflags & REMOVE != 0
+                || x.bitflags & FORMAT != 0
+                || x.target.is_some()
+                || x.volume_group.is_some()
+        })
+    }
+
     // Returns true if the device is solid state, or false if it is a spinny disk.
     pub fn is_rotational(&self) -> bool {
         let path = PathBuf::from(

@@ -293,6 +293,7 @@ impl<'a> CreatePartitions<'a> {
                 partition,
                 self.device_path.display()
             );
+
             {
                 let mut device = open_device(self.device_path)?;
                 create_partition(&mut device, partition)?;

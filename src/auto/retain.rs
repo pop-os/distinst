@@ -103,11 +103,13 @@ pub fn validate_backup_conditions<P: AsRef<Path>>(disks: &Disks, path: P) -> Res
         .and_then(|_| install_media_exists(path.as_ref()))
 }
 
+/// Validate that the configuration in the disks structure is valid for installation.
 fn partition_configuration_is_valid(disks: &Disks) -> Result<(), ReinstallError> {
     disks.verify_partitions(Bootloader::detect())
         .map_err(|why| ReinstallError::InvalidPartitionConfiguration { why })
 }
 
+/// Returns an error if the given path does not exist.
 fn install_media_exists(path: &Path) -> Result<(), ReinstallError> {
     if path.exists() {
         Ok(())
@@ -118,6 +120,9 @@ fn install_media_exists(path: &Path) -> Result<(), ReinstallError> {
     }
 }
 
+
+/// Read the given directory at `path`,and apply a `func` to each item that is not in the
+/// exclusion list.
 fn read_and_exclude<F: FnMut(&Path) -> Result<(), ReinstallError>>(
     path: &Path,
     exclude: &[&OsStr],
@@ -147,6 +152,7 @@ pub struct Backup<'a> {
 }
 
 impl<'a> Backup<'a> {
+    /// Create a backup from key data on the given device.
     pub fn new(
         device: &Path,
         fs: FileSystemType,
@@ -171,21 +177,15 @@ impl<'a> Backup<'a> {
                 })
                 .collect::<Vec<OsString>>();
 
-            info!("retaining /etc/localtime");
-            let localtime = base.join("etc/localtime");
-            let localtime = if localtime.exists() {
+            info!("retaining localtime information");
+            let localtime = exists_and_then(&base, "etc/localtime", |localtime| {
                 localtime.canonicalize().ok().and_then(|ref p| get_timezone_path(p))
-            } else {
-                None
-            };
+            });
 
-            info!("retaining /etc/timezone");
-            let timezone = base.join("etc/timezone");
-            let timezone = if timezone.exists() {
+            info!("retaining timezone information");
+            let timezone = exists_and_then(&base, "etc/timezone", |timezone| {
                 misc::read(&timezone).ok()
-            } else {
-                None
-            };
+            });
 
             info!("retaining /etc/NetworkManager/system-connections/");
             let networks = base
@@ -209,15 +209,11 @@ impl<'a> Backup<'a> {
                 .filter_map(|user| account_files.get(user))
                 .collect::<Vec<_>>();
 
-            Ok(Backup {
-                users,
-                localtime,
-                timezone,
-                networks,
-            })
+            Ok(Backup { users, localtime, timezone, networks })
         })
     }
 
+    /// Restores the backup to the given device. The device will be opened using the specified file system.
     pub fn restore(&self, device: &Path, fs: FileSystemType) -> Result<(), ReinstallError> {
         mount_and_then(device, fs, |base| {
             info!("appending user account data to new install");
@@ -323,10 +319,14 @@ fn create_network_conf(base: &Path, conn: &OsStr, data: &[u8]) {
     }
 }
 
+/// Open a file with both read and write permissions, and optionally make it appendable.
 fn open(path: &Path, append: bool) -> io::Result<File> {
-    OpenOptions::new().read(true).write(true).append(append).open(path)
+    OpenOptions::new().read(true).write(true).append(append).open(path).map_err(|why| {
+        io::Error::new(io::ErrorKind::Other, format!("failed to open {:?}: {}", path, why))
+    })
 }
 
+/// Get the effective timezone path that will be seen by the chroot's OS.
 fn get_timezone_path(tz: &Path) -> Option<PathBuf> {
     let raw = tz.as_os_str().as_bytes();
     const PATTERN: &[u8] = b"zoneinfo/";
@@ -341,6 +341,17 @@ fn get_timezone_path(tz: &Path) -> Option<PathBuf> {
             String::from_utf8(vec).ok()
         })
         .map(PathBuf::from)
+}
+
+/// If the given `join` path exists within the `base`, the `func` will be applied to it.
+fn exists_and_then<T, P, F>(base: &Path, join: P, mut func: F ) -> Option<T>
+where P: AsRef<Path>,
+      F: FnMut(&Path) -> Option<T>
+{
+    match base.join(join) {
+        ref location if location.exists() => func(location),
+        _ => None
+    }
 }
 
 #[cfg(test)]

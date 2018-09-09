@@ -39,6 +39,22 @@ impl Disks {
         self.physical.push(disk);
     }
 
+    /// Remove disks that aren't relevant to the install.
+    pub(crate) fn remove_untouched_disks(&mut self) {
+        let mut remove = Vec::with_capacity(self.physical.len() - 1);
+
+        for (id, disk) in self.physical.iter().enumerate() {
+            if ! disk.is_being_modified() {
+                debug!("removing {:?} from consideration: no action to apply", disk.get_device_path());
+                remove.push(id);
+            }
+        }
+
+        remove.into_iter().for_each(|id| {
+            self.physical.remove(id);
+        });
+    }
+
     pub fn contains_luks(&self) -> bool {
         self.physical
             .iter()
