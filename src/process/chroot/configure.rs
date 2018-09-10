@@ -156,7 +156,8 @@ impl<'a> ChrootConfigurator<'a> {
     /// Generate a new machine ID for /var/lib/dbus/machine-id
     pub fn generate_machine_id(&self) -> io::Result<()> {
         info!("generating machine id via `dbus-uuidgen`");
-        self.chroot.command("sh", &["-c", "dbus-uuidgen > /var/lib/dbus/machine-id"]).run()
+        self.chroot.command("sh", &["-c", "dbus-uuidgen > /etc/machine-id"]).run()?;
+        self.chroot.command("ln", &["-sf", "/etc/machine-id", "/var/lib/dbus/machine-id"]).run()
     }
 
     /// Set the hostname of the new install.
