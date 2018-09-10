@@ -138,6 +138,20 @@ pub(crate) fn encrypted_devices() -> io::Result<Vec<String>> {
             .expect("failed to execute dmsetup command"),
     );
 
+    reader.read_line(&mut current_line)?;
+    if current_line.starts_with("No devices found") {
+        return Ok(Vec::new());
+    }
+
+    {
+        let mut fields = current_line.split_whitespace();
+        if let Some(dm) = fields.next() {
+            output.push(dm.into());
+        }
+    }
+
+    current_line.clear();
+
     while reader.read_line(&mut current_line)? != 0 {
         {
             let mut fields = current_line.split_whitespace();
