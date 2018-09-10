@@ -259,13 +259,15 @@ impl<'a> Backup<'a> {
                     for &group in &user.secondary_groups {
                         for entry in &mut groups {
                             if entry.0.as_slice() == group {
-                                entry.1.push(b',');
+                                if entry.1[entry.1.len() - 1] != b':' {
+                                    entry.1.push(b',');
+                                }
+                                entry.1.extend_from_slice(user.user);
                             }
-                            entry.1.extend_from_slice(group);
                         }
                     }
 
-                    let serialized = groups.into_iter()
+                    let mut serialized = groups.into_iter()
                         .map(|(_, entry)| entry)
                         .fold(Vec::new(), |mut acc, entry| {
                             acc.extend_from_slice(&entry);
@@ -273,7 +275,13 @@ impl<'a> Backup<'a> {
                             acc
                         });
 
+                    // Remove the last newline from the buffer.
+                    serialized.pop();
+                    let serialized = serialized;
+
+                    // Write the serialized buffer to the group file.
                     group.seek(SeekFrom::Start(0))?;
+                    group.set_len(0)?;
                     group.write_all(&serialized)?;
                 }
             }

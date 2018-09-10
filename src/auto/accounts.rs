@@ -79,7 +79,6 @@ impl AccountFiles {
             );
 
             let user: &[u8] = &user;
-
             let group = self.group
                 .iter()
                 .find(|&(_, value)| group_has_id(&value, group_id))
@@ -106,7 +105,7 @@ impl AccountFiles {
             let shadow = self.shadow.get(user)?;
             let gshadow = self.gshadow.get(user)?;
 
-            Some(UserData { passwd, group, shadow, gshadow, secondary_groups})
+            Some(UserData { user, passwd, group, shadow, gshadow, secondary_groups})
         })
     }
 }
@@ -138,6 +137,7 @@ fn get_passwd_home_and_group(entry: &[u8]) -> (&[u8], &[u8]) {
 
 /// Information about a user that should be carried over to the corresponding files.
 pub struct UserData<'a> {
+    pub user:    &'a [u8],
     pub passwd:  &'a [u8],
     pub shadow:  &'a [u8],
     pub group:   &'a [u8],
