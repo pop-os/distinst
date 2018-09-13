@@ -244,6 +244,18 @@ pub unsafe extern "C" fn distinst_disk_get_sector(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disk_get_partition_table(
+    disk: *const DistinstDisk
+) -> DISTINST_PARTITION_TABLE {
+    if null_check(disk).is_err() {
+        return DISTINST_PARTITION_TABLE::NONE;
+    }
+
+    let disk = &*(disk as *const Disk);
+    disk.get_table_type().into()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disk_mklabel(
     disk: *mut DistinstDisk,
     table: DISTINST_PARTITION_TABLE,
