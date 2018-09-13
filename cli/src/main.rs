@@ -276,6 +276,21 @@ fn main() {
                 .and_then(|x| if x.is_empty() { None } else { Some(x) })
         }
 
+        // The lock is an `OwnedFd`, which on drop will close / unlock the inhibitor.
+        let _inhibit_suspend = match distinst::dbus_interfaces::LoginManager::new() {
+            Ok(manager) => match manager.connect().inhibit_suspend() {
+                Ok(lock) => Some(lock),
+                Err(why) => {
+                    eprintln!("distinst: failed to inhibit suspend: {}", why);
+                    None
+                }
+            }
+            Err(why) => {
+                eprintln!("distinst: failed to get logind dbus connection: {}", why);
+                None
+            }
+        };
+
         installer.install(
             disks,
             &Config {

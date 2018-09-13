@@ -7,6 +7,7 @@ extern crate bitflags;
 #[macro_use]
 extern crate cascade;
 extern crate dirs;
+extern crate dbus;
 #[macro_use]
 extern crate derive_new;
 extern crate failure;
@@ -46,6 +47,7 @@ pub use disk::{
 pub use misc::device_layout_hash;
 
 mod disk;
+pub mod dbus_interfaces;
 mod distribution;
 mod envfile;
 mod hardware_support;

@@ -328,6 +328,13 @@ namespace Distinst {
     public bool validate_hostname (string hostname);
 
     /**
+     * Inhibits suspend via org.freedesktop.login1.Manager.
+     *
+     * Returns a raw file descriptor which will unlock the inhibitor when closed.
+     */
+    public int session_inhibit_suspend ();
+
+    /**
      * The followting functions take information from a static structure
      * in the library which contains information from `/etc/os-release`.
      */

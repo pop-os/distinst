@@ -11,6 +11,7 @@ use std::ptr;
 
 pub use self::auto::*;
 pub use self::config::*;
+pub use self::dbus::*;
 pub use self::disk::*;
 pub use self::filesystem::*;
 pub use self::installer::*;
@@ -29,6 +30,7 @@ use std::io;
 
 mod auto;
 mod config;
+mod dbus;
 mod disk;
 mod ffi;
 mod filesystem;
