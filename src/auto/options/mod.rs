@@ -181,27 +181,23 @@ impl InstallOptions {
 
         let mut alongside_options = Vec::new();
         for (device, data) in other_os {
-            if data.systems.len() == 1 {
-                if required_space < data.sectors_free {
-                    alongside_options.push(AlongsideOption {
-                        device: device.to_path_buf(),
-                        alongside: data.systems[0].clone(),
-                        method: AlongsideMethod::Shrink {
-                            partition: data.largest_partition,
-                            sectors_free: data.sectors_free,
-                        }
-                    });
-                }
+            if required_space < data.sectors_free {
+                alongside_options.push(AlongsideOption {
+                    device: device.to_path_buf(),
+                    alongside: data.systems[0].clone(),
+                    method: AlongsideMethod::Shrink {
+                        partition: data.largest_partition,
+                        sectors_free: data.sectors_free,
+                    }
+                });
+            }
 
-                if required_space < data.best_free_region.size() {
-                    alongside_options.push(AlongsideOption {
-                        device: device.to_path_buf(),
-                        alongside: data.systems[0].clone(),
-                        method: AlongsideMethod::Free(data.best_free_region)
-                    });
-                }
-            } else {
-                // TODO: What do we do when there are multiple installed OS's on the same disk?
+            if required_space < data.best_free_region.size() {
+                alongside_options.push(AlongsideOption {
+                    device: device.to_path_buf(),
+                    alongside: data.systems[0].clone(),
+                    method: AlongsideMethod::Free(data.best_free_region)
+                });
             }
         }
 
