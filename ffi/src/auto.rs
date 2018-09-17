@@ -490,6 +490,38 @@ pub unsafe extern "C" fn distinst_install_options_destroy(options: *mut Distinst
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_has_alongside_options(
+    options: *const DistinstInstallOptions
+) -> bool {
+    if null_check(options).is_err() {
+        return false;
+    }
+
+    let options = &*(options as *const InstallOptions);
+    ! options.alongside_options.is_empty ()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_get_alongside_options(
+    options: *const DistinstInstallOptions,
+    len: *mut libc::c_int,
+) -> *mut *const DistinstAlongsideOption {
+    if null_check(options).or_else(|_| null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
+    let options = &*(options as *const InstallOptions);
+
+    let mut output: Vec<*const DistinstAlongsideOption> = Vec::new();
+    for option in &options.alongside_options {
+        output.push(option as *const AlongsideOption as *const DistinstAlongsideOption);
+    }
+
+    *len = output.len() as libc::c_int;
+    Box::into_raw(output.into_boxed_slice()) as *mut *const DistinstAlongsideOption
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_install_options_has_refresh_options(
     options: *const DistinstInstallOptions
 ) -> bool {

@@ -80,6 +80,14 @@ namespace Distinst {
         REFRESH,
     }
 
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
+    public class AlongsideOption {
+        public unowned uint8[] get_device ();
+        public unowned uint8[] get_os ();
+        public int get_partition ();
+        public uint64 get_sectors_free ();
+    }
+
     /**
      * An "Erase and Install" installation option.
      */
@@ -210,6 +218,12 @@ namespace Distinst {
          * flag for each erase option collected.
          */
         public InstallOptions (Disks disks, uint64 required);
+
+        public unowned RecoveryOption? get_alongside_option ();
+
+        public bool has_alongside_options ();
+
+        public unowned AlongsideOption[] get_alongside_options ();
 
         public unowned RecoveryOption? get_recovery_option ();
 
