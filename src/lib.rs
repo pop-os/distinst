@@ -95,7 +95,8 @@ pub static NO_EFI_VARIABLES: AtomicBool = ATOMIC_BOOL_INIT;
 const LOCALECTL_ARGUMENTS: &str = "localectl set-x11-keymap \"${KBD_LAYOUT}\" \"${KBD_MODEL}\" \"${KBD_VARIANT}\" \
     && SYSTEMCTL_SKIP_REDIRECT=_ openvt -- sh /etc/init.d/console-setup.sh reload \
     && ln -s /etc/console-setup/cached_UTF-8_del.kmap.gz /etc/console-setup/cached.kmap.gz \
-    && update-initramfs -u";
+    && update-initramfs -u \
+    && sync";
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
