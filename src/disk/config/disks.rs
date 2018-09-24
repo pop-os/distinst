@@ -10,7 +10,7 @@ use super::super::{
     PartitionFlag, PartitionInfo,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PVS};
+use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PartitionTable, PVS};
 use libparted::{Device, DeviceType};
 use misc::{get_uuid, from_uuid};
 
@@ -708,7 +708,25 @@ impl Disks {
                     )
                 })?;
 
+                let device = match self.find_disk(device) {
+                    Some(device) => device,
+                    None => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "Unable to find the disk that the boot partition exists on"
+                        ))
+                    }
+                };
+
                 if is_efi {
+                    // Check if the EFI partition is on a GPT disk.
+                    if device.get_table_type() != Some(PartitionTable::Gpt) {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "EFI installs cannot be done on disks without a GPT partition layout."
+                        ));
+                    }
+
                     if !boot.flags.contains(&PartitionFlag::PED_PARTITION_ESP) {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
@@ -746,7 +764,7 @@ impl Disks {
                 device
             };
 
-            if self.device_is_logical(device) {
+            if device.is_logical() {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     format!("{} partition cannot be on logical device", kind),

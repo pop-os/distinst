@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::ptr;
 
 use distinst::{
-    Bootloader, FileSystemType, LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
+    Bootloader, FileSystemType, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
 };
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use {gen_object_ptr, null_check, get_str, DistinstLvmEncryption};
@@ -17,6 +17,16 @@ pub enum DISTINST_PARTITION_TABLE {
     NONE = 0,
     GPT = 1,
     MSDOS = 2,
+}
+
+impl From<Option<PartitionTable>> for DISTINST_PARTITION_TABLE {
+    fn from(table: Option<PartitionTable>) -> Self {
+        match table {
+            Some(PartitionTable::Msdos) => DISTINST_PARTITION_TABLE::MSDOS,
+            Some(PartitionTable::Gpt) => DISTINST_PARTITION_TABLE::GPT,
+            None => DISTINST_PARTITION_TABLE::NONE
+        }
+    }
 }
 
 #[no_mangle]
