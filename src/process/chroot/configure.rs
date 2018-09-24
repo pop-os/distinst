@@ -239,41 +239,56 @@ impl<'a> ChrootConfigurator<'a> {
         luks_uuid: &str
     ) -> io::Result<()> {
         let recovery_path = self.chroot.path.join("recovery");
+        let efi_path = self.chroot.path.join("boot/efi");
 
-        if recovery_path.exists() && Path::new("/boot/efi").is_dir() && Path::new("/cdrom").is_dir() {
-            info!("creating recovery partition");
-            let recovery_uuid = Command::new("findmnt")
-                .args(&["-n", "-o", "UUID"])
-                .arg(&recovery_path)
-                .run_with_stdout()?;
-            let recovery_uuid = recovery_uuid.trim();
+        let result = if recovery_path.exists() { 0 } else { 1 }
+            | if efi_path.is_dir() { 0 } else { 2 }
+            | if Path::new("/cdrom").is_dir() { 0 } else { 4 };
 
-            let efi_uuid = Command::new("findmnt")
-                .args(&["-n", "-o", "UUID"])
-                .arg(&self.chroot.path.join("boot/efi"))
-                .run_with_stdout()?;
-            let efi_uuid = efi_uuid.trim();
+        if result != 0 {
+            warn!("{}, therefore no recovery partition will be created", if result & 1 != 0 {
+                format!("recovery at {} was not found", recovery_path.display())
+            } else if result & 2 != 0 {
+                format!("no EFI partition found at {}", efi_path.display())
+            } else {
+                "/cdrom was not found".into()
+            });
+            return Ok(());
+        }
 
-            let cdrom_uuid = Command::new("findmnt")
-                .args(&["-n", "-o", "UUID", "/cdrom"])
-                .run_with_stdout()?;
-            let cdrom_uuid = cdrom_uuid.trim();
+        info!("creating recovery partition");
+        let recovery_uuid = Command::new("findmnt")
+            .args(&["-n", "-o", "UUID"])
+            .arg(&recovery_path)
+            .run_with_stdout()?;
+        let recovery_uuid = recovery_uuid.trim();
 
-            let casper = ["casper-", recovery_uuid].concat();
-            let recovery = ["Recovery-", recovery_uuid].concat();
+        let efi_uuid = Command::new("findmnt")
+            .args(&["-n", "-o", "UUID"])
+            .arg(&efi_path)
+            .run_with_stdout()?;
+        let efi_uuid = efi_uuid.trim();
 
-            if recovery_uuid != cdrom_uuid {
-                self.chroot.command("rsync", &[
-                    "-KLavc", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"
-                ]).run()?;
+        let cdrom_uuid = Command::new("findmnt")
+            .args(&["-n", "-o", "UUID", "/cdrom"])
+            .run_with_stdout()?;
+        let cdrom_uuid = cdrom_uuid.trim();
 
-                self.chroot.command("rsync", &[
-                    "-KLavc", "/cdrom/casper/", &["/recovery/", &casper].concat()
-                ]).run()?;
-            }
+        let casper = ["casper-", recovery_uuid].concat();
+        let recovery = ["Recovery-", recovery_uuid].concat();
 
-            // Create recovery file.
-            let recovery_data = format!(r#"HOSTNAME={}
+        if recovery_uuid != cdrom_uuid {
+            self.chroot.command("rsync", &[
+                "-KLavc", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"
+            ]).run()?;
+
+            self.chroot.command("rsync", &[
+                "-KLavc", "/cdrom/casper/", &["/recovery/", &casper].concat()
+            ]).run()?;
+        }
+
+        // Create recovery file.
+        let recovery_data = format!(r#"HOSTNAME={}
 LANG={}
 KBD_LAYOUT={}
 KBD_MODEL={}
@@ -284,53 +299,51 @@ ROOT_UUID={}
 LUKS_UUID={}
 OEM_MODE=0
 "#,
-                config.hostname,
-                config.lang,
-                config.keyboard_layout,
-                config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
-                config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
-                efi_uuid,
-                recovery_uuid,
-                root_uuid,
-                luks_uuid,
-            );
+            config.hostname,
+            config.lang,
+            config.keyboard_layout,
+            config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
+            config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
+            efi_uuid,
+            recovery_uuid,
+            root_uuid,
+            luks_uuid,
+        );
 
-            // Copy initrd and vmlinuz to EFI partition
-            let recovery_path = self.chroot.path.join("recovery/recovery.conf");
-            let mut recovery_file = misc::create(&recovery_path)?;
-            recovery_file.write_all(recovery_data.as_bytes())?;
+        // Copy initrd and vmlinuz to EFI partition
+        let recovery_path = self.chroot.path.join("recovery/recovery.conf");
+        let mut recovery_file = misc::create(&recovery_path)?;
+        recovery_file.write_all(recovery_data.as_bytes())?;
 
-            let efi_recovery = ["boot/efi/EFI/", recovery.as_str()].concat();
-            let efi_initrd = self.chroot.path.join([&efi_recovery, "/initrd.gz"].concat());
-            let efi_vmlinuz = self.chroot.path.join([&efi_recovery, "/vmlinuz.efi"].concat());
-            let casper_initrd = self.chroot.path.join(["recovery/", &casper, "/initrd.gz"].concat());
-            let casper_vmlinuz = self.chroot.path.join(["recovery/", &casper, "/vmlinuz.efi"].concat());
+        let efi_recovery = ["boot/efi/EFI/", recovery.as_str()].concat();
+        let efi_initrd = self.chroot.path.join([&efi_recovery, "/initrd.gz"].concat());
+        let efi_vmlinuz = self.chroot.path.join([&efi_recovery, "/vmlinuz.efi"].concat());
+        let casper_initrd = self.chroot.path.join(["recovery/", &casper, "/initrd.gz"].concat());
+        let casper_vmlinuz = self.chroot.path.join(["recovery/", &casper, "/vmlinuz.efi"].concat());
 
-            fs::create_dir_all(self.chroot.path.join(efi_recovery))?;
+        fs::create_dir_all(self.chroot.path.join(efi_recovery))?;
 
-            misc::cp(&casper_initrd, &efi_initrd)?;
-            misc::cp(&casper_vmlinuz, &efi_vmlinuz)?;
+        misc::cp(&casper_initrd, &efi_initrd)?;
+        misc::cp(&casper_vmlinuz, &efi_vmlinuz)?;
 
-            let rec_entry_data = format!(r#"title {0} recovery
+        let rec_entry_data = format!(r#"title {0} recovery
 linux /EFI/{1}/vmlinuz.efi
 initrd /EFI/{1}/initrd.gz
 options {2} boot=casper hostname=recovery userfullname=Recovery username=recovery live-media-path=/{3} noprompt
 "#,
-                name,
-                recovery,
-                BOOT_OPTIONS,
-                casper
-            );
-            let loader_entries = self.chroot.path.join("boot/efi/loader/entries/");
-            if ! loader_entries.exists() {
-                fs::create_dir_all(&loader_entries)?;
-            }
-
-            let rec_entry_path = loader_entries.join([recovery.as_str(), ".conf"].concat());
-            let mut rec_entry_file = misc::create(&rec_entry_path)?;
-            rec_entry_file.write_all(rec_entry_data.as_bytes())?;
+            name,
+            recovery,
+            BOOT_OPTIONS,
+            casper
+        );
+        let loader_entries = self.chroot.path.join("boot/efi/loader/entries/");
+        if ! loader_entries.exists() {
+            fs::create_dir_all(&loader_entries)?;
         }
 
+        let rec_entry_path = loader_entries.join([recovery.as_str(), ".conf"].concat());
+        let mut rec_entry_file = misc::create(&rec_entry_path)?;
+        rec_entry_file.write_all(rec_entry_data.as_bytes())?;
         Ok(())
     }
 
