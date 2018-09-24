@@ -157,3 +157,6 @@ fi
 
 # Update the chroot's initramfs
 update-initramfs -u
+
+# Sync changes before unmounting
+sync
