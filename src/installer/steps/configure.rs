@@ -1,5 +1,6 @@
 use envfile::EnvFile;
 use disk::Disks;
+use libc;
 use os_release::OsRelease;
 use std::fs::{self, Permissions};
 use std::io::{self, Write};
@@ -223,7 +224,7 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         install_pkgs.extend_from_slice(&retain);
 
         // TODO: use a macro to make this more manageable.
-        let mut chroot = ChrootConfigurator::new(chroot);
+        let chroot = ChrootConfigurator::new(chroot);
 
         let mut hostname = Ok(());
         let mut hosts = Ok(());
@@ -304,11 +305,13 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         chroot.update_initramfs()?;
         callback(90);
 
+        // Sync to the disk before unmounting
+        unsafe { libc::sync(); }
+
         // Ensure that the cdrom binding is unmounted before the chroot.
         drop(cdrom_mount);
         drop(efivars_mount);
         cdrom_target.map(|target| fs::remove_dir(&target));
-        chroot.unmount(false)?;
         callback(95);
     }
 

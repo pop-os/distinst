@@ -695,6 +695,11 @@ namespace Distinst {
         public uint64 get_sector (ref Sector sector);
 
         /**
+         * Identifies the type of table that the disk has.
+         */
+        public PartitionTable get_partition_table ();
+
+        /**
          * Returns true if the device contains a partition mounted at the specified target.
          */
         public bool contains_mount (string mount, Distinst.Disks disks);
@@ -925,7 +930,7 @@ namespace Distinst {
          * that is associated with the given target mount point. Scans both physical
          * and logical partitions.
          */
-        public PartitionAndDiskPath find_partition (string target);
+        public PartitionAndDiskPath? find_partition (string target);
 
         /**
          * True if any partition on the disk is a LUKS partition.

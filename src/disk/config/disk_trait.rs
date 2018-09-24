@@ -76,6 +76,8 @@ pub trait DiskExt {
             .map_or_else(check_partitions, |m| m == Path::new(mount))
     }
 
+    fn is_logical(&self) -> bool { Self::LOGICAL }
+
     /// Checks if the drive is a removable drive.
     fn is_removable(&self) -> bool {
         let path = {
