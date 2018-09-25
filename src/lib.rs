@@ -902,6 +902,7 @@ impl Installer {
             drop(efivars_mount);
 
             cdrom_target.map(|target| fs::remove_dir(&target));
+            unsafe { libc::sync(); }
             chroot.unmount(false)?;
         }
 
@@ -1069,6 +1070,7 @@ impl Installer {
                 }
 
                 drop(efivars_mount);
+                unsafe { libc::sync(); }
                 chroot.unmount(false)?;
             }
         }
