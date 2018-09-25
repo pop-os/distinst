@@ -32,14 +32,10 @@ pub fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
                     temp
                 };
 
-                // Cut the ending '/' from the target path if it exists.
+                // Cut the starting '/' from the target path if it exists.
                 let target_path = target.target.as_ref().unwrap().as_os_str().as_bytes();
-                let target_path = if target_path[0] == b'/' {
-                    if target_path.len() > 1 {
-                        &target_path[1..]
-                    } else {
-                        b""
-                    }
+                let target_path = if ! target_path.is_empty() && target_path[0] == b'/' {
+                    if target_path.len() > 1 { &target_path[1..] } else { b"" }
                 } else {
                     target_path
                 };
