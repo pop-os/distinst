@@ -1070,6 +1070,7 @@ impl Installer {
                 }
 
                 drop(efivars_mount);
+                unsafe { libc::sync(); }
                 chroot.unmount(false)?;
             }
         }
