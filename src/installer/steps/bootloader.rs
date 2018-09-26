@@ -1,4 +1,5 @@
 use {Config, MODIFY_BOOT_ORDER};
+use libc;
 use process::Chroot;
 use disk::{Bootloader, Disks};
 use os_release::OsRelease;
@@ -143,6 +144,9 @@ pub fn bootloader<F: FnMut(i32)>(
                     }
                 }
             }
+
+            // Sync to the disk before unmounting
+            unsafe { libc::sync(); }
 
             drop(efivars_mount);
             chroot.unmount(false)?;
