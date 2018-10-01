@@ -107,13 +107,8 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
 }
 
 
-pub fn get_required_packages(disks: &Disks, release: &OsRelease) -> Vec<&'static str> {
+pub fn get_required_packages(disks: &Disks, _release: &OsRelease) -> Vec<&'static str> {
     let flags = disks.get_support_flags();
-
-    // Pop!_OS does not need this workaround.
-    if release.name == "Pop!_OS" {
-        return vec![];
-    }
 
     let mut retain = Vec::new();
 
