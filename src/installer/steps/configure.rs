@@ -231,7 +231,7 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         let mut machine_id = Ok(());
         let mut netresolv = Ok(());
         let mut locale = Ok(());
-        let mut apt_remove = Ok(());
+        let mut apt_install = Ok(());
         let mut etc_cleanup = Ok(());
         let mut kernel_copy = Ok(());
 
@@ -246,7 +246,11 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
                 kernel_copy = chroot.kernel_copy();
             });
             // Apt takes so long that it needs to run by itself.
-            s.spawn(|_| apt_remove = chroot.apt_remove(&remove));
+            s.spawn(|_| {
+                apt_install = chroot.cdrom_add()
+                    .and_then(|_| chroot.apt_install(&install_pkgs))
+                    .and_then(|_| chroot.cdrom_disable());
+            });
         });
 
         map_errors! {
@@ -255,31 +259,23 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
             machine_id => "failed to write unique machine id";
             netresolv => "failed to link netresolve";
             locale => "failed to generate locales";
-            apt_remove => "failed to remove packages";
+            apt_install => "failed to install packages";
             etc_cleanup => "failed to remove pre-existing files in /etc";
             kernel_copy => "failed to copy kernel from casper to chroot"
         }
 
         callback(70);
 
-        let (apt_install, recovery) = rayon::join(
-            || {
-                chroot.cdrom_add()?;
-                chroot.apt_install(&install_pkgs)?;
-                chroot.cdrom_disable()
-            },
-            || {
-                chroot.recovery(
-                    config,
-                    &iso_os_release.name,
-                    &root_uuid,
-                    luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())
-                )
-            }
+        let apt_remove = chroot.apt_remove(&remove);
+        let recovery = chroot.recovery(
+            config,
+            &iso_os_release.name,
+            &root_uuid,
+            luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())
         );
 
         map_errors! {
-            apt_install => "failed to install packages";
+            apt_remove => "failed to remove packages";
             recovery => "failed to create recovery partition"
         }
 

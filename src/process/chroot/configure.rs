@@ -26,34 +26,8 @@ impl<'a> ChrootConfigurator<'a> {
         self.chroot.unmount(lazy)
     }
 
-    /// Avoid reinstalling packages that are already installed.
-    fn apt_install_filter<'b>(&self, packages: &[&'b str]) -> io::Result<Vec<&'b str>> {
-        info!("filtering packages to be installed: {:?}", packages);
-
-        let stdout = self.chroot.command("dpkg-query", &cascade! {
-            Vec::with_capacity(packages.len() + 1);
-            ..push("-s");
-            ..extend_from_slice(packages);
-        }).run_with_stdout()?;
-
-        let mut to_install = packages.into_iter().map(|x| *x).collect::<HashSet<&str>>();
-        let mut package_entry = "";
-
-        for line in stdout.lines() {
-            if line.starts_with("Package:") {
-                package_entry = &line[9..];
-            } else if line.starts_with("Status:") && ! line.ends_with("install ok installed") {
-                to_install.remove(package_entry);
-            }
-        }
-
-        Ok(to_install.into_iter().collect::<Vec<&str>>())
-    }
-
     /// Install the given packages if they are not already installed.
     pub fn apt_install(&self, packages: &[&str]) -> io::Result<()> {
-        let packages = self.apt_install_filter(packages)?;
-
         info!("installing packages: {:?}", packages);
         self.chroot.command("apt-get", &cascade! {
             Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
