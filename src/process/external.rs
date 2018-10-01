@@ -92,6 +92,31 @@ pub(crate) fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S
     })
 }
 
+fn vgdisplay() -> io::Result<Vec<String>> {
+    let mut current_line = String::with_capacity(64);
+    let mut output = Vec::new();
+
+    let mut reader = BufReader::new(
+        Command::new("vgdisplay")
+            .arg("-s")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?
+            .stdout
+            .expect("failed to execute vgdisplay command"),
+    );
+
+    while reader.read_line(&mut current_line)? != 0 {
+        if let Some(dm) = current_line.split_whitespace().next() {
+            output.push(dm[1..dm.len()-1].into());
+        }
+
+        current_line.clear();
+    }
+
+    Ok(output)
+}
+
 pub(crate) fn dmlist() -> io::Result<Vec<String>> {
     let mut current_line = String::with_capacity(64);
     let mut output = Vec::new();
@@ -106,20 +131,17 @@ pub(crate) fn dmlist() -> io::Result<Vec<String>> {
             .expect("failed to execute dmsetup command"),
     );
 
-    // Skip the first line of output
-    let _ = reader.read_line(&mut current_line);
-    current_line.clear();
-
+    // Parse the output of `dmsetup ls`, only taking the first field from each line.
     while reader.read_line(&mut current_line)? != 0 {
-        {
-            let mut fields = current_line.split_whitespace();
-            if let Some(dm) = fields.next() {
-                output.push(dm.into());
-            }
+        if let Some(dm) = current_line.split_whitespace().next() {
+            output.push(dm.into());
         }
 
         current_line.clear();
     }
+
+    // Also add lvm volume groups from `vgdisplay`, which `dmsetup ls` does not list.
+    output.extend_from_slice(&vgdisplay()?);
 
     Ok(output)
 }
