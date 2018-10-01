@@ -83,21 +83,26 @@ pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
 pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
 
 pub fn deactivate_logical_devices() -> io::Result<()> {
+    let mut res = Ok(());
     for luks_pv in encrypted_devices()? {
         info!("deactivating encrypted device named {}", luks_pv);
         if let Some(vg) = pvs()?.get(&PathBuf::from(["/dev/mapper/", &luks_pv].concat())) {
             match *vg {
                 Some(ref vg) => {
-                    vgdeactivate(vg).and_then(|_| cryptsetup_close(CloseBy::Name(&luks_pv)))?;
+                    if let Err(why) = vgdeactivate(vg).and_then(|_| cryptsetup_close(CloseBy::Name(&luks_pv))) {
+                        res = Err(why);
+                    }
                 },
                 None => {
-                    cryptsetup_close(CloseBy::Name(&luks_pv))?;
+                    if let Err(why) = cryptsetup_close(CloseBy::Name(&luks_pv)) {
+                        res = Err(why);
+                    }
                 },
             }
         }
     }
 
-    Ok(())
+    res
 }
 
 /// Checks if the given name already exists as a device in the device map list.
