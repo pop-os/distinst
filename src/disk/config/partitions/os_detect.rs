@@ -1,10 +1,10 @@
-use mnt::Mount;
 use super::FileSystemType;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use tempdir::TempDir;
 use os_release::OsRelease;
 use misc::{self, get_uuid};
+use sys_mount::*;
 
 /// Adds a new map method for boolean types.
 pub trait BoolExt {
@@ -22,7 +22,6 @@ impl BoolExt for bool {
 }
 
 #[derive(Debug, Clone)]
-#[allow(large_enum_variant)]
 pub enum OS {
     Windows(String),
     Linux {
@@ -49,7 +48,8 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<OS> {
     TempDir::new("distinst").ok().and_then(|tempdir| {
         // Mount the FS to the temporary directory
         let base = tempdir.path();
-        Mount::new(device, base, fs, 0, None)
+        Mount::new(device, base, fs, MountFlags::empty(), None)
+            .map(|m| m.into_unmount_drop(UnmountFlags::DETACH))
             .ok()
             .and_then(|_mount| {
                 detect_linux(base)

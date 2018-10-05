@@ -153,7 +153,6 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
 
         let efivars_mount = mount_efivars(&mount_dir)?;
         let cdrom_mount = mount_cdrom(&mount_dir)?;
-        let cdrom_target = cdrom_mount.as_ref().map(|x| x.dest().to_path_buf());
 
         callback(15);
 
@@ -305,9 +304,12 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         unsafe { libc::sync(); }
 
         // Ensure that the cdrom binding is unmounted before the chroot.
-        drop(cdrom_mount);
+        if let Some((cdrom_mount, cdrom_target)) = cdrom_mount {
+            drop(cdrom_mount);
+            fs::remove_dir(&cdrom_target);
+        }
+
         drop(efivars_mount);
-        cdrom_target.map(|target| fs::remove_dir(&target));
         callback(95);
     }
 

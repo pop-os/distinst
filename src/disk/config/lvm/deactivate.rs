@@ -1,8 +1,9 @@
 use super::physical_volumes_to_deactivate;
 use process::external::{cryptsetup_close, lvs, pvs, vgdeactivate, CloseBy};
-use mnt::{swapoff, umount, MOUNTS, SWAPS};
+use mnt::{swapoff, MOUNTS, SWAPS};
 use std::io;
 use std::path::Path;
+use sys_mount::{unmount, UnmountFlags};
 
 pub(crate) fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
     let mounts = MOUNTS.read().expect("failed to get mounts in deactivate_devices");
@@ -14,7 +15,7 @@ pub(crate) fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()
                     "unmounting logical volume mounted at {}",
                     mount.display()
                 );
-                umount(&mount, false)?;
+                unmount(&mount, UnmountFlags::empty())?;
             } else if let Ok(lv) = lv.canonicalize() {
                 if swaps.get_swapped(&lv) {
                     swapoff(&lv)?;

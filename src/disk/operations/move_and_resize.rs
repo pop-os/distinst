@@ -1,5 +1,4 @@
 use process::external::{blockdev, fsck};
-use mnt::Mount;
 use super::FileSystemType::*;
 use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionError, PartitionFlag, PartitionType};
 use std::fs::OpenOptions;
@@ -7,6 +6,7 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempdir::TempDir;
+use sys_mount::*;
 
 /// Defines the start and end sectors of a partition on the disk.
 #[derive(new)]
@@ -397,7 +397,8 @@ fn resize_partition<P: AsRef<Path>>(
                 path.as_ref().display(),
                 temp.path().display()
             );
-            let mount = Mount::new(path.as_ref(), temp.path(), fs, 0, None)?;
+            let mount = Mount::new(path.as_ref(), temp.path(), fs, MountFlags::empty(), None)?;
+            let mount = mount.into_unmount_drop(UnmountFlags::DETACH);
             (temp.path().to_path_buf(), Some((mount, temp)))
         } else {
             (path.as_ref().to_path_buf(), None)

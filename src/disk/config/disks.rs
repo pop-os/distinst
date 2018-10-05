@@ -2,7 +2,7 @@ use process::external::{
     cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
-use mnt::{self, swapoff, umount, MOUNTS, SWAPS};
+use mnt::{swapoff, MOUNTS, SWAPS};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, FileSystemSupport,
     PartitionFlag, PartitionInfo,
@@ -11,7 +11,7 @@ use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PartitionTable, PVS};
 use libparted::{Device, DeviceType};
 use misc::{self, from_uuid, get_uuid, hasher};
-
+use sys_mount::{unmount, UnmountFlags};
 use FileSystemType::*;
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -271,7 +271,7 @@ impl Disks {
                         "unmounting logical volume mounted at {}",
                         mount.display()
                     );
-                    umount(&mount, false).map_err(|why| DiskError::Unmount {
+                    unmount(&mount, UnmountFlags::empty()).map_err(|why| DiskError::Unmount {
                         device: lv,
                         why
                     })?;
@@ -437,7 +437,7 @@ impl Disks {
                         "unmounting device mounted at {}",
                         mount.display()
                     );
-                    mnt::umount(&mount, false).map_err(|why| DiskError::Unmount {
+                    unmount(&mount, UnmountFlags::empty()).map_err(|why| DiskError::Unmount {
                         device: device.get_device_path().to_path_buf(),
                         why
                     })?;

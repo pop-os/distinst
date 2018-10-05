@@ -1,10 +1,9 @@
 use {Chroot, Command, Config};
-use mnt::{BIND, Mount};
-use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 use misc;
+use sys_mount::*;
 
 const APT_OPTIONS: &[&str] = &[
     "-o", "Acquire::cdrom::AutoDetect=0",
@@ -154,7 +153,8 @@ impl<'a> ChrootConfigurator<'a> {
     pub fn keyboard_layout(&self, config: &Config) -> io::Result<()> {
         info!("configuring keyboard layout");
         // Ensure that localectl writes to the chroot, instead.
-        let _etc_mount = Mount::new(&self.chroot.path.join("etc"), "/etc", "none", BIND, None)?;
+        let _etc_mount = Mount::new(&self.chroot.path.join("etc"), "/etc", "none", MountFlags::BIND, None)?
+            .into_unmount_drop(UnmountFlags::DETACH);
 
         self.chroot.command("localectl", &[
             "set-x11-keymap",

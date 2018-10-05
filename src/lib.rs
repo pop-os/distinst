@@ -27,10 +27,11 @@ extern crate isolang;
 extern crate rand;
 extern crate rayon;
 extern crate raw_cpuid;
-extern crate tempdir;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_xml_rs;
+extern crate sys_mount;
+extern crate tempdir;
 
 use process::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, vgdeactivate, CloseBy};
 use std::io::{self, Read};
@@ -38,7 +39,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT};
 
 pub use process::{Chroot, Command};
-pub use mnt::{BIND, Mount, Mounts};
+pub use mnt::Mounts;
 pub use disk::{
     generate_unique_id, Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks,
     FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag,

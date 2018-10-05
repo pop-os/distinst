@@ -2,7 +2,7 @@ mod configure;
 
 pub use self::configure::ChrootConfigurator;
 
-use mnt::{Mount, BIND};
+use sys_mount::*;
 use std::ffi::OsStr;
 use std::io::Result;
 use std::path::{Path, PathBuf};
@@ -27,17 +27,17 @@ impl<'a> Chroot<'a> {
     /// is successful.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref().canonicalize()?;
-        let dev_mount = Mount::new("/dev", &path.join("dev"), "none", BIND, None)?;
+        let dev_mount = Mount::new("/dev", &path.join("dev"), "none", MountFlags::BIND, None)?;
         let pts_mount = Mount::new(
             "/dev/pts",
             &path.join("dev").join("pts"),
             "none",
-            BIND,
+            MountFlags::BIND,
             None,
         )?;
-        let proc_mount = Mount::new("/proc", &path.join("proc"), "none", BIND, None)?;
-        let run_mount = Mount::new("/run", &path.join("run"), "none", BIND, None)?;
-        let sys_mount = Mount::new("/sys", &path.join("sys"), "none", BIND, None)?;
+        let proc_mount = Mount::new("/proc", &path.join("proc"), "none", MountFlags::BIND, None)?;
+        let run_mount = Mount::new("/run", &path.join("run"), "none", MountFlags::BIND, None)?;
+        let sys_mount = Mount::new("/sys", &path.join("sys"), "none", MountFlags::BIND, None)?;
         Ok(Chroot {
             path,
             dev_mount,
@@ -87,11 +87,12 @@ impl<'a> Chroot<'a> {
     /// Return true if the filesystem was unmounted, false if it was already
     /// unmounted
     pub fn unmount(&mut self, lazy: bool) -> Result<()> {
-        self.sys_mount.unmount(lazy)?;
-        self.run_mount.unmount(lazy)?;
-        self.proc_mount.unmount(lazy)?;
-        self.pts_mount.unmount(lazy)?;
-        self.dev_mount.unmount(lazy)?;
+        let flags = if lazy { UnmountFlags::DETACH } else { UnmountFlags::empty() };
+        self.sys_mount.unmount(flags)?;
+        self.run_mount.unmount(flags)?;
+        self.proc_mount.unmount(flags)?;
+        self.pts_mount.unmount(flags)?;
+        self.dev_mount.unmount(flags)?;
         Ok(())
     }
 }
@@ -99,10 +100,10 @@ impl<'a> Chroot<'a> {
 impl<'a> Drop for Chroot<'a> {
     fn drop(&mut self) {
         // Ensure unmounting
-        let _ = self.sys_mount.unmount(true);
-        let _ = self.run_mount.unmount(true);
-        let _ = self.proc_mount.unmount(true);
-        let _ = self.pts_mount.unmount(true);
-        let _ = self.dev_mount.unmount(true);
+        let _ = self.sys_mount.unmount(UnmountFlags::DETACH);
+        let _ = self.run_mount.unmount(UnmountFlags::DETACH);
+        let _ = self.proc_mount.unmount(UnmountFlags::DETACH);
+        let _ = self.pts_mount.unmount(UnmountFlags::DETACH);
+        let _ = self.dev_mount.unmount(UnmountFlags::DETACH);
     }
 }

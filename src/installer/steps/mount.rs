@@ -1,5 +1,5 @@
 use disk::{Disks, FileSystemType};
-use mnt::{Mount, Mounts};
+use mnt::Mounts;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;
@@ -7,6 +7,7 @@ use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
+use sys_mount::*;
 
 pub fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
     let targets = disks.get_partitions()
@@ -64,12 +65,12 @@ pub fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
         }
 
         mounts.push(Mount::new(
-            &device_path,
+            device_path,
             &target_mount,
             filesystem,
-            0,
+            MountFlags::empty(),
             None,
-        )?);
+        )?.into_unmount_drop(UnmountFlags::DETACH));
     }
 
     Ok(Mounts(mounts))

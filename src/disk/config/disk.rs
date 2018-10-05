@@ -1,4 +1,4 @@
-use mnt::{swapoff, umount, MOUNTS, SWAPS};
+use mnt::{swapoff, MOUNTS, SWAPS};
 use super::super::operations::*;
 use super::super::serial::get_serial;
 use process::external::{is_encrypted, pvs};
@@ -15,7 +15,7 @@ use std::io::{self, Read};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
-
+use sys_mount::{unmount, UnmountFlags};
 use rayon::prelude::*;
 
 /// Detects a partition on the device, if it exists.
@@ -329,7 +329,7 @@ impl Disk {
                     mount.display()
                 );
 
-                umount(mount, false).map_err(|why| {
+                unmount(mount, UnmountFlags::empty()).map_err(|why| {
                     (partition.get_device_path().to_path_buf(), why)
                 })?;
             }
@@ -392,7 +392,7 @@ impl Disk {
 
         for mount in mounts.into_iter().rev() {
             info!("unmounting {}", mount.display());
-            umount(mount, false)?;
+            unmount(mount, UnmountFlags::empty())?;
         }
 
         Ok(())

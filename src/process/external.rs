@@ -1,7 +1,7 @@
 //! A collection of external commands used throughout the program.
 
 use disk::config::lvm::{deactivate_devices, physical_volumes_to_deactivate};
-use mnt::{umount, swapoff, MountList, Swaps};
+use mnt::{swapoff, MountList, Swaps};
 use disk::{FileSystemType, LvmEncryption};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
+use sys_mount::*;
 use tempdir::TempDir;
 use misc;
 
@@ -365,7 +366,7 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
                     "libdistinst: unmounting logical volume mounted at {}",
                     mount.display()
                 );
-                umount(&mount, false)?;
+                unmount(&mount, UnmountFlags::empty())?;
             } else if let Ok(lv) = lv.canonicalize() {
                 if swaps.get_swapped(&lv) {
                     swapoff(&lv)?;
@@ -432,7 +433,9 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let _mount = ExternalMount::new(&keydata.0, tmpfs.path(), LAZY)?;
+            let supported = SupportedFilesystems::new()?;
+            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
+                .into_unmount_drop(UnmountFlags::DETACH);
             let keypath = tmpfs.path().join(&enc.physical_volume);
 
             generate_keyfile(&keypath)?;
@@ -476,7 +479,9 @@ pub(crate) fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let _mount = ExternalMount::new(&keydata.0, tmpfs.path(), LAZY)?;
+            let supported = SupportedFilesystems::new()?;
+            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
+                .into_unmount_drop(UnmountFlags::DETACH);
             let keypath = tmpfs.path().join(&enc.physical_volume);
             info!("keypath exists: {}", keypath.is_file());
 
@@ -675,38 +680,6 @@ fn generate_keyfile(path: &Path) -> io::Result<()> {
     keyfile.set_permissions(Permissions::from_mode(0o0400))?;
     keyfile.write_all(&key)?;
     keyfile.sync_all()
-}
-
-pub(crate) const BIND: u8 = 0b01;
-pub(crate) const LAZY: u8 = 0b10;
-
-pub(crate) struct ExternalMount<'a> {
-    dest:  &'a Path,
-    flags: u8,
-}
-
-impl<'a> ExternalMount<'a> {
-    pub(crate) fn new(src: &'a Path, dest: &'a Path, flags: u8) -> io::Result<ExternalMount<'a>> {
-        let args = if flags & BIND != 0 {
-            vec!["--bind".into(), src.into(), dest.into()]
-        } else {
-            vec![src.into(), dest.into()]
-        };
-
-        exec("mount", None, None, &args).map(|_| ExternalMount { dest, flags })
-    }
-}
-
-impl<'a> Drop for ExternalMount<'a> {
-    fn drop(&mut self) {
-        let args = if self.flags & LAZY != 0 {
-            vec!["-l".into(), self.dest.into()]
-        } else {
-            vec![self.dest.into()]
-        };
-
-        let _ = exec("umount", None, None, &args);
-    }
 }
 
 pub(crate) fn remount_rw<P: AsRef<Path>>(path: P) -> io::Result<()> {

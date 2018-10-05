@@ -13,7 +13,7 @@ use tempdir::TempDir;
 
 pub use process::Chroot;
 pub use process::Command;
-pub use mnt::{BIND, Mount, Mounts};
+pub use mnt::Mounts;
 pub use self::steps::Step;
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
