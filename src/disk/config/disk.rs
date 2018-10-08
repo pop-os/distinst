@@ -1,4 +1,4 @@
-use mnt::{swapoff, MOUNTS, SWAPS};
+use mnt::{MOUNTS, SWAPS};
 use super::super::operations::*;
 use super::super::serial::get_serial;
 use process::external::{is_encrypted, pvs};
@@ -317,6 +317,7 @@ impl Disk {
             self.path().display()
         );
 
+        let swaps = SWAPS.read().expect("failed to get swaps in unmount_all_partitions");
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
                 if mount == Path::new("/cdrom") || mount == Path::new("/") {
@@ -334,29 +335,22 @@ impl Disk {
                 })?;
             }
 
-            partition.mount_point = None;
-
-            if partition.flag_is_enabled(SWAPPED) {
-                info!("unswapping '{}'", partition.get_device_path().display());
-                swapoff(&partition.get_device_path()).map_err(|why| {
-                    (partition.get_device_path().to_path_buf(), why)
-                })?;
-            }
-
-            partition.flag_disable(SWAPPED);
+            partition.deactivate_if_swap(&swaps)?;
         }
 
         Ok(())
     }
 
     /// Unmounts all partitions on the device with a target
-    pub fn unmount_all_partitions_with_target(&mut self) -> Result<(), io::Error> {
+    pub fn unmount_all_partitions_with_target(&mut self) -> Result<(), (PathBuf, io::Error)> {
         info!(
             "unmount all partitions with a target on {}",
             self.path().display()
         );
 
         let mut mounts = BTreeSet::new();
+        let swaps = SWAPS.read()
+            .expect("failed to get swaps in unmount_all_partitions_with_target");
         let mountstab = MOUNTS.read()
             .expect("failed to get mounts in unmount_all_partitions_with_target");
 
@@ -377,22 +371,13 @@ impl Disk {
                 }
             }
 
-            partition.mount_point = None;
-
-            if partition.flag_is_enabled(SWAPPED) {
-                info!(
-                    "unswapping '{}'",
-                    partition.get_device_path().display(),
-                );
-                swapoff(&partition.get_device_path())?;
-            }
-
-            partition.flag_disable(SWAPPED);
+            partition.deactivate_if_swap(&swaps)?;
         }
 
         for mount in mounts.into_iter().rev() {
             info!("unmounting {}", mount.display());
-            unmount(mount, UnmountFlags::empty())?;
+            unmount(&mount, UnmountFlags::empty())
+                .map_err(|why| (mount.to_path_buf(), why))?;
         }
 
         Ok(())

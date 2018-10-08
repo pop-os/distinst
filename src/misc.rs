@@ -1,5 +1,6 @@
 //! An assortment of useful basic functions useful throughout the project.
 
+pub use self::layout::*;
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
 use std::ffi::{OsStr, OsString};
@@ -9,8 +10,7 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::{Duration, SystemTime};
-pub use self::layout::*;
+use std::time::Duration;
 
 mod layout {
     use std::collections::hash_map::DefaultHasher;
@@ -78,33 +78,52 @@ pub fn cp(src: &Path, dst: &Path) -> io::Result<u64> {
     ))
 }
 
-pub fn watch_and_set<T, F>(swaps: Arc<RwLock<T>>, file: &'static str, mut create_new: F)
-where T: 'static + Send + Sync,
-      F: 'static + Send + FnMut() -> Option<T>
-{
+pub fn watch_and_set<T: 'static + Send + Sync>(
+    swaps: Arc<RwLock<T>>,
+    file: &'static str,
+    create_new: fn() -> Option<T>
+) {
     thread::spawn(move || {
-        let mut modified = get_modified(file).expect("modified time could not be obtained");
+        let buffer: &mut [u8] = &mut [0u8; 8 * 1024];
+        let modified = &mut get_file_hash(file, buffer).expect("hash could not be obtained");
 
         loop {
-            thread::sleep(Duration::from_secs(3));
-            if let Ok(new_modified) = get_modified(file) {
-                if new_modified != modified {
-                    modified = new_modified;
-                    if let Ok(ref mut swaps) = swaps.write() {
-                        if let Some(new_swaps) = create_new() {
-                            **swaps = new_swaps;
-                        }
-                    }
-                }
-            }
+            thread::sleep(Duration::from_secs(1));
+            modify_if_changed(&swaps, modified, buffer, file, create_new);
         }
     });
 }
 
-pub fn get_modified<P: AsRef<Path>>(path: P) -> io::Result<SystemTime> {
-    open(path)
-        .and_then(|file| file.metadata())
-        .and_then(|metadata| metadata.modified())
+pub fn modify_if_changed<T: 'static + Send + Sync>(
+    swaps: &Arc<RwLock<T>>,
+    modified: &mut u64,
+    buffer: &mut [u8],
+    file: &'static str,
+    create_new: fn() -> Option<T>
+) {
+    if let Ok(new_modified) = get_file_hash(file, buffer) {
+        if new_modified != *modified {
+            *modified = new_modified;
+            if let Ok(ref mut swaps) = swaps.write() {
+                if let Some(new_swaps) = create_new() {
+                    **swaps = new_swaps;
+                }
+            }
+        }
+    }
+}
+
+pub fn get_file_hash<P: AsRef<Path>>(path: P, buffer: &mut [u8]) -> io::Result<u64> {
+    open(path).and_then(|mut file| {
+        let hasher = &mut DefaultHasher::new();
+        while let Ok(read) = file.read(buffer) {
+            if read == 0 {
+                break;
+            }
+            buffer[..read].hash(hasher);
+        }
+        Ok(hasher.finish())
+    })
 }
 
 /// Obtains the UUID of the given device path by resolving symlinks in `/dev/disk/by-uuid`
