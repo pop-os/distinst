@@ -22,8 +22,9 @@ pub use self::os::*;
 pub use self::partition::*;
 pub use self::sector::*;
 
-pub const DISTINST_MODIFY_BOOT_ORDER: u8 = 0b01;
+pub const DISTINST_MODIFY_BOOT_ORDER:        u8 = 0b1;
 pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
+pub const DISTINST_KEEP_OLD_ROOT:            u8 = 0b100;
 
 use std::io;
 
@@ -90,7 +91,7 @@ pub unsafe extern "C" fn distinst_generate_unique_id(
 ) -> *mut libc::c_char {
     get_str(prefix)
         .ok()
-        .and_then(|prefix| distinst::generate_unique_id(prefix).ok().map(to_cstr))
+        .and_then(|prefix| distinst::generate_unique_id(prefix, &[]).ok().map(to_cstr))
         .unwrap_or(ptr::null_mut())
 }
 

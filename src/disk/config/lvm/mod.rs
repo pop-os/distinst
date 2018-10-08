@@ -5,10 +5,11 @@ mod encryption;
 pub(crate) use self::deactivate::deactivate_devices;
 pub(crate) use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
-use super::super::external::{
+use process::external::{
     blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
 };
-use super::super::mounts::MOUNTS;
+use misc::hasher;
+use mnt::MOUNTS;
 use super::super::{
     DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
     PartitionType, FORMAT, REMOVE, SOURCE,
@@ -21,16 +22,21 @@ use std::{io, thread};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub fn generate_unique_id(prefix: &str) -> io::Result<String> {
+/// Generate a unique device map ID, to ensure no collisions between dm blocks.
+pub fn generate_unique_id(prefix: &str, exclude_hashes: &[u64]) -> io::Result<String> {
     let dmlist = dmlist()?;
-    if !dmlist.iter().any(|x| x.as_str() == prefix) {
+    let check_uniqueness = |id: &str, exclude: &[u64]| -> bool {
+        ! dmlist.iter().any(|x| x.as_str() == id) && ! exclude.contains(&hasher(&id))
+    };
+
+    if check_uniqueness(prefix, exclude_hashes) {
         return Ok(prefix.into());
     }
 
     loop {
         let id: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).collect();
         let id = [prefix, "_", &id].concat();
-        if dmlist.contains(&id) {
+        if ! check_uniqueness(&id, exclude_hashes) {
             continue;
         }
         return Ok(id);

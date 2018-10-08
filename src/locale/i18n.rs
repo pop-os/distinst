@@ -2,8 +2,8 @@
 //! this provides convenience methods for getting default locales and a list of countries
 //! associated with a language (if any exist at all).
 
+use misc;
 use std::io::{self, BufRead, BufReader};
-use std::fs::File;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::path::Path;
@@ -86,7 +86,7 @@ pub fn parse_locales() -> io::Result<Locales> {
         if !file.exists() {
             continue
         }
-        for line in BufReader::new(File::open(file)?).lines() {
+        for line in BufReader::new(misc::open(file)?).lines() {
             let line = line?;
             if let Some(locale) = parse_entry(&line) {
                 match locales.entry(locale.language) {

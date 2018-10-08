@@ -1,11 +1,10 @@
-use super::super::super::mount::Mount;
 use super::FileSystemType;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use tempdir::TempDir;
 use os_release::OsRelease;
-use misc::get_uuid;
+use misc::{self, get_uuid};
+use sys_mount::*;
 
 /// Adds a new map method for boolean types.
 pub trait BoolExt {
@@ -23,7 +22,6 @@ impl BoolExt for bool {
 }
 
 #[derive(Debug, Clone)]
-#[allow(large_enum_variant)]
 pub enum OS {
     Windows(String),
     Linux {
@@ -50,7 +48,8 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<OS> {
     TempDir::new("distinst").ok().and_then(|tempdir| {
         // Mount the FS to the temporary directory
         let base = tempdir.path();
-        Mount::new(device, base, fs, 0, None)
+        Mount::new(device, base, fs, MountFlags::empty(), None)
+            .map(|m| m.into_unmount_drop(UnmountFlags::DETACH))
             .ok()
             .and_then(|_mount| {
                 detect_linux(base)
@@ -77,7 +76,7 @@ fn find_linux_parts(base: &Path) -> (Option<String>, Option<String>, Option<Stri
     let mut efi = None;
     let mut recovery = None;
 
-    if let Ok(fstab) = File::open(base.join("etc/fstab")) {
+    if let Ok(fstab) = misc::open(base.join("etc/fstab")) {
         for entry in BufReader::new(fstab).lines() {
             if let Ok(entry) = entry {
                 let entry = entry.trim();
@@ -179,7 +178,7 @@ fn parse_plist<R: BufRead>(file: R) -> Option<String> {
 }
 
 fn detect_macos(base: &Path) -> Option<OS> {
-    File::open(base.join("etc/os-release"))
+    misc::open(base.join("etc/os-release"))
         .ok()
         .and_then(|file| {
             parse_plist(BufReader::new(file))

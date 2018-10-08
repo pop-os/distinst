@@ -28,11 +28,11 @@ fn account(input: &[u8]) -> Vec<u8> {
         .unwrap_or_else(Vec::new)
 }
 
-fn lines(input: &[u8]) -> HashMap<Vec<u8>, Vec<u8>> {
+pub(crate) fn lines<T: ::std::iter::FromIterator<(Vec<u8>, Vec<u8>)>>(input: &[u8]) -> T {
     input
         .split(|&b| b == b'\n')
         .map(|x| (account(x), x.to_owned()))
-        .collect()
+        .collect::<T>()
 }
 
 impl AccountFiles {
@@ -79,34 +79,50 @@ impl AccountFiles {
             );
 
             let user: &[u8] = &user;
-            self.group
+            let group = self.group
                 .iter()
                 .find(|&(_, value)| group_has_id(&value, group_id))
-                .map(|(group, _)| {
+                .map(|(group, value)| {
                     info!(
                         "found group '{}' associated with '{}'",
                         user_string,
                         String::from_utf8_lossy(group)
                     );
-                    group
-                })
-                .and_then(|g| self.shadow.get(user).map(|s| (g, s)))
-                .and_then(|(g, s)| self.gshadow.get(user).map(|gs| (g, s, gs)))
-                .map(|(group, shadow, gshadow)| UserData {
-                    passwd,
-                    group,
-                    shadow,
-                    gshadow,
-                })
+                    value
+                })?;
+
+            let secondary_groups = self.group
+                .iter()
+                .filter(|&(_, value)| group_has_user(&value, user))
+                .inspect(|&(group, _)| info!(
+                    "{} has a secondary group: '{}'",
+                    String::from_utf8_lossy(user),
+                    String::from_utf8_lossy(group)
+                ))
+                .map(|(group, _)| group.as_slice())
+                .collect::<Vec<&[u8]>>();
+
+            let shadow = self.shadow.get(user)?;
+            let gshadow = self.gshadow.get(user)?;
+
+            Some(UserData { user, passwd, group, shadow, gshadow, secondary_groups})
         })
     }
 }
+
 
 fn group_has_id(entry: &[u8], id: &[u8]) -> bool {
     entry
         .split(|&x| x == b':')
         .nth(2)
         .map_or(false, |field| field == id)
+}
+
+fn group_has_user(entry: &[u8], user: &[u8]) -> bool {
+    entry
+        .split(|&x| x == b':')
+        .nth(3)
+        .map_or(false, |field| field.split(|&x| x == b',').any(|f| f == user))
 }
 
 fn get_passwd_home_and_group(entry: &[u8]) -> (&[u8], &[u8]) {
@@ -121,10 +137,12 @@ fn get_passwd_home_and_group(entry: &[u8]) -> (&[u8], &[u8]) {
 
 /// Information about a user that should be carried over to the corresponding files.
 pub struct UserData<'a> {
+    pub user:    &'a [u8],
     pub passwd:  &'a [u8],
     pub shadow:  &'a [u8],
     pub group:   &'a [u8],
     pub gshadow: &'a [u8],
+    pub secondary_groups: Vec<&'a [u8]>,
 }
 
 #[cfg(test)]
@@ -143,5 +161,11 @@ mod tests {
     fn group_from_id() {
         assert!(group_has_id(b"nogroup:x:65534:", b"65534"));
         assert!(!group_has_id(b"nogroup:x:65534:", b"1"));
+    }
+
+    #[test]
+    fn secondary_groups() {
+        assert!(group_has_user(b"random:x:12345:user_x,user_b,user_c", b"user_b"));
+        assert!(!group_has_user(b"random:x:12345:user_x,user_b,user_c", b"user_d"));
     }
 }

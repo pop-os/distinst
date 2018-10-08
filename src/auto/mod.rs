@@ -5,10 +5,11 @@ mod retain;
 pub(crate) use self::accounts::{AccountFiles, UserData};
 pub use self::options::*;
 pub(crate) use self::retain::*;
+pub use self::retain::delete_old_install;
 
-use super::{DiskError, FileSystemType, Mount};
+use super::{DiskError, FileSystemType};
 use tempdir::TempDir;
-
+use sys_mount::{Mount, MountFlags, Unmount, UnmountFlags};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -52,7 +53,7 @@ fn mount_and_then<T, F>(
 where
     F: FnMut(&Path) -> Result<T, ReinstallError>,
 {
-    let fs = match fs {
+    let fs: &str = match fs {
         FileSystemType::Fat16 | FileSystemType::Fat32 => {
             return Err(ReinstallError::InvalidFilesystem {
                 part: device.to_path_buf(),
@@ -66,7 +67,8 @@ where
         .map_err(|why| ReinstallError::TempDir { why })
         .and_then(|tempdir| {
             let base = tempdir.path();
-            Mount::new(device, base, fs, 0, None)
+            Mount::new(device, base, fs, MountFlags::empty(), None)
+                .map(|m| m.into_unmount_drop(UnmountFlags::DETACH))
                 .map_err(|why| ReinstallError::PartitionMount { why })
                 .and_then(|_mount| action(base))
         })

@@ -1,7 +1,7 @@
-use std::fs::File;
+use misc;
+use os_release::OsRelease;
 use raw_cpuid::CpuId;
 use std::io::Read;
-use os_release::OsRelease;
 
 pub mod blacklist;
 #[macro_use]
@@ -90,7 +90,7 @@ fn vendor_support(os_release: &OsRelease) -> Option<&'static str> {
 
 fn vendor() -> Option<String> {
     let mut vendor = String::new();
-    File::open("/sys/class/dmi/id/sys_vendor")
+    misc::open("/sys/class/dmi/id/sys_vendor")
         .and_then(|mut file| file.read_to_string(&mut vendor))
         .ok().map(|_| vendor)
 }

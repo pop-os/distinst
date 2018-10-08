@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
-use chroot::Chroot;
+use process::Chroot;
 use disk::{Bootloader, Disks, FileSystemSupport};
 use os_release::OsRelease;
 
@@ -16,9 +16,9 @@ pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<
     };
 
     // Attempt to run the check-language-support external command.
-    let check_language_support = chroot.command_with_stdout("check_language_support", &[
+    let check_language_support = chroot.command("check_language_support", &[
         "-l", locale, "--show-installed"
-    ]);
+    ]).run_with_stdout();
 
     // If the command executed, get the standard output.
     let output = match check_language_support {
@@ -107,13 +107,8 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
 }
 
 
-pub fn get_required_packages(disks: &Disks, release: &OsRelease) -> Vec<&'static str> {
+pub fn get_required_packages(disks: &Disks, _release: &OsRelease) -> Vec<&'static str> {
     let flags = disks.get_support_flags();
-
-    // Pop!_OS does not need this workaround.
-    if release.name == "Pop!_OS" {
-        return vec![];
-    }
 
     let mut retain = Vec::new();
 

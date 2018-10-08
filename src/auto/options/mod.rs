@@ -46,24 +46,26 @@ impl InstallOptions {
 
             let mut check_partition = |part: &PartitionInfo| -> Option<OS> {
                 if part.is_linux_compatible() {
-                    match part.probe_os() {
-                        Some(os) => {
-                            if let OS::Linux { ref info, ref home, ref efi, ref recovery } = os {
-                                refresh_options.push(RefreshOption {
-                                    os_name:        info.name.clone(),
-                                    os_pretty_name: info.pretty_name.clone(),
-                                    os_version:     info.version.clone(),
-                                    root_part:      get_uuid(part.get_device_path())
-                                        .expect("root device did not have uuid"),
-                                    home_part:      home.clone(),
-                                    efi_part:       efi.clone(),
-                                    recovery_part:  recovery.clone(),
-                                });
-                            }
+                    if let Some(os) = part.probe_os() {
+                        if let OS::Linux { ref info, ref home, ref efi, ref recovery } = os {
+                            refresh_options.push(RefreshOption {
+                                os_name:        info.name.clone(),
+                                os_pretty_name: info.pretty_name.clone(),
+                                os_version:     info.version.clone(),
+                                root_part:      get_uuid(part.get_device_path())
+                                    .expect("root device did not have uuid"),
+                                home_part:      home.clone(),
+                                efi_part:       efi.clone(),
+                                recovery_part:  recovery.clone(),
+                                can_retain_old: if let Some(Ok(used)) = part.sectors_used(512) {
+                                     part.sectors() - used > required_space
+                                } else {
+                                    false
+                                }
+                            });
+                        }
 
-                            return Some(os);
-                        },
-                        None => (),
+                        return Some(os);
                     }
                 }
 
@@ -179,8 +181,8 @@ impl InstallOptions {
 
         let mut alongside_options = Vec::new();
         for (device, data) in other_os {
-            if data.systems.len() == 1 {
-                if required_space < data.sectors_free {
+            if required_space < data.sectors_free {
+                if ! data.systems.is_empty() {
                     alongside_options.push(AlongsideOption {
                         device: device.to_path_buf(),
                         alongside: data.systems[0].clone(),
@@ -190,16 +192,16 @@ impl InstallOptions {
                         }
                     });
                 }
+            }
 
-                if required_space < data.best_free_region.size() {
+            if required_space < data.best_free_region.size() {
+                if ! data.systems.is_empty() {
                     alongside_options.push(AlongsideOption {
                         device: device.to_path_buf(),
                         alongside: data.systems[0].clone(),
                         method: AlongsideMethod::Free(data.best_free_region)
                     });
                 }
-            } else {
-                // TODO: What do we do when there are multiple installed OS's on the same disk?
             }
         }
 

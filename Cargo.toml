@@ -42,6 +42,7 @@ bitflags = "1.0.3"
 cascade = "0.1.2"
 dirs = "1.0.3"
 dbus = "0.6.2"
+sys-mount = "1.0.3"
 
 [dependencies.failure]
 version = "0.1.2"

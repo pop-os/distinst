@@ -464,6 +464,50 @@ pub unsafe extern "C" fn distinst_disks_contains_luks(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disks_get_encrypted_partitions(
+    disks: *mut DistinstDisks,
+    len: *mut libc::c_int,
+) -> *mut *mut DistinstPartition {
+    if null_check(disks).or_else(|_| null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
+    let disks = &mut *(disks as *mut Disks);
+
+    let mut output: Vec<*mut DistinstPartition> = Vec::new();
+    for disk in disks.get_encrypted_partitions_mut().into_iter() {
+        output.push(disk as *mut PartitionInfo as *mut DistinstPartition);
+    }
+
+    *len = output.len() as libc::c_int;
+    Box::into_raw(output.into_boxed_slice()) as *mut *mut DistinstPartition
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_get_partition_by_uuid(
+    disks: *mut DistinstDisks,
+    uuid: *const libc::c_char,
+) -> *mut DistinstPartition {
+    if null_check(disks).is_err() {
+        return ptr::null_mut();
+    }
+
+    let disks = &mut *(disks as *mut Disks);
+
+    match get_str(uuid) {
+        Ok(uuid) => {
+            let disks = &mut *(disks as *mut Disks);
+            eprintln!("finding '{}'", uuid);
+            disks.get_partition_by_uuid_mut(uuid).as_mut_ptr() as *mut DistinstPartition
+        }
+        Err(why) => {
+            eprintln!("libdistinst: uuid is not UTF-8: {}", why);
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disks_list(
     disks: *mut DistinstDisks,
     len: *mut libc::c_int,

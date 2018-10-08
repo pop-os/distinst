@@ -12,6 +12,7 @@ use gen_object_ptr;
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub enum DISTINST_STEP {
+    BACKUP,
     INIT,
     PARTITION,
     EXTRACT,
@@ -23,6 +24,7 @@ impl From<DISTINST_STEP> for Step {
     fn from(step: DISTINST_STEP) -> Self {
         use DISTINST_STEP::*;
         match step {
+            BACKUP => Step::Backup,
             INIT => Step::Init,
             PARTITION => Step::Partition,
             EXTRACT => Step::Extract,
@@ -36,6 +38,7 @@ impl From<Step> for DISTINST_STEP {
     fn from(step: Step) -> Self {
         use DISTINST_STEP::*;
         match step {
+            Step::Backup => BACKUP,
             Step::Init => INIT,
             Step::Partition => PARTITION,
             Step::Extract => EXTRACT,

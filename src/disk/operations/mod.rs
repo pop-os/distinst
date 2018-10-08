@@ -3,7 +3,7 @@
 mod move_and_resize;
 
 use self::move_and_resize::{transform, Coordinates, ResizeOperation};
-use super::external::{mkfs, wipefs};
+use process::external::{mkfs, wipefs};
 use super::*;
 use blockdev;
 use libparted::{
@@ -293,6 +293,7 @@ impl<'a> CreatePartitions<'a> {
                 partition,
                 self.device_path.display()
             );
+
             {
                 let mut device = open_device(self.device_path)?;
                 create_partition(&mut device, partition)?;

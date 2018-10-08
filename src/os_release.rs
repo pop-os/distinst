@@ -1,7 +1,7 @@
-use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::iter::FromIterator;
 use std::path::Path;
+use misc;
 
 lazy_static! {
     pub static ref OS_RELEASE: OsRelease = OsRelease::new().expect("unable to find /etc/os-release");
@@ -44,12 +44,12 @@ pub struct OsRelease {
 
 impl OsRelease {
     pub fn new() -> io::Result<OsRelease> {
-        let file = BufReader::new(File::open("/etc/os-release")?);
+        let file = BufReader::new(misc::open("/etc/os-release")?);
         Ok(OsRelease::from_iter(file.lines().flat_map(|line| line)))
     }
 
     pub fn new_from<P: AsRef<Path>>(path: P) -> io::Result<OsRelease> {
-        let file = BufReader::new(File::open(path)?);
+        let file = BufReader::new(misc::open(&path)?);
         Ok(OsRelease::from_iter(file.lines().flat_map(|line| line)))
     }
 }

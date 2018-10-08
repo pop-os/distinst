@@ -14,6 +14,7 @@ namespace Distinst {
 
     [CCode (cname = "DISTINST_STEP", has_type_id = false)]
     public enum Step {
+        BACKUP,
         INIT,
         PARTITION,
         EXTRACT,
@@ -23,6 +24,7 @@ namespace Distinst {
 
     public const uint8 MODIFY_BOOT_ORDER;
     public const uint8 INSTALL_HARDWARE_SUPPORT;
+    public const uint8 KEEP_OLD_ROOT;
 
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
@@ -78,6 +80,14 @@ namespace Distinst {
         REFRESH,
     }
 
+    [CCode (has_type_id = false, unref_function = "", ref_function = "")]
+    public class AlongsideOption {
+        public unowned uint8[] get_device ();
+        public unowned uint8[] get_os ();
+        public int get_partition ();
+        public uint64 get_sectors_free ();
+    }
+
     /**
      * An "Erase and Install" installation option.
      */
@@ -120,17 +130,25 @@ namespace Distinst {
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class RefreshOption {
         /**
+         * If true, the original system may be kept in a backup directory.
+         */
+        public bool can_retain_old ();
+
+        /**
          * The OS name string obtained from the disk.
          */
         public unowned uint8[] get_os_name ();
+
         /**
          * The OS pretty name obtained from the disk.
          */
         public unowned uint8[] get_os_pretty_name ();
+
         /**
          * The OS version string obtained from the disk.
          */
         public unowned uint8[] get_os_version ();
+
         /**
          * The UUID of the root partition.
          */
@@ -200,11 +218,24 @@ namespace Distinst {
          * flag for each erase option collected.
          */
         public InstallOptions (Disks disks, uint64 required);
+
+        public unowned RecoveryOption? get_alongside_option ();
+
+        public bool has_alongside_options ();
+
+        public unowned AlongsideOption[] get_alongside_options ();
+
         public unowned RecoveryOption? get_recovery_option ();
+
+        public bool has_refresh_options ();
+
         /**
          * Gets a boxed array of refresh installation options that were collected.
          */
         public unowned RefreshOption[] get_refresh_options ();
+
+        public bool has_erase_options ();
+
         /**
          * Gets a boxed array of erase and install options that were collected.
          */
@@ -615,17 +646,17 @@ namespace Distinst {
         /**
          * Gets the partition at the specified location.
          */
-        public unowned Partition get_partition(int partition);
+        public unowned Partition get_partition (int partition);
 
         /**
          * Gets the partition by the partition path.
          */
-        public unowned Partition get_partition_by_path(string path);
+        public unowned Partition get_partition_by_path (string path);
 
         /**
          * Returns a slice of all partitions on this disk.
          */
-        public unowned Partition[] list_partitions();
+        public unowned Partition[] list_partitions ();
 
         /**
          * Adds a new partition to the physical device from a partition builder.
@@ -838,12 +869,9 @@ namespace Distinst {
         public unowned LvmDevice[] list_logical ();
 
         /**
-         * Obtains the physical device at the specified path.
-         *
-         * Will return a null value if the input string is not UTF-8,
-         * or the physical device could not be found.
+         * Obtains a list of encrypted partitions detected in the system.
          */
-        public unowned Disk? get_physical_device (string path);
+        public unowned Partition[] get_encrypted_partitions ();
 
         /**
          * Obtains the logical device with the specified volume group.
@@ -861,6 +889,19 @@ namespace Distinst {
          * or the logical device could not be found.
          */
         public unowned LvmDevice? get_logical_device_within_pv (string volume_group);
+
+        /**
+         * Returns the probed partition with the given UUID string.
+         */
+        public unowned Partition? get_partition_by_uuid (string uuid);
+
+        /**
+         * Obtains the physical device at the specified path.
+         *
+         * Will return a null value if the input string is not UTF-8,
+         * or the physical device could not be found.
+         */
+        public unowned Disk? get_physical_device (string path);
 
         /**
          * To be used after configuring all physical partitions on physical disks,

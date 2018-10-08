@@ -18,8 +18,8 @@ pub use self::sector::Sector;
 
 use super::{Bootloader, DiskError};
 use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType};
+use misc;
 use std::collections::BTreeMap;
-use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
@@ -96,7 +96,7 @@ pub(crate) fn get_size(path: &Path) -> io::Result<u64> {
         Err(_) => path.file_name().expect("device does not have a file name").to_str().unwrap().into(),
     };
 
-    File::open(&["/sys/class/block/", &name, "/size"].concat())
+    misc::open(&["/sys/class/block/", &name, "/size"].concat())
         .and_then(|mut file| {
             let mut buffer = String::new();
             file.read_to_string(&mut buffer)

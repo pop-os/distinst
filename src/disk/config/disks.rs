@@ -1,10 +1,8 @@
-use super::super::external::{
+use process::external::{
     cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
-use super::super::mount::{self, swapoff, umount};
-use super::super::mounts::{MOUNTS};
-use super::super::swaps::{SWAPS};
+use mnt::{swapoff, MOUNTS, SWAPS};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, FileSystemSupport,
     PartitionFlag, PartitionInfo,
@@ -12,8 +10,8 @@ use super::super::{
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PartitionTable, PVS};
 use libparted::{Device, DeviceType};
-use misc::{get_uuid, from_uuid};
-
+use misc::{self, from_uuid, get_uuid, hasher};
+use sys_mount::{unmount, UnmountFlags};
 use FileSystemType::*;
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -39,6 +37,22 @@ impl Disks {
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) {
         self.physical.push(disk);
+    }
+
+    /// Remove disks that aren't relevant to the install.
+    pub(crate) fn remove_untouched_disks(&mut self) {
+        let mut remove = Vec::with_capacity(self.physical.len() - 1);
+
+        for (id, disk) in self.physical.iter().enumerate() {
+            if ! disk.is_being_modified() {
+                debug!("removing {:?} from consideration: no action to apply", disk.get_device_path());
+                remove.push(id);
+            }
+        }
+
+        remove.into_iter().for_each(|id| {
+            self.physical.remove(id);
+        });
     }
 
     pub fn contains_luks(&self) -> bool {
@@ -161,6 +175,11 @@ impl Disks {
         Box::new(self.get_physical_partitions().chain(self.get_logical_partitions()))
     }
 
+    pub fn get_partitions_mut<'a>(&'a mut self) -> Box<Iterator<Item = &'a mut PartitionInfo> + 'a> {
+        Box::new(self.physical.iter_mut().flat_map(|dev| dev.get_partitions_mut())
+            .chain(self.logical.iter_mut().flat_map(|dev| dev.get_partitions_mut())))
+    }
+
     /// Returns a list of device paths which will be modified by this
     /// configuration.
     pub fn get_device_paths_to_modify(&self) -> Vec<PathBuf> {
@@ -202,14 +221,13 @@ impl Disks {
     /// Obtains the partition which contains the given device path
     pub fn get_partition_by_path<P: AsRef<Path>>(&self, target: P) -> Option<&PartitionInfo> {
         self.get_partitions()
-            .find(|part| part.get_device_path() == target.as_ref())
+            .find(|part| misc::canonicalize(part.get_device_path()) == target.as_ref())
     }
 
     /// Obtains the partition which contains the given device path
     pub fn get_partition_by_path_mut<P: AsRef<Path>>(&mut self, target: P) -> Option<&mut PartitionInfo> {
-        self.physical.iter_mut().flat_map(|dev| dev.get_partitions_mut())
-            .chain(self.logical.iter_mut().flat_map(|dev| dev.get_partitions_mut()))
-            .find(|part| part.get_device_path() == target.as_ref())
+        self.get_partitions_mut()
+            .find(|part| misc::canonicalize(part.get_device_path()) == target.as_ref())
     }
 
     pub fn get_partition_by_uuid<U: AsRef<str>>(&self, target: U) -> Option<&PartitionInfo> {
@@ -253,7 +271,7 @@ impl Disks {
                         "unmounting logical volume mounted at {}",
                         mount.display()
                     );
-                    umount(&mount, false).map_err(|why| DiskError::Unmount {
+                    unmount(&mount, UnmountFlags::empty()).map_err(|why| DiskError::Unmount {
                         device: lv,
                         why
                     })?;
@@ -419,7 +437,7 @@ impl Disks {
                         "unmounting device mounted at {}",
                         mount.display()
                     );
-                    mount::umount(&mount, false).map_err(|why| DiskError::Unmount {
+                    unmount(&mount, UnmountFlags::empty()).map_err(|why| DiskError::Unmount {
                         device: device.get_device_path().to_path_buf(),
                         why
                     })?;
@@ -532,6 +550,28 @@ impl Disks {
             .filter(|p| p.filesystem.map_or(false, |fs| fs == FileSystemType::Luks))
             // Commit
             .collect()
+    }
+
+    #[cfg_attr(rustfmt, rustfmt_skip)]
+    pub fn get_encrypted_partitions_mut(&mut self) -> Vec<&mut PartitionInfo> {
+        let mut partitions = Vec::new();
+
+        let physical = &mut self.physical;
+        let logical = &mut self.logical;
+
+        for partition in physical.iter_mut().flat_map(|d| d.get_partitions_mut().iter_mut()) {
+            if partition.filesystem.map_or(false, |fs| fs == FileSystemType::Luks) {
+                partitions.push(partition);
+            }
+        }
+
+        for partition in logical.iter_mut().flat_map(|d| d.get_partitions_mut().iter_mut()) {
+            if partition.filesystem.map_or(false, |fs| fs == FileSystemType::Luks) {
+                partitions.push(partition);
+            }
+        }
+
+        partitions
     }
 
     /// Obtains the paths to the device and partition block paths where the root and EFI
@@ -802,6 +842,8 @@ impl Disks {
             }
         }
 
+        let mut swap_uuids: Vec<u64> = Vec::new();
+
         for (is_unencrypted, luks_parent, partition) in partitions {
             if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
                 let password: Cow<'static, OsStr> =
@@ -839,8 +881,11 @@ impl Disks {
                 if is_unencrypted {
                     match get_uuid(&partition.device_path) {
                         Some(uuid) => {
-                            let unique_id =
-                                generate_unique_id("cryptswap").unwrap_or_else(|_| "cryptswap".into());
+                            let unique_id = generate_unique_id("cryptswap", &swap_uuids)
+                                .unwrap_or_else(|_| "cryptswap".into());
+
+                            swap_uuids.push(hasher(&unique_id));
+
                             crypttab.push(&unique_id);
                             crypttab.push(" UUID=");
                             crypttab.push(&uuid);
@@ -913,7 +958,7 @@ impl Disks {
                         ));
                     }
                 } else if let Some(ref vg) = partition.original_vg {
-                    eprintln!(
+                    info!(
                         "found existing LVM device on {:?}",
                         partition.get_device_path()
                     );

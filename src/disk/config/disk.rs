@@ -1,9 +1,7 @@
-use super::super::mount::{swapoff, umount};
-use super::super::mounts::MOUNTS;
-use super::super::swaps::SWAPS;
+use mnt::{swapoff, MOUNTS, SWAPS};
 use super::super::operations::*;
 use super::super::serial::get_serial;
-use super::super::external::{is_encrypted, pvs};
+use process::external::{is_encrypted, pvs};
 use super::super::{
     check_partition_size, DiskError, DiskExt, Disks, FileSystemType, PartitionError, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType,
@@ -11,14 +9,13 @@ use super::super::{
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::{get_device, open_disk, PVS};
 use libparted::{Device, DeviceType, Disk as PedDisk};
-
+use misc;
 use std::collections::BTreeSet;
-use std::fs::File;
 use std::io::{self, Read};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
-
+use sys_mount::{unmount, UnmountFlags};
 use rayon::prelude::*;
 
 /// Detects a partition on the device, if it exists.
@@ -285,6 +282,15 @@ impl Disk {
     /// Returns the serial of the device, filled in by the manufacturer.
     pub fn get_serial(&self) -> &str { &self.serial }
 
+    pub fn is_being_modified(&self) -> bool {
+        self.partitions.iter().any(|x| {
+            x.bitflags & REMOVE != 0
+                || x.bitflags & FORMAT != 0
+                || x.target.is_some()
+                || x.volume_group.is_some()
+        })
+    }
+
     // Returns true if the device is solid state, or false if it is a spinny disk.
     pub fn is_rotational(&self) -> bool {
         let path = PathBuf::from(
@@ -298,7 +304,7 @@ impl Disk {
             ].concat(),
         );
 
-        File::open(path.join("queue/rotational"))
+        misc::open(path.join("queue/rotational"))
             .ok()
             .and_then(|file| file.bytes().next())
             .map_or(false, |res| res.ok().map_or(false, |byte| byte == b'1'))
@@ -323,7 +329,7 @@ impl Disk {
                     mount.display()
                 );
 
-                umount(mount, false).map_err(|why| {
+                unmount(mount, UnmountFlags::empty()).map_err(|why| {
                     (partition.get_device_path().to_path_buf(), why)
                 })?;
             }
@@ -386,7 +392,7 @@ impl Disk {
 
         for mount in mounts.into_iter().rev() {
             info!("unmounting {}", mount.display());
-            umount(mount, false)?;
+            unmount(mount, UnmountFlags::empty())?;
         }
 
         Ok(())

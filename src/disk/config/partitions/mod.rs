@@ -11,8 +11,9 @@ pub use self::os_detect::OS;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
 use super::PVS;
-use super::super::external::{get_label, is_encrypted};
-use super::super::{LvmEncryption, PartitionError, Mounts, Swaps};
+use process::external::{get_label, is_encrypted};
+use mnt::{MountList, Swaps};
+use super::super::{LvmEncryption, PartitionError};
 use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -206,7 +207,7 @@ impl PartitionInfo {
         }))
     }
 
-    pub(crate) fn collect_extended_information(&mut self, mounts: &Mounts, swaps: &Swaps) {
+    pub(crate) fn collect_extended_information(&mut self, mounts: &MountList, swaps: &Swaps) {
         let device_path = &self.device_path;
         let original_vg = unsafe {
             PVS.as_ref()

@@ -1,12 +1,11 @@
 //! A collection of external commands used throughout the program.
 
-use super::config::lvm::{deactivate_devices, physical_volumes_to_deactivate};
-use super::{FileSystemType, LvmEncryption};
-use disk::mount::{umount, swapoff};
-use disk::{Mounts, Swaps};
+use disk::config::lvm::{deactivate_devices, physical_volumes_to_deactivate};
+use mnt::{swapoff, MountList, Swaps};
+use disk::{FileSystemType, LvmEncryption};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::{File, Permissions};
+use std::fs::Permissions;
 use std::io::Read;
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -14,7 +13,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
+use sys_mount::*;
 use tempdir::TempDir;
+use misc;
 
 /// A generic function for executing a variety external commands.
 fn exec(
@@ -92,6 +93,31 @@ pub(crate) fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S
     })
 }
 
+fn vgdisplay() -> io::Result<Vec<String>> {
+    let mut current_line = String::with_capacity(64);
+    let mut output = Vec::new();
+
+    let mut reader = BufReader::new(
+        Command::new("vgdisplay")
+            .arg("-s")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?
+            .stdout
+            .expect("failed to execute vgdisplay command"),
+    );
+
+    while reader.read_line(&mut current_line)? != 0 {
+        if let Some(dm) = current_line.split_whitespace().next() {
+            output.push(dm[1..dm.len()-1].into());
+        }
+
+        current_line.clear();
+    }
+
+    Ok(output)
+}
+
 pub(crate) fn dmlist() -> io::Result<Vec<String>> {
     let mut current_line = String::with_capacity(64);
     let mut output = Vec::new();
@@ -106,20 +132,17 @@ pub(crate) fn dmlist() -> io::Result<Vec<String>> {
             .expect("failed to execute dmsetup command"),
     );
 
-    // Skip the first line of output
-    let _ = reader.read_line(&mut current_line);
-    current_line.clear();
-
+    // Parse the output of `dmsetup ls`, only taking the first field from each line.
     while reader.read_line(&mut current_line)? != 0 {
-        {
-            let mut fields = current_line.split_whitespace();
-            if let Some(dm) = fields.next() {
-                output.push(dm.into());
-            }
+        if let Some(dm) = current_line.split_whitespace().next() {
+            output.push(dm.into());
         }
 
         current_line.clear();
     }
+
+    // Also add lvm volume groups from `vgdisplay`, which `dmsetup ls` does not list.
+    output.extend_from_slice(&vgdisplay()?);
 
     Ok(output)
 }
@@ -137,6 +160,20 @@ pub(crate) fn encrypted_devices() -> io::Result<Vec<String>> {
             .stdout
             .expect("failed to execute dmsetup command"),
     );
+
+    reader.read_line(&mut current_line)?;
+    if current_line.starts_with("No devices found") {
+        return Ok(Vec::new());
+    }
+
+    {
+        let mut fields = current_line.split_whitespace();
+        if let Some(dm) = fields.next() {
+            output.push(dm.into());
+        }
+    }
+
+    current_line.clear();
 
     while reader.read_line(&mut current_line)? != 0 {
         {
@@ -320,7 +357,7 @@ fn pvremove(physical_volume: &Path) -> io::Result<()> {
 }
 
 fn remove_encrypted_device(device: &Path) -> io::Result<()> {
-    let mounts = Mounts::new().expect("failed to get mounts in deactivate_device_maps");
+    let mounts = MountList::new().expect("failed to get mounts in deactivate_device_maps");
     let swaps = Swaps::new().expect("failed to get swaps in deactivate_device_maps");
     let umount = move |vg: &str| -> io::Result<()> {
         for lv in lvs(vg)? {
@@ -329,7 +366,7 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
                     "libdistinst: unmounting logical volume mounted at {}",
                     mount.display()
                 );
-                umount(&mount, false)?;
+                unmount(&mount, UnmountFlags::empty())?;
             } else if let Ok(lv) = lv.canonicalize() {
                 if swaps.get_swapped(&lv) {
                     swapoff(&lv)?;
@@ -396,7 +433,9 @@ pub(crate) fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Resu
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let _mount = ExternalMount::new(&keydata.0, tmpfs.path(), LAZY)?;
+            let supported = SupportedFilesystems::new()?;
+            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
+                .into_unmount_drop(UnmountFlags::DETACH);
             let keypath = tmpfs.path().join(&enc.physical_volume);
 
             generate_keyfile(&keypath)?;
@@ -440,7 +479,9 @@ pub(crate) fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let _mount = ExternalMount::new(&keydata.0, tmpfs.path(), LAZY)?;
+            let supported = SupportedFilesystems::new()?;
+            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
+                .into_unmount_drop(UnmountFlags::DETACH);
             let keypath = tmpfs.path().join(&enc.physical_volume);
             info!("keypath exists: {}", keypath.is_file());
 
@@ -631,46 +672,14 @@ fn generate_keyfile(path: &Path) -> io::Result<()> {
     info!("generating keyfile at {}", path.display());
     // Generate the key in memory from /dev/urandom.
     let mut key = [0u8; 512];
-    let mut urandom = File::open("/dev/urandom")?;
+    let mut urandom = misc::open("/dev/urandom")?;
     urandom.read_exact(&mut key)?;
 
     // Open the keyfile and write the key, ensuring it is readable only to root.
-    let mut keyfile = File::create(path)?;
+    let mut keyfile = misc::create(path)?;
     keyfile.set_permissions(Permissions::from_mode(0o0400))?;
     keyfile.write_all(&key)?;
     keyfile.sync_all()
-}
-
-pub(crate) const BIND: u8 = 0b01;
-pub(crate) const LAZY: u8 = 0b10;
-
-pub(crate) struct ExternalMount<'a> {
-    dest:  &'a Path,
-    flags: u8,
-}
-
-impl<'a> ExternalMount<'a> {
-    pub(crate) fn new(src: &'a Path, dest: &'a Path, flags: u8) -> io::Result<ExternalMount<'a>> {
-        let args = if flags & BIND != 0 {
-            vec!["--bind".into(), src.into(), dest.into()]
-        } else {
-            vec![src.into(), dest.into()]
-        };
-
-        exec("mount", None, None, &args).map(|_| ExternalMount { dest, flags })
-    }
-}
-
-impl<'a> Drop for ExternalMount<'a> {
-    fn drop(&mut self) {
-        let args = if self.flags & LAZY != 0 {
-            vec!["-l".into(), self.dest.into()]
-        } else {
-            vec![self.dest.into()]
-        };
-
-        let _ = exec("umount", None, None, &args);
-    }
 }
 
 pub(crate) fn remount_rw<P: AsRef<Path>>(path: P) -> io::Result<()> {

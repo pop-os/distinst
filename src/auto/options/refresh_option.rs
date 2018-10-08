@@ -10,6 +10,7 @@ pub struct RefreshOption {
     pub home_part:      Option<String>,
     pub efi_part:       Option<String>,
     pub recovery_part:  Option<String>,
+    pub can_retain_old: bool,
 }
 
 impl fmt::Display for RefreshOption {

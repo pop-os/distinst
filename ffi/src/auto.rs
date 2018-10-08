@@ -1,10 +1,13 @@
 use libc;
 
-use super::{gen_object_ptr, get_str, null_check, DistinstDisks};
-use distinst::auto::{AlongsideMethod, AlongsideOption, EraseOption, InstallOption, InstallOptions,
-    RecoveryOption, RefreshOption};
+use super::{gen_object_ptr, get_str, null_check, DistinstDisks, DISTINST_FILE_SYSTEM_TYPE};
+use distinst::FileSystemType;
+use distinst::auto::{delete_old_install, AlongsideMethod, AlongsideOption, EraseOption, InstallOption,
+    InstallOptions, RecoveryOption, RefreshOption};
 use distinst::Disks;
+use std::ffi::{CStr, OsStr};
 use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::ptr;
 
 #[repr(C)]
@@ -57,6 +60,17 @@ pub unsafe extern "C" fn distinst_alongside_option_get_sectors_free(
 
 #[repr(C)]
 pub struct DistinstRefreshOption;
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_refresh_option_can_retain_old(
+    option: *const DistinstRefreshOption,
+) -> bool {
+    if null_check(option).is_err() {
+        return false;
+    }
+
+    (&*(option as *const RefreshOption)).can_retain_old
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_refresh_option_get_os_name(
@@ -476,6 +490,50 @@ pub unsafe extern "C" fn distinst_install_options_destroy(options: *mut Distinst
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_has_alongside_options(
+    options: *const DistinstInstallOptions
+) -> bool {
+    if null_check(options).is_err() {
+        return false;
+    }
+
+    let options = &*(options as *const InstallOptions);
+    ! options.alongside_options.is_empty ()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_get_alongside_options(
+    options: *const DistinstInstallOptions,
+    len: *mut libc::c_int,
+) -> *mut *const DistinstAlongsideOption {
+    if null_check(options).or_else(|_| null_check(len)).is_err() {
+        return ptr::null_mut();
+    }
+
+    let options = &*(options as *const InstallOptions);
+
+    let mut output: Vec<*const DistinstAlongsideOption> = Vec::new();
+    for option in &options.alongside_options {
+        output.push(option as *const AlongsideOption as *const DistinstAlongsideOption);
+    }
+
+    *len = output.len() as libc::c_int;
+    Box::into_raw(output.into_boxed_slice()) as *mut *const DistinstAlongsideOption
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_has_refresh_options(
+    options: *const DistinstInstallOptions
+) -> bool {
+    if null_check(options).is_err() {
+        return false;
+    }
+
+    let options = &*(options as *const InstallOptions);
+    ! options.refresh_options.is_empty ()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_install_options_get_refresh_options(
     options: *const DistinstInstallOptions,
     len: *mut libc::c_int,
@@ -493,6 +551,18 @@ pub unsafe extern "C" fn distinst_install_options_get_refresh_options(
 
     *len = output.len() as libc::c_int;
     Box::into_raw(output.into_boxed_slice()) as *mut *const DistinstRefreshOption
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_install_options_has_erase_options(
+    options: *const DistinstInstallOptions
+) -> bool {
+    if null_check(options).is_err() {
+        return false;
+    }
+
+    let options = &*(options as *const InstallOptions);
+    ! options.erase_options.is_empty ()
 }
 
 #[no_mangle]

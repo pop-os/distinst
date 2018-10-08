@@ -1,9 +1,9 @@
+use misc;
 use super::super::{
     DiskError, Disks, PartitionBuilder, PartitionInfo,
     PartitionTable, PartitionType, Sector,
 };
 use super::partitions::{check_partition_size, REMOVE};
-use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -94,7 +94,7 @@ pub trait DiskExt {
             })
         };
 
-        File::open(path.join("removable"))
+        misc::open(path.join("removable"))
             .ok()
             .and_then(|file| file.bytes().next())
             .map_or(false, |res| res.ok().map_or(false, |byte| byte == b'1'))
