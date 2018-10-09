@@ -198,11 +198,9 @@ impl<'a> ChrootConfigurator<'a> {
 
     pub fn netresolve(&self) -> io::Result<()> {
         info!("creating /etc/resolv.conf");
-        self.chroot.command("ln", &[
-            "-sf",
-            "../run/resolvconf/resolv.conf",
-            "/etc/resolv.conf"
-        ]).run()
+
+        let resolvconf = "../run/systemd/resolve/stub-resolv.conf";
+        self.chroot.command("ln", &["-sf", resolvconf, "/etc/resolv.conf"]).run()
     }
 
     pub fn recovery(
