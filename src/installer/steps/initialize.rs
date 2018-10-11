@@ -108,7 +108,7 @@ pub fn initialize<F: FnMut(i32)>(
         .map(|(disk, _)| {
             if let Err(why) = disk.unmount_all_partitions_with_target() {
                 error!("unable to unmount partitions");
-                return Err(io::Error::new(io::ErrorKind::Other, format!("{}", why)));
+                return Err(io::Error::new(io::ErrorKind::Other, format!("{:?}: {}", why.0, why.1)));
             }
 
             Ok(())

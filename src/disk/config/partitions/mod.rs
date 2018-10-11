@@ -4,22 +4,22 @@ mod limitations;
 mod os_detect;
 mod usage;
 
-use self::block_info::BlockInfo;
 pub use self::builder::PartitionBuilder;
 pub use self::limitations::check_partition_size;
 pub use self::os_detect::OS;
+use FileSystemType::*;
+use libparted::{Partition, PartitionFlag};
+use misc::get_uuid;
+use mnt::{swapoff, MountList, Swaps};
+use process::external::{get_label, is_encrypted};
+use self::block_info::BlockInfo;
 use self::os_detect::detect_os;
 use self::usage::get_used_sectors;
-use super::PVS;
-use process::external::{get_label, is_encrypted};
-use mnt::{MountList, Swaps};
-use super::super::{LvmEncryption, PartitionError};
-use libparted::{Partition, PartitionFlag};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use FileSystemType::*;
-use misc::get_uuid;
+use super::PVS;
+use super::super::{LvmEncryption, PartitionError};
 
 bitflags! {
     pub struct FileSystemSupport: u8 {
@@ -233,6 +233,18 @@ impl PartitionInfo {
         self.mount_point = mounts.get_mount_point(device_path);
         self.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
         self.original_vg = original_vg;
+    }
+
+    pub(crate) fn deactivate_if_swap(&mut self, swaps: &Swaps) -> Result<(), (PathBuf, io::Error)> {
+        {
+            let path = &self.get_device_path();
+            if swaps.get_swapped(path) {
+                swapoff(path).map_err(|why| { (path.to_path_buf(), why) })?;
+            }
+        }
+        self.mount_point = None;
+        self.flag_disable(SWAPPED);
+        Ok(())
     }
 
     pub(crate) fn flag_is_enabled(&self, flag: u8) -> bool { self.bitflags & flag != 0 }
