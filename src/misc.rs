@@ -1,5 +1,6 @@
 //! An assortment of useful basic functions useful throughout the project.
 
+use sedregex::find_and_replace;
 pub use self::layout::*;
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
@@ -259,6 +260,27 @@ pub(crate) fn zero<P: AsRef<Path>>(device: P, sectors: u64, offset: u64) -> io::
 
             (0..sectors).map(|_| file.write(&zeroed_sector).map(|_| ())).collect()
         })
+}
+
+/// Apply sed expressions on a file, and overwrite it if there was a change.
+pub fn sed<P: AsRef<Path>>(path: P, pattern: &str) -> io::Result<()> {
+    let path = path.as_ref();
+    let sources = String::from_utf8(read(path)?)
+        .map_err(|_| io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{:?} contains non-UTF-8 data", path)
+        ))?;
+
+    let replace = find_and_replace(&sources, pattern)
+        .map_err(|why| io::Error::new(
+            io::ErrorKind::Other,
+            format!("sedregex failure: {:?}", why)
+        ))?;
+
+    match replace {
+        Cow::Borrowed(_) => Ok(()),
+        Cow::Owned(text) => write(&path, &text)
+    }
 }
 
 // TODO: These will be no longer be required once Rust is updated in the repos to 1.26.0
