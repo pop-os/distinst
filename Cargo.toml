@@ -43,6 +43,7 @@ cascade = "0.1.2"
 dirs = "1.0.3"
 dbus = "0.6.2"
 sys-mount = "1.0.3"
+partition-identity = { git = "https://github.com/pop-os/partition-identity" }
 
 [dependencies.failure]
 version = "0.1.2"

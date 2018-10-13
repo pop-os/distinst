@@ -14,6 +14,9 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate fern;
+extern crate gettextrs;
+extern crate iso3166_1;
+extern crate isolang;
 extern crate itertools;
 #[macro_use]
 extern crate lazy_static;
@@ -21,9 +24,7 @@ extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
-extern crate gettextrs;
-extern crate iso3166_1;
-extern crate isolang;
+extern crate partition_identity;
 extern crate rand;
 extern crate rayon;
 extern crate raw_cpuid;

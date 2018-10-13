@@ -2,6 +2,7 @@ use envfile::EnvFile;
 use disk::Disks;
 use libc;
 use os_release::OsRelease;
+use partition_identity::{PartitionID, PartitionIDVariant};
 use std::fs::{self, Permissions};
 use std::io::{self, Write};
 use std::os::unix::ffi::OsStrExt;

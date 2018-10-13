@@ -1,4 +1,7 @@
+
+use partition_identity::{PartitionID, PartitionIDVariant};
 use std::ffi::{OsStr, OsString};
+use std::io;
 use std::path::{Path, PathBuf};
 use super::FileSystemType;
 
@@ -6,7 +9,7 @@ use super::FileSystemType;
 /// partition.
 #[derive(Debug, PartialEq)]
 pub(crate) struct BlockInfo {
-    pub uuid:    String,
+    pub uid:     PartitionID,
     mount:       Option<PathBuf>,
     pub fs:      &'static str,
     pub options: String,
@@ -16,12 +19,16 @@ pub(crate) struct BlockInfo {
 
 impl BlockInfo {
     pub fn new(
-        uuid: String,
+        path: &Path,
         fs: FileSystemType,
         target: Option<&Path>
-    ) -> BlockInfo {
-        BlockInfo {
-            uuid,
+    ) -> Option<Self> {
+        Some(BlockInfo {
+            uid: if fs == FileSystemType::Fat16 || fs == FileSystemType::Fat32 {
+                PartitionID::by_id(PartitionIDVariant::PartUUID, path)?
+            } else {
+                PartitionID::by_id(PartitionIDVariant::UUID, path)?
+            },
             mount: if fs == FileSystemType::Swap {
                 None
             } else {
@@ -35,7 +42,7 @@ impl BlockInfo {
             options: fs.get_preferred_options().into(),
             dump: false,
             pass: false,
-        }
+        })
     }
 
     pub fn mount(&self) -> &OsStr {
@@ -50,6 +57,7 @@ impl BlockInfo {
     }
 
     pub fn write_fstab(&self, fstab: &mut OsString) {
+        match 
         fstab.reserve_exact(self.len() + 16);
         fstab.push("UUID=");
         fstab.push(&self.uuid);
