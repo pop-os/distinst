@@ -271,7 +271,7 @@ pub fn sed<P: AsRef<Path>>(path: P, pattern: &str) -> io::Result<()> {
             format!("{:?} contains non-UTF-8 data", path)
         ))?;
 
-    let replace = find_and_replace(&sources, pattern)
+    let replace = find_and_replace(pattern, &sources)
         .map_err(|why| io::Error::new(
             io::ErrorKind::Other,
             format!("sedregex failure: {:?}", why)
