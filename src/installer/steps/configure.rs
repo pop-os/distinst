@@ -210,6 +210,10 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
             None => &[]
         };
 
+        // Add the retained packages to the list of packages to be installed.
+        // There are some packages that Ubuntu will still remove even if they've been removed from the removal list.
+        install_pkgs.extend_from_slice(&retain);
+
         // Filter the discovered language packs and retained packages from the remove list.
         let remove = remove_pkgs.into_iter()
             .map(AsRef::as_ref)
@@ -217,10 +221,6 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
             .collect::<Vec<&str>>();
 
         callback(35);
-
-        // Add the retained packages to the list of packages to be installed.
-        // There are some packages that Ubuntu will still remove even if they've been removed from the removal list.
-        install_pkgs.extend_from_slice(&retain);
 
         // TODO: use a macro to make this more manageable.
         let chroot = ChrootConfigurator::new(chroot);

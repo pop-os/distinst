@@ -107,7 +107,7 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
 }
 
 
-pub fn get_required_packages(disks: &Disks, _release: &OsRelease) -> Vec<&'static str> {
+pub fn get_required_packages(disks: &Disks, release: &OsRelease) -> Vec<&'static str> {
     let flags = disks.get_support_flags();
 
     let mut retain = Vec::new();
@@ -138,6 +138,10 @@ pub fn get_required_packages(disks: &Disks, _release: &OsRelease) -> Vec<&'stati
 
     if flags.contains(FileSystemSupport::LUKS) {
         retain.extend_from_slice(&["cryptsetup", "cryptsetup-bin"]);
+        match (release.id.as_str(), release.version.as_str()) {
+            ("ubuntu", "18.10") => retain.extend_from_slice(&["cryptsetup-initramfs", "cryptsetup-run"]),
+            _ => ()
+        }
     }
 
     if flags.intersects(FileSystemSupport::LVM | FileSystemSupport::LUKS) {
