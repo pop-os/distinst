@@ -27,6 +27,7 @@ extern crate isolang;
 extern crate rand;
 extern crate rayon;
 extern crate raw_cpuid;
+extern crate sedregex;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_xml_rs;

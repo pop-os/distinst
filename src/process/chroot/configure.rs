@@ -90,11 +90,8 @@ impl<'a> ChrootConfigurator<'a> {
     pub fn cdrom_disable(&self) -> io::Result<()> {
         if Path::new("/cdrom").exists() {
             info!("disabling apt-cdrom from /etc/apt/sources.list");
-            self.chroot.command("apt-cdrom", &cascade! {
-                Vec::with_capacity(APT_OPTIONS.len() + 1);
-                ..extend_from_slice(APT_OPTIONS);
-                ..push("add");
-            }).run()
+            let path = self.chroot.path.join("etc/apt/sources.list");
+            misc::sed(&path, "s/deb cdrom:/# deb cdrom:/g")
         } else {
             Ok(())
         }
