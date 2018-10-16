@@ -2,7 +2,7 @@ use process::external::{
     cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
 };
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
-use mnt::{swapoff, MOUNTS, SWAPS};
+use mnt::{swapoff, Swaps, MOUNTS};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, FileSystemSupport,
     PartitionFlag, PartitionInfo,
@@ -263,7 +263,7 @@ impl Disks {
     /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
         let mounts = MOUNTS.read().expect("failed to get mounts in deactivate_device_maps");
-        let swaps = SWAPS.read().expect("failed to get swaps in deactivate_device_maps");
+        let swaps = Swaps::new().expect("failed to get swaps in deactivate_device_maps");
         let umount = move |vg: &str| -> Result<(), DiskError> {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
                 if let Some(mount) = mounts.get_mount_point(&lv) {
@@ -464,7 +464,7 @@ impl Disks {
         // Collect all of the extended partition information for each contained
         // partition in parallel.
         let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
-        let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+        let swaps = Swaps::new().expect("failed to get swaps in Disk::new");
 
         unsafe {
             if PVS.is_none() {
