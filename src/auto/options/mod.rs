@@ -12,12 +12,11 @@ pub use self::erase_option::*;
 pub use self::recovery_option::*;
 pub use self::refresh_option::*;
 
-use std::path::PathBuf;
-
-use super::super::*;
-use misc::get_uuid;
-use std::collections::HashMap;
+use partition_identity::PartitionID;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use super::super::*;
 
 #[derive(Debug)]
 pub struct InstallOptions {
@@ -52,8 +51,8 @@ impl InstallOptions {
                                 os_name:        info.name.clone(),
                                 os_pretty_name: info.pretty_name.clone(),
                                 os_version:     info.version.clone(),
-                                root_part:      get_uuid(part.get_device_path())
-                                    .expect("root device did not have uuid"),
+                                root_part:      PartitionID::get_uuid(part.get_device_path())
+                                    .expect("root device did not have uuid").id,
                                 home_part:      home.clone(),
                                 efi_part:       efi.clone(),
                                 recovery_part:  recovery.clone(),

@@ -1,10 +1,11 @@
 use std::fmt;
 use std::mem;
 
-use super::super::super::*;
 use FileSystemType::*;
-use super::{AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
 use misc;
+use partition_identity::PartitionID;
+use super::{AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
+use super::super::super::*;
 
 pub enum InstallOption<'a> {
     Alongside {
@@ -42,10 +43,10 @@ impl<'a> fmt::Debug for InstallOption<'a> {
     }
 }
 
-fn set_mount_by_uuid(disks: &mut Disks, uuid: &str, mount: &str) -> Result<(), InstallOptionError> {
+fn set_mount_by_uuid(disks: &mut Disks, uuid: String, mount: &str) -> Result<(), InstallOptionError> {
     disks
-        .get_partition_by_uuid_mut(uuid)
-        .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.into() })
+        .get_partition_by_uuid_mut(uuid.clone())
+        .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.clone() })
         .map(|part| {
             part.set_mount(mount.into());
             ()
@@ -235,7 +236,7 @@ fn alongside_config(
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
     {
-        let root = disks.get_partition_by_uuid_mut(&option.root_part).ok_or(
+        let root = disks.get_partition_by_uuid_mut(option.root_part.clone()).ok_or(
             InstallOptionError::PartitionNotFound {
                 uuid: option.root_part.clone(),
             },
@@ -243,15 +244,15 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
         root.set_mount("/".into());
     }
 
-    if let Some(ref home) = option.home_part {
+    if let Some(home) = option.home_part.clone() {
         set_mount_by_uuid(disks, home, "/home")?;
     }
 
-    if let Some(ref efi) = option.efi_part {
+    if let Some(efi) = option.efi_part.clone() {
         set_mount_by_uuid(disks, efi, "/boot/efi")?;
     }
 
-    if let Some(ref recovery) = option.recovery_part {
+    if let Some(recovery) = option.recovery_part.clone() {
         set_mount_by_uuid(disks, recovery, "/recovery")?;
     }
 
@@ -273,7 +274,8 @@ fn recovery_config(
     };
 
     let mut recovery_device: Disk = {
-        let mut recovery_path: PathBuf = misc::from_uuid(&option.recovery_uuid)
+        let mut recovery_path = option.parse_recovery_id()
+            .get_device_path()
             .ok_or_else(|| InstallOptionError::PartitionNotFound {
                 uuid: option.recovery_uuid.clone()
             })?;
@@ -296,11 +298,11 @@ fn recovery_config(
 
     {
         let recovery_device = &mut recovery_device;
-        let lvm_part: Option<PathBuf> = option.luks_uuid.as_ref()
-            .and_then(|ref uuid| misc::from_uuid(uuid));
+        let lvm_part: Option<PathBuf> = option.luks_uuid.clone()
+            .and_then(|uuid| PartitionID::new_uuid(uuid).get_device_path());
 
         if let Some(ref uuid) = option.efi_uuid {
-            let path = &misc::from_uuid(uuid).expect("no uuid for efi part");
+            let path = option.parse_efi_id().unwrap().get_device_path().expect("no uuid for efi part");
             recovery_device
                 .get_partitions_mut()
                 .iter_mut()
@@ -311,7 +313,7 @@ fn recovery_config(
 
         {
             let uuid = &option.recovery_uuid;
-            let path = &misc::from_uuid(uuid).expect("no uuid for recovery part");
+            let path = &option.parse_recovery_id().get_device_path().expect("no uuid for recovery part");
             recovery_device
                 .get_partitions_mut()
                 .iter_mut()
@@ -328,9 +330,11 @@ fn recovery_config(
 
             part
         } else {
-            misc::from_uuid(&option.root_uuid).ok_or_else(|| InstallOptionError::PartitionNotFound {
-                uuid: option.root_uuid.clone()
-            })?
+            PartitionID::new_uuid(option.root_uuid.clone())
+                .get_device_path()
+                .ok_or_else(|| InstallOptionError::PartitionNotFound {
+                    uuid: option.root_uuid.clone()
+                })?
         };
 
         let id = {

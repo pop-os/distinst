@@ -383,20 +383,12 @@ impl PartitionInfo {
             return None;
         }
 
-        let result = BlockInfo::new(
-            &self.device_path,
-            self.filesystem.expect("unable to get block info due to lack of file system"),
+        let fs = self.filesystem.expect("unable to get block info due to lack of file system");
+        Some(BlockInfo::new(
+            BlockInfo::get_partition_id(&self.device_path, fs)?,
+            fs,
             self.target.as_ref().map(|p| p.as_path())
-        );
-
-        if result.is_none() {
-            error!(
-                "{}: no UUID associated with device",
-                self.device_path.display()
-            );
-        }
-
-        result
+        ))
     }
 }
 

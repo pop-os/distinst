@@ -3,7 +3,8 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use tempdir::TempDir;
 use os_release::OsRelease;
-use misc::{self, get_uuid};
+use misc;
+use partition_identity::PartitionID;
 use sys_mount::*;
 
 /// Adds a new map method for boolean types.
@@ -62,7 +63,8 @@ pub fn detect_os(device: &Path, fs: FileSystemType) -> Option<OS> {
 fn find_linux_parts(base: &Path) -> (Option<String>, Option<String>, Option<String>) {
     let parse_fstab_mount = move |mount: &str| -> Option<String> {
         if mount.starts_with('/') {
-            get_uuid(Path::new(mount))
+            PartitionID::get_uuid(mount.to_owned())
+                .map(|id| id.id)
         } else if mount.starts_with("UUID") {
             let (_, uuid) = mount.split_at(5);
             Some(uuid.into())

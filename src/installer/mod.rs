@@ -201,7 +201,7 @@ impl Installer {
             info!("installing while retaining home");
 
             let old_root = disks
-                .get_partition_by_uuid(old_root_uuid)
+                .get_partition_by_uuid(old_root_uuid.clone())
                 .ok_or(ReinstallError::NoRootPartition)?;
 
             let new_root = disks

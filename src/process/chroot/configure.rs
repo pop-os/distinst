@@ -1,8 +1,10 @@
-use {Chroot, Command, Config};
+use {Chroot, Config};
+use misc;
+use mnt::MountList;
+use partition_identity::PartitionID;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
-use misc;
 use sys_mount::*;
 
 const APT_OPTIONS: &[&str] = &[
@@ -207,6 +209,7 @@ impl<'a> ChrootConfigurator<'a> {
         root_uuid: &str,
         luks_uuid: &str
     ) -> io::Result<()> {
+        info!("creating recovery partition");
         let recovery_path = self.chroot.path.join("recovery");
         let efi_path = self.chroot.path.join("boot/efi");
 
@@ -225,27 +228,25 @@ impl<'a> ChrootConfigurator<'a> {
             return Ok(());
         }
 
-        info!("creating recovery partition");
-        let recovery_uuid = Command::new("findmnt")
-            .args(&["-n", "-o", "UUID"])
-            .arg(&recovery_path)
-            .run_with_stdout()?;
-        let recovery_uuid = recovery_uuid.trim();
+        let mounts = MountList::new()?;
+        let recovery_mount = mounts.find_mount(&recovery_path)
+            .expect("/recovery is mount not associated with block device");
+        let efi_mount = mounts.find_mount(&efi_path)
+            .expect("efi is mount not associated with block device");
+        let cdrom_mount = mounts.find_mount("/cdrom")
+            .expect("/cdrom is mount not associated with block device");
 
-        let efi_uuid = Command::new("findmnt")
-            .args(&["-n", "-o", "UUID"])
-            .arg(&efi_path)
-            .run_with_stdout()?;
-        let efi_uuid = efi_uuid.trim();
+        let recovery_uuid = PartitionID::get_uuid(&recovery_mount)
+            .expect("/recovery does not have a UUID");
+        let recovery_partuuid = PartitionID::get_partuuid(&recovery_mount)
+            .expect("/recovery does not have a PartUUID");
+        let efi_partuuid = PartitionID::get_partuuid(&efi_mount)
+            .expect("efi partiton does not have a PartUUID");
+        let cdrom_uuid = PartitionID::get_uuid(&cdrom_mount)
+            .expect("/cdrom does not have a UUID");
 
-        let cdrom_uuid = Command::new("findmnt")
-            .args(&["-n", "-o", "UUID", "/cdrom"])
-            .run_with_stdout()?;
-        let cdrom_uuid = cdrom_uuid.trim();
-
-        let casper = ["casper-", recovery_uuid].concat();
-        let recovery = ["Recovery-", recovery_uuid].concat();
-
+        let casper = ["casper-", &recovery_uuid.id].concat();
+        let recovery = ["Recovery-", &recovery_uuid.id].concat();
         if recovery_uuid != cdrom_uuid {
             self.chroot.command("rsync", &[
                 "-KLavc", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"
@@ -262,8 +263,8 @@ LANG={}
 KBD_LAYOUT={}
 KBD_MODEL={}
 KBD_VARIANT={}
-EFI_UUID={}
-RECOVERY_UUID={}
+EFI_UUID=PARTUUID={}
+RECOVERY_UUID=PARTUUID={}
 ROOT_UUID={}
 LUKS_UUID={}
 OEM_MODE=0
@@ -273,8 +274,8 @@ OEM_MODE=0
             config.keyboard_layout,
             config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
             config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
-            efi_uuid,
-            recovery_uuid,
+            efi_partuuid.id,
+            recovery_partuuid.id,
             root_uuid,
             luks_uuid,
         );

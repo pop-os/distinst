@@ -1,13 +1,10 @@
 use libc;
 
-use super::{gen_object_ptr, get_str, null_check, DistinstDisks, DISTINST_FILE_SYSTEM_TYPE};
-use distinst::FileSystemType;
-use distinst::auto::{delete_old_install, AlongsideMethod, AlongsideOption, EraseOption, InstallOption,
+use super::{gen_object_ptr, get_str, null_check, DistinstDisks};
+use distinst::auto::{AlongsideMethod, AlongsideOption, EraseOption, InstallOption,
     InstallOptions, RecoveryOption, RefreshOption};
 use distinst::Disks;
-use std::ffi::{CStr, OsStr};
 use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
 use std::ptr;
 
 #[repr(C)]

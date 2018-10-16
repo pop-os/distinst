@@ -519,7 +519,7 @@ dependencies = [
 [[package]]
 name = "partition-identity"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/partition-identity#139a3e137a674cc1158746cf4a015bcc30f6e06b"
+source = "git+https://github.com/pop-os/partition-identity#1702e86166c4552429bfe8ae2f5a080f222c1c11"
 
 [[package]]
 name = "pbr"

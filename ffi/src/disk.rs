@@ -497,8 +497,7 @@ pub unsafe extern "C" fn distinst_disks_get_partition_by_uuid(
     match get_str(uuid) {
         Ok(uuid) => {
             let disks = &mut *(disks as *mut Disks);
-            eprintln!("finding '{}'", uuid);
-            disks.get_partition_by_uuid_mut(uuid).as_mut_ptr() as *mut DistinstPartition
+            disks.get_partition_by_uuid_mut(uuid.to_owned()).as_mut_ptr() as *mut DistinstPartition
         }
         Err(why) => {
             eprintln!("libdistinst: uuid is not UTF-8: {}", why);
