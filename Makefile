@@ -49,13 +49,18 @@ update:
 	mkdir -p .cargo
 	cp $< $@
 
-vendor: .cargo/config
+vendor.tar.xz:
 	cargo vendor
-	touch vendor
+	tar pcfJ vendor.tar.xz vendor
+	rm -rf vendor
+
+vendor: .cargo/config vendor.tar.xz
 
 $(BINARY): $(SRC)
-	if [ -d vendor ]; \
+	if [ -f vendor.tar.xz ]; \
 	then \
+		tar pxf vendor.tar.xz; \
+		rm vendor.tar.xz; \
 		cargo build --frozen --manifest-path cli/Cargo.toml --release; \
 	else \
 		cargo build --manifest-path cli/Cargo.toml --release; \
