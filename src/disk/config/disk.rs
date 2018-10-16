@@ -1,4 +1,4 @@
-use mnt::{MOUNTS, SWAPS};
+use mnt::{Swaps, MOUNTS};
 use super::super::operations::*;
 use super::super::serial::get_serial;
 use process::external::{is_encrypted, pvs};
@@ -31,7 +31,7 @@ pub(crate) fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
                 }
 
                 let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
-                let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+                let swaps = Swaps::new().expect("failed to get swaps in Disk::new");
 
                 match PartitionInfo::new_from_ped(&part) {
                     Ok(mut part) => {
@@ -189,7 +189,7 @@ impl Disk {
         });
 
         let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
-        let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+        let swaps = Swaps::new().expect("failed to get swaps in Disk::new");
 
         Ok(Disk {
             model_name,
@@ -317,7 +317,7 @@ impl Disk {
             self.path().display()
         );
 
-        let swaps = SWAPS.read().expect("failed to get swaps in unmount_all_partitions");
+        let swaps = Swaps::new().expect("failed to get swaps in unmount_all_partitions");
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
                 if mount == Path::new("/cdrom") || mount == Path::new("/") {
@@ -349,7 +349,7 @@ impl Disk {
         );
 
         let mut mounts = BTreeSet::new();
-        let swaps = SWAPS.read()
+        let swaps = Swaps::new()
             .expect("failed to get swaps in unmount_all_partitions_with_target");
         let mountstab = MOUNTS.read()
             .expect("failed to get mounts in unmount_all_partitions_with_target");

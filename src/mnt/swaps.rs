@@ -5,14 +5,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use misc::{self, watch_and_set};
 
-lazy_static! {
-    pub(crate) static ref SWAPS: Arc<RwLock<Swaps>> = {
-        let swaps = Arc::new(RwLock::new(Swaps::new().unwrap()));
-        watch_and_set(swaps.clone(), "/proc/swaps", || Swaps::new().ok());
-        swaps
-    };
-}
-
 #[derive(Debug, PartialEq)]
 pub struct SwapInfo {
     pub source:   PathBuf,
