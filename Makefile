@@ -56,6 +56,9 @@ vendor.tar.xz:
 
 vendor: .cargo/config vendor.tar.xz
 
+tests:
+	cargo test
+
 $(BINARY): $(SRC)
 	if [ -f vendor.tar.xz ]; \
 	then \
