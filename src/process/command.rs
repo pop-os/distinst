@@ -57,14 +57,15 @@ impl Command {
 
         self.0.stdout(Stdio::piped());
 
-        let child = self.0.spawn().map_err(|why| Error::new(
-            ErrorKind::Other,
-            format!("chroot command failed to spawn: {}", why)
-        ))?;
+        let child = self.0.spawn()
+            .map_err(|why| Error::new(
+                why.kind(),
+                format!("failed to wait for process {}: {}", cmd, why)
+            ))?;
 
         child.wait_with_output()
             .map_err(|why| Error::new(
-                ErrorKind::Other,
+                why.kind(),
                 format!("failed to get output of {}: {}", cmd, why)
             ))
             .and_then(|output| {
@@ -77,20 +78,23 @@ impl Command {
     }
 
     pub fn run(&mut self) -> io::Result<()> {
-        info!("running {:?}", self.0);
+        let cmd = format!("{:?}", self.0);
+        info!("running {}", cmd);
 
-        let mut child = self.0.spawn().map_err(|why| Error::new(
-            ErrorKind::Other,
-            format!("chroot command failed to spawn: {}", why)
-        ))?;
+        let mut child = self.0.spawn()
+            .map_err(|why| Error::new(
+                why.kind(),
+                format!("failed to spawn process {}: {}", cmd, why)
+            ))?;
 
         Self::redirect(child.stdout.take(), |msg| info!("{}", msg));
         Self::redirect(child.stderr.take(), |msg| warn!("{}", msg));
 
-        let status = child.wait().map_err(|why| Error::new(
-            ErrorKind::Other,
-            format!("waiting on chroot child process failed: {}", why)
-        ))?;
+        let status = child.wait()
+            .map_err(|why| Error::new(
+                why.kind(),
+                format!("failed to wait for process {}: {}", cmd, why)
+            ))?;
 
         if status.success() {
             Ok(())
@@ -100,5 +104,27 @@ impl Command {
                 format!("command failed with exit status: {}", status)
             ))
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_not_found() {
+        assert!(Command::new("asdfasdf").run().unwrap_err().kind() == io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn command_with_output() {
+        assert_eq!(
+            Command::new("echo")
+                .arg("Hello, Command!")
+                .run_with_stdout()
+                .unwrap(),
+            "Hello, Command!\n".to_owned()
+        );
     }
 }
