@@ -98,6 +98,11 @@ impl Command {
 
         if status.success() {
             Ok(())
+        } else if let Some(127) = status.code() {
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("command {} was not found", cmd)
+            ))
         } else {
             Err(io::Error::new(
                 io::ErrorKind::Other,
