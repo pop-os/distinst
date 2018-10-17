@@ -1,4 +1,4 @@
-use {Chroot, Config};
+use {Chroot, Command, Config};
 use misc;
 use mnt::MountList;
 use partition_identity::PartitionID;
@@ -233,8 +233,6 @@ impl<'a> ChrootConfigurator<'a> {
             .expect("/recovery is mount not associated with block device");
         let efi_mount = mounts.find_mount(&efi_path)
             .expect("efi is mount not associated with block device");
-        let cdrom_mount = mounts.find_mount("/cdrom")
-            .expect("/cdrom is mount not associated with block device");
 
         let recovery_uuid = PartitionID::get_uuid(&recovery_mount)
             .expect("/recovery does not have a UUID");
@@ -242,12 +240,15 @@ impl<'a> ChrootConfigurator<'a> {
             .expect("/recovery does not have a PartUUID");
         let efi_partuuid = PartitionID::get_partuuid(&efi_mount)
             .expect("efi partiton does not have a PartUUID");
-        let cdrom_uuid = PartitionID::get_uuid(&cdrom_mount)
-            .expect("/cdrom does not have a UUID");
+
+        let cdrom_uuid = Command::new("findmnt")
+            .args(&["-n", "-o", "UUID", "/cdrom"])
+            .run_with_stdout()?;
+        let cdrom_uuid = cdrom_uuid.trim();
 
         let casper = ["casper-", &recovery_uuid.id].concat();
         let recovery = ["Recovery-", &recovery_uuid.id].concat();
-        if recovery_uuid != cdrom_uuid {
+        if recovery_uuid.id != cdrom_uuid {
             self.chroot.command("rsync", &[
                 "-KLavc", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"
             ]).run()?;
