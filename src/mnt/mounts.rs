@@ -85,10 +85,17 @@ impl MountList {
         Self::parse_from(file.lines())
     }
 
-    pub(crate) fn get_mount_point(&self, path: &Path) -> Option<PathBuf> {
+    pub(crate) fn find_mount<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         self.0
             .iter()
-            .find(|mount| mount.source == path)
+            .find(|mount| mount.dest == path.as_ref())
+            .map(|mount| mount.source.clone())
+    }
+
+    pub(crate) fn get_mount_point<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
+        self.0
+            .iter()
+            .find(|mount| mount.source == path.as_ref())
             .map(|mount| mount.dest.clone())
     }
 

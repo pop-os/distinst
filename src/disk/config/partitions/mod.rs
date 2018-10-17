@@ -9,7 +9,6 @@ pub use self::limitations::check_partition_size;
 pub use self::os_detect::OS;
 use FileSystemType::*;
 use libparted::{Partition, PartitionFlag};
-use misc::get_uuid;
 use mnt::{swapoff, MountList, Swaps};
 use process::external::{get_label, is_encrypted};
 use self::block_info::BlockInfo;
@@ -384,21 +383,12 @@ impl PartitionInfo {
             return None;
         }
 
-        let result = get_uuid(&self.device_path).map(|uuid| {
-            let fs = self.filesystem
-                .expect("unable to get block info due to lack of file system");
-
-            BlockInfo::new(uuid, fs, self.target.as_ref().map(|p| p.as_path()))
-        });
-
-        if result.is_none() {
-            error!(
-                "{}: no UUID associated with device",
-                self.device_path.display()
-            );
-        }
-
-        result
+        let fs = self.filesystem.expect("unable to get block info due to lack of file system");
+        Some(BlockInfo::new(
+            BlockInfo::get_partition_id(&self.device_path, fs)?,
+            fs,
+            self.target.as_ref().map(|p| p.as_path())
+        ))
     }
 }
 
