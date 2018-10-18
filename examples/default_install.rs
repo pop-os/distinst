@@ -32,6 +32,7 @@ fn main() {
         keyboard_variant: None,
         old_root:         None,
         timezone:         None,
+        fullname:         None,
         username:         None,
         password:         None,
         lang:             "en_US.UTF-8".into(),

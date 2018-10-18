@@ -101,7 +101,7 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     /// Create a new user account.
-    pub fn create_user(&self, user: &str, pass: Option<&str>) -> io::Result<()> {
+    pub fn create_user(&self, user: &str, pass: Option<&str>, fullname: Option<&str>) -> io::Result<()> {
         self.chroot.command("useradd", &["-m", "-G", "adm,sudo", user]).run()?;
 
         if let Some(pass) = pass {
@@ -332,7 +332,8 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
     }
 
     pub fn timezone(&self, region: &Region) -> io::Result<()> {
-        region.install(&self.chroot.path)
+        let args: &[&str] = &[];
+        self.chroot.command("ln", args).arg(region.path()).arg("/etc/fstab").run()
     }
 
     pub fn update_initramfs(&self) -> io::Result<()> {

@@ -49,6 +49,7 @@ pub struct Config<'a> {
     pub remove: String,
     /// The archive (`tar` or `squashfs`) which contains the base system.
     pub squashfs: String,
+    pub fullname: Option<String>,
     pub username: Option<String>,
     pub password: Option<String>,
     pub timezone: Option<&'a Region>,

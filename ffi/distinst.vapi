@@ -36,6 +36,10 @@ namespace Distinst {
         string lang;
         string remove;
         string squashfs;
+        string? fullname;
+        string? username;
+        string? password;
+        unowned Region? timezone;
         uint8 flags;
     }
 

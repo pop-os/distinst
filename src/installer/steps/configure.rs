@@ -252,10 +252,12 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
                 }
 
                 if let Some(ref user) = config.username {
+                    let name = config.fullname.as_ref().map(|x| x.as_str());
                     let pass = config.password.as_ref().map(|x| x.as_str());
-                    useradd = chroot.create_user(user, pass);
+                    useradd = chroot.create_user(user, pass, name);
                 }
             });
+
             // Apt takes so long that it needs to run by itself.
             s.spawn(|_| {
                 apt_install = chroot.cdrom_add()

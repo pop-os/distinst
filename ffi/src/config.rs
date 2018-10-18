@@ -16,6 +16,7 @@ pub struct DistinstConfig {
     lang:             *const libc::c_char,
     remove:           *const libc::c_char,
     squashfs:         *const libc::c_char,
+    fullname:         *const libc::c_char,
     username:         *const libc::c_char,
     password:         *const libc::c_char,
     timezone:         *const DistinstRegion,
@@ -33,6 +34,7 @@ impl DistinstConfig {
             keyboard_variant: get_str(self.keyboard_variant).ok().map(String::from),
             old_root:         get_str(self.old_root).ok().map(String::from),
             remove:           get_str(self.remove)?.to_string(),
+            fullname:         get_str(self.fullname).ok().map(String::from),
             username:         get_str(self.username).ok().map(String::from),
             password:         get_str(self.password).ok().map(String::from),
             timezone:         if self.timezone.is_null() {

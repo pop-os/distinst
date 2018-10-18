@@ -304,6 +304,7 @@ fn main() {
                 remove:           remove.into(),
                 squashfs:         squashfs.into(),
                 timezone:         None,
+                fullname:         None,
                 username:         None,
                 password:         None
             },

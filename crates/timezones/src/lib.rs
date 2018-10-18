@@ -65,6 +65,10 @@ impl Region {
         &self.name
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn install(&self, dest: &Path) -> io::Result<()> {
         let timezone = dest.join("etc/timezone");
         fs::remove_file(&timezone)?;
