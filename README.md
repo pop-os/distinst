@@ -13,7 +13,7 @@ can be used to perform installs using files from the Pop! ISO.
 
 ### GTK
 
- - [elementary Installer](https://github.com/elementary/installer) (Vala)
+- [elementary Installer](https://github.com/elementary/installer) (Vala)
 
 ## Capabilities
 
@@ -84,23 +84,23 @@ Based on whether the image is running on a system that is EFI or not, the bootlo
 
 ## Build Instructions
 
-In order to build `distinst` on Ubuntu, you will need to follow these instructions:
+In order to build `distinst` on Pop!, you will need to follow these instructions:
 
-```
-# Install clang
-sudo apt install clang
+```sh
+# Install dependencies
+sudo apt build-dep distinst
 
-# Install libparted
-sudo apt install libparted-dev
-
-# Install Rust
-curl https://sh.rustup.rs -sSf | sh
+# Build in debug mode
+# make all DEBUG=1
 
 # Build in release mode
 make
 
-# Install
-sudo make install
+# Install in release mode
+sudo make install prefix=/usr
+
+# Install in debug mode
+# sudo make install prefix=/usr DEBUG=1
 
 # Uninstall
 sudo make uninstall
@@ -117,7 +117,7 @@ These files will be placed in /usr/local when installed, and `pkg-config --cflag
 
 In order to produce a source package, you must run the following commands:
 
-```
+```sh
 # Install cargo-vendor
 cargo install cargo-vendor
 

@@ -105,6 +105,7 @@ impl<'a> Command<'a> {
                 format!("failed to spawn process {}: {}", cmd, why)
             ))?;
 
+        self.stdin_redirect(&mut child)?;
         Self::redirect(child.stdout.take(), |msg| info!("{}", msg));
         Self::redirect(child.stderr.take(), |msg| warn!("{}", msg));
 
@@ -113,8 +114,6 @@ impl<'a> Command<'a> {
                 why.kind(),
                 format!("failed to wait for process {}: {}", cmd, why)
             ))?;
-        
-        self.stdin_redirect(&mut child)?;
 
         if status.success() {
             Ok(())
