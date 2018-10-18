@@ -72,7 +72,9 @@ pub fn create<P: AsRef<Path>>(path: P) -> io::Result<File> {
     ))
 }
 
-pub fn cp(src: &Path, dst: &Path) -> io::Result<u64> {
+pub fn cp(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<u64> {
+    let src = src.as_ref();
+    let dst = dst.as_ref();
     io::copy(&mut open(src)?, &mut create(dst)?).map_err(|why| io::Error::new(
         io::ErrorKind::Other,
         format!("failed to copy {:?} to {:?}: {}", src, dst, why)
