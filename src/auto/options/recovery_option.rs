@@ -26,14 +26,11 @@ impl RecoveryOption {
     }
 
     fn parse_id(id: String) -> PartitionID {
-        eprintln!("{}", id);
-        let out = if id.starts_with("PARTUUID=") {
+        if id.starts_with("PARTUUID=") {
             PartitionID::new_partuuid(id[9..].to_owned())
         } else {
             PartitionID::new_uuid(id)
-        };
-        eprintln!("out: {}", out);
-        out
+        }
     } 
 }
 

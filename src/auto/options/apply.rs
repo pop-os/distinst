@@ -274,7 +274,6 @@ fn recovery_config(
     };
 
     let mut recovery_device: Disk = {
-        eprintln!("finding recovery partition: {:?}", option.recovery_uuid);
         let mut recovery_path = option.parse_recovery_id()
             .get_device_path()
             .ok_or_else(|| InstallOptionError::PartitionNotFound {
@@ -303,7 +302,6 @@ fn recovery_config(
             .and_then(|uuid| PartitionID::new_uuid(uuid).get_device_path());
 
         if let Some(ref uuid) = option.efi_uuid {
-            eprintln!("finding efi partition: {}", uuid);
             let path = option.parse_efi_id().unwrap().get_device_path().expect("no uuid for efi part");
             recovery_device
                 .get_partitions_mut()
@@ -315,7 +313,6 @@ fn recovery_config(
 
         {
             let uuid = &option.recovery_uuid;
-            eprintln!("finding recovery partition: {}", uuid);
             let path = &option.parse_recovery_id().get_device_path().expect("no uuid for recovery part");
             recovery_device
                 .get_partitions_mut()
@@ -333,7 +330,6 @@ fn recovery_config(
 
             part
         } else {
-            eprintln!("finding root partition: {}", option.root_uuid);
             PartitionID::new_uuid(option.root_uuid.clone())
                 .get_device_path()
                 .ok_or_else(|| InstallOptionError::PartitionNotFound {
