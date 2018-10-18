@@ -63,7 +63,6 @@ $(BINARY): $(SRC)
 	if [ -f vendor.tar.xz ]; \
 	then \
 		tar pxf vendor.tar.xz; \
-		rm vendor.tar.xz; \
 		cargo build --frozen --manifest-path cli/Cargo.toml --release; \
 	else \
 		cargo build --manifest-path cli/Cargo.toml --release; \
