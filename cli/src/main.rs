@@ -302,11 +302,7 @@ fn main() {
                 old_root:         None,
                 lang:             lang.into(),
                 remove:           remove.into(),
-                squashfs:         squashfs.into(),
-                timezone:         None,
-                fullname:         None,
-                username:         None,
-                password:         None
+                squashfs:         squashfs.into()
             },
         )
     };

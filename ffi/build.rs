@@ -20,7 +20,7 @@ fn main() {
         .write_all(&pkg_config.as_bytes())
         .unwrap();
 
-    cbindgen::generate(env::var("CARGO_MANIFEST_DIR").unwrap())
-        .expect("unable to generate bindings")
-        .write_to_file(target_dir.join("distinst.h"));
+    // cbindgen::generate(env::var("CARGO_MANIFEST_DIR").unwrap())
+    //     .expect("unable to generate bindings")
+    //     .write_to_file(target_dir.join("distinst.h"));
 }

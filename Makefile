@@ -5,6 +5,12 @@ libdir = $(exec_prefix)/lib
 includedir = $(prefix)/include
 datarootdir = $(prefix)/share
 datadir = $(datarootdir)
+RELEASE = debug
+
+ifndef DEBUG
+  ARGS += --release
+  RELEASE = release
+endif
 
 .PHONY: all clean distclean install uninstall update
 
@@ -13,8 +19,8 @@ FFI_SRC=ffi/Cargo.toml ffi/build.rs ffi/src/*
 
 PACKAGE=distinst
 
-BINARY=target/release/$(PACKAGE)
-LIBRARY=target/release/lib$(PACKAGE).so
+BINARY=target/$(RELEASE)/$(PACKAGE)
+LIBRARY=target/$(RELEASE)/lib$(PACKAGE).so
 HEADER=target/$(PACKAGE).h
 PKGCONFIG=target/$(PACKAGE).pc
 VAPI=ffi/$(PACKAGE).vapi
@@ -63,17 +69,17 @@ $(BINARY): $(SRC)
 	if [ -f vendor.tar.xz ]; \
 	then \
 		tar pxf vendor.tar.xz; \
-		cargo build --frozen --manifest-path cli/Cargo.toml --release; \
+		cargo build --frozen --manifest-path cli/Cargo.toml $(ARGS); \
 	else \
-		cargo build --manifest-path cli/Cargo.toml --release; \
+		cargo build --manifest-path cli/Cargo.toml $(ARGS); \
 	fi
 
 $(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(FFI_SRC)
 	if [ -d vendor ]; \
 	then \
-		cargo build --manifest-path ffi/Cargo.toml --frozen --lib --release; \
+		cargo build --manifest-path ffi/Cargo.toml --frozen --lib $(ARGS); \
 	else \
-		cargo build --manifest-path ffi/Cargo.toml --lib --release; \
+		cargo build --manifest-path ffi/Cargo.toml --lib $(ARGS); \
 	fi
 
 $(PKGCONFIG): $(PKGCONFIG).stub

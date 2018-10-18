@@ -7,6 +7,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use sys_mount::*;
 use timezones::Region;
+use std::process::Stdio;
 
 const APT_OPTIONS: &[&str] = &[
     "-o", "Acquire::cdrom::AutoDetect=0",
@@ -31,12 +32,15 @@ impl<'a> ChrootConfigurator<'a> {
     /// Install the given packages if they are not already installed.
     pub fn apt_install(&self, packages: &[&str]) -> io::Result<()> {
         info!("installing packages: {:?}", packages);
-        self.chroot.command("apt-get", &cascade! {
+        let mut command = self.chroot.command("apt-get", &cascade! {
             Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
             ..extend_from_slice(&["install", "-q", "-y"]);
             ..extend_from_slice(APT_OPTIONS);
             ..extend_from_slice(&packages);
-        }).run()
+        });
+        
+        command.stdout(Stdio::null());
+        command.run()
     }
 
     /// Remove the given packages from the system, if they are installed.
@@ -102,7 +106,14 @@ impl<'a> ChrootConfigurator<'a> {
 
     /// Create a new user account.
     pub fn create_user(&self, user: &str, pass: Option<&str>, fullname: Option<&str>) -> io::Result<()> {
-        self.chroot.command("useradd", &["-m", "-G", "adm,sudo", user]).run()?;
+        let mut command = self.chroot.command("useradd", &["-m", "-G", "adm,sudo"]);
+        if let Some(name) = fullname {
+            command.args(&["-c", name, user]);
+        } else {
+            command.arg(user);
+        };
+
+        command.run()?;
 
         if let Some(pass) = pass {
             let pass = [pass, "\n", pass, "\n"].concat();
@@ -332,8 +343,13 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
     }
 
     pub fn timezone(&self, region: &Region) -> io::Result<()> {
+        self.chroot.command("rm", &["/etc/timezone"]).run()?;
+
         let args: &[&str] = &[];
-        self.chroot.command("ln", args).arg(region.path()).arg("/etc/fstab").run()
+        self.chroot.command("ln", args)
+            .arg(region.path())
+            .arg("/etc/timezone")
+            .run()
     }
 
     pub fn update_initramfs(&self) -> io::Result<()> {

@@ -4,18 +4,18 @@ use std::sync::atomic::Ordering;
 use super::{Installer, Status, Error, Step};
 use KILL_SWITCH;
 
-pub struct InstallerState<'a> {
-    pub installer: &'a mut Installer,
+pub struct InstallerState<'a, 'b: 'a> {
+    pub installer: &'a mut Installer<'b>,
     pub status: Status,
 }
 
-impl<'a> InstallerState<'a> {
-    pub fn new(installer: &'a mut Installer) -> Self {
+impl<'a, 'b> InstallerState<'a, 'b> {
+    pub fn new(installer: &'a mut Installer<'b>) -> Self {
         Self { installer, status: Status { step: Step::Init, percent: 0 }}
     }
 
     pub fn apply<T, F>(&mut self, step: Step, msg: &str, mut action: F) -> io::Result<T>
-        where F: for<'b> FnMut(&'b mut Self) -> io::Result<T>
+        where F: for<'c> FnMut(&'c mut Self) -> io::Result<T>
     {
         unsafe {
             libc::sync();

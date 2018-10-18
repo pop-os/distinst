@@ -1,23 +1,23 @@
-use envfile::EnvFile;
+use {INSTALL_HARDWARE_SUPPORT, misc, hardware_support, UserAccountCreate};
+use Config;
 use disk::Disks;
+use distribution;
+use envfile::EnvFile;
 use libc;
 use os_release::OsRelease;
 use partition_identity::PartitionID;
+use process::Chroot;
+use process::ChrootConfigurator;
+use process::external::remount_rw;
+use rayon;
 use std::fs::{self, Permissions};
 use std::io::{self, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-use tempdir::TempDir;
-use distribution;
-use Config;
-use rayon;
 use super::*;
-use process::ChrootConfigurator;
-use {INSTALL_HARDWARE_SUPPORT, misc, hardware_support};
-
-use process::Chroot;
-use process::external::remount_rw;
+use tempdir::TempDir;
+use timezones::Region;
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
@@ -61,6 +61,8 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
     mount_dir: P,
     config: &Config,
     iso_os_release: &OsRelease,
+    region: Option<&Region>,
+    user: Option<&UserAccountCreate>,
     remove_pkgs: &[S],
     mut callback: F,
 ) -> io::Result<()> {
@@ -247,14 +249,12 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
                 etc_cleanup = chroot.etc_cleanup();
                 kernel_copy = chroot.kernel_copy();
 
-                if let Some(tz) = config.timezone {
+                if let Some(tz) = region {
                     timezone = chroot.timezone(tz);
                 }
 
-                if let Some(ref user) = config.username {
-                    let name = config.fullname.as_ref().map(|x| x.as_str());
-                    let pass = config.password.as_ref().map(|x| x.as_str());
-                    useradd = chroot.create_user(user, pass, name);
+                if let Some(ref user) = user {
+                    useradd = chroot.create_user(user.username, user.password, user.realname);
                 }
             });
 

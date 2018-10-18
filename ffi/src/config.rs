@@ -1,8 +1,7 @@
-use distinst::{Config, timezones::Region};
+use distinst::{Config, UserAccountCreate};
 use get_str;
 use libc;
 use std::io;
-use timezones::DistinstRegion;
 
 /// Installer configuration
 #[repr(C)]
@@ -16,15 +15,11 @@ pub struct DistinstConfig {
     lang:             *const libc::c_char,
     remove:           *const libc::c_char,
     squashfs:         *const libc::c_char,
-    fullname:         *const libc::c_char,
-    username:         *const libc::c_char,
-    password:         *const libc::c_char,
-    timezone:         *const DistinstRegion,
     flags:            u8,
 }
 
 impl DistinstConfig {
-    pub unsafe fn as_config<'a>(&self) -> Result<Config<'a>, io::Error> {
+    pub unsafe fn as_config(&self) -> io::Result<Config> {
         Ok(Config {
             squashfs:         get_str(self.squashfs)?.to_string(),
             hostname:         get_str(self.hostname)?.to_string(),
@@ -34,15 +29,24 @@ impl DistinstConfig {
             keyboard_variant: get_str(self.keyboard_variant).ok().map(String::from),
             old_root:         get_str(self.old_root).ok().map(String::from),
             remove:           get_str(self.remove)?.to_string(),
-            fullname:         get_str(self.fullname).ok().map(String::from),
-            username:         get_str(self.username).ok().map(String::from),
-            password:         get_str(self.password).ok().map(String::from),
-            timezone:         if self.timezone.is_null() {
-                None
-            } else {
-                Some(&*(self.timezone as *const Region))
-            },
             flags:            self.flags,
+        })
+    }
+}
+
+#[repr(C)]
+pub struct DistinstUserAccountCreate {
+    pub username: *const libc::c_char,
+    pub realname: *const libc::c_char,
+    pub password: *const libc::c_char,
+}
+
+impl DistinstUserAccountCreate {
+    pub unsafe fn as_config(&self) -> io::Result<UserAccountCreate> {
+        Ok(UserAccountCreate {
+            username: get_str(self.username)?,
+            realname: get_str(self.realname).ok(),
+            password: get_str(self.password).ok()
         })
     }
 }
