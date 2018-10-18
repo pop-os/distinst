@@ -16,16 +16,12 @@ impl<'a> EnvFile<'a> {
         let mut store = BTreeMap::new();
 
         let values = data.split(|&x| x == b'\n').flat_map(|entry| {
-            let fields = &mut entry.split(|&x| x == b'=');
-            fields
-                .next()
-                .and_then(|x| String::from_utf8(x.to_owned()).ok())
-                .and_then(|x| {
-                    fields
-                        .next()
-                        .and_then(|x| String::from_utf8(x.to_owned()).ok())
-                        .map(|y| (x, y))
-                })
+            entry.iter().position(|&x| x == b'=').and_then(|pos| {
+                String::from_utf8(entry[..pos].to_owned()).ok()
+                    .and_then(|x| {
+                        String::from_utf8(entry[pos+1..].to_owned()).ok().map(|y| (x, y))
+                    })
+            })
         });
 
         for (key, value) in values {
@@ -74,7 +70,7 @@ KBD_MODEL=
 KBD_VARIANT=
 LANG=en_US.UTF-8
 OEM_MODE=0
-RECOVERY_UUID=8DB5-AFF3
+RECOVERY_UUID=PARTUUID=asdfasd7asdf7sad-asdfa
 ROOT_UUID=2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c
 "#;
 
@@ -97,7 +93,7 @@ ROOT_UUID=2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c
             map.insert("KBD_MODEL".into(), "".into());
             map.insert("KBD_VARIANT".into(), "".into());
             map.insert("EFI_UUID".into(), "DFFD-D047".into());
-            map.insert("RECOVERY_UUID".into(), "8DB5-AFF3".into());
+            map.insert("RECOVERY_UUID".into(), "PARTUUID=asdfasd7asdf7sad-asdfa".into());
             map.insert("ROOT_UUID".into(), "2ef950c2-5ce6-4ae0-9fb9-a8c7468fa82c".into());
             map.insert("OEM_MODE".into(), "0".into());
             map

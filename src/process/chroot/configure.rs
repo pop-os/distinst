@@ -247,12 +247,14 @@ impl<'a> ChrootConfigurator<'a> {
         let efi_mount = mounts.find_mount(&efi_path)
             .expect("efi is mount not associated with block device");
 
-        let recovery_uuid = PartitionID::get_uuid(&recovery_mount)
-            .expect("/recovery does not have a UUID");
         let recovery_partuuid = PartitionID::get_partuuid(&recovery_mount)
             .expect("/recovery does not have a PartUUID");
         let efi_partuuid = PartitionID::get_partuuid(&efi_mount)
             .expect("efi partiton does not have a PartUUID");
+
+        let recovery_uuid = PartitionID::get_uuid(&recovery_mount)
+            .or_else(|| PartitionID::get_uuid(&efi_mount))
+            .expect("/recovery does not have a UUID");
 
         let cdrom_uuid = Command::new("findmnt")
             .args(&["-n", "-o", "UUID", "/cdrom"])
@@ -302,13 +304,11 @@ OEM_MODE=0
         let efi_recovery = ["boot/efi/EFI/", recovery.as_str()].concat();
         let efi_initrd = self.chroot.path.join([&efi_recovery, "/initrd.gz"].concat());
         let efi_vmlinuz = self.chroot.path.join([&efi_recovery, "/vmlinuz.efi"].concat());
-        let casper_initrd = self.chroot.path.join(["recovery/", &casper, "/initrd.gz"].concat());
-        let casper_vmlinuz = self.chroot.path.join(["recovery/", &casper, "/vmlinuz.efi"].concat());
 
         fs::create_dir_all(self.chroot.path.join(efi_recovery))?;
 
-        misc::cp(&casper_initrd, &efi_initrd)?;
-        misc::cp(&casper_vmlinuz, &efi_vmlinuz)?;
+        misc::cp("/cdrom/casper/initrd.gz", &efi_initrd)?;
+        misc::cp("/cdrom/casper/vmlinuz.efi", &efi_vmlinuz)?;
 
         let rec_entry_data = format!(r#"title {0} recovery
 linux /EFI/{1}/vmlinuz.efi
