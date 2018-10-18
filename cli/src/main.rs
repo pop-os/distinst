@@ -303,6 +303,9 @@ fn main() {
                 lang:             lang.into(),
                 remove:           remove.into(),
                 squashfs:         squashfs.into(),
+                timezone:         None,
+                username:         None,
+                password:         None
             },
         )
     };

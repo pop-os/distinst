@@ -32,7 +32,6 @@ macro_rules! percent {
 }
 
 /// Installer configuration
-#[derive(Debug)]
 pub struct Config<'a> {
     /// Hostname to assign to the installed system.
     pub hostname: String,
@@ -132,8 +131,6 @@ impl Installer {
 
             let bootloader = Bootloader::detect();
             disks.verify_partitions(bootloader)?;
-
-            info!("installing {:?} with {:?}", config, bootloader);
 
             let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
                 Installer::initialize(&mut disks, config, percent!(steps))
