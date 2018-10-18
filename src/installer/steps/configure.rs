@@ -2,6 +2,7 @@ use envfile::EnvFile;
 use disk::Disks;
 use libc;
 use os_release::OsRelease;
+use partition_identity::PartitionID;
 use std::fs::{self, Permissions};
 use std::io::{self, Write};
 use std::os::unix::ffi::OsStrExt;
@@ -168,15 +169,15 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
 
         callback(20);
 
-        let luks_uuid = misc::from_uuid(&root_entry.uuid)
+        let luks_uuid = root_entry.uid.get_device_path()
             .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
-            .and_then(|ref path| misc::get_uuid(path))
-            .and_then(|uuid| if uuid == root_entry.uuid { None } else { Some(uuid)});
+            .and_then(|ref path| PartitionID::get_uuid(path))
+            .and_then(|uuid| if uuid == root_entry.uid { None } else { Some(uuid)});
 
         callback(25);
 
-        let root_uuid = &root_entry.uuid;
-        update_recovery_config(&mount_dir, &root_uuid, luks_uuid.as_ref().map(|x| x.as_str()))?;
+        let root_uuid = &root_entry.uid;
+        update_recovery_config(&mount_dir, &root_uuid.id, luks_uuid.as_ref().map(|x| x.id.as_str()))?;
         callback(30);
 
         let (retain, lang_output) = rayon::join(
@@ -282,8 +283,8 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         let recovery = chroot.recovery(
             config,
             &iso_os_release.name,
-            &root_uuid,
-            luks_uuid.as_ref().map_or("", |ref uuid| uuid.as_str())
+            &root_uuid.id,
+            luks_uuid.as_ref().map_or("", |ref uuid| uuid.id.as_str())
         );
 
         map_errors! {
@@ -319,7 +320,7 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         // Ensure that the cdrom binding is unmounted before the chroot.
         if let Some((cdrom_mount, cdrom_target)) = cdrom_mount {
             drop(cdrom_mount);
-            fs::remove_dir(&cdrom_target);
+            let _ = fs::remove_dir(&cdrom_target);
         }
 
         drop(efivars_mount);

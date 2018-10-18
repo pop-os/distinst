@@ -106,7 +106,6 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
     }
 }
 
-
 pub fn get_required_packages(disks: &Disks, release: &OsRelease) -> Vec<&'static str> {
     let flags = disks.get_support_flags();
 

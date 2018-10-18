@@ -127,47 +127,6 @@ pub fn get_file_hash<P: AsRef<Path>>(path: P, buffer: &mut [u8]) -> io::Result<u
     })
 }
 
-/// Obtains the UUID of the given device path by resolving symlinks in `/dev/disk/by-uuid`
-/// until the device is found.
-pub fn get_uuid(path: &Path) -> Option<String> {
-    let uuid_dir = Path::new("/dev/disk/by-uuid")
-        .read_dir()
-        .expect("unable to find /dev/disk/by-uuid");
-
-    if let Ok(path) = path.canonicalize() {
-        for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-            if let Ok(ref uuid_path) = uuid_entry.path().canonicalize() {
-                if uuid_path == &path {
-                    if let Some(uuid_entry) = uuid_entry.file_name().to_str() {
-                        return Some(uuid_entry.into());
-                    }
-                }
-            }
-        }
-    }
-
-    None
-}
-
-pub fn from_uuid(uuid: &str) -> Option<PathBuf> {
-    let uuid_dir = Path::new("/dev/disk/by-uuid")
-        .read_dir()
-        .expect("unable to find /dev/disk/by-uuid");
-
-    for uuid_entry in uuid_dir.filter_map(|entry| entry.ok()) {
-        let uuid_entry = uuid_entry.path();
-        if let Some(name) = uuid_entry.file_name() {
-            if name == uuid {
-                if let Ok(uuid_entry) = uuid_entry.canonicalize() {
-                    return Some(uuid_entry);
-                }
-            }
-        }
-    }
-
-    None
-}
-
 /// Concatenates an array of `&OsStr` into a new `OsString`.
 pub(crate) fn concat_osstr(input: &[&OsStr]) -> OsString {
     let mut output = OsString::with_capacity(input.iter().fold(0, |acc, c| acc + c.len()));

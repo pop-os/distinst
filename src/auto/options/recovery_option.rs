@@ -1,5 +1,6 @@
-use std::path::Path;
 use envfile::EnvFile;
+use partition_identity::PartitionID;
+use std::path::Path;
 
 #[derive(Debug)]
 pub struct RecoveryOption {
@@ -13,6 +14,24 @@ pub struct RecoveryOption {
     pub recovery_uuid: String,
     pub root_uuid:     String,
     pub luks_uuid:     Option<String>,
+}
+
+impl RecoveryOption {
+    pub fn parse_efi_id(&self) -> Option<PartitionID> {
+        self.efi_uuid.as_ref().map(|uuid| Self::parse_id(uuid.clone()))
+    }
+
+    pub fn parse_recovery_id(&self) -> PartitionID {
+        Self::parse_id(self.recovery_uuid.clone())
+    }
+
+    fn parse_id(id: String) -> PartitionID {
+        if id.starts_with("PARTUUID=") {
+            PartitionID::new_partuuid(id[9..].to_owned())
+        } else {
+            PartitionID::new_uuid(id)
+        }
+    } 
 }
 
 const RECOVERY_CONF: &str = "/cdrom/recovery.conf";

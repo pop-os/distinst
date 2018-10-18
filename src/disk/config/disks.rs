@@ -1,30 +1,30 @@
+use FileSystemType::*;
+use itertools::Itertools;
+use libparted::{Device, DeviceType};
+use misc::{self, hasher};
+use mnt::{swapoff, MOUNTS, SWAPS};
 use process::external::{
     cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
 };
+use partition_identity::PartitionID;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::prelude::*;
+use std::{io, str, thread};
+use std::borrow::Cow;
+use std::collections::HashSet;
+use std::ffi::OsStr;
+use std::ffi::OsString;
+use std::iter::{self, FromIterator};
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PartitionTable, PVS};
+use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
-use mnt::{swapoff, MOUNTS, SWAPS};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, FileSystemSupport,
     PartitionFlag, PartitionInfo,
 };
-use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PartitionTable, PVS};
-use libparted::{Device, DeviceType};
-use misc::{self, from_uuid, get_uuid, hasher};
 use sys_mount::{unmount, UnmountFlags};
-use FileSystemType::*;
-use itertools::Itertools;
-use std::collections::HashSet;
-use std::ffi::OsString;
-use std::{io, str, thread};
-use std::iter::{self, FromIterator};
-use std::path::{Path, PathBuf};
-use std::time::Duration;
-use std::borrow::Cow;
-use std::ffi::OsStr;
-
-use rayon::prelude::*;
-use rayon::iter::IntoParallelRefIterator;
 
 /// A configuration of disks, both physical and logical.
 #[derive(Debug, Default, PartialEq)]
@@ -230,12 +230,16 @@ impl Disks {
             .find(|part| misc::canonicalize(part.get_device_path()) == target.as_ref())
     }
 
-    pub fn get_partition_by_uuid<U: AsRef<str>>(&self, target: U) -> Option<&PartitionInfo> {
-        from_uuid(target.as_ref()).and_then(|ref target| self.get_partition_by_path(target))
+    pub fn get_partition_by_uuid(&self, target: String) -> Option<&PartitionInfo> {
+        PartitionID::new_uuid(target)
+            .get_device_path()
+            .and_then(|ref target| self.get_partition_by_path(target))
     }
 
-    pub fn get_partition_by_uuid_mut<U: AsRef<str>>(&mut self, target: U) -> Option<&mut PartitionInfo> {
-        from_uuid(target.as_ref()).and_then(move |ref target| self.get_partition_by_path_mut(target))
+    pub fn get_partition_by_uuid_mut(&mut self, target: String) -> Option<&mut PartitionInfo> {
+        PartitionID::new_uuid(target)
+            .get_device_path()
+            .and_then(move |ref target| self.get_partition_by_path_mut(target))
     }
 
     /// Reports file systems that need to be supported in the install.
@@ -862,11 +866,11 @@ impl Disks {
 
                 let path = luks_parent.as_ref().map_or(&partition.device_path, |x| &x);
 
-                match get_uuid(path) {
+                match PartitionID::get_uuid(path) {
                     Some(uuid) => {
                         crypttab.push(&enc.physical_volume);
                         crypttab.push(" UUID=");
-                        crypttab.push(&uuid);
+                        crypttab.push(&uuid.id);
                         crypttab.push(" ");
                         crypttab.push(&password);
                         crypttab.push(" luks\n");
@@ -879,7 +883,7 @@ impl Disks {
                 }
             } else if partition.filesystem == Some(FileSystemType::Swap) {
                 if is_unencrypted {
-                    match get_uuid(&partition.device_path) {
+                    match PartitionID::get_uuid(&partition.device_path) {
                         Some(uuid) => {
                             let unique_id = generate_unique_id("cryptswap", &swap_uuids)
                                 .unwrap_or_else(|_| "cryptswap".into());
@@ -888,7 +892,7 @@ impl Disks {
 
                             crypttab.push(&unique_id);
                             crypttab.push(" UUID=");
-                            crypttab.push(&uuid);
+                            crypttab.push(&uuid.id);
                             crypttab.push(
                                 " /dev/urandom swap,offset=1024,cipher=aes-xts-plain64,size=512\n",
                             );
