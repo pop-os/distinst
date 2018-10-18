@@ -10,6 +10,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use tempdir::TempDir;
+use timezones::Region;
 
 pub use process::Chroot;
 pub use process::Command;
@@ -32,7 +33,7 @@ macro_rules! percent {
 
 /// Installer configuration
 #[derive(Debug)]
-pub struct Config {
+pub struct Config<'a> {
     /// Hostname to assign to the installed system.
     pub hostname: String,
     /// The keyboard layout to use with the installed system (such as "us").
@@ -49,6 +50,9 @@ pub struct Config {
     pub remove: String,
     /// The archive (`tar` or `squashfs`) which contains the base system.
     pub squashfs: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub timezone: Option<&'a Region>,
     /// Some flags to control the behavior of the installation.
     pub flags: u8,
 }

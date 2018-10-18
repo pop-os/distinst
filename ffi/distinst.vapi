@@ -365,6 +365,41 @@ namespace Distinst {
     public uint8[] get_os_version_id ();
     public uint8[] get_os_version ();
 
+    [CCode (has_type_id = false, ref_function = "", unref_function = "")]
+    [Compact]
+    public class Timezones {
+        public Timezones ();
+        public Zones zones ();
+    }
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "")]
+    [Compact]
+    public class Zones {
+        public unowned Zone? next ();
+        public unowned Zone? nth (int nth);
+    }
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "")]
+    [Compact]
+    public class Regions {
+        public unowned Region? next ();
+        public unowned Region? nth (int nth);
+    }
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "", destroy_function = "")]
+    [Compact]
+    public class Zone {
+        public unowned uint8[] name ();
+        public Regions regions ();
+    }
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "", destroy_function = "")]
+    [Compact]
+    public class Region {
+        public unowned uint8[] name ();
+        public Region clone ();
+    }
+
     [CCode (cname = "DISTINST_PARTITION_FLAG", has_type_id = false)]
     public enum PartitionFlag {
         BOOT,

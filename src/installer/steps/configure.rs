@@ -233,6 +233,8 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         let mut apt_install = Ok(());
         let mut etc_cleanup = Ok(());
         let mut kernel_copy = Ok(());
+        let mut timezone = Ok(());
+        let mut useradd = Ok(());
 
         rayon::scope(|s| {
             s.spawn(|_| {
@@ -243,6 +245,15 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
                 locale = chroot.generate_locale(&config.lang);
                 etc_cleanup = chroot.etc_cleanup();
                 kernel_copy = chroot.kernel_copy();
+
+                if let Some(tz) = config.timezone {
+                    timezone = chroot.timezone(tz);
+                }
+
+                if let Some(ref user) = config.username {
+                    let pass = config.password.as_ref().map(|x| x.as_str());
+                    useradd = chroot.create_user(user, pass);
+                }
             });
             // Apt takes so long that it needs to run by itself.
             s.spawn(|_| {
@@ -260,7 +271,9 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
             locale => "failed to generate locales";
             apt_install => "failed to install packages";
             etc_cleanup => "failed to remove pre-existing files in /etc";
-            kernel_copy => "failed to copy kernel from casper to chroot"
+            kernel_copy => "failed to copy kernel from casper to chroot";
+            timezone => "failed to set timezone";
+            useradd => "failed to create user account"
         }
 
         callback(70);

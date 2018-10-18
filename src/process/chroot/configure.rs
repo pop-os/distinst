@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use misc;
 use sys_mount::*;
+use timezones::Region;
 
 const APT_OPTIONS: &[&str] = &[
     "-o", "Acquire::cdrom::AutoDetect=0",
@@ -95,6 +96,18 @@ impl<'a> ChrootConfigurator<'a> {
         } else {
             Ok(())
         }
+    }
+
+    /// Create a new user account.
+    pub fn create_user(&self, user: &str, pass: Option<&str>) -> io::Result<()> {
+        self.chroot.command("useradd", &["-m", "-G", "adm,sudo", user]).run()?;
+
+        if let Some(pass) = pass {
+            let pass = [pass, "\n", pass, "\n"].concat();
+            self.chroot.command("passwd", &[user]).stdin_input(&pass).run()?;
+        }
+
+        Ok(())
     }
 
     /// Disable the nvidia fallback service.
@@ -314,6 +327,10 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
         let mut rec_entry_file = misc::create(&rec_entry_path)?;
         rec_entry_file.write_all(rec_entry_data.as_bytes())?;
         Ok(())
+    }
+
+    pub fn timezone(&self, region: &Region) -> io::Result<()> {
+        region.install(&self.chroot.path)
     }
 
     pub fn update_initramfs(&self) -> io::Result<()> {
