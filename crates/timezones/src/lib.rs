@@ -24,10 +24,12 @@ impl Timezones {
                     regions.push(Region { name: region_name, path: region_path });
                 }
 
+                regions.sort_unstable();
                 output.zones.push(Zone { name: zone_name, regions})
             }
         }
 
+        output.zones.sort_unstable();
         Ok(output)
     }
 
@@ -36,7 +38,7 @@ impl Timezones {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
 pub struct Zone {
     name: String,
     regions: Vec<Region>
@@ -52,7 +54,7 @@ impl Zone {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
 pub struct Region {
     name: String,
     path: PathBuf,
