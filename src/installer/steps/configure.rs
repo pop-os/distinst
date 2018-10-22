@@ -254,7 +254,11 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
                 }
 
                 if let Some(ref user) = user {
-                    useradd = chroot.create_user(user.username, user.password, user.realname);
+                    useradd = chroot.create_user(
+                        &user.username,
+                        user.password.as_ref().map(|x| x.as_str()),
+                        user.realname.as_ref().map(|x| x.as_str())
+                    );
                 }
             });
 

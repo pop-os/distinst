@@ -36,11 +36,14 @@ namespace Distinst {
         string lang;
         string remove;
         string squashfs;
-        string? fullname;
-        string? username;
-        string? password;
-        unowned Region? timezone;
         uint8 flags;
+    }
+
+    [CCode (has_type_id = false, destroy_function = "")]
+    public struct UserAccountCreate {
+        string username;
+        string? realname;
+        string? password;
     }
 
     [CCode (cname = "DISTINST_PARTITION_TABLE", has_type_id = false)]
@@ -993,6 +996,10 @@ namespace Distinst {
 
     public delegate void StatusCallback (Distinst.Status status);
 
+    public delegate unowned Region TimezoneCallback ();
+
+    public delegate UserAccountCreate UserAccountCallback ();
+
     int log (Distinst.LogCallback callback);
 
     [Compact]
@@ -1003,6 +1010,8 @@ namespace Distinst {
         public void on_error (Distinst.ErrorCallback callback);
         public void emit_status (Distinst.Status error);
         public void on_status (Distinst.StatusCallback callback);
+        public void set_timezone_callback (TimezoneCallback callback);
+        public void set_user_callback (UserAccountCallback callback);
         public int install (owned Distinst.Disks disks, Distinst.Config config);
     }
 }

@@ -44,9 +44,9 @@ pub struct DistinstUserAccountCreate {
 impl DistinstUserAccountCreate {
     pub unsafe fn as_config(&self) -> io::Result<UserAccountCreate> {
         Ok(UserAccountCreate {
-            username: get_str(self.username)?,
-            realname: get_str(self.realname).ok(),
-            password: get_str(self.password).ok()
+            username: get_str(self.username)?.to_owned(),
+            realname: get_str(self.realname).ok().map(String::from),
+            password: get_str(self.password).ok().map(String::from)
         })
     }
 }

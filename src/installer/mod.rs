@@ -54,10 +54,10 @@ pub struct Config {
 }
 
 /// Credentials for creating a new user account.
-pub struct UserAccountCreate<'a> {
-    pub username: &'a str,
-    pub realname: Option<&'a str>,
-    pub password: Option<&'a str>,
+pub struct UserAccountCreate {
+    pub username: String,
+    pub realname: Option<String>,
+    pub password: Option<String>,
 }
 
 /// Installer error
@@ -79,7 +79,7 @@ pub struct Installer<'a> {
     error_cb:  Option<Box<FnMut(&Error)>>,
     status_cb: Option<Box<FnMut(&Status)>>,
     timezone_cb:  Option<Box<FnMut() -> &'a Region>>,
-    user_creation_cb: Option<Box<FnMut() -> UserAccountCreate<'a>>>
+    user_creation_cb: Option<Box<FnMut() -> UserAccountCreate>>
 }
 
 impl<'a> Default for Installer<'a> {
@@ -359,7 +359,7 @@ impl<'a> Installer<'a> {
         self.timezone_cb = Some(Box::new(callback));
     }
 
-    pub fn set_user_callback<F: FnMut() -> UserAccountCreate<'a> + 'static>(&mut self, callback: F) {
+    pub fn set_user_callback<F: FnMut() -> UserAccountCreate + 'static>(&mut self, callback: F) {
         self.user_creation_cb = Some(Box::new(callback));
     }
 
