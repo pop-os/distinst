@@ -104,6 +104,7 @@ pub fn bootloader<F: FnMut(i32)>(
                                 "--efi-directory=/boot/efi",
                                 &format!("--boot-directory=/boot/efi/EFI/{}", name),
                                 &format!("--bootloader={}", name),
+                                "--no-nvram",
                                 "--recheck",
                             ]
                         ).run()?;
