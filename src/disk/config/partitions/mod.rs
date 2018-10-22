@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use super::PVS;
 use super::super::{LvmEncryption, PartitionError};
+use sys_mount::*;
+use tempdir::TempDir;
 
 bitflags! {
     pub struct FileSystemSupport: u8 {
@@ -357,6 +359,30 @@ impl PartitionInfo {
             Swap | Lvm | Luks | Xfs | F2fs => None,
             _ => Some(get_used_sectors(self.get_device_path(), fs, sector_size)),
         })
+    }
+
+    /// Mount the file system temporarily, if possible.
+    pub fn probe<T, F>(&self, mut func: F) -> T
+        where F: FnMut(Option<(&Path, UnmountDrop<Mount>)>) -> T
+    {
+        let mount = self.filesystem
+            .and_then(|fs| TempDir::new("distinst").ok().map(|t| (fs, t)));
+
+        if let Some((fs, tempdir)) = mount {
+            let fs = match fs {
+                FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
+                fs => fs.into(),
+            };
+    
+            // Mount the FS to the temporary directory
+            let base = tempdir.path();
+            match Mount::new(&self.device_path, base, fs, MountFlags::empty(), None).ok() {
+                Some(m) => return func(Some((base, m.into_unmount_drop(UnmountFlags::DETACH)))),
+                None => ()
+            }
+        }
+
+        return func(None);
     }
 
     /// Detects if an OS is installed to this partition, and if so, what the OS
