@@ -2,7 +2,8 @@ use libc;
 
 use std::io;
 
-use distinst::{timezones::Region, Disks, Error, Installer, Status, Step};
+use distinst::timezones::Region;
+use distinst::{Disks, Error, Installer, Status, Step};
 use config::DistinstConfig;
 use disk::DistinstDisks;
 use {gen_object_ptr, DistinstRegion, DistinstUserAccountCreate};

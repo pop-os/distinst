@@ -33,8 +33,8 @@ impl Timezones {
         Ok(output)
     }
 
-    pub fn zones(&self) -> impl Iterator<Item = &Zone> {
-        self.zones.iter()
+    pub fn zones(&self) -> &[Zone] {
+        &self.zones
     }
 }
 
@@ -49,8 +49,8 @@ impl Zone {
         &self.name
     }
 
-    pub fn regions(&self) -> impl Iterator<Item = &Region> {
-        self.regions.iter()
+    pub fn regions(&self) -> &[Region] {
+        &self.regions
     }
 }
 

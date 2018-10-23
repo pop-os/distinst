@@ -12,10 +12,11 @@ mod errors;
 use clap::{App, Arg, ArgMatches, Values};
 use configure::*;
 use distinst::{
-    timezones::Timezones, Config, DecryptionError, Disk, DiskError, Disks, FileSystemType, Installer,
+    Config, DecryptionError, Disk, DiskError, Disks, FileSystemType, Installer,
     LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
     Sector, Step, UserAccountCreate, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER, NO_EFI_VARIABLES
 };
+use distinst::timezones::Timezones;
 use errors::DistinstError;
 
 use pbr::ProgressBar;
@@ -226,9 +227,11 @@ fn main() {
             let (zone, region) = (tz.next().unwrap(), tz.next().unwrap());
             tzs_ = Timezones::new().expect("failed to get timzones");
             let zone = tzs_.zones()
+                .into_iter()
                 .find(|z| z.name() == zone)
                 .expect(&format!("failed to find zone: {}", zone));
             let region = zone.regions()
+                .into_iter()
                 .find(|r| r.name() == region)
                 .expect(&format!("failed to find region: {}", region));
             Some(region.clone())
