@@ -54,6 +54,7 @@ pub struct Config {
 }
 
 /// Credentials for creating a new user account.
+#[derive(Clone)]
 pub struct UserAccountCreate {
     pub username: String,
     pub realname: Option<String>,
@@ -75,14 +76,14 @@ pub struct Status {
 }
 
 /// An installer object
-pub struct Installer<'a> {
+pub struct Installer {
     error_cb:  Option<Box<FnMut(&Error)>>,
     status_cb: Option<Box<FnMut(&Status)>>,
-    timezone_cb:  Option<Box<FnMut() -> &'a Region>>,
+    timezone_cb:  Option<Box<FnMut() -> Region>>,
     user_creation_cb: Option<Box<FnMut() -> UserAccountCreate>>
 }
 
-impl<'a> Default for Installer<'a> {
+impl Default for Installer {
     /// Create a new installer object
     ///
     /// ```ignore,rust
@@ -99,7 +100,7 @@ impl<'a> Default for Installer<'a> {
     }
 }
 
-impl<'a> Installer<'a> {
+impl Installer {
     const CHROOT_ROOT: &'static str = "distinst";
 
     /// Get a list of disks, skipping loopback devices
@@ -172,7 +173,7 @@ impl<'a> Installer<'a> {
                     mount_dir.path(),
                     &config,
                     &iso_os_release,
-                    timezone,
+                    timezone.as_ref(),
                     user.as_ref(),
                     &remove_pkgs,
                     percent!(steps),
@@ -355,7 +356,7 @@ impl<'a> Installer<'a> {
     }
 
     /// Set the timezone callback
-    pub fn set_timezone_callback<F: FnMut() -> &'a Region + 'static>(&mut self, callback: F) {
+    pub fn set_timezone_callback<F: FnMut() -> Region + 'static>(&mut self, callback: F) {
         self.timezone_cb = Some(Box::new(callback));
     }
 
