@@ -37,6 +37,13 @@ fn main() {
                 .takes_value(true)
         )
         .arg(
+            Arg::with_name("password")
+                .long("password")
+                .help("set the password for the username")
+                .requires("username")
+                .takes_value(true)
+        )
+        .arg(
             Arg::with_name("realname")
                 .long("realname")
                 .help("the full name of user to create")
@@ -242,14 +249,18 @@ fn main() {
     let user_account = matches.value_of("username").map(|username| {
         let username = username.to_owned();
         let realname = matches.value_of("realname").map(String::from);
-        let password = if unsafe { libc::isatty(0) } == 0 {
-            let mut pass = String::new();
-            io::stdin().read_line(&mut pass).unwrap();
-            pass.pop();
-            Some(pass)
-        } else {
-            None
-        };
+        let password = matches.value_of("password")
+            .map(String::from)
+            .or_else(|| {
+                if unsafe { libc::isatty(0) } == 0 {
+                    let mut pass = String::new();
+                    io::stdin().read_line(&mut pass).unwrap();
+                    pass.pop();
+                    Some(pass)
+                } else {
+                    None
+                }
+            });
 
         UserAccountCreate { realname, username, password }
     });
