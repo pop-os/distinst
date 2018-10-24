@@ -2,6 +2,7 @@
 #![allow(cast_ptr_alignment)]
 
 extern crate distinst;
+extern crate distinst_external_commands as external;
 extern crate libc;
 #[macro_use]
 extern crate log;

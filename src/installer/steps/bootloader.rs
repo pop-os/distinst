@@ -1,7 +1,7 @@
 use {Config, MODIFY_BOOT_ORDER};
 use libc;
-use process::Chroot;
-use disk::{Bootloader, Disks};
+use chroot::Chroot;
+use disks::{Bootloader, Disks};
 use os_release::OsRelease;
 use std::ffi::{OsStr, OsString};
 use std::fs;

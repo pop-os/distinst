@@ -1,0 +1,11 @@
+[package]
+name = "envfile"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+
+[dependencies]
+distinst-utils = { path = "../utils/"}
+log = "0.4.5"
+
+[dev-dependencies]
+tempdir = "0.3.7"

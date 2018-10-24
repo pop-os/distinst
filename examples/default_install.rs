@@ -18,7 +18,7 @@ fn main() {
 
     let pb_opt: Rc<RefCell<Option<ProgressBar<io::Stdout>>>> = Rc::new(RefCell::new(None));
 
-    let mut disks = Disks::probe_devices().unwrap();
+    let mut disks = disks::Disks::probe_devices().unwrap();
 
     let required = minimum_disk_size(5_000_000_000) / 512 + 1;
 

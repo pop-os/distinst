@@ -56,8 +56,11 @@ vendor.tar.xz:
 
 vendor: .cargo/config vendor.tar.xz
 
-tests:
+tests: $(SRC)
 	cargo test
+	for crate in crates/*; do \
+		cargo test --manifest-path $$crate/Cargo.toml; \
+	done
 
 $(BINARY): $(SRC)
 	if [ -f vendor.tar.xz ]; \

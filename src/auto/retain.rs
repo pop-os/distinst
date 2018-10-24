@@ -1,8 +1,10 @@
 //! Retain users when reinstalling, keeping their home folder and user account.
 
-use super::super::{Bootloader, Disks, FileSystemType};
+use bootloader::Bootloader;
+use disks::Disks;
+use fstypes::FileSystemType;
+
 use super::{mount_and_then, AccountFiles, ReinstallError, UserData};
-use misc;
 
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, OpenOptions, Permissions};
@@ -10,6 +12,7 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::{Path, PathBuf};
+use ::misc;
 
 /// Removes all files in the chroot at `/`, except for `/home`.
 pub fn remove_root(

@@ -9,7 +9,7 @@ use distinst::FileSystemType;
 pub enum DISTINST_FILE_SYSTEM_TYPE {
     NONE = 0,
     BTRFS = 1,
-    // EXFAT = 2,
+    EXFAT = 2,
     EXT2 = 3,
     EXT3 = 4,
     EXT4 = 5,
@@ -27,7 +27,7 @@ impl From<DISTINST_FILE_SYSTEM_TYPE> for Option<FileSystemType> {
     fn from(fs: DISTINST_FILE_SYSTEM_TYPE) -> Option<FileSystemType> {
         match fs {
             DISTINST_FILE_SYSTEM_TYPE::BTRFS => Some(FileSystemType::Btrfs),
-            // DISTINST_FILE_SYSTEM_TYPE::EXFAT => Some(FileSystemType::Exfat),
+            DISTINST_FILE_SYSTEM_TYPE::EXFAT => Some(FileSystemType::Exfat),
             DISTINST_FILE_SYSTEM_TYPE::EXT2 => Some(FileSystemType::Ext2),
             DISTINST_FILE_SYSTEM_TYPE::EXT3 => Some(FileSystemType::Ext3),
             DISTINST_FILE_SYSTEM_TYPE::EXT4 => Some(FileSystemType::Ext4),
@@ -48,7 +48,7 @@ impl From<FileSystemType> for DISTINST_FILE_SYSTEM_TYPE {
     fn from(fs: FileSystemType) -> DISTINST_FILE_SYSTEM_TYPE {
         match fs {
             FileSystemType::Btrfs => DISTINST_FILE_SYSTEM_TYPE::BTRFS,
-            // FileSystemType::Exfat => DISTINST_FILE_SYSTEM_TYPE::EXFAT,
+            FileSystemType::Exfat => DISTINST_FILE_SYSTEM_TYPE::EXFAT,
             FileSystemType::Ext2 => DISTINST_FILE_SYSTEM_TYPE::EXT2,
             FileSystemType::Ext3 => DISTINST_FILE_SYSTEM_TYPE::EXT3,
             FileSystemType::Ext4 => DISTINST_FILE_SYSTEM_TYPE::EXT4,
@@ -70,9 +70,9 @@ impl DISTINST_FILE_SYSTEM_TYPE {
             DISTINST_FILE_SYSTEM_TYPE::BTRFS => {
                 CStr::from_bytes_with_nul(b"btrfs\0").unwrap().as_ptr()
             }
-            // DISTINST_FILE_SYSTEM_TYPE::EXFAT => {
-            //     CStr::from_bytes_with_nul(b"exfat\0").unwrap().as_ptr()
-            // }
+            DISTINST_FILE_SYSTEM_TYPE::EXFAT => {
+                CStr::from_bytes_with_nul(b"exfat\0").unwrap().as_ptr()
+            }
             DISTINST_FILE_SYSTEM_TYPE::EXT2 => {
                 CStr::from_bytes_with_nul(b"ext2\0").unwrap().as_ptr()
             }

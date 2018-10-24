@@ -1,5 +1,5 @@
 use super::*;
-use distinst::DiskExt;
+use distinst::disks::DiskExt;
 use errors::DistinstError;
 
 pub(crate) fn new(disks: &mut Disks, parts: Option<Values>) -> Result<(), DistinstError> {

@@ -1,0 +1,10 @@
+[package]
+name = "proc-mounts"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+
+[dependencies]
+distinst-utils = { path = "../utils/" }
+lazy_static = "1.1.0"
+sys-mount = "1.0.3"
+libc = "0.2.43"

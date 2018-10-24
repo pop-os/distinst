@@ -1,0 +1,8 @@
+[package]
+name = "os-release"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+
+[dependencies]
+distinst-utils = { path = "../utils/"}
+lazy_static = "1.1.0"

@@ -12,6 +12,7 @@ pub use self::erase_option::*;
 pub use self::recovery_option::*;
 pub use self::refresh_option::*;
 
+use disks::*;
 use partition_identity::PartitionID;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -56,7 +57,7 @@ impl InstallOptions {
                                 home_part:      home.clone(),
                                 efi_part:       efi.clone(),
                                 recovery_part:  recovery.clone(),
-                                can_retain_old: if let Some(Ok(used)) = part.sectors_used(512) {
+                                can_retain_old: if let Some(Ok(used)) = part.sectors_used() {
                                      part.sectors() - used > required_space
                                 } else {
                                     false
@@ -133,7 +134,7 @@ impl InstallOptions {
                     best_free_region.compare(last_end_sector, part.start_sector);
                     last_end_sector = part.end_sector;
 
-                    if let Some(Ok(used)) = part.sectors_used(512) {
+                    if let Some(Ok(used)) = part.sectors_used() {
                         let free = part.sectors() - used;
                         let num = part.number;
                         match other_os.entry(device.get_device_path()) {

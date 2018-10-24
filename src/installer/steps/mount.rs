@@ -1,5 +1,5 @@
-use disk::{Disks, FileSystemType};
-use mnt::Mounts;
+use disks::{Disks, FileSystemType};
+use proc_mounts::Mounts;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;

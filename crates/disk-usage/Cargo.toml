@@ -1,0 +1,7 @@
+[package]
+name = "disk-usage"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+
+[dependencies]
+fstypes = { path = "../fstypes" }

@@ -1,20 +1,18 @@
 mod state;
 mod steps;
 
-use {PARTITIONING_TEST, deactivate_logical_devices, hostname, squashfs};
+pub use self::steps::Step;
+use {PARTITIONING_TEST, hostname, squashfs};
 use auto::{delete_old_install, recover_root, remove_root, move_root, validate_backup_conditions, AccountFiles, Backup, ReinstallError};
-use disk::{Bootloader, Disks};
+use disks::{Bootloader, Disks};
+use external::luks::deactivate_logical_devices;
+use proc_mounts::Mounts;
 use os_release::OsRelease;
 use self::state::InstallerState;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use tempdir::TempDir;
-
-pub use process::Chroot;
-pub use process::Command;
-pub use mnt::Mounts;
-pub use self::steps::Step;
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;

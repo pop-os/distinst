@@ -1,6 +1,6 @@
 extern crate distinst;
 
-use distinst::{DiskExt, Disks};
+use distinst::disks::{DiskExt, Disks};
 use std::io::Result;
 use std::process;
 
@@ -37,7 +37,7 @@ fn list() -> Result<()> {
 
             println!(
                 "    usage:   {}",
-                if let Some(result) = part.sectors_used(sector_size) {
+                if let Some(result) = part.sectors_used() {
                     match result {
                         Ok(used_sectors) => {
                             let used = used_sectors * sector_size;
@@ -96,7 +96,7 @@ fn list() -> Result<()> {
 
             println!(
                 "    usage:   {}",
-                if let Some(result) = part.sectors_used(sector_size) {
+                if let Some(result) = part.sectors_used() {
                     match result {
                         Ok(used_sectors) => {
                             let used = used_sectors * sector_size;

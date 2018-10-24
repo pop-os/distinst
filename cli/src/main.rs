@@ -11,11 +11,7 @@ mod errors;
 
 use clap::{App, Arg, ArgMatches, Values};
 use configure::*;
-use distinst::{
-    Config, DecryptionError, Disk, DiskError, Disks, FileSystemType, Installer,
-    LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
-    Sector, Step, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER, NO_EFI_VARIABLES
-};
+use distinst::*;
 use errors::DistinstError;
 
 use pbr::ProgressBar;

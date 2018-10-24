@@ -1,3 +1,18 @@
+// extern crate distinst_utils as misc;
+// extern crate distinst_disks;
+// extern crate distinst_external_commands as external;
+// extern crate distinst_bootloader;
+// extern crate envfile;
+// extern crate failure;
+// #[macro_use]
+// extern crate failure_derive;
+// extern crate fstypes;
+// #[macro_use]
+// extern crate log;
+// extern crate partition_identity;
+// extern crate sys_mount;
+// extern crate tempdir;
+
 mod accounts;
 mod options;
 mod retain;
@@ -7,7 +22,7 @@ pub use self::options::*;
 pub(crate) use self::retain::*;
 pub use self::retain::delete_old_install;
 
-use super::{DiskError, FileSystemType};
+use fstypes::FileSystemType;
 use tempdir::TempDir;
 use sys_mount::{Mount, MountFlags, Unmount, UnmountFlags};
 use std::io;
@@ -34,7 +49,7 @@ pub enum ReinstallError {
     #[fail(display = "supplied disk configuration will format /home when it should not")]
     ReformattingHome,
     #[fail(display = "unable to probe existing devices: {}", why)]
-    DiskProbe { why: DiskError },
+    DiskProbe { why: ::disks::DiskError },
     #[fail(display = "invalid partition configuration: {}", why)]
     InvalidPartitionConfiguration { why: io::Error },
     #[fail(display = "install media at {:?} was not found", path)]

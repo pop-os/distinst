@@ -574,14 +574,14 @@ pub struct DistinstPartitionUsage {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_sectors_used(
     partition: *const DistinstPartition,
-    sector_size: libc::uint64_t,
+    _sector_size: libc::uint64_t,
 ) -> DistinstPartitionUsage {
     if null_check(partition).is_err() {
         return DistinstPartitionUsage { tag:   2, value: 0 };
     }
 
     let part = &*(partition as *const PartitionInfo);
-    match part.sectors_used(sector_size) {
+    match part.sectors_used() {
         None => DistinstPartitionUsage { tag:   0, value: 0 },
         Some(Ok(used)) => DistinstPartitionUsage {
             tag:   1,

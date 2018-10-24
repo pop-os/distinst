@@ -1,6 +1,6 @@
 //! User account information will be collected here.
 
-use super::super::FileSystemType;
+use fstypes::FileSystemType;
 use super::{mount_and_then, ReinstallError};
 use std::collections::HashMap;
 use std::ffi::OsStr;

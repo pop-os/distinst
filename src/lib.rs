@@ -2,69 +2,67 @@
 
 #![allow(unknown_lints)]
 
-#[macro_use]
-extern crate bitflags;
+pub extern crate disk_sector;
+pub extern crate disk_usage;
+pub extern crate distinst_bootloader as bootloader;
+pub extern crate distinst_chroot as chroot;
+pub extern crate distinst_disks as disks;
+pub extern crate distinst_external_commands as external;
+pub extern crate distinst_locale_support as locale;
+// pub extern crate distinst_options as auto;
+pub extern crate distinst_squashfs as squashfs;
+pub extern crate fstypes;
+pub extern crate hostname_validator as hostname;
+pub extern crate os_detect;
+pub extern crate os_release;
+pub extern crate partition_identity;
+pub extern crate proc_mounts;
+pub extern crate sys_mount;
+
 #[macro_use]
 extern crate cascade;
 extern crate dirs;
 extern crate dbus;
-#[macro_use]
-extern crate derive_new;
+extern crate distinst_utils as misc;
+extern crate envfile;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
+extern crate fstab_generate;
 extern crate fern;
-extern crate gettextrs;
-extern crate iso3166_1;
-extern crate isolang;
 extern crate itertools;
-#[macro_use]
-extern crate lazy_static;
 extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
-extern crate partition_identity;
-extern crate rand;
 extern crate rayon;
 extern crate raw_cpuid;
-extern crate sedregex;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_xml_rs;
-extern crate sys_mount;
 extern crate tempdir;
 
-use process::external::{blockdev, cryptsetup_close, dmlist, encrypted_devices, pvs, vgdeactivate, CloseBy};
-use std::io::{self, Read};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT};
-
-pub use process::{Chroot, Command};
-pub use mnt::Mounts;
-pub use disk::{
-    generate_unique_id, Bootloader, DecryptionError, Disk, DiskError, DiskExt, Disks,
-    FileSystemType, LvmDevice, LvmEncryption, PartitionBuilder, PartitionError, PartitionFlag,
-    PartitionInfo, PartitionTable, PartitionType, Sector, OS,
-};
+pub use disks::*;
+pub use disk_sector::*;
+pub use bootloader::*;
+pub use disk_usage::*;
+pub use hostname::*;
+pub use external::*;
+pub use locale::*;
+pub use squashfs::*;
+pub use os_detect::*;
+pub use os_release::*;
+pub use proc_mounts::*;
 pub use misc::device_layout_hash;
 
-mod disk;
-pub mod dbus_interfaces;
 mod distribution;
-mod envfile;
 mod hardware_support;
 mod installer;
 mod logging;
-mod misc;
-mod mnt;
-mod squashfs;
-
 pub mod auto;
-pub mod hostname;
-pub mod locale;
-pub mod os_release;
-pub mod process;
+pub mod dbus_interfaces;
+
+use external::dmlist;
+use std::io::{self, Read};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT};
 
 pub use self::installer::*;
 pub use self::logging::log;
@@ -72,8 +70,7 @@ pub use self::logging::log;
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
 
-/// Force the installation to perform either a BIOS or EFI installation.
-pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
+pub use bootloader::FORCE_BOOTLOADER;
 
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
@@ -84,29 +81,6 @@ pub static NO_EFI_VARIABLES: AtomicBool = ATOMIC_BOOL_INIT;
 pub const DEFAULT_ESP_SECTORS: u64 = 1_024_000;
 pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
 pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
-
-pub fn deactivate_logical_devices() -> io::Result<()> {
-    let mut res = Ok(());
-    for luks_pv in encrypted_devices()? {
-        info!("deactivating encrypted device named {}", luks_pv);
-        if let Some(vg) = pvs()?.get(&PathBuf::from(["/dev/mapper/", &luks_pv].concat())) {
-            match *vg {
-                Some(ref vg) => {
-                    if let Err(why) = vgdeactivate(vg).and_then(|_| cryptsetup_close(CloseBy::Name(&luks_pv))) {
-                        res = Err(why);
-                    }
-                },
-                None => {
-                    if let Err(why) = cryptsetup_close(CloseBy::Name(&luks_pv)) {
-                        res = Err(why);
-                    }
-                },
-            }
-        }
-    }
-
-    res
-}
 
 /// Checks if the given name already exists as a device in the device map list.
 pub fn device_map_exists(name: &str) -> bool {

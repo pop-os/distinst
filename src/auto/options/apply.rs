@@ -1,7 +1,8 @@
 use std::fmt;
 use std::mem;
 
-use FileSystemType::*;
+use disks::*;
+use fstypes::FileSystemType::*;
 use misc;
 use partition_identity::PartitionID;
 use super::{AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};

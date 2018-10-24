@@ -1,0 +1,12 @@
+[package]
+name = "hostname-validator"
+description = "Validate hostnames according to IETF RFC 1123"
+repository = "https://github.com/pop-os/hostname-validator"
+version = "1.0.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+keywords = ["ietf", "rfc", "1123", "hostname"]
+categories = ["no-std"]
+readme = "README.md"
+license = "MIT"
+
+[dependencies]

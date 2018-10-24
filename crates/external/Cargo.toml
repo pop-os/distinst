@@ -1,0 +1,11 @@
+[package]
+name = "distinst-external-commands"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+
+[dependencies]
+distinst-utils = { path = "../utils" }
+fstypes = { path = "../fstypes" }
+sys-mount = "1.0.3"
+tempdir = "0.3.7"
+log = "0.4.5"
