@@ -21,6 +21,7 @@ use misc;
 use std::collections::BTreeMap;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use sysfs_class::{SysClass, Block};
 
 static mut PVS: Option<BTreeMap<PathBuf, Option<String>>> = None;
 
@@ -95,17 +96,7 @@ pub fn get_size(path: &Path) -> io::Result<u64> {
         Err(_) => path.file_name().expect("device does not have a file name").to_str().unwrap().into(),
     };
 
-    misc::open(&["/sys/class/block/", &name, "/size"].concat())
-        .and_then(|mut file| {
-            let mut buffer = String::new();
-            file.read_to_string(&mut buffer)
-                .and_then(|_| {
-                    buffer.trim().parse::<u64>().map_err(|why| io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("{}", why)
-                    ))
-                })
-        })
+    Block::new(&name).and_then(|ref block| block.size())
 }
 
 #[cfg(test)]

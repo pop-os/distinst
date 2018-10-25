@@ -344,6 +344,7 @@ dependencies = [
  "rand 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sys-mount 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sysfs-class 0.1.0 (git+https://github.com/pop-os/sysfs-class)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1169,6 +1170,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "sysfs-class"
+version = "0.1.0"
+source = "git+https://github.com/pop-os/sysfs-class#d436292a656b0bc30226a67c3de2e03557a1c5e3"
+
+[[package]]
 name = "tempdir"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1427,6 +1433,7 @@ dependencies = [
 "checksum syntex_pos 0.58.1 (registry+https://github.com/rust-lang/crates.io-index)" = "13ad4762fe52abc9f4008e85c4fb1b1fe3aa91ccb99ff4826a439c7c598e1047"
 "checksum syntex_syntax 0.58.1 (registry+https://github.com/rust-lang/crates.io-index)" = "6e0e4dbae163dd98989464c23dd503161b338790640e11537686f2ef0f25c791"
 "checksum sys-mount 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "b33504953647e34c04c4b605a6a8a3021f223a1a8003432267618d7f18ea6040"
+"checksum sysfs-class 0.1.0 (git+https://github.com/pop-os/sysfs-class)" = "<none>"
 "checksum tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)" = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
 "checksum term 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "fa63644f74ce96fbeb9b794f66aff2a52d601cbd5e80f4b97123e3899f4570f1"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"

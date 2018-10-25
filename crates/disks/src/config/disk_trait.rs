@@ -6,6 +6,7 @@ use super::super::{
 use super::partitions::REMOVE;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use sysfs_class::SysClass;
 
 /// Contains methods that are shared between physical and logical disk devices.
 pub trait DiskExt {
@@ -94,10 +95,9 @@ pub trait DiskExt {
             })
         };
 
-        misc::open(path.join("removable"))
+        ::sysfs_class::Block::from_path(&Path::new(&path))
             .ok()
-            .and_then(|file| file.bytes().next())
-            .map_or(false, |res| res.ok().map_or(false, |byte| byte == b'1'))
+            .map_or(false, |block| block.removable().ok() == Some(1))
     }
 
     /// Validates that the partitions are valid for the partition table

@@ -26,4 +26,5 @@ proc-mounts = { path = "../proc-mounts" }
 rand = "0.5.5"
 rayon = "1.0.2"
 sys-mount = "1.0.3"
+sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 tempdir = "0.3.7"

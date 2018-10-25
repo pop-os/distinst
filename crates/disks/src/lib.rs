@@ -2,6 +2,8 @@
 extern crate bitflags;
 #[macro_use]
 extern crate derive_new;
+extern crate disk_sector;
+extern crate disk_usage;
 extern crate distinst_bootloader as bootloader;
 extern crate distinst_utils as misc;
 extern crate distinst_external_commands as external_;
@@ -10,21 +12,20 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate fstypes;
+extern crate fstab_generate;
+extern crate itertools;
+extern crate libc;
+extern crate libparted;
 #[macro_use]
 extern crate log;
-extern crate partition_identity;
-extern crate sys_mount;
-extern crate tempdir;
-extern crate libc;
-extern crate rayon;
-extern crate libparted;
 extern crate os_detect;
-extern crate disk_usage;
-extern crate fstab_generate;
-extern crate disk_sector;
-extern crate itertools;
-extern crate rand;
+extern crate partition_identity;
 extern crate proc_mounts;
+extern crate rand;
+extern crate rayon;
+extern crate sys_mount;
+extern crate sysfs_class;
+extern crate tempdir;
 
 pub mod config;
 mod error;
