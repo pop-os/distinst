@@ -348,30 +348,36 @@ impl Disk {
             self.path().display()
         );
 
-        let mut mounts = BTreeSet::new();
         let swaps = SWAPS.read()
             .expect("failed to get swaps in unmount_all_partitions_with_target");
         let mountstab = MOUNTS.read()
             .expect("failed to get mounts in unmount_all_partitions_with_target");
 
         for partition in &mut self.partitions {
-            if let Some(ref mount) = partition.mount_point {
-                let paths: &[&Path] = &[Path::new("/"), Path::new("/boot/efi"), Path::new("/cdrom")][..];
-                if paths.contains(&mount.as_path()) {
-                    continue
-                }
+            partition.deactivate_if_swap(&swaps)?;
+        }
 
-                for mount in mountstab.mount_starts_with(mount.as_os_str().as_bytes()) {
-                    info!(
-                        "marking {} to be unmounted, which is mounted at {}",
-                        partition.get_device_path().display(),
-                        mount.display(),
-                    );
-                    mounts.insert(mount.clone());
-                }
+        let mut mounts = BTreeSet::new();
+
+        for mount in mountstab.source_starts_with(self.path().as_os_str().as_bytes()) {
+            if mount.dest == Path::new("/cdrom")
+                || mount.dest == Path::new("/")
+                || mount.dest == Path::new("/boot/efi")
+            {
+                continue
             }
 
-            partition.deactivate_if_swap(&swaps)?;
+            info!(
+                "marking {} to be unmounted, which is mounted at {}",
+                mount.source.display(),
+                mount.dest.display(),
+            );
+
+            mounts.insert(&mount.dest);
+
+            for target in mountstab.target_starts_with(mount.dest.as_os_str().as_bytes()) {
+                mounts.insert(&target.dest);
+            }
         }
 
         for mount in mounts.into_iter().rev() {

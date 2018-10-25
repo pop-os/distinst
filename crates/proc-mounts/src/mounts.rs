@@ -6,12 +6,14 @@ use std::path::{Path, PathBuf};
 
 /// A mount entry which contains information regarding how and where a device
 /// is mounted.
+#[derive(Debug)]
 pub struct MountInfo {
     pub source: PathBuf,
     pub dest:   PathBuf,
 }
 
-pub struct MountList(Vec<MountInfo>);
+#[derive(Debug)]
+pub struct MountList(pub Vec<MountInfo>);
 
 impl MountList {
     fn parse_value(value: &str) -> Result<OsString> {
@@ -89,13 +91,26 @@ impl MountList {
             .map(|mount| mount.dest.clone())
     }
 
-    pub fn mount_starts_with(&self, path: &[u8]) -> Vec<PathBuf> {
-        self.0
+    pub fn source_starts_with<'a>(&'a self, path: &'a [u8]) -> Box<Iterator<Item = &MountInfo> + 'a> {
+        let iterator = self.0
             .iter()
-            .filter(|mount| mount.dest.as_os_str().len() >= path.len())
-            .filter(|mount| &mount.dest.as_os_str().as_bytes()[..path.len()] == path)
-            .map(|mount| mount.dest.clone())
-            .collect::<Vec<_>>()
+            .filter(move |mount| {
+                mount.source.as_os_str().len() >= path.len()
+                    && &mount.source.as_os_str().as_bytes()[..path.len()] == path
+            });
+
+        Box::new(iterator)
+    }
+
+    pub fn target_starts_with<'a>(&'a self, path: &'a [u8]) -> Box<Iterator<Item = &MountInfo> + 'a> {
+        let iterator = self.0
+            .iter()
+            .filter(move |mount| {
+                mount.dest.as_os_str().len() >= path.len()
+                    && &mount.dest.as_os_str().as_bytes()[..path.len()] == path
+            });
+
+        Box::new(iterator)
     }
 }
 
