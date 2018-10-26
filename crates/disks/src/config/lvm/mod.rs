@@ -21,6 +21,7 @@ use std::ffi::OsStr;
 use std::{io, thread};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use disk_types::SectorExt;
 
 /// Generate a unique device map ID, to ensure no collisions between dm blocks.
 pub fn generate_unique_id(prefix: &str, exclude_hashes: &[u64]) -> io::Result<String> {
@@ -63,6 +64,12 @@ pub struct LvmDevice {
     pub remove:       bool,
 }
 
+impl SectorExt for LvmDevice {
+    fn get_sector_size(&self) -> u64 { self.sector_size }
+
+    fn get_sectors(&self) -> u64 { self.sectors }
+}
+
 impl DiskExt for LvmDevice {
     const LOGICAL: bool = true;
 
@@ -87,10 +94,6 @@ impl DiskExt for LvmDevice {
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
-
-    fn get_sector_size(&self) -> u64 { self.sector_size }
-
-    fn get_sectors(&self) -> u64 { self.sectors }
 
     fn get_table_type(&self) -> Option<PartitionTable> { None }
 

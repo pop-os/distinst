@@ -2,7 +2,7 @@
 
 use bootloader::Bootloader;
 use disks::Disks;
-use fstypes::FileSystemType;
+use disk_types::FileSystem;
 
 use super::{mount_and_then, AccountFiles, ReinstallError, UserData};
 
@@ -17,7 +17,7 @@ use ::misc;
 /// Removes all files in the chroot at `/`, except for `/home`.
 pub fn remove_root(
     root_path: &Path,
-    root_fs: FileSystemType,
+    root_fs: FileSystem,
 ) -> Result<(), ReinstallError> {
     info!("removing all files except /home. This may take a while...");
     mount_and_then(root_path, root_fs, |base| {
@@ -36,7 +36,7 @@ pub fn remove_root(
 /// Migrate the original system to the `/linux.old/` directory, excluding `/home`.
 pub fn move_root(
     root_path: &Path,
-    root_fs: FileSystemType,
+    root_fs: FileSystem,
 ) -> Result<(), ReinstallError> {
     mount_and_then(root_path, root_fs, |base| {
         let old_root = base.join("linux.old");
@@ -61,7 +61,7 @@ pub fn move_root(
 }
 
 /// If a refresh install fails, this can be used to restore the original system.
-pub fn recover_root(root_path: &Path, root_fs: FileSystemType) -> Result<(), ReinstallError> {
+pub fn recover_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     info!("attempting to restore the original system");
     mount_and_then(root_path, root_fs, |base| {
         // Remove files installed by the installer.
@@ -86,7 +86,7 @@ pub fn recover_root(root_path: &Path, root_fs: FileSystemType) -> Result<(), Rei
 }
 
 /// Delete the /linux.old directory withint the given device.
-pub fn delete_old_install(root_path: &Path, root_fs: FileSystemType) -> Result<(), ReinstallError> {
+pub fn delete_old_install(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     info!("removing the /linux.old directory at {:?}. This may take a while...", root_path);
     mount_and_then(root_path, root_fs, |base| {
         let old_root = base.join("linux.old");
@@ -158,7 +158,7 @@ impl<'a> Backup<'a> {
     /// Create a backup from key data on the given device.
     pub fn new(
         device: &Path,
-        fs: FileSystemType,
+        fs: FileSystem,
         is_root: bool,
         account_files: &'a AccountFiles,
     ) -> Result<Backup<'a>, ReinstallError> {
@@ -217,7 +217,7 @@ impl<'a> Backup<'a> {
     }
 
     /// Restores the backup to the given device. The device will be opened using the specified file system.
-    pub fn restore(&self, device: &Path, fs: FileSystemType) -> Result<(), ReinstallError> {
+    pub fn restore(&self, device: &Path, fs: FileSystem) -> Result<(), ReinstallError> {
         mount_and_then(device, fs, |base| {
             info!("appending user account data to new install");
             let (passwd, group, shadow, gshadow) = (

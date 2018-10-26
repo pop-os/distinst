@@ -1,11 +1,11 @@
-use super::{FileSystemType, LvmEncryption, PartitionFlag, PartitionInfo, PartitionType, FORMAT};
+use super::{FileSystem, LvmEncryption, PartitionFlag, PartitionInfo, PartitionType, FORMAT};
 use std::path::PathBuf;
 
 /// Partition builders are supplied as inputs to `Disk::add_partition`.
 pub struct PartitionBuilder {
     pub start_sector: u64,
     pub end_sector:   u64,
-    pub filesystem:   Option<FileSystemType>,
+    pub filesystem:   Option<FileSystem>,
     pub part_type:    PartitionType,
     pub name:         Option<String>,
     pub flags:        Vec<PartitionFlag>,
@@ -16,7 +16,7 @@ pub struct PartitionBuilder {
 
 impl PartitionBuilder {
     /// Creates a new partition builder.
-    pub fn new<O: Into<Option<FileSystemType>>>(start: u64, end: u64, fs: O) -> PartitionBuilder {
+    pub fn new<O: Into<Option<FileSystem>>>(start: u64, end: u64, fs: O) -> PartitionBuilder {
         PartitionBuilder {
             start_sector: start,
             end_sector:   end - 1,
@@ -88,9 +88,9 @@ impl PartitionBuilder {
             part_type:    self.part_type,
             filesystem:   if self.volume_group.is_some() {
                 if self.volume_group.as_ref().unwrap().1.is_some() {
-                    Some(FileSystemType::Luks)
+                    Some(FileSystem::Luks)
                 } else {
-                    Some(FileSystemType::Lvm)
+                    Some(FileSystem::Lvm)
                 }
             } else {
                 self.filesystem

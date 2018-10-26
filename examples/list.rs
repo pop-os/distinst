@@ -1,7 +1,7 @@
 extern crate distinst;
 
-use distinst::disks::{DiskExt, Disks};
-use std::io::Result;
+use distinst::{DiskExt, Disks, FileSystemExt, SectorExt};
+use std::io::{self, Result};
 use std::process;
 
 fn list() -> Result<()> {
@@ -37,29 +37,26 @@ fn list() -> Result<()> {
 
             println!(
                 "    usage:   {}",
-                if let Some(result) = part.sectors_used() {
-                    match result {
-                        Ok(used_sectors) => {
-                            let used = used_sectors * sector_size;
-                            format!(
-                                "{}%: {} MB ({} MiB)",
-                                ((used_sectors as f64 / part.sectors() as f64) * 100f64) as u8,
-                                used / 1_000_000,
-                                used / 1_048_576
-                            )
-                        }
-                        Err(why) => {
-                            eprintln!(
-                                "list: error getting usage for {} ({:?}): {}",
-                                part.device_path.display(),
-                                part.filesystem,
-                                why
-                            );
-                            ::std::process::exit(1);
-                        }
+                match part.sectors_used() {
+                    Ok(used_sectors) => {
+                        let used = used_sectors * sector_size;
+                        format!(
+                            "{}%: {} MB ({} MiB)",
+                            ((used_sectors as f64 / part.sectors() as f64) * 100f64) as u8,
+                            used / 1_000_000,
+                            used / 1_048_576
+                        )
                     }
-                } else {
-                    "N/A".into()
+                    Err(ref why) if why.kind() == io::ErrorKind::NotFound => "N/A".into(),
+                    Err(ref why) => {
+                        eprintln!(
+                            "list: error getting usage for {} ({:?}): {}",
+                            part.device_path.display(),
+                            part.filesystem,
+                            why
+                        );
+                        ::std::process::exit(1);
+                    }
                 }
             );
 
@@ -96,29 +93,26 @@ fn list() -> Result<()> {
 
             println!(
                 "    usage:   {}",
-                if let Some(result) = part.sectors_used() {
-                    match result {
-                        Ok(used_sectors) => {
-                            let used = used_sectors * sector_size;
-                            format!(
-                                "{}%: {} MB ({} MiB)",
-                                ((used_sectors as f64 / part.sectors() as f64) * 100f64) as u8,
-                                used / 1_000_000,
-                                used / 1_048_576
-                            )
-                        }
-                        Err(why) => {
-                            eprintln!(
-                                "list: error getting usage for {} ({:?}): {}",
-                                part.device_path.display(),
-                                part.filesystem,
-                                why
-                            );
-                            ::std::process::exit(1);
-                        }
+                match part.sectors_used() {
+                    Ok(used_sectors) => {
+                        let used = used_sectors * sector_size;
+                        format!(
+                            "{}%: {} MB ({} MiB)",
+                            ((used_sectors as f64 / part.sectors() as f64) * 100f64) as u8,
+                            used / 1_000_000,
+                            used / 1_048_576
+                        )
                     }
-                } else {
-                    "N/A".into()
+                    Err(ref why) if why.kind() == io::ErrorKind::NotFound => "N/A".into(),
+                    Err(ref why) => {
+                        eprintln!(
+                            "list: error getting usage for {} ({:?}): {}",
+                            part.device_path.display(),
+                            part.filesystem,
+                            why
+                        );
+                        ::std::process::exit(1);
+                    }
                 }
             );
 

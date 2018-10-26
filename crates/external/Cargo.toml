@@ -5,7 +5,7 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstick
 
 [dependencies]
 distinst-utils = { path = "../utils" }
-fstypes = { path = "../fstypes" }
+disk-types = { path = "../disk-types" }
 sys-mount = "1.0.3"
 tempdir = "0.3.7"
 log = "0.4.5"

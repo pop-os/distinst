@@ -1,4 +1,4 @@
-use distinst::{DiskExt, Disks, LvmDevice, PartitionBuilder, PartitionInfo, Sector};
+use distinst::{DiskExt, Disks, FileSystemExt, LvmDevice, PartitionBuilder, PartitionInfo, Sector, SectorExt};
 use external::luks::deactivate_logical_devices;
 use ffi::AsMutPtr;
 use libc;

@@ -1,7 +1,7 @@
 //! A collection of external commands used throughout the program.
 
 extern crate distinst_utils as misc;
-extern crate fstypes;
+extern crate disk_types;
 #[macro_use]
 extern crate log;
 extern crate sys_mount;

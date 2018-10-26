@@ -44,7 +44,7 @@ var start = disk.get_sector (Sector.start());
 var end = disk.get_sector (efi_sector);
 
 int result = disk.add_partition(
-    new PartitionBuilder (start, end, FileSystemType.FAT32)
+    new PartitionBuilder (start, end, FileSystem.FAT32)
         .set_partition_type (PartitionType.PRIMARY)
         .add_flag (PartitionFlag.ESP)
         .set_mount ("/boot/efi")
@@ -59,7 +59,7 @@ start = disk.get_sector (efi_sector);
 end = disk.get_sector (Sector.end ());
 
 result = disk.add_partition (
-    new PartitionBuilder (start, end, FileSystemType.EXT4)
+    new PartitionBuilder (start, end, FileSystem.EXT4)
         .set_partition_type (PartitionType.PRIMARY)
         .set_mount ("/")
 );

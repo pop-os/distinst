@@ -2,7 +2,7 @@ use libc;
 
 use std::ffi::CStr;
 
-use distinst::FileSystemType;
+use distinst::FileSystem;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -23,43 +23,43 @@ pub enum DISTINST_FILE_SYSTEM_TYPE {
     LUKS = 13,
 }
 
-impl From<DISTINST_FILE_SYSTEM_TYPE> for Option<FileSystemType> {
-    fn from(fs: DISTINST_FILE_SYSTEM_TYPE) -> Option<FileSystemType> {
+impl From<DISTINST_FILE_SYSTEM_TYPE> for Option<FileSystem> {
+    fn from(fs: DISTINST_FILE_SYSTEM_TYPE) -> Option<FileSystem> {
         match fs {
-            DISTINST_FILE_SYSTEM_TYPE::BTRFS => Some(FileSystemType::Btrfs),
-            DISTINST_FILE_SYSTEM_TYPE::EXFAT => Some(FileSystemType::Exfat),
-            DISTINST_FILE_SYSTEM_TYPE::EXT2 => Some(FileSystemType::Ext2),
-            DISTINST_FILE_SYSTEM_TYPE::EXT3 => Some(FileSystemType::Ext3),
-            DISTINST_FILE_SYSTEM_TYPE::EXT4 => Some(FileSystemType::Ext4),
-            DISTINST_FILE_SYSTEM_TYPE::F2FS => Some(FileSystemType::F2fs),
-            DISTINST_FILE_SYSTEM_TYPE::FAT16 => Some(FileSystemType::Fat16),
-            DISTINST_FILE_SYSTEM_TYPE::FAT32 => Some(FileSystemType::Fat32),
+            DISTINST_FILE_SYSTEM_TYPE::BTRFS => Some(FileSystem::Btrfs),
+            DISTINST_FILE_SYSTEM_TYPE::EXFAT => Some(FileSystem::Exfat),
+            DISTINST_FILE_SYSTEM_TYPE::EXT2 => Some(FileSystem::Ext2),
+            DISTINST_FILE_SYSTEM_TYPE::EXT3 => Some(FileSystem::Ext3),
+            DISTINST_FILE_SYSTEM_TYPE::EXT4 => Some(FileSystem::Ext4),
+            DISTINST_FILE_SYSTEM_TYPE::F2FS => Some(FileSystem::F2fs),
+            DISTINST_FILE_SYSTEM_TYPE::FAT16 => Some(FileSystem::Fat16),
+            DISTINST_FILE_SYSTEM_TYPE::FAT32 => Some(FileSystem::Fat32),
             DISTINST_FILE_SYSTEM_TYPE::NONE => None,
-            DISTINST_FILE_SYSTEM_TYPE::NTFS => Some(FileSystemType::Ntfs),
-            DISTINST_FILE_SYSTEM_TYPE::SWAP => Some(FileSystemType::Swap),
-            DISTINST_FILE_SYSTEM_TYPE::XFS => Some(FileSystemType::Xfs),
-            DISTINST_FILE_SYSTEM_TYPE::LVM => Some(FileSystemType::Lvm),
-            DISTINST_FILE_SYSTEM_TYPE::LUKS => Some(FileSystemType::Luks),
+            DISTINST_FILE_SYSTEM_TYPE::NTFS => Some(FileSystem::Ntfs),
+            DISTINST_FILE_SYSTEM_TYPE::SWAP => Some(FileSystem::Swap),
+            DISTINST_FILE_SYSTEM_TYPE::XFS => Some(FileSystem::Xfs),
+            DISTINST_FILE_SYSTEM_TYPE::LVM => Some(FileSystem::Lvm),
+            DISTINST_FILE_SYSTEM_TYPE::LUKS => Some(FileSystem::Luks),
         }
     }
 }
 
-impl From<FileSystemType> for DISTINST_FILE_SYSTEM_TYPE {
-    fn from(fs: FileSystemType) -> DISTINST_FILE_SYSTEM_TYPE {
+impl From<FileSystem> for DISTINST_FILE_SYSTEM_TYPE {
+    fn from(fs: FileSystem) -> DISTINST_FILE_SYSTEM_TYPE {
         match fs {
-            FileSystemType::Btrfs => DISTINST_FILE_SYSTEM_TYPE::BTRFS,
-            FileSystemType::Exfat => DISTINST_FILE_SYSTEM_TYPE::EXFAT,
-            FileSystemType::Ext2 => DISTINST_FILE_SYSTEM_TYPE::EXT2,
-            FileSystemType::Ext3 => DISTINST_FILE_SYSTEM_TYPE::EXT3,
-            FileSystemType::Ext4 => DISTINST_FILE_SYSTEM_TYPE::EXT4,
-            FileSystemType::F2fs => DISTINST_FILE_SYSTEM_TYPE::F2FS,
-            FileSystemType::Fat16 => DISTINST_FILE_SYSTEM_TYPE::FAT16,
-            FileSystemType::Fat32 => DISTINST_FILE_SYSTEM_TYPE::FAT32,
-            FileSystemType::Ntfs => DISTINST_FILE_SYSTEM_TYPE::NTFS,
-            FileSystemType::Swap => DISTINST_FILE_SYSTEM_TYPE::SWAP,
-            FileSystemType::Xfs => DISTINST_FILE_SYSTEM_TYPE::XFS,
-            FileSystemType::Lvm => DISTINST_FILE_SYSTEM_TYPE::LVM,
-            FileSystemType::Luks => DISTINST_FILE_SYSTEM_TYPE::LUKS,
+            FileSystem::Btrfs => DISTINST_FILE_SYSTEM_TYPE::BTRFS,
+            FileSystem::Exfat => DISTINST_FILE_SYSTEM_TYPE::EXFAT,
+            FileSystem::Ext2 => DISTINST_FILE_SYSTEM_TYPE::EXT2,
+            FileSystem::Ext3 => DISTINST_FILE_SYSTEM_TYPE::EXT3,
+            FileSystem::Ext4 => DISTINST_FILE_SYSTEM_TYPE::EXT4,
+            FileSystem::F2fs => DISTINST_FILE_SYSTEM_TYPE::F2FS,
+            FileSystem::Fat16 => DISTINST_FILE_SYSTEM_TYPE::FAT16,
+            FileSystem::Fat32 => DISTINST_FILE_SYSTEM_TYPE::FAT32,
+            FileSystem::Ntfs => DISTINST_FILE_SYSTEM_TYPE::NTFS,
+            FileSystem::Swap => DISTINST_FILE_SYSTEM_TYPE::SWAP,
+            FileSystem::Xfs => DISTINST_FILE_SYSTEM_TYPE::XFS,
+            FileSystem::Lvm => DISTINST_FILE_SYSTEM_TYPE::LVM,
+            FileSystem::Luks => DISTINST_FILE_SYSTEM_TYPE::LUKS,
         }
     }
 }

@@ -8,10 +8,13 @@ use std::path::{Path, PathBuf};
 /// is mounted.
 #[derive(Debug)]
 pub struct MountInfo {
+    /// The device which is mounted.
     pub source: PathBuf,
+    /// Where the device is mounted.
     pub dest:   PathBuf,
 }
 
+/// A list of mounts active on the system at the type of creation.
 #[derive(Debug)]
 pub struct MountList(pub Vec<MountInfo>);
 
@@ -60,12 +63,14 @@ impl MountList {
         })
     }
 
+    /// Parse mounts given from an iterator of mount entry lines.
     pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<MountList> {
         lines.map(Self::parse_line)
             .collect::<Result<Vec<MountInfo>>>()
             .map(MountList)
     }
 
+    /// Read a new list of mounts into memory from `/proc/mounts`.
     pub fn new() -> Result<MountList> {
         let file = ::misc::open("/proc/mounts")
             .and_then(|mut file| {
@@ -77,6 +82,7 @@ impl MountList {
         Self::parse_from(file.lines())
     }
 
+    /// Find the first mount which which has the `path` destination.
     pub fn find_mount<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         self.0
             .iter()
@@ -84,6 +90,7 @@ impl MountList {
             .map(|mount| mount.source.clone())
     }
 
+    /// Find the first mount hich has the source `path`.
     pub fn get_mount_point<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         self.0
             .iter()
@@ -91,23 +98,26 @@ impl MountList {
             .map(|mount| mount.dest.clone())
     }
 
-    pub fn source_starts_with<'a>(&'a self, path: &'a [u8]) -> Box<Iterator<Item = &MountInfo> + 'a> {
-        let iterator = self.0
-            .iter()
-            .filter(move |mount| {
-                mount.source.as_os_str().len() >= path.len()
-                    && &mount.source.as_os_str().as_bytes()[..path.len()] == path
-            });
-
-        Box::new(iterator)
+    /// Iterate through each source that starts with the given `path`.
+    pub fn source_starts_with<'a>(&'a self, path: &'a Path) -> Box<Iterator<Item = &MountInfo> + 'a> {
+        self.starts_with(path.as_os_str().as_bytes(), |m| &m.source)
     }
 
-    pub fn target_starts_with<'a>(&'a self, path: &'a [u8]) -> Box<Iterator<Item = &MountInfo> + 'a> {
+    /// Iterate through each destination that starts with the given `path`.
+    pub fn destination_starts_with<'a>(&'a self, path: &'a Path) -> Box<Iterator<Item = &MountInfo> + 'a> {
+        self.starts_with(path.as_os_str().as_bytes(), |m| &m.dest)
+    }
+
+    fn starts_with<'a, F: Fn(&'a MountInfo) -> &'a Path + 'a>(
+        &'a self,
+        path: &'a [u8],
+        func: F
+    ) -> Box<Iterator<Item = &MountInfo> + 'a> {
         let iterator = self.0
             .iter()
             .filter(move |mount| {
-                mount.dest.as_os_str().len() >= path.len()
-                    && &mount.dest.as_os_str().as_bytes()[..path.len()] == path
+                let input = func(mount).as_os_str().as_bytes();
+                input.len() >= path.len() && &input[..path.len()] == path
             });
 
         Box::new(iterator)
@@ -137,8 +147,9 @@ fusectl /sys/fs/fuse/connections fusectl rw,relatime 0 0
             PathBuf::from("/boot/efi")
         );
 
+        let path = &Path::new("/");
         assert_eq!(
-            mounts.mount_starts_with(b"/"),
+            mounts.destination_starts_with(path).map(|m| m.dest.clone()).collect::<Vec<_>>(),
             {
                 let mut vec: Vec<PathBuf> = Vec::new();
                 vec.push("/sys".into());

@@ -13,13 +13,12 @@ pub use self::disk_trait::{find_partition, find_partition_mut};
 pub use self::disks::*;
 pub use self::lvm::{generate_unique_id, LvmDevice, LvmEncryption};
 pub use self::partitions::*;
-pub use disk_sector::Sector;
+pub use disk_types::Sector;
 
 use super::{Bootloader, DiskError};
 use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType};
-use misc;
 use std::collections::BTreeMap;
-use std::io::{self, Read};
+use std::io;
 use std::path::{Path, PathBuf};
 use sysfs_class::{SysClass, Block};
 
@@ -127,7 +126,7 @@ mod tests {
                         target:       Some(Path::new("/boot/efi").to_path_buf()),
                         start_sector: 2048,
                         end_sector:   1026047,
-                        filesystem:   Some(FileSystemType::Fat16),
+                        filesystem:   Some(FileSystem::Fat16),
                         name:         None,
                         number:       1,
                         ordering:     1,
@@ -144,7 +143,7 @@ mod tests {
                         target:       Some(Path::new("/").to_path_buf()),
                         start_sector: 1026048,
                         end_sector:   420456447,
-                        filesystem:   Some(FileSystemType::Btrfs),
+                        filesystem:   Some(FileSystem::Btrfs),
                         name:         Some("Pop!_OS".into()),
                         number:       2,
                         ordering:     2,
@@ -161,7 +160,7 @@ mod tests {
                         target:       None,
                         start_sector: 420456448,
                         end_sector:   1936738303,
-                        filesystem:   Some(FileSystemType::Ext4),
+                        filesystem:   Some(FileSystem::Ext4),
                         name:         Some("Solus OS".into()),
                         number:       3,
                         ordering:     3,
@@ -178,7 +177,7 @@ mod tests {
                         target:       None,
                         start_sector: 1936738304,
                         end_sector:   1953523711,
-                        filesystem:   Some(FileSystemType::Swap),
+                        filesystem:   Some(FileSystem::Swap),
                         name:         None,
                         number:       4,
                         ordering:     4,
@@ -217,12 +216,12 @@ mod tests {
 
     // 500 MiB Fat16 partition.
     fn boot_part(start: u64) -> PartitionBuilder {
-        PartitionBuilder::new(start, 1024_000 + start, FileSystemType::Fat16)
+        PartitionBuilder::new(start, 1024_000 + start, FileSystem::Fat16)
     }
 
     // 20 GiB Ext4 partition.
     fn root_part(start: u64) -> PartitionBuilder {
-        PartitionBuilder::new(start, GIB20 + start, FileSystemType::Ext4)
+        PartitionBuilder::new(start, GIB20 + start, FileSystem::Ext4)
     }
 
     #[test]
@@ -231,7 +230,7 @@ mod tests {
         let mut new = source.clone();
         new.remove_partition(1).unwrap();
         new.remove_partition(2).unwrap();
-        new.format_partition(3, FileSystemType::Xfs).unwrap();
+        new.format_partition(3, FileSystem::Xfs).unwrap();
         let start = new.get_partition(3).unwrap().start_sector;
         new.resize_partition(3, start + GIB20).unwrap();
         new.remove_partition(4).unwrap();
@@ -248,7 +247,7 @@ mod tests {
                     PartitionCreate {
                         start_sector: 420456448,
                         end_sector:   420456447 + GIB20,
-                        file_system:  Some(FileSystemType::Xfs),
+                        file_system:  Some(FileSystem::Xfs),
                         kind:         PartitionType::Primary,
                         flags:        vec![],
                         format:       true,
@@ -258,7 +257,7 @@ mod tests {
                     PartitionCreate {
                         start_sector: 2048,
                         end_sector:   1024_000 + 2047,
-                        file_system:  Some(FileSystemType::Fat16),
+                        file_system:  Some(FileSystem::Fat16),
                         kind:         PartitionType::Primary,
                         flags:        vec![],
                         format:       true,
@@ -268,7 +267,7 @@ mod tests {
                     PartitionCreate {
                         start_sector: 1026_048,
                         end_sector:   GIB20 + 1026_047,
-                        file_system:  Some(FileSystemType::Ext4),
+                        file_system:  Some(FileSystem::Ext4),
                         kind:         PartitionType::Primary,
                         flags:        vec![],
                         format:       true,
@@ -286,7 +285,7 @@ mod tests {
         let mut source = get_default().physical.into_iter().next().unwrap();
         assert!(
             source
-                .add_partition(PartitionBuilder::new(2048, 2_000_000, FileSystemType::Ext4))
+                .add_partition(PartitionBuilder::new(2048, 2_000_000, FileSystem::Ext4))
                 .is_err()
         );
 
@@ -296,7 +295,7 @@ mod tests {
                 .add_partition(PartitionBuilder::new(
                     2048,
                     1953525169,
-                    FileSystemType::Ext4
+                    FileSystem::Ext4
                 ))
                 .is_err()
         );
@@ -335,7 +334,7 @@ mod tests {
             .add_partition(PartitionBuilder::new(
                 2048,
                 1024_000 + 2048,
-                FileSystemType::Fat16,
+                FileSystem::Fat16,
             ))
             .unwrap();
         assert!(source.validate_layout(&duplicate).is_ok());

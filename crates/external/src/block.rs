@@ -1,5 +1,5 @@
-use fstypes::FileSystemType;
-use self::FileSystemType::*;
+use disk_types::FileSystem;
+use self::FileSystem::*;
 use std::io;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
@@ -28,7 +28,7 @@ pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
 }
 
 /// Obtains the file system on a partition via blkid
-pub fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystemType> {
+pub fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystem> {
     let output = Command::new("blkid")
         .arg(part.as_ref())
         .stdout(Stdio::piped())
@@ -44,7 +44,7 @@ pub fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystemType> {
             info!("blkid found '{}'", type_);
             let length = type_.len();
             if length > 7 {
-                type_[6..length - 1].parse::<FileSystemType>().ok()
+                type_[6..length - 1].parse::<FileSystem>().ok()
             } else {
                 None
             }
@@ -58,7 +58,7 @@ pub fn fsck<P: AsRef<Path>>(part: P, cmd: Option<(&str, &str)>) -> io::Result<()
 }
 
 /// Formats the supplied `part` device with the file system specified.
-pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
+pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystem) -> io::Result<()> {
     let (cmd, args): (&'static str, &'static [&'static str]) = match kind {
         Btrfs => ("mkfs.btrfs", &["-f"]),
         // Exfat => ("mkfs.exfat", &[]),
@@ -89,7 +89,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystemType) -> io::Result<()> {
 }
 
 /// Get the label from the given partition, if it exists.
-pub fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option<String> {
+pub fn get_label<P: AsRef<Path>>(part: P, kind: FileSystem) -> Option<String> {
     let (cmd, args) = get_label_cmd(kind)?;
 
     let output = Command::new(cmd)
@@ -103,7 +103,7 @@ pub fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option<String
 
     let output: String = String::from_utf8_lossy(&output).into();
 
-    let output: String = if kind == FileSystemType::Xfs {
+    let output: String = if kind == FileSystem::Xfs {
         if output.len() > 10 {
             output[9..output.len() - 2].into()
         } else {
@@ -118,7 +118,7 @@ pub fn get_label<P: AsRef<Path>>(part: P, kind: FileSystemType) -> Option<String
     Some(output)
 }
 
-fn get_label_cmd(kind: FileSystemType) -> Option<(&'static str, &'static [&'static str])> {
+fn get_label_cmd(kind: FileSystem) -> Option<(&'static str, &'static [&'static str])> {
     let cmd: (&'static str, &'static [&'static str]) = match kind {
         Btrfs => ("btrfs", &["filesystem", "label"]),
         // Exfat => ("exfatlabel", &[]),

@@ -6,8 +6,7 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstick
 [dependencies]
 bitflags = "1.0.4"
 derive-new = "0.5.5"
-disk-sector = { path = "../disk-sector" }
-disk-usage = { path = "../disk-usage" }
+disk-types = { path = "../disk-types" }
 distinst-bootloader = { path = "../bootloader" }
 distinst-external-commands = { path = "../external" }
 distinst-utils = { path = "../utils" }
@@ -15,7 +14,6 @@ envfile = { path = "../envfile" }
 failure = "0.1.3"
 failure_derive = "0.1.3"
 fstab-generate = { path = "../fstab-generate" }
-fstypes = { path = "../fstypes" }
 itertools = "0.7.8"
 libc = "0.2.43"
 libparted = "0.1.3"

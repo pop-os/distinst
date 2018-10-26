@@ -1,4 +1,4 @@
-use disks::{Disks, FileSystemType};
+use disks::{Disks, FileSystem};
 use proc_mounts::Mounts;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -47,7 +47,7 @@ pub fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
             };
 
             let fs = match target.filesystem.unwrap() {
-                FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
+                FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
                 fs => fs.into(),
             };
 

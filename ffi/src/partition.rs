@@ -3,10 +3,10 @@ use libc;
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
-use std::ptr;
+use std::{io, ptr};
 
 use distinst::{
-    Bootloader, FileSystemType, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
+    Bootloader, FileSystem, FileSystemExt, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
 };
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use {gen_object_ptr, null_check, get_str, DistinstLvmEncryption};
@@ -152,7 +152,7 @@ pub unsafe extern "C" fn distinst_partition_builder_new(
     end_sector: libc::uint64_t,
     filesystem: DISTINST_FILE_SYSTEM_TYPE,
 ) -> *mut DistinstPartitionBuilder {
-    let filesystem: FileSystemType = match filesystem.into() {
+    let filesystem: FileSystem = match filesystem.into() {
         Some(filesystem) => filesystem,
         None => {
             error!("distinst_partition_builder_new: filesystem is NONE");
@@ -582,12 +582,12 @@ pub unsafe extern "C" fn distinst_partition_sectors_used(
 
     let part = &*(partition as *const PartitionInfo);
     match part.sectors_used() {
-        None => DistinstPartitionUsage { tag:   0, value: 0 },
-        Some(Ok(used)) => DistinstPartitionUsage {
+        Ok(used) => DistinstPartitionUsage {
             tag:   1,
             value: used,
         },
-        Some(Err(why)) => {
+        Err(ref why) if why.kind() == io::ErrorKind::NotFound => DistinstPartitionUsage { tag:   0, value: 0 },
+        Err(ref why) => {
             error!("unable to get partition sector usage: {}", why);
             DistinstPartitionUsage { tag:   2, value: 0 }
         }

@@ -1,15 +1,14 @@
-use misc;
+use disk_types::SectorExt;
 use super::super::{
     DiskError, Disks, PartitionBuilder, PartitionInfo,
     PartitionTable, PartitionType, Sector,
 };
 use super::partitions::REMOVE;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use sysfs_class::SysClass;
 
 /// Contains methods that are shared between physical and logical disk devices.
-pub trait DiskExt {
+pub trait DiskExt: SectorExt {
     const LOGICAL: bool;
 
     /// Returns true if an extended partition exists.
@@ -45,12 +44,6 @@ pub trait DiskExt {
 
     /// Returns a mutable slice of all partitions in the device.
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo];
-
-    /// The combined total number of sectors on the disk.
-    fn get_sectors(&self) -> u64;
-
-    /// The size of each sector, in bytes.
-    fn get_sector_size(&self) -> u64;
 
     /// The partition table that is on the device.
     fn get_table_type(&self) -> Option<PartitionTable>;
@@ -128,28 +121,6 @@ pub trait DiskExt {
             .filter(|p| !p.flag_is_enabled(REMOVE))
             .map(|p| p.sectors())
             .sum()
-    }
-
-    #[allow(cast_lossless)]
-    /// Calculates the requested sector from a given `Sector` variant.
-    fn get_sector(&self, sector: Sector) -> u64 {
-        const MIB2: u64 = 2 * 1024 * 1024;
-
-        let end = || self.get_sectors() - (MIB2 / self.get_sector_size());
-        let megabyte = |size| (size * 1_000_000) / self.get_sector_size();
-
-        match sector {
-            Sector::Start => MIB2 / self.get_sector_size(),
-            Sector::End => end(),
-            Sector::Megabyte(size) => megabyte(size),
-            Sector::MegabyteFromEnd(size) => end() - megabyte(size),
-            Sector::Unit(size) => size,
-            Sector::UnitFromEnd(size) => end() - size,
-            Sector::Percent(value) => {
-                ((self.get_sectors() * self.get_sector_size()) / ::std::u16::MAX as u64)
-                    * value as u64 / self.get_sector_size()
-            }
-        }
     }
 
     /// Adds a new partition to the partition list.

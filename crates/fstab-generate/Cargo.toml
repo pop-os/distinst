@@ -4,5 +4,5 @@ version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 
 [dependencies]
-fstypes = { path = "../fstypes" }
+disk-types = { path = "../disk-types" }
 partition-identity = { git = "https://github.com/pop-os/partition-identity" }

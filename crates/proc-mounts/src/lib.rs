@@ -24,6 +24,7 @@ pub use self::mounts::*;
 pub use self::swaps::*;
 
 lazy_static! {
+    /// Static list of mounts that is dynamically updated in the background.
     pub static ref MOUNTS: Arc<RwLock<MountList>> = {
         let mounts = Arc::new(RwLock::new(MountList::new().unwrap()));
         watch_and_set(mounts.clone(), "/proc/mounts", || MountList::new().ok());
@@ -32,6 +33,7 @@ lazy_static! {
 }
 
 lazy_static! {
+    /// Static list of swap points that is dynamically updated in the background.
     pub static ref SWAPS: Arc<RwLock<SwapList>> = {
         let swaps = Arc::new(RwLock::new(SwapList::new().unwrap()));
         watch_and_set(swaps.clone(), "/proc/swaps", || SwapList::new().ok());

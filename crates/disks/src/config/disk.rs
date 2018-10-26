@@ -3,7 +3,7 @@ use super::super::operations::*;
 use super::super::serial::get_serial;
 use external::{is_encrypted, pvs};
 use super::super::{
-    DiskError, DiskExt, Disks, FileSystemType, PartitionError, PartitionFlag,
+    DiskError, DiskExt, Disks, FileSystem, FileSystemExt, PartitionError, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
@@ -12,11 +12,11 @@ use libparted::{Device, DeviceType, Disk as PedDisk};
 use misc;
 use std::collections::BTreeSet;
 use std::io::{self, Read};
-use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
 use sys_mount::{unmount, UnmountFlags};
 use rayon::prelude::*;
+use disk_types::SectorExt;
 
 /// Detects a partition on the device, if it exists.
 /// Useful for detecting if a LUKS device has a file system.
@@ -50,9 +50,9 @@ pub fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
 
                             if part.filesystem.is_none() {
                                 part.filesystem = if is_encrypted(device_path) {
-                                    Some(FileSystemType::Luks)
+                                    Some(FileSystem::Luks)
                                 } else if original_vg.is_some() {
-                                    Some(FileSystemType::Lvm)
+                                    Some(FileSystem::Lvm)
                                 } else {
                                     None
                                 };
@@ -109,6 +109,12 @@ pub struct Disk {
     pub partitions: Vec<PartitionInfo>,
 }
 
+impl SectorExt for Disk {
+    fn get_sector_size(&self) -> u64 { self.sector_size }
+
+    fn get_sectors(&self) -> u64 { self.size }
+}
+
 impl DiskExt for Disk {
     const LOGICAL: bool = false;
 
@@ -127,10 +133,6 @@ impl DiskExt for Disk {
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
-
-    fn get_sector_size(&self) -> u64 { self.sector_size }
-
-    fn get_sectors(&self) -> u64 { self.size }
 
     fn get_table_type(&self) -> Option<PartitionTable> { self.table_type }
 
@@ -358,8 +360,7 @@ impl Disk {
         }
 
         let mut mounts = BTreeSet::new();
-
-        for mount in mountstab.source_starts_with(self.path().as_os_str().as_bytes()) {
+        for mount in mountstab.source_starts_with(self.path()) {
             if mount.dest == Path::new("/cdrom")
                 || mount.dest == Path::new("/")
                 || mount.dest == Path::new("/boot/efi")
@@ -374,8 +375,7 @@ impl Disk {
             );
 
             mounts.insert(&mount.dest);
-
-            for target in mountstab.target_starts_with(mount.dest.as_os_str().as_bytes()) {
+            for target in mountstab.destination_starts_with(&mount.dest) {
                 mounts.insert(&target.dest);
             }
         }
@@ -546,7 +546,7 @@ impl Disk {
     pub fn format_partition(
         &mut self,
         partition: i32,
-        fs: FileSystemType,
+        fs: FileSystem,
     ) -> Result<(), DiskError> {
         info!(
             "specifying to format partition {} on {} with {:?}",

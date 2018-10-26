@@ -1,4 +1,5 @@
-use FileSystemType::*;
+use FileSystem::*;
+use disk_types::{FileSystemExt, SectorExt};
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
 use misc::{self, hasher};
@@ -21,7 +22,7 @@ use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEn
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::lvm::{self, generate_unique_id, LvmDevice};
 use super::super::{
-    Bootloader, DecryptionError, DiskError, DiskExt, FileSystemType, FileSystemSupport,
+    Bootloader, DecryptionError, DiskError, DiskExt, FileSystem, FileSystemSupport,
     PartitionFlag, PartitionInfo,
 };
 use sys_mount::{unmount, UnmountFlags};
@@ -59,7 +60,7 @@ impl Disks {
         self.physical
             .iter()
             .flat_map(|d| d.file_system.as_ref().into_iter().chain(d.partitions.iter()))
-            .any(|p| p.filesystem == Some(FileSystemType::Luks))
+            .any(|p| p.filesystem == Some(FileSystem::Luks))
     }
 
     pub fn get_physical_device<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
@@ -551,7 +552,7 @@ impl Disks {
             // Chain the logical partitions to the iterator
             .chain(self.get_logical_devices().iter().flat_map(|d| d.get_partitions().iter()))
             // Then collect all partitions whose file system is LUKS
-            .filter(|p| p.filesystem.map_or(false, |fs| fs == FileSystemType::Luks))
+            .filter(|p| p.filesystem.map_or(false, |fs| fs == FileSystem::Luks))
             // Commit
             .collect()
     }
@@ -564,13 +565,13 @@ impl Disks {
         let logical = &mut self.logical;
 
         for partition in physical.iter_mut().flat_map(|d| d.get_partitions_mut().iter_mut()) {
-            if partition.filesystem.map_or(false, |fs| fs == FileSystemType::Luks) {
+            if partition.filesystem.map_or(false, |fs| fs == FileSystem::Luks) {
                 partitions.push(partition);
             }
         }
 
         for partition in logical.iter_mut().flat_map(|d| d.get_partitions_mut().iter_mut()) {
-            if partition.filesystem.map_or(false, |fs| fs == FileSystemType::Luks) {
+            if partition.filesystem.map_or(false, |fs| fs == FileSystem::Luks) {
                 partitions.push(partition);
             }
         }
@@ -718,7 +719,7 @@ impl Disks {
             )
         })?;
 
-        use FileSystemType::*;
+        use FileSystem::*;
         match root.filesystem {
             Some(Fat16) | Some(Fat32) | Some(Ntfs) => {
                 return Err(io::Error::new(
@@ -881,7 +882,7 @@ impl Disks {
                         partition.device_path.display()
                     ),
                 }
-            } else if partition.filesystem == Some(FileSystemType::Swap) {
+            } else if partition.filesystem == Some(FileSystem::Swap) {
                 if is_unencrypted {
                     match PartitionID::get_uuid(&partition.device_path) {
                         Some(uuid) => {

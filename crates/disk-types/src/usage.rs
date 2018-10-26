@@ -1,14 +1,12 @@
-extern crate fstypes;
-
-use fstypes::FileSystemType;
+use FileSystem;
 use std::io::{self, BufRead, Cursor};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
 /// Executes a given file system's dump command to obtain the minimum shrink
 /// size
-pub fn sectors_used<P: AsRef<Path>>(part: P, fs: FileSystemType) -> io::Result<u64> {
-    use FileSystemType::*;
+pub fn sectors_used<P: AsRef<Path>>(part: P, fs: FileSystem) -> io::Result<u64> {
+    use FileSystem::*;
     match fs {
         Ext2 | Ext3 | Ext4 => {
             let reader = Cursor::new(

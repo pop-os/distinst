@@ -2,14 +2,13 @@ mod builder;
 
 pub use self::builder::PartitionBuilder;
 pub use os_detect::OS;
-pub use fstypes::{FileSystemType, PartitionType};
-use FileSystemType::*;
+pub use disk_types::{FileSystem, PartitionType, FileSystemExt};
+use FileSystem::*;
 use libparted::{Partition, PartitionFlag};
 use proc_mounts::{swapoff, MountList, SwapList};
 use external::{get_label, is_encrypted};
 use fstab_generate::BlockInfo;
 use os_detect::detect_os;
-use disk_usage::sectors_used;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -31,11 +30,11 @@ bitflags! {
     }
 }
 
-pub fn get_preferred_options(fs: FileSystemType) -> &'static str {
+pub fn get_preferred_options(fs: FileSystem) -> &'static str {
     match fs {
-        FileSystemType::Fat16 | FileSystemType::Fat32 => "umask=0077",
-        FileSystemType::Ext4 => "noatime,errors=remount-ro",
-        FileSystemType::Swap => "sw",
+        FileSystem::Fat16 | FileSystem::Fat32 => "umask=0077",
+        FileSystem::Ext4 => "noatime,errors=remount-ro",
+        FileSystem::Swap => "sw",
         _ => "defaults",
     }
 }
@@ -73,7 +72,7 @@ pub struct PartitionInfo {
     /// Whether this partition is a primary or logical partition.
     pub part_type: PartitionType,
     /// Whether there is a file system currently, or will be, on this partition.
-    pub filesystem: Option<FileSystemType>,
+    pub filesystem: Option<FileSystem>,
     /// Specifies optional flags that should be applied to the partition, if
     /// not already set.
     pub flags: Vec<PartitionFlag>,
@@ -95,6 +94,11 @@ pub struct PartitionInfo {
     pub key_id: Option<String>,
 }
 
+impl FileSystemExt for PartitionInfo {
+    fn get_device_path(&self) -> &Path { &self.device_path }
+    fn get_file_system(&self) -> Option<FileSystem> { self.filesystem }
+}
+
 impl PartitionInfo {
     pub fn new_from_ped(partition: &Partition) -> io::Result<Option<PartitionInfo>> {
         let device_path = partition.get_path()
@@ -107,7 +111,7 @@ impl PartitionInfo {
 
         let filesystem = partition
             .fs_type_name()
-            .and_then(|name| FileSystemType::from_str(name).ok());
+            .and_then(|name| FileSystem::from_str(name).ok());
 
         Ok(Some(PartitionInfo {
             bitflags: SOURCE | if partition.is_active() { ACTIVE } else { 0 }
@@ -148,9 +152,9 @@ impl PartitionInfo {
 
         if self.filesystem.is_none() {
             self.filesystem = if is_encrypted(device_path) {
-                Some(FileSystemType::Luks)
+                Some(FileSystem::Luks)
             } else if original_vg.is_some() {
-                Some(FileSystemType::Lvm)
+                Some(FileSystem::Lvm)
             } else {
                 None
             };
@@ -199,7 +203,7 @@ impl PartitionInfo {
     pub fn is_swap(&self) -> bool {
         self.filesystem
             .as_ref()
-            .map_or(false, |&fs| fs == FileSystemType::Swap)
+            .map_or(false, |&fs| fs == FileSystem::Swap)
     }
 
     /// True if the partition is compatible for Linux to be installed on it.
@@ -215,9 +219,6 @@ impl PartitionInfo {
     pub fn get_current_lvm_volume_group(&self) -> Option<&str> {
         self.original_vg.as_ref().map(|x| x.as_str())
     }
-
-    /// Returns the path to this device in the system.
-    pub fn get_device_path(&self) -> &Path { &self.device_path }
 
     /// True if the compared partition has differing parameters from the source.
     pub fn requires_changes(&self, other: &PartitionInfo) -> bool {
@@ -259,7 +260,7 @@ impl PartitionInfo {
 
     /// Defines that a new file system will be applied to this partition.
     /// NOTE: this will also unset the partition's name.
-    pub fn format_with(&mut self, fs: FileSystemType) {
+    pub fn format_with(&mut self, fs: FileSystem) {
         self.bitflags |= FORMAT;
         self.filesystem = Some(fs);
         self.name = None;
@@ -267,7 +268,7 @@ impl PartitionInfo {
 
     /// Defines that a new file system will be applied to this partition.
     /// Unlike `format_with`, this will not remove the name.
-    pub fn format_and_keep_name(&mut self, fs: FileSystemType) {
+    pub fn format_and_keep_name(&mut self, fs: FileSystem) {
         self.bitflags |= FORMAT;
         self.filesystem = Some(fs);
     }
@@ -275,15 +276,6 @@ impl PartitionInfo {
     /// Returns true if this partition will be formatted.
     pub fn will_format(&self) -> bool {
         self.bitflags & FORMAT != 0
-    }
-
-    /// Returns the number of used sectors on the file system that belongs to
-    /// this partition.
-    pub fn sectors_used(&self) -> Option<io::Result<u64>> {
-        self.filesystem.and_then(|fs| match sectors_used(self.get_device_path(), fs) {
-            Ok(sectors) => Some(Ok(sectors)),
-            Err(why) => if why.kind() == io::ErrorKind::NotFound { None } else { Some(Err(why)) }
-        })
     }
 
     /// Mount the file system temporarily, if possible.
@@ -295,7 +287,7 @@ impl PartitionInfo {
 
         if let Some((fs, tempdir)) = mount {
             let fs = match fs {
-                FileSystemType::Fat16 | FileSystemType::Fat32 => "vfat",
+                FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
                 fs => fs.into(),
             };
 
@@ -328,7 +320,7 @@ impl PartitionInfo {
             self.device_path.display()
         );
 
-        if self.filesystem != Some(FileSystemType::Swap)
+        if self.filesystem != Some(FileSystem::Swap)
             && (self.target.is_none() || self.filesystem.is_none())
         {
             return None;
@@ -387,7 +379,7 @@ mod tests {
             target:       Some(Path::new("/boot/efi").to_path_buf()),
             start_sector: 2048,
             end_sector:   1026047,
-            filesystem:   Some(FileSystemType::Fat16),
+            filesystem:   Some(FileSystem::Fat16),
             name:         None,
             number:       1,
             ordering:     1,
@@ -407,7 +399,7 @@ mod tests {
             target:       Some(Path::new("/").to_path_buf()),
             start_sector: 1026048,
             end_sector:   420456447,
-            filesystem:   Some(FileSystemType::Btrfs),
+            filesystem:   Some(FileSystem::Btrfs),
             name:         Some("Pop!_OS".into()),
             number:       2,
             ordering:     2,
@@ -427,7 +419,7 @@ mod tests {
             target:       None,
             start_sector: 420456448,
             end_sector:   1936738303,
-            filesystem:   Some(FileSystemType::Luks),
+            filesystem:   Some(FileSystem::Luks),
             name:         None,
             number:       4,
             ordering:     4,
@@ -454,7 +446,7 @@ mod tests {
             target:       None,
             start_sector: 420456448,
             end_sector:   1936738303,
-            filesystem:   Some(FileSystemType::Lvm),
+            filesystem:   Some(FileSystem::Lvm),
             name:         None,
             number:       4,
             ordering:     4,
@@ -474,7 +466,7 @@ mod tests {
             target:       None,
             start_sector: 1936738304,
             end_sector:   1953523711,
-            filesystem:   Some(FileSystemType::Swap),
+            filesystem:   Some(FileSystem::Swap),
             name:         None,
             number:       4,
             ordering:     4,
@@ -520,7 +512,7 @@ mod tests {
 
         {
             let mut other = root_partition();
-            other.format_with(FileSystemType::Btrfs);
+            other.format_with(FileSystem::Btrfs);
             assert!(root.requires_changes(&other));
         }
     }

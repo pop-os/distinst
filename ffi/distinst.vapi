@@ -56,7 +56,7 @@ namespace Distinst {
     }
 
     [CCode (cname = "DISTINST_FILE_SYSTEM_TYPE", has_type_id = false)]
-    public enum FileSystemType {
+    public enum FileSystem {
         NONE,
         BTRFS,
         EXT2,
@@ -326,7 +326,7 @@ namespace Distinst {
     /**
      * Obtains the string variant of a file system type.
      */
-    public unowned string strfilesys (FileSystemType fs);
+    public unowned string strfilesys (FileSystem fs);
 
     /** Obtain the file size specified in `/cdrom/casper/filesystem.size`, or
      * return a default value.
@@ -396,7 +396,7 @@ namespace Distinst {
          * Creates a new partition builder which has it's start and end sectors defined, as well
          * as the file system to assign to it.
          */
-        public PartitionBuilder (uint64 start_sector, uint64 end_sector, FileSystemType filesystem);
+        public PartitionBuilder (uint64 start_sector, uint64 end_sector, FileSystem filesystem);
 
         /**
          * Defines a label for the new partition.
@@ -482,14 +482,14 @@ namespace Distinst {
          *
          * Retains the partiton's name.
          */
-        public int format_and_keep_name (FileSystemType fs);
+        public int format_and_keep_name (FileSystem fs);
 
         /**
          * Marks to format the partition with the provided file system.
          *
          * Also removes the partition's name in the process.
          */
-        public int format_with (FileSystemType fs);
+        public int format_with (FileSystem fs);
 
         /**
          * If a pre-existing LVM volume group has been assigned, this will return that group's name.
@@ -519,7 +519,7 @@ namespace Distinst {
         /**
          * Returns the file system which the partition is formatted with
          */
-        public FileSystemType get_file_system ();
+        public FileSystem get_file_system ();
 
         /**
          * Checks if the partition is LUKS-encrypted.
@@ -667,7 +667,7 @@ namespace Distinst {
          * Specifies to format a partition at the given partition ID with the specified
          * file system.
          */
-        public int format_partition (int partition, FileSystemType fs);
+        public int format_partition (int partition, FileSystem fs);
 
         /**
          * Returns the model name of the device, ie: (ATA Samsung 850 EVO)

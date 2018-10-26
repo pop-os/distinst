@@ -2,8 +2,7 @@
 
 #![allow(unknown_lints)]
 
-pub extern crate disk_sector;
-pub extern crate disk_usage;
+pub extern crate disk_types;
 pub extern crate distinst_bootloader as bootloader;
 pub extern crate distinst_chroot as chroot;
 pub extern crate distinst_disks as disks;
@@ -11,7 +10,6 @@ pub extern crate distinst_external_commands as external;
 pub extern crate distinst_locale_support as locale;
 // pub extern crate distinst_options as auto;
 pub extern crate distinst_squashfs as squashfs;
-pub extern crate fstypes;
 pub extern crate hostname_validator as hostname;
 pub extern crate os_detect;
 pub extern crate os_release;
@@ -40,9 +38,8 @@ extern crate raw_cpuid;
 extern crate tempdir;
 
 pub use disks::*;
-pub use disk_sector::*;
+pub use disk_types::*;
 pub use bootloader::*;
-pub use disk_usage::*;
 pub use hostname::*;
 pub use external::*;
 pub use locale::*;

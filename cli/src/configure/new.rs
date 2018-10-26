@@ -41,7 +41,7 @@ pub(crate) fn new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distin
             let end = disk.get_sector(end);
             let mut builder = match fs {
                 PartType::Lvm(volume_group, encryption) => {
-                    PartitionBuilder::new(start, end, FileSystemType::Lvm)
+                    PartitionBuilder::new(start, end, FileSystem::Lvm)
                         .partition_type(kind)
                         .logical_volume(volume_group, encryption)
                 }

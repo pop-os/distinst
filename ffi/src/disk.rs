@@ -6,8 +6,8 @@ use std::path::Path;
 use std::ptr;
 
 use distinst::{
-    DecryptionError, Disk, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption,
-    PartitionBuilder, PartitionInfo, PartitionTable, Sector,
+    DecryptionError, Disk, DiskExt, Disks, FileSystem, FileSystemExt, LvmDevice, LvmEncryption,
+    PartitionBuilder, PartitionInfo, PartitionTable, Sector, SectorExt
 };
 
 use super::{get_str, null_check};
@@ -374,7 +374,7 @@ pub unsafe extern "C" fn distinst_disk_format_partition(
 
     let disk = &mut *(disk as *mut Disk);
 
-    let fs = match Option::<FileSystemType>::from(fs) {
+    let fs = match Option::<FileSystem>::from(fs) {
         Some(fs) => fs,
         None => {
             info!("file system type required");

@@ -1,5 +1,35 @@
 use std::str::{self, FromStr};
 
+/// Trait for getting and sectors from a device.
+pub trait SectorExt {
+    /// The combined total number of sectors on the disk.
+    fn get_sectors(&self) -> u64;
+
+    /// The size of each sector, in bytes.
+    fn get_sector_size(&self) -> u64;
+
+    /// Calculates the requested sector from a given `Sector` variant.
+    fn get_sector(&self, sector: Sector) -> u64 {
+        const MIB2: u64 = 2 * 1024 * 1024;
+
+        let end = || self.get_sectors() - (MIB2 / self.get_sector_size());
+        let megabyte = |size| (size * 1_000_000) / self.get_sector_size();
+
+        match sector {
+            Sector::Start => MIB2 / self.get_sector_size(),
+            Sector::End => end(),
+            Sector::Megabyte(size) => megabyte(size),
+            Sector::MegabyteFromEnd(size) => end() - megabyte(size),
+            Sector::Unit(size) => size,
+            Sector::UnitFromEnd(size) => end() - size,
+            Sector::Percent(value) => {
+                ((self.get_sectors() * self.get_sector_size()) / ::std::u16::MAX as u64)
+                    * value as u64 / self.get_sector_size()
+            }
+        }
+    }
+}
+
 /// Used with the `Disk::get_sector` method for converting a more human-readable unit
 /// into the corresponding sector for the given disk.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]

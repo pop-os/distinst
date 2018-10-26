@@ -2,12 +2,12 @@
 
 mod move_and_resize;
 
-use fstypes::FileSystemType;
+use disk_types::{FileSystem, PartitionType};
 use self::move_and_resize::{transform, Coordinates, ResizeOperation};
 use external::{blockdev, mkfs, wipefs};
 use super::*;
 use libparted::{
-    Disk as PedDisk, FileSystemType as PedFileSystemType, Geometry, Partition as PedPartition,
+    Disk as PedDisk, FileSystemType as PedFileSystem, Geometry, Partition as PedPartition,
     PartitionFlag, PartitionType as PedPartitionType,
 };
 use std::path::{Path, PathBuf};
@@ -276,7 +276,7 @@ impl<'a> ChangePartitions<'a> {
 pub struct CreatePartitions<'a> {
     device_path:       &'a Path,
     create_partitions: Vec<PartitionCreate>,
-    format_partitions: Vec<(PathBuf, FileSystemType)>,
+    format_partitions: Vec<(PathBuf, FileSystem)>,
 }
 
 impl<'a> CreatePartitions<'a> {
@@ -349,7 +349,7 @@ fn create_partition(device: &mut Device, partition: &PartitionCreate) -> Result<
 
     let fs_type = partition
         .file_system
-        .and_then(|fs| PedFileSystemType::get(fs.into()));
+        .and_then(|fs| PedFileSystem::get(fs.into()));
 
     let mut disk = open_disk(device)?;
     let mut part = PedPartition::new(&disk, part_type, fs_type.as_ref(), start, end)
@@ -415,7 +415,7 @@ fn get_partition_id_and_path(path: &Path, start_sector: i64) -> Result<(i32, Pat
     })
 }
 
-pub struct FormatPartitions(pub Vec<(PathBuf, FileSystemType)>);
+pub struct FormatPartitions(pub Vec<(PathBuf, FileSystem)>);
 
 impl FormatPartitions {
     // Finally, format all of the modified and created partitions.
@@ -459,7 +459,7 @@ pub struct PartitionChange {
     /// Required information if the partition will be moved.
     pub sector_size: u64,
     /// The file system that is currently on the partition.
-    pub filesystem: Option<FileSystemType>,
+    pub filesystem: Option<FileSystem>,
     /// A diff of flags which should be set on the partition.
     pub flags: Vec<PartitionFlag>,
     /// All of the flags that are set on the new disk.
@@ -481,7 +481,7 @@ pub struct PartitionCreate {
     /// Whether the filesystem should be formatted.
     pub format: bool,
     /// The format that the file system should be formatted to.
-    pub file_system: Option<FileSystemType>,
+    pub file_system: Option<FileSystem>,
     /// Whether the partition should be primary or logical.
     pub kind: PartitionType,
     /// Flags which should be set on the partition.

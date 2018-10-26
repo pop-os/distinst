@@ -70,7 +70,7 @@ pub(crate) fn lvm(
                     PartType::Fs(fs) => fs,
                     PartType::Lvm(volume_group, encryption) => {
                         partition.set_volume_group(volume_group, encryption);
-                        Some(FileSystemType::Lvm)
+                        Some(FileSystem::Lvm)
                     }
                 };
 
@@ -125,7 +125,7 @@ struct LogicalArgs {
     // The length of the partition
     size: Sector,
     // The filesystem to assign to this partition
-    fs: Option<FileSystemType>,
+    fs: Option<FileSystem>,
     // Where to mount this partition
     mount: Option<PathBuf>,
     // The partition flags to assign

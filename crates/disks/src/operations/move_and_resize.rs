@@ -1,6 +1,6 @@
 use external::{blockdev, fsck};
-use super::FileSystemType::*;
-use super::{DiskError, FileSystemType, PartitionChange as Change, PartitionError, PartitionFlag, PartitionType};
+use super::FileSystem::*;
+use super::{DiskError, FileSystem, PartitionChange as Change, PartitionError, PartitionFlag, PartitionType};
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -132,7 +132,7 @@ pub fn transform<DELETE, CREATE>(
 where
     DELETE: FnMut(u32) -> Result<(), DiskError>,
     CREATE:
-        FnMut(u64, u64, Option<FileSystemType>, Vec<PartitionFlag>, Option<String>, PartitionType)
+        FnMut(u64, u64, Option<FileSystem>, Vec<PartitionFlag>, Option<String>, PartitionType)
             -> Result<(i32, PathBuf), DiskError>,
 {
     let mut moving = resize.is_moving();

@@ -17,12 +17,10 @@ members = [
     "crates/bootloader",
     "crates/chroot",
     "crates/disks",
-    "crates/disk-sector",
-    "crates/disk-usage",
+    "crates/disk-types",
     "crates/envfile",
     "crates/external",
     "crates/fstab-generate",
-    "crates/fstypes",
     "crates/hostname-validator",
     "crates/locales",
     # "crates/options",
@@ -45,8 +43,7 @@ pbr = "1.0.1"
 cascade = "0.1.2"
 dbus = "=0.6.2"
 dirs = "1.0.3"
-disk-sector = { path = "crates/disk-sector" }
-disk-usage = { path = "crates/disk-usage" }
+disk-types = { path = "crates/disk-types" }
 distinst-bootloader = { path = "crates/bootloader" }
 distinst-chroot = { path = "crates/chroot" }
 distinst-disks = { path = "crates/disks" }
@@ -57,7 +54,6 @@ distinst-utils = { path = "crates/utils" }
 envfile = { path = "crates/envfile" }
 fern = "0.5.6"
 fstab-generate = { path = "crates/fstab-generate" }
-fstypes = { path = "crates/fstypes" }
 hostname-validator = { path = "crates/hostname-validator" }
 itertools = "0.7.8"
 libc = "0.2.43"

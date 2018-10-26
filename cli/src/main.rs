@@ -358,7 +358,7 @@ fn configure_signal_handling() {
 
 enum PartType {
     /// A normal partition with a standard file system
-    Fs(Option<FileSystemType>),
+    Fs(Option<FileSystem>),
     /// A partition that is formatted with LVM, optionally with encryption.
     Lvm(String, Option<LvmEncryption>),
 }
@@ -426,7 +426,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
             None,
         ))
     } else {
-        Ok(PartType::Fs(fs.parse::<FileSystemType>().ok()))
+        Ok(PartType::Fs(fs.parse::<FileSystem>().ok()))
     }
 }
 

@@ -62,7 +62,7 @@ pub(crate) fn reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dis
                     PartType::Fs(fs) => fs,
                     PartType::Lvm(volume_group, encryption) => {
                         partition.set_volume_group(volume_group, encryption);
-                        Some(FileSystemType::Lvm)
+                        Some(FileSystem::Lvm)
                     }
                 };
 

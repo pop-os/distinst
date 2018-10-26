@@ -22,7 +22,7 @@ pub use self::options::*;
 pub(crate) use self::retain::*;
 pub use self::retain::delete_old_install;
 
-use fstypes::FileSystemType;
+use disk_types::FileSystem;
 use tempdir::TempDir;
 use sys_mount::{Mount, MountFlags, Unmount, UnmountFlags};
 use std::io;
@@ -33,7 +33,7 @@ pub enum ReinstallError {
     #[fail(display = "no root partition found within the disks configuration")]
     NoRootPartition,
     #[fail(display = "partition {:?} has an invalid file system ({:?})", part, fs)]
-    InvalidFilesystem { fs:   FileSystemType, part: PathBuf },
+    InvalidFilesystem { fs:   FileSystem, part: PathBuf },
     #[fail(display = "partition could not be mounted: {}", why)]
     PartitionMount { why: io::Error },
     #[fail(display = "error creating temporary directory: {}", why)]
@@ -62,14 +62,14 @@ impl From<io::Error> for ReinstallError {
 
 fn mount_and_then<T, F>(
     device: &Path,
-    fs: FileSystemType,
+    fs: FileSystem,
     mut action: F,
 ) -> Result<T, ReinstallError>
 where
     F: FnMut(&Path) -> Result<T, ReinstallError>,
 {
     let fs: &str = match fs {
-        FileSystemType::Fat16 | FileSystemType::Fat32 => {
+        FileSystem::Fat16 | FileSystem::Fat32 => {
             return Err(ReinstallError::InvalidFilesystem {
                 part: device.to_path_buf(),
                 fs,

@@ -1,4 +1,4 @@
-extern crate fstypes;
+extern crate disk_types;
 extern crate partition_identity;
 
 mod block;

@@ -1,7 +1,7 @@
-pub use fstypes::PartitionSizeError;
+pub use disk_types::PartitionSizeError;
 use std::io;
 use std::path::PathBuf;
-use fstypes::FileSystemType;
+use disk_types::FileSystem;
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -109,7 +109,7 @@ pub enum PartitionError {
     #[fail(display = "shrink value too high")]
     ShrinkValueTooHigh,
     #[fail(display = "shrinking not supported for {:?}", fs)]
-    UnsupportedShrinking { fs: FileSystemType },
+    UnsupportedShrinking { fs: FileSystem },
 }
 
 #[derive(Debug, Fail)]

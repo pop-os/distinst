@@ -2,8 +2,7 @@
 extern crate bitflags;
 #[macro_use]
 extern crate derive_new;
-extern crate disk_sector;
-extern crate disk_usage;
+extern crate disk_types;
 extern crate distinst_bootloader as bootloader;
 extern crate distinst_utils as misc;
 extern crate distinst_external_commands as external_;
@@ -11,7 +10,6 @@ extern crate envfile;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
-extern crate fstypes;
 extern crate fstab_generate;
 extern crate itertools;
 extern crate libc;
