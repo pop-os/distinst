@@ -23,6 +23,7 @@ pub trait PartitionTableExt: BlockDeviceExt {
     /// Obtain the number of primary and logical partitions, in that order.
     fn get_partition_type_count(&self) -> (usize, usize);
 
+    /// Checks if the additional partition type can be added to the partition table.
     fn supports_additional_partition_type(&self, new_type: PartitionType) -> Result<(), PartitionTableError> {
         match self.get_partition_table() {
             Some(PartitionTable::Gpt) => (),

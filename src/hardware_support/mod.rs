@@ -6,9 +6,8 @@ use std::io::Read;
 pub mod blacklist;
 #[macro_use]
 mod macros;
-mod modules;
 
-use self::modules::Module;
+use proc_modules::Module;
 
 // NOTE: Distributions should provide their distro ID and associated packages here, if applicable.
 
@@ -55,7 +54,7 @@ pub fn append_packages(install_pkgs: &mut Vec<&'static str>, os_release: &OsRele
 
 fn graphics_support(os_release: &OsRelease) -> Option<&'static str> {
     Module::all().ok().and_then(|modules| {
-        if modules.iter().any(|x| &x.name == "nvidia") {
+        if modules.iter().any(|x| &x.module == "nvidia") {
             return nvidia_driver(os_release);
         }
 

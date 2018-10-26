@@ -1,0 +1,11 @@
+[package]
+name = "logind-dbus"
+version = "0.1.0"
+authors = [
+    "Jeremy Soller <jackpot51@gmail.com>",
+    "Michael Aaron Murphy <michael@system76.com>"
+]
+
+[dependencies]
+dbus = "=0.6.2"
+cascade = "0.1.2"

@@ -14,13 +14,13 @@ pub extern crate hostname_validator as hostname;
 pub extern crate os_detect;
 pub extern crate os_release;
 pub extern crate partition_identity;
+pub extern crate proc_modules;
 pub extern crate proc_mounts;
 pub extern crate sys_mount;
 
 #[macro_use]
 extern crate cascade;
 extern crate dirs;
-extern crate dbus;
 extern crate distinst_utils as misc;
 extern crate envfile;
 extern crate failure;
@@ -33,6 +33,7 @@ extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
+extern crate logind_dbus;
 extern crate rayon;
 extern crate raw_cpuid;
 extern crate tempdir;
@@ -54,7 +55,10 @@ mod hardware_support;
 mod installer;
 mod logging;
 pub mod auto;
-pub mod dbus_interfaces;
+
+pub mod dbus_interfaces {
+    pub use logind_dbus::*;
+}
 
 use external::dmlist;
 use std::io::{self, Read};

@@ -1,0 +1,9 @@
+[package]
+name = "proc-modules"
+version = "0.1.0"
+authors = [
+    "Jeremy Soller <jackpot51@gmail.com>",
+    "Michael Aaron Murphy <michael@system76.com>"
+]
+
+[dependencies]

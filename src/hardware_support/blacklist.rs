@@ -22,7 +22,7 @@ pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<bool> {
     if let Ok(modules) = Module::all() {
         let product_version = &*product_version();
         let disable_nvidia = has_switchable_graphics(product_version)
-            && modules.iter().any(|x| &x.name == "nvidia" || &x.name == "nouveau");
+            && modules.iter().any(|x| &x.module == "nvidia" || &x.module == "nouveau");
 
         if disable_nvidia {
             info!("disabling external NVIDIA graphics by default");

@@ -1,4 +1,8 @@
-use dbus::{self, arg, BusType, Connection, ConnPath};
+#[macro_use]
+extern crate cascade;
+extern crate dbus;
+
+use dbus::{arg, BusType, Connection, ConnPath};
 use std::ops::Deref;
 
 pub struct LoginManager {
