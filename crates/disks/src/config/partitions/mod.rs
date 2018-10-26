@@ -1,21 +1,18 @@
 mod builder;
 
 pub use self::builder::PartitionBuilder;
+pub use disk_types::{FileSystem, PartitionType, BlockDeviceExt, PartitionExt};
 pub use os_detect::OS;
-pub use disk_types::{FileSystem, PartitionType, FileSystemExt};
-use FileSystem::*;
 use libparted::{Partition, PartitionFlag};
 use proc_mounts::{swapoff, MountList, SwapList};
 use external::{get_label, is_encrypted};
 use fstab_generate::BlockInfo;
-use os_detect::detect_os;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use disk_types::FileSystem::*;
 use super::PVS;
 use super::super::{LvmEncryption, PartitionError};
-use sys_mount::*;
-use tempdir::TempDir;
 
 bitflags! {
     pub struct FileSystemSupport: u8 {
@@ -94,8 +91,13 @@ pub struct PartitionInfo {
     pub key_id: Option<String>,
 }
 
-impl FileSystemExt for PartitionInfo {
+impl BlockDeviceExt for PartitionInfo {
     fn get_device_path(&self) -> &Path { &self.device_path }
+
+    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
+}
+
+impl PartitionExt for PartitionInfo {
     fn get_file_system(&self) -> Option<FileSystem> { self.filesystem }
 }
 
@@ -199,23 +201,6 @@ impl PartitionInfo {
             && self.flags.contains(&PartitionFlag::PED_PARTITION_ESP)
     }
 
-    /// True if the partition is a swap partition.
-    pub fn is_swap(&self) -> bool {
-        self.filesystem
-            .as_ref()
-            .map_or(false, |&fs| fs == FileSystem::Swap)
-    }
-
-    /// True if the partition is compatible for Linux to be installed on it.
-    pub fn is_linux_compatible(&self) -> bool {
-        self.filesystem
-            .as_ref()
-            .map_or(false, |&fs| match fs {
-                Exfat | Ntfs | Fat16 | Fat32 | Lvm | Luks | Swap => false,
-                Btrfs | Xfs | Ext2 | Ext3 | Ext4 | F2fs => true
-            })
-    }
-
     pub fn get_current_lvm_volume_group(&self) -> Option<&str> {
         self.original_vg.as_ref().map(|x| x.as_str())
     }
@@ -276,37 +261,6 @@ impl PartitionInfo {
     /// Returns true if this partition will be formatted.
     pub fn will_format(&self) -> bool {
         self.bitflags & FORMAT != 0
-    }
-
-    /// Mount the file system temporarily, if possible.
-    pub fn probe<T, F>(&self, mut func: F) -> T
-        where F: FnMut(Option<(&Path, UnmountDrop<Mount>)>) -> T
-    {
-        let mount = self.filesystem
-            .and_then(|fs| TempDir::new("distinst").ok().map(|t| (fs, t)));
-
-        if let Some((fs, tempdir)) = mount {
-            let fs = match fs {
-                FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
-                fs => fs.into(),
-            };
-
-            // Mount the FS to the temporary directory
-            let base = tempdir.path();
-            match Mount::new(&self.device_path, base, fs, MountFlags::empty(), None).ok() {
-                Some(m) => return func(Some((base, m.into_unmount_drop(UnmountFlags::DETACH)))),
-                None => ()
-            }
-        }
-
-        func(None)
-    }
-
-    /// Detects if an OS is installed to this partition, and if so, what the OS
-    /// is named.
-    pub fn probe_os(&self) -> Option<OS> {
-        self.filesystem
-            .and_then(|fs| detect_os(self.get_device_path(), fs))
     }
 
     /// Specifies to delete this partition from the partition table.

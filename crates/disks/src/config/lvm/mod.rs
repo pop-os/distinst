@@ -21,7 +21,7 @@ use std::ffi::OsStr;
 use std::{io, thread};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use disk_types::SectorExt;
+use disk_types::{BlockDeviceExt, PartitionTableExt, SectorExt};
 
 /// Generate a unique device map ID, to ensure no collisions between dm blocks.
 pub fn generate_unique_id(prefix: &str, exclude_hashes: &[u64]) -> io::Result<String> {
@@ -64,16 +64,30 @@ pub struct LvmDevice {
     pub remove:       bool,
 }
 
+impl BlockDeviceExt for LvmDevice {
+    fn get_device_path(&self) -> &Path { &self.device_path }
+
+    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
+}
+
 impl SectorExt for LvmDevice {
     fn get_sector_size(&self) -> u64 { self.sector_size }
 
     fn get_sectors(&self) -> u64 { self.sectors }
 }
 
+impl PartitionTableExt for LvmDevice {
+    fn get_partition_table(&self) -> Option<PartitionTable> {
+        Some(PartitionTable::Gpt)
+    }
+
+    fn get_partition_type_count(&self) -> (usize, usize) {
+        (0, 0)
+    }
+}
+
 impl DiskExt for LvmDevice {
     const LOGICAL: bool = true;
-
-    fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn get_file_system(&self) -> Option<&PartitionInfo> { self.file_system.as_ref() }
 
@@ -89,17 +103,11 @@ impl DiskExt for LvmDevice {
 
     fn get_model(&self) -> &str { &self.model_name }
 
-    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
-
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
 
     fn get_table_type(&self) -> Option<PartitionTable> { None }
-
-    fn validate_partition_table(&self, _part_type: PartitionType) -> Result<(), DiskError> {
-        Ok(())
-    }
 
     fn push_partition(&mut self, partition: PartitionInfo) { self.partitions.push(partition); }
 }

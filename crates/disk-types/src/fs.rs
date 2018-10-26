@@ -1,23 +1,5 @@
-use usage::sectors_used;
-use std::io;
-use std::path::Path;
 use std::str::FromStr;
 use sys_mount::FilesystemType as MountFS;
-
-pub trait FileSystemExt {
-    fn get_device_path(&self) -> &Path;
-
-    fn get_file_system(&self) -> Option<FileSystem>;
-
-    /// Executes a given file system's dump command to obtain the minimum shrink size
-    ///
-    /// Returns `io::ErrorKind::NotFound` if getting usage is not supported.
-    fn sectors_used(&self) -> io::Result<u64> {
-        self.get_file_system()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no file system"))
-            .and_then(|fs| sectors_used(self.get_device_path(), fs))
-    }
-}
 
 /// Describes a file system format, such as ext4 or fat32.
 #[derive(Debug, PartialEq, Copy, Clone, Hash)]
@@ -138,16 +120,4 @@ impl From<FileSystem> for MountFS<'static> {
             fs => fs.into(),
         })
     }
-}
-
-/// Defines whether the partition is a primary, logical, or extended partition.
-///
-/// # Note
-///
-/// This only applies for MBR partition tables.
-#[derive(Debug, PartialEq, Clone, Copy, Hash)]
-pub enum PartitionType {
-    Primary,
-    Logical,
-    Extended,
 }

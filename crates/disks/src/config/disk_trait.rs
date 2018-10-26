@@ -1,23 +1,19 @@
-use disk_types::SectorExt;
+use disk_types::{BlockDeviceExt, PartitionTableError, PartitionTableExt, SectorExt};
 use super::super::{
     DiskError, Disks, PartitionBuilder, PartitionInfo,
     PartitionTable, PartitionType, Sector,
 };
 use super::partitions::REMOVE;
 use std::path::{Path, PathBuf};
-use sysfs_class::SysClass;
 
 /// Contains methods that are shared between physical and logical disk devices.
-pub trait DiskExt: SectorExt {
+pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
     const LOGICAL: bool;
 
     /// Returns true if an extended partition exists.
     fn extended_exists(&self) -> bool {
         self.get_partitions().iter().any(|p| p.part_type == PartitionType::Extended)
     }
-
-    /// Returns the path to the block device in the system.
-    fn get_device_path(&self) -> &Path;
 
     /// Sometimes, disks may have an entire file system, rather than a partition table.
     fn get_file_system(&self) -> Option<&PartitionInfo>;
@@ -30,9 +26,6 @@ pub trait DiskExt: SectorExt {
 
     /// Returns the model of the device.
     fn get_model(&self) -> &str;
-
-    /// If the disk is mounted somewhere, get the mount point.
-    fn get_mount_point(&self) -> Option<&Path>;
 
     /// Get the first partition whose start sector is after the given sector.
     fn get_partition_after(&self, sector: u64) -> Option<&PartitionInfo> {
@@ -71,30 +64,6 @@ pub trait DiskExt: SectorExt {
     }
 
     fn is_logical(&self) -> bool { Self::LOGICAL }
-
-    /// Checks if the drive is a removable drive.
-    fn is_removable(&self) -> bool {
-        let path = {
-            let path = self.get_device_path();
-            PathBuf::from(match path.read_link() {
-                Ok(resolved) => [
-                    "/sys/class/block/",
-                    resolved.file_name().expect("drive does not have a file name").to_str().unwrap(),
-                ].concat(),
-                _ => [
-                    "/sys/class/block/",
-                    path.file_name().expect("drive does not have a file name").to_str().unwrap(),
-                ].concat(),
-            })
-        };
-
-        ::sysfs_class::Block::from_path(&Path::new(&path))
-            .ok()
-            .map_or(false, |block| block.removable().ok() == Some(1))
-    }
-
-    /// Validates that the partitions are valid for the partition table
-    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError>;
 
     /// If a given start and end range overlaps a pre-existing partition, that
     /// partition's number will be returned to indicate a potential conflict.
@@ -154,8 +123,8 @@ pub trait DiskExt: SectorExt {
         }
 
         // Perform partition table & MSDOS restriction tests.
-        match self.validate_partition_table(builder.part_type) {
-            Err(DiskError::PrimaryPartitionsExceeded) => {
+        match self.supports_additional_partition_type(builder.part_type) {
+            Err(PartitionTableError::PrimaryPartitionsExceeded) => {
                 info!("primary partitions exceeded, resolving");
                 builder.part_type = PartitionType::Logical;
             }

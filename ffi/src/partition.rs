@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::{io, ptr};
 
 use distinst::{
-    Bootloader, FileSystem, FileSystemExt, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
+    Bootloader, FileSystem, BlockDeviceExt, PartitionExt, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
 };
 use filesystem::DISTINST_FILE_SYSTEM_TYPE;
 use {gen_object_ptr, null_check, get_str, DistinstLvmEncryption};

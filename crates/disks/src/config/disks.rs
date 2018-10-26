@@ -1,5 +1,5 @@
 use FileSystem::*;
-use disk_types::{FileSystemExt, SectorExt};
+use disk_types::{BlockDeviceExt, PartitionExt, SectorExt};
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
 use misc::{self, hasher};

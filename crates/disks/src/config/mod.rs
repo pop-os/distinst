@@ -7,9 +7,9 @@ mod disks;
 pub mod lvm;
 pub mod partitions;
 
+pub use disk_types::PartitionTable;
 pub use self::disk::*;
-pub use self::disk_trait::DiskExt;
-pub use self::disk_trait::{find_partition, find_partition_mut};
+pub use self::disk_trait::{find_partition, find_partition_mut, DiskExt};
 pub use self::disks::*;
 pub use self::lvm::{generate_unique_id, LvmDevice, LvmEncryption};
 pub use self::partitions::*;
@@ -23,13 +23,6 @@ use std::path::{Path, PathBuf};
 use sysfs_class::{SysClass, Block};
 
 static mut PVS: Option<BTreeMap<PathBuf, Option<String>>> = None;
-
-/// Specifies whether the partition table on the disk is **MSDOS** or **GPT**.
-#[derive(Debug, PartialEq, Clone, Copy, Hash)]
-pub enum PartitionTable {
-    Msdos,
-    Gpt,
-}
 
 /// Gets a `libparted::Device` from the given name.
 pub fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {

@@ -6,7 +6,7 @@ use std::path::Path;
 use std::ptr;
 
 use distinst::{
-    DecryptionError, Disk, DiskExt, Disks, FileSystem, FileSystemExt, LvmDevice, LvmEncryption,
+    DecryptionError, Disk, DiskExt, Disks, FileSystem, BlockDeviceExt, PartitionExt, LvmDevice, LvmEncryption,
     PartitionBuilder, PartitionInfo, PartitionTable, Sector, SectorExt
 };
 

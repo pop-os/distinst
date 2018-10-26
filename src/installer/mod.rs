@@ -4,7 +4,7 @@ mod steps;
 pub use self::steps::Step;
 use {PARTITIONING_TEST, hostname, squashfs};
 use auto::{delete_old_install, recover_root, remove_root, move_root, validate_backup_conditions, AccountFiles, Backup, ReinstallError};
-use disk_types::FileSystemExt;
+use disk_types::{BlockDeviceExt, PartitionExt};
 use disks::{Bootloader, Disks};
 use external::luks::deactivate_logical_devices;
 use proc_mounts::Mounts;

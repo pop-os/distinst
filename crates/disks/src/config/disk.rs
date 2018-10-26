@@ -3,7 +3,7 @@ use super::super::operations::*;
 use super::super::serial::get_serial;
 use external::{is_encrypted, pvs};
 use super::super::{
-    DiskError, DiskExt, Disks, FileSystem, FileSystemExt, PartitionError, PartitionFlag,
+    DiskError, DiskExt, Disks, FileSystem, BlockDeviceExt, PartitionError, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::str;
 use sys_mount::{unmount, UnmountFlags};
 use rayon::prelude::*;
-use disk_types::SectorExt;
+use disk_types::{PartitionTableExt, SectorExt};
 
 /// Detects a partition on the device, if it exists.
 /// Useful for detecting if a LUKS device has a file system.
@@ -109,16 +109,36 @@ pub struct Disk {
     pub partitions: Vec<PartitionInfo>,
 }
 
+impl BlockDeviceExt for Disk {
+    fn get_device_path(&self) -> &Path { &self.device_path }
+
+    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
+}
+
 impl SectorExt for Disk {
     fn get_sector_size(&self) -> u64 { self.sector_size }
 
     fn get_sectors(&self) -> u64 { self.size }
 }
 
+impl PartitionTableExt for Disk {
+    fn get_partition_table(&self) -> Option<PartitionTable> {
+        self.table_type
+    }
+
+    fn get_partition_type_count(&self) -> (usize, usize) {
+        self.partitions
+            .iter()
+            .fold((0, 0), |sum, part| match part.part_type {
+                PartitionType::Logical => (sum.0, sum.1 + 1),
+                PartitionType::Primary => (sum.0 + 1, sum.1),
+                PartitionType::Extended => sum
+            })
+    }
+}
+
 impl DiskExt for Disk {
     const LOGICAL: bool = false;
-
-    fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn get_file_system(&self) -> Option<&PartitionInfo> { self.file_system.as_ref() }
 
@@ -128,34 +148,11 @@ impl DiskExt for Disk {
 
     fn get_model(&self) -> &str { &self.model_name }
 
-    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
-
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
 
     fn get_table_type(&self) -> Option<PartitionTable> { self.table_type }
-
-    fn validate_partition_table(&self, part_type: PartitionType) -> Result<(), DiskError> {
-        match self.table_type {
-            Some(PartitionTable::Gpt) => (),
-            Some(PartitionTable::Msdos) => {
-                let (primary, logical) = self.get_partition_type_count();
-                if part_type == PartitionType::Primary {
-                    if primary == 4 || (primary == 3 && logical != 0) {
-                        return Err(DiskError::PrimaryPartitionsExceeded);
-                    }
-                } else if primary == 4 {
-                    return Err(DiskError::PrimaryPartitionsExceeded);
-                }
-            }
-            None => return Err(DiskError::PartitionTableNotFound {
-                device: self.get_device_path().to_path_buf()
-            }),
-        }
-
-        Ok(())
-    }
 
     fn push_partition(&mut self, partition: PartitionInfo) { self.partitions.push(partition); }
 }
@@ -268,17 +265,6 @@ impl Disk {
                 })
             }
         })
-    }
-
-    /// Obtain the number of primary and logical partitions, in that order.
-    fn get_partition_type_count(&self) -> (usize, usize) {
-        self.partitions
-            .iter()
-            .fold((0, 0), |sum, part| match part.part_type {
-                PartitionType::Logical => (sum.0, sum.1 + 1),
-                PartitionType::Primary => (sum.0 + 1, sum.1),
-                PartitionType::Extended => sum
-            })
     }
 
     /// Returns the serial of the device, filled in by the manufacturer.

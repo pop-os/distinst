@@ -1,6 +1,6 @@
 extern crate distinst;
 
-use distinst::{DiskExt, Disks, FileSystemExt, SectorExt};
+use distinst::{DiskExt, Disks, BlockDeviceExt, PartitionExt, SectorExt};
 use std::io::{self, Result};
 use std::process;
 

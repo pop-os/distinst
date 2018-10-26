@@ -1,7 +1,7 @@
 pub use disk_types::PartitionSizeError;
 use std::io;
 use std::path::PathBuf;
-use disk_types::FileSystem;
+use disk_types::{FileSystem, PartitionTableError};
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -65,12 +65,10 @@ pub enum DiskError {
     PartitionRemove { partition: i32, why: io::Error },
     #[fail(display = "unable to remove partition at sector {}: {}", sector, why)]
     PartitionRemoveBySector { sector: u64, why: io::Error },
-    #[fail(display = "partition table not found on disk ({:?})", device)]
-    PartitionTableNotFound { device: PathBuf },
+    #[fail(display = "{}", why)]
+    PartitionTable { why: PartitionTableError },
     #[fail(display = "unable to create physical volume from '{}': {}", volume, why)]
     PhysicalVolumeCreate { volume: String, why: io::Error },
-    #[fail(display = "too many primary partitions in MSDOS partition table")]
-    PrimaryPartitionsExceeded,
     #[fail(display = "multiple devices had the same volume group: currently unsupported")]
     SameGroup,
     #[fail(display = "sector overlaps partition {}", id)]
@@ -144,5 +142,11 @@ impl From<PartitionSizeError> for PartitionError {
             PartitionSizeError::TooSmall(size, min) => PartitionError::PartitionTooSmall { size, min },
             PartitionSizeError::TooLarge(size, max) => PartitionError::PartitionTooLarge { size, max },
         }
+    }
+}
+
+impl From<PartitionTableError> for DiskError {
+    fn from(why: PartitionTableError) -> DiskError {
+        DiskError::PartitionTable { why }
     }
 }
