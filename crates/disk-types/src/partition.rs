@@ -1,6 +1,7 @@
 use device::BlockDeviceExt;
 use fs::FileSystem;
 use fs::FileSystem::*;
+use libparted::PartitionFlag;
 use usage::sectors_used;
 use tempdir::TempDir;
 use sys_mount::*;
@@ -26,6 +27,24 @@ pub trait PartitionExt: BlockDeviceExt {
 
     /// Defines the file system that this device was partitioned with.
     fn get_file_system(&self) -> Option<FileSystem>;
+
+    /// Ped partition flags that this disk has been assigned.
+    fn get_partition_flags(&self) -> &[PartitionFlag];
+
+    /// The label of the partition, if it has one.
+    fn get_partition_label(&self) -> Option<&str>;
+
+    /// Whether this partition is primary, logical, or extended.
+    fn get_partition_type(&self) -> PartitionType;
+
+    /// The sector where this partition ends on the parent block device.
+    fn get_sector_end(&self) -> u64;
+
+    /// The sector where this partition begins on the parent block device..
+    fn get_sector_start(&self) -> u64;
+
+    /// Returns the length of the partition in sectors.
+    fn get_sectors(&self) -> u64 { self.get_sector_end() - self.get_sector_start() }
 
     /// Mount the file system at a temporary directory, and allow the caller to scan it.
     fn probe<T, F>(&self, mut func: F) -> T

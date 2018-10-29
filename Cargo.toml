@@ -17,6 +17,7 @@ members = [
     "crates/bootloader",
     "crates/chroot",
     "crates/disks",
+    "crates/disk-ops",
     "crates/disk-types",
     "crates/envfile",
     "crates/external",

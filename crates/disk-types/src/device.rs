@@ -2,25 +2,32 @@ use std::path::{Path, PathBuf};
 use sysfs_class::{Block, SysClass};
 
 pub trait BlockDeviceExt {
-    /// Checks if the drive is a removable drive.
-    fn is_removable(&self) -> bool {
-        let path = {
-            let path = self.get_device_path();
-            PathBuf::from(match path.read_link() {
-                Ok(resolved) => [
-                    "/sys/class/block/",
-                    resolved.file_name().expect("drive does not have a file name").to_str().unwrap(),
-                ].concat(),
-                _ => [
-                    "/sys/class/block/",
-                    path.file_name().expect("drive does not have a file name").to_str().unwrap(),
-                ].concat(),
-            })
-        };
+    fn sys_block_path(&self) -> PathBuf {
+        let path = self.get_device_path();
+        PathBuf::from(match path.read_link() {
+            Ok(resolved) => [
+                "/sys/class/block/",
+                resolved.file_name().expect("drive does not have a file name").to_str().unwrap(),
+            ].concat(),
+            _ => [
+                "/sys/class/block/",
+                path.file_name().expect("drive does not have a file name").to_str().unwrap(),
+            ].concat(),
+        })
+    }
 
-        Block::from_path(&Path::new(&path))
+    /// Checks if the device is a removable device.
+    fn is_removable(&self) -> bool {
+        Block::from_path(&self.sys_block_path())
             .ok()
             .map_or(false, |block| block.removable().ok() == Some(1))
+    }
+
+    /// Checks if the device is a rotational device.
+    fn is_rotational(&self) -> bool {
+        Block::from_path(&self.sys_block_path())
+            .ok()
+            .map_or(false, |block| block.queue_rotational().ok() == Some(1))
     }
 
     /// Where this block device originates.

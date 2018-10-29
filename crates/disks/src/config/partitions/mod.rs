@@ -99,6 +99,16 @@ impl BlockDeviceExt for PartitionInfo {
 
 impl PartitionExt for PartitionInfo {
     fn get_file_system(&self) -> Option<FileSystem> { self.filesystem }
+
+    fn get_partition_flags(&self) -> &[PartitionFlag] { &self.flags }
+
+    fn get_partition_label(&self) -> Option<&str> { self.name.as_ref().map(|s| s.as_str()) }
+
+    fn get_partition_type(&self) -> PartitionType { self.part_type }
+
+    fn get_sector_end(&self) -> u64 { self.end_sector }
+
+    fn get_sector_start(&self) -> u64 { self.start_sector }
 }
 
 impl PartitionInfo {
@@ -189,9 +199,6 @@ impl PartitionInfo {
         self.target = None;
     }
 
-    /// Returns the length of the partition in sectors.
-    pub fn sectors(&self) -> u64 { self.end_sector - self.start_sector }
-
     // True if the partition contains an encrypted partition
     pub fn is_encrypted(&self) -> bool { is_encrypted(self.get_device_path()) }
 
@@ -269,18 +276,11 @@ impl PartitionInfo {
     /// Obtains bock information for the partition, if possible, for use with
     /// generating entries in "/etc/fstab".
     pub fn get_block_info(&self) -> Option<BlockInfo> {
-        info!(
-            "getting block information for partition at {}",
-            self.device_path.display()
-        );
-
-        if self.filesystem != Some(FileSystem::Swap)
-            && (self.target.is_none() || self.filesystem.is_none())
-        {
+        let fs = self.get_file_system()?;
+        if fs != FileSystem::Swap && self.target.is_none() {
             return None;
         }
 
-        let fs = self.filesystem.expect("unable to get block info due to lack of file system");
         Some(BlockInfo::new(
             BlockInfo::get_partition_id(&self.device_path, fs)?,
             fs,
@@ -433,9 +433,9 @@ mod tests {
 
     #[test]
     fn partition_sectors() {
-        assert_eq!(swap_partition().sectors(), 16785407);
-        assert_eq!(root_partition().sectors(), 419430399);
-        assert_eq!(efi_partition().sectors(), 1023999);
+        assert_eq!(swap_partition().get_sectors(), 16785407);
+        assert_eq!(root_partition().get_sectors(), 419430399);
+        assert_eq!(efi_partition().get_sectors(), 1023999);
     }
 
     #[test]

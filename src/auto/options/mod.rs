@@ -12,7 +12,7 @@ pub use self::erase_option::*;
 pub use self::recovery_option::*;
 pub use self::refresh_option::*;
 
-use disk_types::{SectorExt};
+use disk_types::{PartitionExt, SectorExt};
 use disks::*;
 use partition_identity::PartitionID;
 use std::collections::hash_map::Entry;
@@ -59,7 +59,7 @@ impl InstallOptions {
                                 efi_part:       efi.clone(),
                                 recovery_part:  recovery.clone(),
                                 can_retain_old: if let Ok(used) = part.sectors_used() {
-                                     part.sectors() - used > required_space
+                                     part.get_sectors() - used > required_space
                                 } else {
                                     false
                                 }
@@ -136,7 +136,7 @@ impl InstallOptions {
                     last_end_sector = part.end_sector;
 
                     if let Ok(used) = part.sectors_used() {
-                        let free = part.sectors() - used;
+                        let free = part.get_sectors() - used;
                         let num = part.number;
                         match other_os.entry(device.get_device_path()) {
                             Entry::Occupied(mut entry) => {

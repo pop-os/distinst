@@ -11,74 +11,16 @@ pub use disk_types::PartitionTable;
 pub use self::disk::*;
 pub use self::disk_trait::{find_partition, find_partition_mut, DiskExt};
 pub use self::disks::*;
-pub use self::lvm::{generate_unique_id, LvmDevice, LvmEncryption};
+pub use self::lvm::{LvmDevice, LvmEncryption};
 pub use self::partitions::*;
 pub use disk_types::Sector;
 
-use super::{Bootloader, DiskError};
-use libparted::{Device, Disk as PedDisk, DiskType as PedDiskType};
 use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use sysfs_class::{SysClass, Block};
 
 static mut PVS: Option<BTreeMap<PathBuf, Option<String>>> = None;
-
-/// Gets a `libparted::Device` from the given name.
-pub fn get_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
-    let device = name.as_ref();
-    info!("getting device at {}", device.display());
-    Device::get(device).map_err(|why| DiskError::DeviceGet { device: device.to_path_buf(), why })
-}
-
-/// Gets and opens a `libparted::Device` from the given name.
-pub fn open_device<'a, P: AsRef<Path>>(name: P) -> Result<Device<'a>, DiskError> {
-    let device = name.as_ref();
-    info!("opening device at {}", device.display());
-    Device::new(device).map_err(|why| DiskError::DeviceGet { device: device.to_path_buf(), why })
-}
-
-/// Opens a `libparted::Disk` from a `libparted::Device`.
-pub fn open_disk<'a>(device: &'a mut Device) -> Result<PedDisk<'a>, DiskError> {
-    info!("opening disk at {}", device.path().display());
-    let device = device as *mut Device;
-    unsafe {
-        match PedDisk::new(&mut *device) {
-            Ok(disk) => Ok(disk),
-            Err(_) => {
-                info!("unable to open disk; creating new table on it");
-                PedDisk::new_fresh(
-                    &mut *device,
-                    match Bootloader::detect() {
-                        Bootloader::Bios => PedDiskType::get("msdos").unwrap(),
-                        Bootloader::Efi => PedDiskType::get("gpt").unwrap(),
-                    },
-                ).map_err(|why| DiskError::DiskNew {
-                    device: (&*device).path().to_path_buf(),
-                    why
-                })
-            }
-        }
-    }
-}
-
-/// Attempts to commit changes to the disk, return a `DiskError` on failure.
-pub fn commit(disk: &mut PedDisk) -> Result<(), DiskError> {
-    info!("committing changes to {}", unsafe {
-        disk.get_device().path().display()
-    });
-
-    disk.commit().map_err(|why| DiskError::DiskCommit {
-        device: unsafe { disk.get_device() }.path().to_path_buf(),
-        why
-    })
-}
-
-/// Flushes the OS cache, return a `DiskError` on failure.
-pub fn sync(device: &mut Device) -> Result<(), DiskError> {
-    info!("syncing device at {}", device.path().display());
-    device.sync().map_err(|why| DiskError::DiskSync { why })
-}
 
 /// Obtains the size of the device, in bytes, from a given block device.
 /// Note: This is only to be used with getting partition sizes of logical volumes.

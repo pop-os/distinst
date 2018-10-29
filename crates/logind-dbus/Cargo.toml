@@ -5,6 +5,7 @@ authors = [
     "Jeremy Soller <jackpot51@gmail.com>",
     "Michael Aaron Murphy <michael@system76.com>"
 ]
+description = "Communicate with the LoginManager DBus API"
 
 [dependencies]
 dbus = "=0.6.2"

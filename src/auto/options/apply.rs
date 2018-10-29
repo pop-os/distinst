@@ -2,7 +2,7 @@ use std::fmt;
 use std::mem;
 
 use disks::*;
-use disk_types::SectorExt;
+use disk_types::{PartitionExt, SectorExt};
 use disk_types::FileSystem::*;
 use misc;
 use partition_identity::PartitionID;
@@ -147,7 +147,7 @@ fn alongside_config(
 
         {
             let mut partitions = device.partitions.iter_mut();
-            match partitions.find(|p| p.is_esp_partition() && p.sectors() > 819_200) {
+            match partitions.find(|p| p.is_esp_partition() && p.get_sectors() > 819_200) {
                 Some(esp) => esp.set_mount("/boot/efi".into()),
                 None => create_esp = true
             }

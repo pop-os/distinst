@@ -1,6 +1,7 @@
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
+extern crate libparted;
 extern crate os_detect;
 extern crate sys_mount;
 extern crate sysfs_class;

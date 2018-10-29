@@ -31,8 +31,8 @@ fn list() -> Result<()> {
             );
             println!(
                 "    size:    {} MB ({} MiB)",
-                (part.sectors() * sector_size) / 1_000_000,
-                (part.sectors() * sector_size) / 1_048_576
+                (part.get_sectors() * sector_size) / 1_000_000,
+                (part.get_sectors() * sector_size) / 1_048_576
             );
 
             println!(
@@ -42,7 +42,7 @@ fn list() -> Result<()> {
                         let used = used_sectors * sector_size;
                         format!(
                             "{}%: {} MB ({} MiB)",
-                            ((used_sectors as f64 / part.sectors() as f64) * 100f64) as u8,
+                            ((used_sectors as f64 / part.get_sectors() as f64) * 100f64) as u8,
                             used / 1_000_000,
                             used / 1_048_576
                         )
@@ -87,8 +87,8 @@ fn list() -> Result<()> {
             );
             println!(
                 "    size:    {} MB ({} MiB)",
-                (part.sectors() * sector_size) / 1_000_000,
-                (part.sectors() * sector_size) / 1_048_576
+                (part.get_sectors() * sector_size) / 1_000_000,
+                (part.get_sectors() * sector_size) / 1_048_576
             );
 
             println!(
@@ -98,7 +98,7 @@ fn list() -> Result<()> {
                         let used = used_sectors * sector_size;
                         format!(
                             "{}%: {} MB ({} MiB)",
-                            ((used_sectors as f64 / part.sectors() as f64) * 100f64) as u8,
+                            ((used_sectors as f64 / part.get_sectors() as f64) * 100f64) as u8,
                             used / 1_000_000,
                             used / 1_048_576
                         )

@@ -6,43 +6,19 @@ pub use self::deactivate::deactivate_devices;
 pub use self::detect::physical_volumes_to_deactivate;
 pub use self::encryption::LvmEncryption;
 use external::{
-    blkid_partition, dmlist, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
+    blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
 };
-use misc::hasher;
 use proc_mounts::MOUNTS;
 use super::super::{
     DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
     PartitionType, FORMAT, REMOVE, SOURCE,
 };
 use super::get_size;
-use rand::{self, Rng};
-use rand::distributions::Alphanumeric;
 use std::ffi::OsStr;
-use std::{io, thread};
+use std::thread;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use disk_types::{BlockDeviceExt, PartitionTableExt, SectorExt};
-
-/// Generate a unique device map ID, to ensure no collisions between dm blocks.
-pub fn generate_unique_id(prefix: &str, exclude_hashes: &[u64]) -> io::Result<String> {
-    let dmlist = dmlist()?;
-    let check_uniqueness = |id: &str, exclude: &[u64]| -> bool {
-        ! dmlist.iter().any(|x| x.as_str() == id) && ! exclude.contains(&hasher(&id))
-    };
-
-    if check_uniqueness(prefix, exclude_hashes) {
-        return Ok(prefix.into());
-    }
-
-    loop {
-        let id: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).collect();
-        let id = [prefix, "_", &id].concat();
-        if ! check_uniqueness(&id, exclude_hashes) {
-            continue;
-        }
-        return Ok(id);
-    }
-}
+use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
 
 // TODO: Change name to LogicalDevice?
 
@@ -81,8 +57,8 @@ impl PartitionTableExt for LvmDevice {
         Some(PartitionTable::Gpt)
     }
 
-    fn get_partition_type_count(&self) -> (usize, usize) {
-        (0, 0)
+    fn get_partition_type_count(&self) -> (usize, usize, bool) {
+        (0, 0, false)
     }
 }
 
@@ -301,7 +277,7 @@ impl LvmDevice {
                     if id == nparts {
                         None
                     } else {
-                        Some(partition.sectors() * self.sector_size)
+                        Some(partition.get_sectors() * self.sector_size)
                     },
                 ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
             }

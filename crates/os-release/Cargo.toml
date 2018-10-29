@@ -2,6 +2,7 @@
 name = "os-release"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Parse /etc/os-release files on Linux distributions"
 
 [dependencies]
 distinst-utils = { path = "../utils/"}

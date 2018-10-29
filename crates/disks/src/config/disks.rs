@@ -1,11 +1,11 @@
 use FileSystem::*;
-use disk_types::{BlockDeviceExt, SectorExt};
+use disk_types::{BlockDeviceExt, PartitionExt, SectorExt};
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
 use misc::{self, hasher};
 use proc_mounts::{swapoff, MOUNTS, SWAPS};
 use external::{
-    cryptsetup_close, cryptsetup_open, lvs, pvs, vgdeactivate, CloseBy
+    cryptsetup_close, cryptsetup_open, generate_unique_id, lvs, pvs, vgdeactivate, CloseBy
 };
 use partition_identity::PartitionID;
 use rayon::iter::IntoParallelRefIterator;
@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PartitionTable, PVS};
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::super::lvm::{self, generate_unique_id, LvmDevice};
+use super::super::lvm::{self, LvmDevice};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystem, FileSystemSupport,
     PartitionFlag, PartitionInfo,
@@ -370,7 +370,7 @@ impl Disks {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
 
-                    Ok(LvmDevice::new(vg, Some(enc.clone()), partition.sectors(), 512, true))
+                    Ok(LvmDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true))
                 }
                 _ => {
                     // Detect a file system on the device
@@ -379,7 +379,7 @@ impl Disks {
                         let mut luks = LvmDevice::new(
                             pv,
                             Some(enc.clone()),
-                            partition.sectors(),
+                            partition.get_sectors(),
                             512,
                             true
                         );
@@ -798,7 +798,7 @@ impl Disks {
                     // 256 MiB should be the minimal size of the ESP partition.
                     const REQUIRED_SECTORS: u64 = 524_288;
 
-                    if boot.sectors() < REQUIRED_SECTORS {
+                    if boot.get_sectors() < REQUIRED_SECTORS {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "the ESP partition must be at least 256 MiB in size"
@@ -947,7 +947,7 @@ impl Disks {
                         .find(|d| d.volume_group == lvm.0)
                     {
                         Some(device) => {
-                            device.add_sectors(partition.sectors());
+                            device.add_sectors(partition.get_sectors());
                             false
                         }
                         None => true,
@@ -957,7 +957,7 @@ impl Disks {
                         existing_devices.push(LvmDevice::new(
                             lvm.0.clone(),
                             lvm.1.clone(),
-                            partition.sectors(),
+                            partition.get_sectors(),
                             sector_size,
                             false,
                         ));
@@ -974,7 +974,7 @@ impl Disks {
                         .iter_mut()
                         .find(|d| d.volume_group.as_str() == vg.as_str())
                     {
-                        device.add_sectors(partition.sectors());
+                        device.add_sectors(partition.get_sectors());
                         found = true;
                     }
 
@@ -982,7 +982,7 @@ impl Disks {
                         existing_devices.push(LvmDevice::new(
                             vg.clone(),
                             None,
-                            partition.sectors(),
+                            partition.get_sectors(),
                             sector_size,
                             true,
                         ));

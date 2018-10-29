@@ -47,7 +47,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, DirEntry};
 use std::hash::{Hash, Hasher};
-use std::io::{Seek, SeekFrom};
 use std::path::{PathBuf};
 
 mod layout {
@@ -175,18 +174,6 @@ pub fn resolve_parent(name: &str) -> Option<PathBuf> {
     }
 
     None
-}
-
-pub fn zero<P: AsRef<Path>>(device: P, sectors: u64, offset: u64) -> io::Result<()> {
-    let zeroed_sector = [0; 512];
-    open(device.as_ref())
-        .and_then(|mut file| {
-            if offset != 0 {
-                file.seek(SeekFrom::Start(512 * offset)).map(|_| ())?;
-            }
-
-            (0..sectors).map(|_| file.write(&zeroed_sector).map(|_| ())).collect()
-        })
 }
 
 /// Apply sed expressions on a file, and overwrite it if there was a change.

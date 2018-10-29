@@ -7,16 +7,16 @@ use super::super::{
     PartitionInfo, PartitionTable, PartitionType,
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
-use super::{get_device, open_disk, PVS};
+use super::PVS;
+use operations::parted::{get_device, open_disk};
 use libparted::{Device, DeviceType, Disk as PedDisk};
-use misc;
 use std::collections::BTreeSet;
-use std::io::{self, Read};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::str;
 use sys_mount::{unmount, UnmountFlags};
 use rayon::prelude::*;
-use disk_types::{PartitionTableExt, SectorExt};
+use disk_types::{PartitionExt, PartitionTableExt, SectorExt};
 
 /// Detects a partition on the device, if it exists.
 /// Useful for detecting if a LUKS device has a file system.
@@ -126,13 +126,13 @@ impl PartitionTableExt for Disk {
         self.table_type
     }
 
-    fn get_partition_type_count(&self) -> (usize, usize) {
+    fn get_partition_type_count(&self) -> (usize, usize, bool) {
         self.partitions
             .iter()
-            .fold((0, 0), |sum, part| match part.part_type {
-                PartitionType::Logical => (sum.0, sum.1 + 1),
-                PartitionType::Primary => (sum.0 + 1, sum.1),
-                PartitionType::Extended => sum
+            .fold((0, 0, false), |sum, part| match part.part_type {
+                PartitionType::Logical => (sum.0, sum.1 + 1, sum.2),
+                PartitionType::Primary => (sum.0 + 1, sum.1, sum.2),
+                PartitionType::Extended => (sum.0, sum.1, true)
             })
     }
 }
@@ -237,7 +237,7 @@ impl Disk {
     /// The `name` of the device should be a path, such as `/dev/sda`. If the device could
     /// not be found, then `Err(DiskError::DeviceGet)` will be returned.
     pub fn from_name<P: AsRef<Path>>(name: P) -> Result<Disk, DiskError> {
-        get_device(name).and_then(|mut device| Disk::new(&mut device, true))
+        get_device(name).map_err(Into::into).and_then(|mut device| Disk::new(&mut device, true))
     }
 
     /// Obtains the disk that corresponds to a given serial model.
@@ -277,25 +277,6 @@ impl Disk {
                 || x.target.is_some()
                 || x.volume_group.is_some()
         })
-    }
-
-    // Returns true if the device is solid state, or false if it is a spinny disk.
-    pub fn is_rotational(&self) -> bool {
-        let path = PathBuf::from(
-            [
-                "/sys/class/block/",
-                self.get_device_path()
-                    .file_name()
-                    .expect("no file name found for device")
-                    .to_str()
-                    .expect("device file name is not UTF-8"),
-            ].concat(),
-        );
-
-        misc::open(path.join("queue/rotational"))
-            .ok()
-            .and_then(|file| file.bytes().next())
-            .map_or(false, |res| res.ok().map_or(false, |byte| byte == b'1'))
     }
 
     /// Unmounts all partitions on the device
@@ -544,7 +525,7 @@ impl Disk {
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
             .and_then(|partition| {
-                fs.validate_size(partition.sectors() * sector_size)
+                fs.validate_size(partition.get_sectors() * sector_size)
                     .map_err(|why| DiskError::new_partition_error(partition.device_path.clone(), why))
                     .map(|_| {
                         partition.format_with(fs);
@@ -819,10 +800,12 @@ impl Disk {
                 if ops.is_empty() {
                     Ok(None)
                 } else {
-                    ops.remove()
+                    let partitions_to_format = ops.remove()
                         .and_then(|ops| ops.change())
                         .and_then(|ops| ops.create())
-                        .map(Some)
+                        .map(Some)?;
+
+                    Ok(partitions_to_format)
                 }
             })
         })

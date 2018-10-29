@@ -2,6 +2,7 @@
 name = "distinst-external-commands"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "External commands used by distinst and its crates"
 
 [dependencies]
 distinst-utils = { path = "../utils" }
@@ -9,3 +10,4 @@ disk-types = { path = "../disk-types" }
 sys-mount = "1.0.3"
 tempdir = "0.3.7"
 log = "0.4.5"
+rand = "0.5.5"

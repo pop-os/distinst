@@ -1,3 +1,4 @@
+use std::fmt;
 use std::str::FromStr;
 use sys_mount::FilesystemType as MountFS;
 
@@ -109,6 +110,13 @@ impl Into<&'static str> for FileSystem {
             FileSystem::Lvm => "lvm",
             FileSystem::Luks => "luks",
         }
+    }
+}
+
+impl fmt::Display for FileSystem {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let str: &'static str = (*self).into();
+        f.write_str(str)
     }
 }
 

@@ -31,6 +31,8 @@ pub enum DiskError {
     ExternalCommand { why: io::Error },
     #[fail(display = "serial model does not match")]
     InvalidSerial,
+    #[fail(display = "{}", why)]
+    IO { why: io::Error },
     #[fail(display = "failed to create partition geometry: {}", why)]
     GeometryCreate { why: io::Error },
     #[fail(display = "failed to duplicate partition geometry")]
@@ -127,6 +129,12 @@ impl From<DecryptionError> for DiskError {
 impl DiskError {
     pub fn new_partition_error<E: Into<PartitionError>>(partition: PathBuf, why: E) -> DiskError {
         DiskError::PartitionError { partition, why: why.into() }
+    }
+}
+
+impl From<io::Error> for DiskError {
+    fn from(why: io::Error) -> DiskError {
+        DiskError::IO { why }
     }
 }
 

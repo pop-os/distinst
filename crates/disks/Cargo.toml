@@ -2,10 +2,12 @@
 name = "distinst-disks"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Probe and manipulate block devices"
 
 [dependencies]
 bitflags = "1.0.4"
 derive-new = "0.5.5"
+disk-ops = { path = "../disk-ops" }
 disk-types = { path = "../disk-types" }
 distinst-bootloader = { path = "../bootloader" }
 distinst-external-commands = { path = "../external" }

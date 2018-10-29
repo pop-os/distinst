@@ -1,4 +1,4 @@
-use disk_types::{BlockDeviceExt, PartitionTableError, PartitionTableExt, SectorExt};
+use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableError, PartitionTableExt, SectorExt};
 use super::super::{
     DiskError, Disks, PartitionBuilder, PartitionInfo,
     PartitionTable, PartitionType, Sector,
@@ -88,7 +88,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
         self.get_partitions()
             .iter()
             .filter(|p| !p.flag_is_enabled(REMOVE))
-            .map(|p| p.sectors())
+            .map(|p| p.get_sectors())
             .sum()
     }
 
@@ -151,7 +151,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
         let fs = builder.filesystem;
         let partition = builder.build();
         if let Some(fs) = fs {
-            fs.validate_size(partition.sectors() * self.get_sector_size())
+            fs.validate_size(partition.get_sectors() * self.get_sector_size())
                 .map_err(|why| DiskError::new_partition_error(partition.device_path.clone(), why))?;
         }
 

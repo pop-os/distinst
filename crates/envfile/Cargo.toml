@@ -2,6 +2,7 @@
 name = "envfile"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Buffer an environment file into an in-memory map"
 
 [dependencies]
 distinst-utils = { path = "../utils/"}

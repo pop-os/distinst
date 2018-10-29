@@ -4,6 +4,7 @@ extern crate distinst_utils as misc;
 extern crate disk_types;
 #[macro_use]
 extern crate log;
+extern crate rand;
 extern crate sys_mount;
 extern crate tempdir;
 

@@ -23,8 +23,12 @@ pub trait SectorExt {
             Sector::Unit(size) => size,
             Sector::UnitFromEnd(size) => end() - size,
             Sector::Percent(value) => {
-                ((self.get_sectors() * self.get_sector_size()) / ::std::u16::MAX as u64)
-                    * value as u64 / self.get_sector_size()
+                if value == ::std::u16::MAX {
+                    self.get_sectors()
+                } else {
+                    ((self.get_sectors() * self.get_sector_size()) / ::std::u16::MAX as u64)
+                        * value as u64 / self.get_sector_size()
+                }
             }
         }
     }
@@ -93,6 +97,40 @@ impl FromStr for Sector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::u16;
+
+    struct FictionalBlock(u64);
+
+    impl SectorExt for FictionalBlock {
+        fn get_sectors(&self) -> u64 { self.0 }
+
+        fn get_sector_size(&self) -> u64 { 512 }
+    }
+
+    #[test]
+    fn sector_get() {
+        let block = FictionalBlock (100_000_000);
+        assert_eq!(4096, block.get_sector(Sector::Start));
+        assert_eq!(99_995_904, block.get_sector(Sector::End));
+        assert_eq!(1000, block.get_sector(Sector::Unit(1000)));
+        assert_eq!(99_994_904, block.get_sector(Sector::UnitFromEnd(1000)));
+    }
+
+    #[test]
+    fn sector_get_megabyte() {
+        let block = FictionalBlock (100_000_000);
+        assert_eq!(2_000_000, block.get_sector(Sector::Megabyte(1024)));
+        assert_eq!(97_995_904, block.get_sector(Sector::MegabyteFromEnd(1024)));
+    }
+
+    #[test]
+    fn sector_get_percent() {
+        let block = FictionalBlock (100_000_000);
+        assert_eq!(0, block.get_sector(Sector::Percent(0)));
+        assert_eq!(24_998_826, block.get_sector(Sector::Percent(u16::MAX / 4)));
+        assert_eq!(49_999_178, block.get_sector(Sector::Percent(u16::MAX / 2)));
+        assert_eq!(100_000_000, block.get_sector(Sector::Percent(u16::MAX)));
+    }
 
     #[test]
     fn sector_percentages() {

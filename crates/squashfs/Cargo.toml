@@ -2,6 +2,7 @@
 name = "distinst-squashfs"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Extract a squashfs image with progress callback support"
 
 [dependencies]
 libc = "0.2.43"

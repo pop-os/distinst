@@ -24,10 +24,10 @@ extern crate rayon;
 extern crate sys_mount;
 extern crate sysfs_class;
 extern crate tempdir;
+pub extern crate disk_ops as operations;
 
 pub mod config;
 mod error;
-pub mod operations;
 mod serial;
 pub mod external;
 
@@ -35,4 +35,3 @@ pub use bootloader::{Bootloader, FORCE_BOOTLOADER};
 pub use self::config::*;
 pub use self::error::{DecryptionError, DiskError, PartitionError, PartitionSizeError};
 pub use libparted::PartitionFlag;
-use libparted::{Device, DiskType as PedDiskType};

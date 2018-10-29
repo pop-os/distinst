@@ -2,6 +2,8 @@
 name = "disk-types"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Traits and types for block devices, partitions, file systems, etc."
+license = "MIT"
 
 [dependencies]
 sys-mount = "1.0.3"
@@ -10,3 +12,4 @@ os-detect = { path = "../os-detect" }
 sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 failure = "0.1.3"
 failure_derive = "0.1.3"
+libparted = "0.1.3"

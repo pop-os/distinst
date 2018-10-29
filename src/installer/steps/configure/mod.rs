@@ -173,7 +173,7 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
 
         let luks_uuid = root_entry.uid.get_device_path()
             .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
-            .and_then(|ref path| PartitionID::get_uuid(path))
+            .and_then(PartitionID::get_uuid)
             .and_then(|uuid| if uuid == root_entry.uid { None } else { Some(uuid)});
 
         callback(25);
