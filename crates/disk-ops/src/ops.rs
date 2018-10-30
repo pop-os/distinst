@@ -300,10 +300,12 @@ fn get_partition_id_and_path(path: &Path, start_sector: i64) -> io::Result<(i32,
     })
 }
 
+/// The final stage of disk operations, where all partitions to be formatted can be
+/// formatted in parallel.
 pub struct FormatPartitions(pub Vec<(PathBuf, FileSystem)>);
 
 impl FormatPartitions {
-    // Finally, format all of the modified and created partitions.
+    /// Finally, format all of the modified and created partitions.
     pub fn format(self) -> io::Result<()> {
         info!("executing format operations");
         self.0.par_iter().map(|&(ref part, fs)| {

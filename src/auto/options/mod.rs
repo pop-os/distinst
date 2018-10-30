@@ -182,27 +182,23 @@ impl InstallOptions {
 
         let mut alongside_options = Vec::new();
         for (device, data) in other_os {
-            if required_space < data.sectors_free {
-                if ! data.systems.is_empty() {
-                    alongside_options.push(AlongsideOption {
-                        device: device.to_path_buf(),
-                        alongside: data.systems[0].clone(),
-                        method: AlongsideMethod::Shrink {
-                            partition: data.largest_partition,
-                            sectors_free: data.sectors_free,
-                        }
-                    });
-                }
+            if required_space < data.sectors_free && ! data.systems.is_empty() {
+                alongside_options.push(AlongsideOption {
+                    device: device.to_path_buf(),
+                    alongside: data.systems[0].clone(),
+                    method: AlongsideMethod::Shrink {
+                        partition: data.largest_partition,
+                        sectors_free: data.sectors_free,
+                    }
+                });
             }
 
-            if required_space < data.best_free_region.size() {
-                if ! data.systems.is_empty() {
-                    alongside_options.push(AlongsideOption {
-                        device: device.to_path_buf(),
-                        alongside: data.systems[0].clone(),
-                        method: AlongsideMethod::Free(data.best_free_region)
-                    });
-                }
+            if required_space < data.best_free_region.size() && ! data.systems.is_empty() {
+                alongside_options.push(AlongsideOption {
+                    device: device.to_path_buf(),
+                    alongside: data.systems[0].clone(),
+                    method: AlongsideMethod::Free(data.best_free_region)
+                });
             }
         }
 

@@ -1,5 +1,4 @@
 use proc_mounts::{MOUNTS, SWAPS};
-use super::super::operations::*;
 use super::super::serial::get_serial;
 use external::{is_encrypted, pvs};
 use super::super::{
@@ -8,6 +7,7 @@ use super::super::{
 };
 use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
 use super::PVS;
+use operations::*;
 use operations::parted::{get_device, open_disk};
 use libparted::{Device, DeviceType, Disk as PedDisk};
 use std::collections::BTreeSet;

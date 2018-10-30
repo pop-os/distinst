@@ -14,7 +14,7 @@ pub struct MountInfo {
     pub dest:   PathBuf,
 }
 
-/// A list of mounts active on the system at the type of creation.
+/// A list of parsed mount entries from `/proc/mounts`.
 #[derive(Debug)]
 pub struct MountList(pub Vec<MountInfo>);
 

@@ -10,15 +10,22 @@ use std::path::Path;
 use super::get_main_country;
 
 lazy_static! {
+    /// Stores the parsed supported locales from `/usr/share/i18n/SUPPORTED`.
     pub static ref LOCALES: Locales = parse_locales().unwrap();
 }
 
+/// An ISO 631 language code
 pub type Language = String;
+/// A listing of supported locales.
 pub type Locales = BTreeMap<Language, Locale>;
+/// A language locale, which contains a list of possible countries and codesets.
 pub type Locale = BTreeMap<Country, Codesets>;
+/// A country code, which may or may not exist.
 pub type Country = Option<String>;
+/// Code sets for a locale, if they exist.
 pub type Codesets = Vec<Option<Codeset>>;
 
+/// Fetch the default country for a given language, if it exists.
 pub fn get_default(lang: &str) -> Option<String> {
     LOCALES.get(lang)
         .map(|value| {
@@ -65,10 +72,18 @@ pub fn get_default(lang: &str) -> Option<String> {
         })
 }
 
+/// Fetch a list of language codes.
+///
+/// Equivalent to:
+///
+/// ```rust,no_exec,no_run
+/// LOCALES.keys().map(|x| x.as_str()).collect()
+/// ```
 pub fn get_language_codes() -> Vec<&'static str> {
     LOCALES.keys().map(|x| x.as_str()).collect()
 }
 
+/// Fetch a list of countries associated with a language code.
 pub fn get_countries(lang: &str) -> Vec<&'static str> {
     match LOCALES.get(lang) {
         Some(value) => {
@@ -80,6 +95,8 @@ pub fn get_countries(lang: &str) -> Vec<&'static str> {
     }
 }
 
+/// Reads and parses the contents of `/usr/share/i18n/SUPPORTED` for a list of supported
+/// languages and their possible country codes.
 pub fn parse_locales() -> io::Result<Locales> {
     let mut locales = BTreeMap::new();
     for file in &[Path::new("/usr/share/i18n/SUPPORTED"), Path::new("/usr/local/share/i18n/SUPPORTED")] {
@@ -117,6 +134,7 @@ pub fn parse_locales() -> io::Result<Locales> {
     Ok(locales)
 }
 
+/// A locale, which contains a language, an optional country, and an optional codeset.
 #[derive(Debug, PartialEq)]
 struct LocaleEntry {
     language: String,
@@ -134,6 +152,7 @@ impl LocaleEntry {
     }
 }
 
+/// The codeset of a locale ie: `.UTF-8`
 #[derive(Debug, PartialEq)]
 pub struct Codeset {
     pub variant: String,

@@ -1,17 +1,4 @@
-// extern crate distinst_utils as misc;
-// extern crate distinst_disks;
-// extern crate distinst_external_commands as external;
-// extern crate distinst_bootloader;
-// extern crate envfile;
-// extern crate failure;
-// #[macro_use]
-// extern crate failure_derive;
-// extern crate fstypes;
-// #[macro_use]
-// extern crate log;
-// extern crate partition_identity;
-// extern crate sys_mount;
-// extern crate tempdir;
+//! Automatic installation options, and actions executed by them.
 
 mod accounts;
 mod options;

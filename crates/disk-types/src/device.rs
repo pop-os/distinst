@@ -1,7 +1,11 @@
 use std::path::{Path, PathBuf};
 use sysfs_class::{Block, SysClass};
 
+/// Methods that all block devices share, whether they are partitions or disks.
+///
+/// This trait is required to implement other disk traits.
 pub trait BlockDeviceExt {
+    /// The sys path of the block device.
     fn sys_block_path(&self) -> PathBuf {
         let path = self.get_device_path();
         PathBuf::from(match path.read_link() {
@@ -17,6 +21,9 @@ pub trait BlockDeviceExt {
     }
 
     /// Checks if the device is a removable device.
+    ///
+    /// # Notes
+    /// This is only applicable for disk devices.
     fn is_removable(&self) -> bool {
         Block::from_path(&self.sys_block_path())
             .ok()
@@ -24,6 +31,9 @@ pub trait BlockDeviceExt {
     }
 
     /// Checks if the device is a rotational device.
+    ///
+    /// # Notes
+    /// This is only applicable for disk devices.
     fn is_rotational(&self) -> bool {
         Block::from_path(&self.sys_block_path())
             .ok()

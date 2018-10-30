@@ -3,16 +3,24 @@ use std::ffi::OsString;
 use std::io::{Error, ErrorKind, Read, Result};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
+/// A swap entry, which defines an active swap.
 #[derive(Debug, PartialEq)]
 pub struct SwapInfo {
+    /// The path where the swap originates from.
     pub source:   PathBuf,
+    /// The kind of swap, such as `partition` or `file`.
     pub kind:     OsString,
-    pub size:     OsString,
-    pub used:     OsString,
-    pub priority: OsString,
+    /// The size of the swap partition.
+    pub size:     usize,
+    /// Whether the swap is used or not.
+    pub used:     usize,
+    /// The priority of a swap, which indicates the order of usage.
+    pub priority: isize,
 }
 
+/// A list of parsed swap entries from `/proc/swaps`.
 #[derive(Debug, PartialEq)]
 pub struct SwapList(Vec<SwapInfo>);
 
@@ -48,6 +56,18 @@ impl SwapList {
     fn parse_line(line: &str) -> Result<SwapInfo> {
         let mut parts = line.split_whitespace();
 
+        fn parse<F: FromStr>(string: &OsString) -> Result<F> {
+            let string = string.to_str().ok_or_else(|| Error::new(
+                ErrorKind::InvalidData,
+                "/proc/swaps contains non-UTF8 entry"
+            ))?;
+
+            string.parse::<F>().map_err(|_| Error::new(
+                ErrorKind::InvalidData,
+                "/proc/swaps contains invalid data"
+            ))
+        }
+
         macro_rules! next_value {
             ($err:expr) => {{
                 parts.next()
@@ -59,9 +79,9 @@ impl SwapList {
         Ok(SwapInfo {
             source:   PathBuf::from(next_value!("Missing source")?),
             kind:     next_value!("Missing kind")?,
-            size:     next_value!("Missing size")?,
-            used:     next_value!("Missing used")?,
-            priority: next_value!("Missing priority")?,
+            size:     parse::<usize>(&next_value!("Missing size")?)?,
+            used:     parse::<usize>(&next_value!("Missing used")?)?,
+            priority: parse::<isize>(&next_value!("Missing priority")?)?,
         })
     }
 
@@ -82,6 +102,7 @@ impl SwapList {
         Self::parse_from(file.lines().skip(1))
     }
 
+    /// Returns true if the given path is a entry in the swap list.
     pub fn get_swapped(&self, path: &Path) -> bool {
         self.0.iter().any(|mount| mount.source == path)
     }
@@ -105,9 +126,9 @@ mod tests {
                 SwapInfo {
                     source: PathBuf::from("/dev/sda5"),
                     kind: OsString::from("partition"),
-                    size: OsString::from("8388600"),
-                    used: OsString::from("0"),
-                    priority: OsString::from("-2")
+                    size: 8_388_600,
+                    used: 0,
+                    priority: -2
                 }
             ])
         );

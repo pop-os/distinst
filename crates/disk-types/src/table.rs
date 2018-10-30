@@ -8,6 +8,7 @@ pub enum PartitionTable {
     Gpt,
 }
 
+/// A possible error when validating the partition table.
 #[derive(Debug, Fail, PartialEq)]
 pub enum PartitionTableError {
     #[fail(display = "primary partitions exceeded on partition table")]
@@ -16,6 +17,7 @@ pub enum PartitionTableError {
     NotFound,
 }
 
+/// Methods for block devices that may have a partition table.
 pub trait PartitionTableExt: BlockDeviceExt {
     /// Fetch the partition table info on this device, if it exists.
     fn get_partition_table(&self) -> Option<PartitionTable>;

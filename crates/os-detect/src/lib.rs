@@ -13,21 +13,7 @@ use os_release::OsRelease;
 use partition_identity::PartitionID;
 use sys_mount::*;
 
-/// Adds a new map method for boolean types.
-pub(crate) trait BoolExt {
-    fn map<T, F: Fn() -> T>(&self, action: F) -> Option<T>;
-}
-
-impl BoolExt for bool {
-    fn map<T, F: Fn() -> T>(&self, action: F) -> Option<T> {
-        if *self {
-            Some(action())
-        } else {
-            None
-        }
-    }
-}
-
+/// Describes the OS found on a partition.
 #[derive(Debug, Clone)]
 pub enum OS {
     Windows(String),
@@ -188,6 +174,21 @@ fn detect_macos(base: &Path) -> Option<OS> {
                 .or_else(|| Some("Mac OS (Unknown)".into()))
                 .map(OS::MacOs)
         })
+}
+
+/// Adds a new map method for boolean types.
+pub(crate) trait BoolExt {
+    fn map<T, F: Fn() -> T>(&self, action: F) -> Option<T>;
+}
+
+impl BoolExt for bool {
+    fn map<T, F: Fn() -> T>(&self, action: F) -> Option<T> {
+        if *self {
+            Some(action())
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]

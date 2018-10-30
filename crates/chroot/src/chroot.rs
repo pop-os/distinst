@@ -46,10 +46,12 @@ impl<'a> Chroot<'a> {
         })
     }
 
+    /// Set an environment variable to define for this chroot.
     pub fn env(&mut self, key: &'a str, value: &'a str) {
         self.envs.push((key, value));
     }
 
+    /// Clear all environment variables for this chroot.
     pub fn clear_envs(&mut self, clear: bool) {
         self.clear_envs = clear;
     }

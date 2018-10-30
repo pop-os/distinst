@@ -8,6 +8,7 @@ use misc;
 use partition_identity::PartitionID;
 use super::{AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
 use super::super::super::*;
+use external::generate_unique_id;
 
 pub enum InstallOption<'a> {
     Alongside {
@@ -45,10 +46,10 @@ impl<'a> fmt::Debug for InstallOption<'a> {
     }
 }
 
-fn set_mount_by_uuid(disks: &mut Disks, uuid: String, mount: &str) -> Result<(), InstallOptionError> {
+fn set_mount_by_uuid(disks: &mut Disks, uuid: &str, mount: &str) -> Result<(), InstallOptionError> {
     disks
-        .get_partition_by_uuid_mut(uuid.clone())
-        .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.clone() })
+        .get_partition_by_uuid_mut(uuid.to_owned())
+        .ok_or_else(|| InstallOptionError::PartitionNotFound { uuid: uuid.to_owned() })
         .map(|part| {
             part.set_mount(mount.into());
             ()
@@ -246,15 +247,15 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
         root.set_mount("/".into());
     }
 
-    if let Some(home) = option.home_part.clone() {
+    if let Some(ref home) = option.home_part.clone() {
         set_mount_by_uuid(disks, home, "/home")?;
     }
 
-    if let Some(efi) = option.efi_part.clone() {
+    if let Some(ref efi) = option.efi_part.clone() {
         set_mount_by_uuid(disks, efi, "/boot/efi")?;
     }
 
-    if let Some(recovery) = option.recovery_part.clone() {
+    if let Some(ref recovery) = option.recovery_part.clone() {
         set_mount_by_uuid(disks, recovery, "/recovery")?;
     }
 

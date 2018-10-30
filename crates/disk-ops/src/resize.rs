@@ -11,11 +11,18 @@ use super::{
 use sys_mount::*;
 use tempdir::TempDir;
 
+/// The size should be before the path argument.
 pub const SIZE_BEFORE_PATH: u8 = 0b1;
+/// The program does not require a size to be defined.
 pub const NO_SIZE: u8 = 0b10;
+/// This is a BTRFS partition.
 pub const BTRFS: u8 = 0b100;
+/// This is a XFS partition.
 pub const XFS: u8 = 0b1000;
 
+/// Defines the unit of measurement to pass on to resizing tools.
+///
+/// Some tools require the sector to be defined, others require it by mebibyte or megabyte.
 #[allow(dead_code)]
 pub enum ResizeUnit {
     AbsoluteMebibyte,

@@ -9,6 +9,7 @@ use std::io;
 use std::path::Path;
 use os_detect::{detect_os, OS};
 
+/// Trait to provide methods for interacting with partition-based block device.
 pub trait PartitionExt: BlockDeviceExt {
     /// True if the partition is a swap partition.
     fn is_swap(&self) -> bool {

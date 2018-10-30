@@ -1,3 +1,5 @@
+//! A collection of tools for modifying partitions and disk layouts.
+
 #[macro_use]
 extern crate derive_new;
 extern crate disk_types;

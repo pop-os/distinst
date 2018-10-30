@@ -1,10 +1,14 @@
 use std::fs::File;
 use std::io::{self, Read};
 
+/// A Linux kernel module.
 #[derive(Debug, PartialEq)]
 pub struct Module {
+    /// The name of the module.
     pub module: String,
+    /// The size of the module.
     pub size: u64,
+    /// What is using this module.
     pub used_by: Vec<String>
 }
 

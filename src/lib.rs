@@ -1,4 +1,6 @@
-//! A crate for installing Ubuntu distributions from a live squashfs
+//! A crate for installing Linux distributions from a live squashfs.
+//!
+//! > Currently, only Pop!\_OS and Ubuntu are supported by this installer.
 
 #![allow(unknown_lints)]
 
@@ -8,7 +10,6 @@ pub extern crate distinst_chroot as chroot;
 pub extern crate distinst_disks as disks;
 pub extern crate distinst_external_commands as external;
 pub extern crate distinst_locale_support as locale;
-// pub extern crate distinst_options as auto;
 pub extern crate distinst_squashfs as squashfs;
 pub extern crate hostname_validator as hostname;
 pub extern crate os_detect;
@@ -41,13 +42,6 @@ extern crate tempdir;
 pub use disks::*;
 pub use disk_types::*;
 pub use bootloader::*;
-pub use hostname::*;
-pub use external::*;
-pub use locale::*;
-pub use squashfs::*;
-pub use os_detect::*;
-pub use os_release::*;
-pub use proc_mounts::*;
 pub use misc::device_layout_hash;
 
 mod distribution;
@@ -56,6 +50,7 @@ mod installer;
 mod logging;
 pub mod auto;
 
+/// Useful DBus interfaces for installers to implement.
 pub mod dbus_interfaces {
     pub use logind_dbus::*;
 }

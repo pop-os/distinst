@@ -34,6 +34,7 @@ fn parse_line(line: &str, skip: usize) -> &str {
     }
 }
 
+/// Contents of the `/etc/os-release` file, as a data structure.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct OsRelease {
     pub bug_report_url:     String,

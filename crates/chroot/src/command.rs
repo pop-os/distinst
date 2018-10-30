@@ -3,6 +3,7 @@ use std::io::{self, BufRead, BufReader, Error, ErrorKind};
 use std::ffi::OsStr;
 use std::thread;
 
+/// Convenient wrapper around `process::Command` to make it easier to work with.
 pub struct Command(process::Command);
 
 impl Command {
@@ -51,6 +52,7 @@ impl Command {
         }
     }
 
+    /// Run the program, check the status, and get the output of `stdout`
     pub fn run_with_stdout(&mut self) -> io::Result<String> {
         let cmd = format!("{:?}", self.0);
         info!("running {}", cmd);
@@ -77,6 +79,7 @@ impl Command {
             })
     }
 
+    /// Run the program and check the status.
     pub fn run(&mut self) -> io::Result<()> {
         let cmd = format!("{:?}", self.0);
         info!("running {}", cmd);

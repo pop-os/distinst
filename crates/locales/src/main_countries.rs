@@ -3,15 +3,25 @@ use std::io::{BufRead, BufReader};
 use misc;
 
 lazy_static! {
+    /// A list of countries considered as "main countries" for a given language code.
     pub static ref MAIN_COUNTRIES: BTreeMap<String, String> = get_main_countries();
 }
 
 const MAIN_COUNTRIES_PATH: &str = "/usr/share/language-tools/main-countries";
 
+/// Gets the main country for the given language code.
+///
+/// # Example
+/// ```rust,no_run
+/// extern crate distinst_locale_support as locales;
+/// use locales::get_main_country;
+/// assert_eq!(get_main_country("en"), Some("US"));
+/// ```
 pub fn get_main_country(code: &str) -> Option<&'static str> {
     MAIN_COUNTRIES.get(code).map(|x| x.as_str())
 }
 
+/// Fetch a list of main countries, according to `/usr/share/language-tools/main-countries`.
 pub fn get_main_countries() -> BTreeMap<String, String> {
     let file = match misc::open(MAIN_COUNTRIES_PATH) {
         Ok(mut file) => file,
