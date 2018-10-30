@@ -3,6 +3,10 @@ name = "distinst-utils"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Miscellanious functions used by distinst and its crates"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+keywords = ["distinst", "utils"]
 
 [dependencies]
 sedregex = "<0.2.0"

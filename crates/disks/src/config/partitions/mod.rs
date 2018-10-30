@@ -10,7 +10,6 @@ use fstab_generate::BlockInfo;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use disk_types::FileSystem::*;
 use super::PVS;
 use super::super::{LvmEncryption, PartitionError};
 
@@ -201,12 +200,6 @@ impl PartitionInfo {
 
     // True if the partition contains an encrypted partition
     pub fn is_encrypted(&self) -> bool { is_encrypted(self.get_device_path()) }
-
-    // True if the partition is an ESP partition.
-    pub fn is_esp_partition(&self) -> bool {
-        (self.filesystem == Some(Fat16) || self.filesystem == Some(Fat32))
-            && self.flags.contains(&PartitionFlag::PED_PARTITION_ESP)
-    }
 
     pub fn get_current_lvm_volume_group(&self) -> Option<&str> {
         self.original_vg.as_ref().map(|x| x.as_str())

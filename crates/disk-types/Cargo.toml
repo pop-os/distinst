@@ -3,7 +3,11 @@ name = "disk-types"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Traits and types for block devices, partitions, file systems, etc."
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
 license = "MIT"
+keywords =  ["disk", "partition"]
+categories = ["filesystem", "os"]
 
 [dependencies]
 sys-mount = "1.0.3"

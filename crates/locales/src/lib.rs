@@ -1,3 +1,6 @@
+//! Provides the locale support required by distinst and distinst-based installers. Locales
+//! include keyboard layouts, language and country codes.
+
 extern crate distinst_utils as misc;
 extern crate gettextrs;
 extern crate iso3166_1;
@@ -17,4 +20,3 @@ pub use self::keyboard_layout::*;
 pub use self::i18n::*;
 pub use self::iso_codes::*;
 pub use self::main_countries::*;
-

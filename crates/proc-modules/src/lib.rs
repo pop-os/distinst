@@ -1,3 +1,4 @@
+//! Provides easy access to active kernel modules in `/proc/modules`.
 use std::fs::File;
 use std::io::{self, Read};
 

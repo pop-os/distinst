@@ -1,3 +1,4 @@
+//! Type for parsing the `/etc/os-release` file.
 extern crate distinst_utils as misc;
 #[macro_use]
 extern crate lazy_static;

@@ -1,3 +1,5 @@
+//! Libary for parsing environment files into an in-memory map.
+
 extern crate distinst_utils as misc;
 #[macro_use]
 extern crate log;

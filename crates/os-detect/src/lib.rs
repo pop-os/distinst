@@ -1,3 +1,5 @@
+//! Provides the means for detecting an OS installed on an unmounted partition.
+
 extern crate distinst_utils as misc;
 #[macro_use]
 extern crate log;

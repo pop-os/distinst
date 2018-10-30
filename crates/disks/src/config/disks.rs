@@ -882,7 +882,7 @@ impl Disks {
                         partition.device_path.display()
                     ),
                 }
-            } else if partition.filesystem == Some(FileSystem::Swap) {
+            } else if partition.is_swap() {
                 if is_unencrypted {
                     match PartitionID::get_uuid(&partition.device_path) {
                         Some(uuid) => {

@@ -6,5 +6,10 @@ authors = [
     "Michael Aaron Murphy <michael@system76.com>"
 ]
 description = "Fetch list of Linux modules"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+categories = ["os::unix-apis"]
+keywords = ["linux",  "proc", "modules"]
 
 [dependencies]

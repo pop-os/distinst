@@ -11,6 +11,12 @@ use os_detect::{detect_os, OS};
 
 /// Trait to provide methods for interacting with partition-based block device.
 pub trait PartitionExt: BlockDeviceExt {
+    /// True if the partition is an ESP partition.
+    fn is_esp_partition(&self) -> bool {
+        self.get_file_system().map_or(false, |fs| (fs == Fat16 || fs == Fat32)
+            && self.get_partition_flags().contains(&PartitionFlag::PED_PARTITION_ESP))
+    }
+
     /// True if the partition is a swap partition.
     fn is_swap(&self) -> bool {
         self.get_file_system()

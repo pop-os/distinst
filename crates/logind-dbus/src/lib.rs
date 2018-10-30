@@ -1,3 +1,5 @@
+//! Provides a DBus API for interacting with logind, which is useful for doing things such as inhibiting suspension.
+
 #[macro_use]
 extern crate cascade;
 extern crate dbus;

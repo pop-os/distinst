@@ -6,6 +6,11 @@ authors = [
     "Michael Aaron Murphy <michael@system76.com>"
 ]
 description = "Communicate with the LoginManager DBus API"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+categories = ["os::unix-apis"]
+keywords = ["linux", "systemd", "logind", "dbus"]
 
 [dependencies]
 dbus = "=0.6.2"

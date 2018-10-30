@@ -1,3 +1,5 @@
+//! Provides easy access to data from the `/proc/swaps` and `/proc/mounts` files.
+
 extern crate distinst_utils as misc;
 extern crate libc;
 extern crate sys_mount;

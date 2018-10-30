@@ -3,6 +3,11 @@ name = "proc-mounts"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Fetch mounts and swaps active on a Linux system"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+categories = ["os::unix-apis"]
+keywords = ["linux", "proc", "mounts", "swaps"]
 
 [dependencies]
 distinst-utils = { path = "../utils/" }

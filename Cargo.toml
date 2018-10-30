@@ -1,8 +1,10 @@
 [package]
 name = "distinst"
-version = "0.4.0"
+version = "0.5.0"
 description = "Distribution Installer Backend"
 repository = "https://github.com/pop-os/distinst"
+categories = ["os::unix-apis"]
+keywords = ["linux", "distribution", "installer"]
 authors = [
     "Jeremy Soller <jackpot51@gmail.com>",
     "Michael Aaron Murphy <michael@system76.com>"
@@ -25,7 +27,6 @@ members = [
     "crates/hostname-validator",
     "crates/locales",
     "crates/logind-dbus",
-    # "crates/options",
     "crates/os-detect",
     "crates/os-release",
     "crates/proc-modules",
@@ -42,9 +43,7 @@ crate-type = ["lib"]
 pbr = "1.0.1"
 
 [dependencies]
-# distinst-options = { path = "crates/options" }
 cascade = "0.1.2"
-
 dirs = "1.0.3"
 disk-types = { path = "crates/disk-types" }
 distinst-bootloader = { path = "crates/bootloader" }
@@ -65,7 +64,7 @@ log = "0.4.5"
 logind-dbus = { path = "crates/logind-dbus" }
 os-detect = { path = "crates/os-detect" }
 os-release = { path = "crates/os-release" }
-partition-identity = { git = "https://github.com/pop-os/partition-identity" }
+partition-identity = "0.1.2"
 proc-modules = { path = "crates/proc-modules" }
 proc-mounts = { path = "crates/proc-mounts" }
 raw-cpuid = "5.0.0"

@@ -3,11 +3,16 @@ name = "os-detect"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Detect an OS installed on a partition"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+categories = ["filesystem", "os"]
+keywords = ["detect", "probe", "os"]
 
 [dependencies]
 distinst-utils = { path = "../utils/" }
 os-release = { path = "../os-release" }
-partition-identity = { git = "https://github.com/pop-os/partition-identity" }
+partition-identity = "0.1.2"
 sys-mount = "1.0.3"
 tempdir = "0.3.7"
 log = "0.4.5"

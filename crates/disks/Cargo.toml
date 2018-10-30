@@ -3,6 +3,11 @@ name = "distinst-disks"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Probe and manipulate block devices"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+keywords =  ["distinst", "disk", "management", "partition"]
+categories = ["filesystem", "os"]
 
 [dependencies]
 bitflags = "1.0.4"
@@ -21,7 +26,7 @@ libc = "0.2.43"
 libparted = "0.1.3"
 log = "0.4.5"
 os-detect = { path = "../os-detect" }
-partition-identity = { git = "https://github.com/pop-os/partition-identity" }
+partition-identity = "0.1.2"
 proc-mounts = { path = "../proc-mounts" }
 rand = "0.5.5"
 rayon = "1.0.2"

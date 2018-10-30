@@ -44,9 +44,12 @@ impl<'a> BlockInfo<'a> {
     /// Writes a single line to the fstab buffer for this file system.
     pub fn write_entry(&self, fstab: &mut OsString) {
         let mount_variant = match self.uid.variant {
-            PartitionSource::UUID => "UUID=",
+            PartitionSource::ID => "ID=",
+            PartitionSource::Label => "LABEL=",
+            PartitionSource::PartLabel => "PARTLABEL=",
             PartitionSource::PartUUID => "PARTUUID=",
-            _ => unimplemented!()
+            PartitionSource::Path => "",
+            PartitionSource::UUID => "UUID=",
         };
 
         fstab.push(mount_variant);

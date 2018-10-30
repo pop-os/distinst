@@ -1,3 +1,5 @@
+//! Convenience wrapper for executing external commands, with chroot support.
+
 #[macro_use]
 extern crate cascade;
 #[macro_use]

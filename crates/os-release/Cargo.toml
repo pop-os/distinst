@@ -3,6 +3,11 @@ name = "os-release"
 version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Parse /etc/os-release files on Linux distributions"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+categories = ["os::unix-apis", "parser-implementations"]
+keywords = ["linux", "os", "release"]
 
 [dependencies]
 distinst-utils = { path = "../utils/"}
