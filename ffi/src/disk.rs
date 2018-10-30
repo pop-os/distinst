@@ -12,7 +12,7 @@ use distinst::{
 
 use super::{get_str, null_check};
 use ffi::AsMutPtr;
-use filesystem::DISTINST_FILE_SYSTEM_TYPE;
+use filesystem::DISTINST_FILE_SYSTEM;
 use gen_object_ptr;
 use lvm::{DistinstLvmDevice, DistinstLvmEncryption};
 use partition::{
@@ -366,7 +366,7 @@ pub unsafe extern "C" fn distinst_disk_move_partition(
 pub unsafe extern "C" fn distinst_disk_format_partition(
     disk: *mut DistinstDisk,
     partition: libc::c_int,
-    fs: DISTINST_FILE_SYSTEM_TYPE,
+    fs: DISTINST_FILE_SYSTEM,
 ) -> libc::c_int {
     if null_check(disk).is_err() {
         return -1;

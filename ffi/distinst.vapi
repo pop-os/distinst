@@ -55,7 +55,7 @@ namespace Distinst {
         EXTENDED,
     }
 
-    [CCode (cname = "DISTINST_FILE_SYSTEM_TYPE", has_type_id = false)]
+    [CCode (cname = "DISTINST_FILE_SYSTEM", has_type_id = false)]
     public enum FileSystem {
         NONE,
         BTRFS,
