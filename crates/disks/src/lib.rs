@@ -26,7 +26,7 @@ extern crate sysfs_class;
 extern crate tempdir;
 pub extern crate disk_ops as operations;
 
-pub mod config;
+mod config;
 mod error;
 mod serial;
 pub mod external;

@@ -20,10 +20,9 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEncryption, PartitionTable, PVS};
 use super::partitions::{FORMAT, REMOVE, SOURCE};
-use super::super::lvm::{self, LvmDevice};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystem, FileSystemSupport,
-    PartitionFlag, PartitionInfo,
+    PartitionFlag, PartitionInfo, LvmDevice
 };
 use sys_mount::{unmount, UnmountFlags};
 
@@ -297,7 +296,7 @@ impl Disks {
         info!("devices to modify: {:?}", devices_to_modify);
         let volume_map = pvs().map_err(|why| DiskError::ExternalCommand { why })?;
         info!("volume map: {:?}", volume_map);
-        let pvs = lvm::physical_volumes_to_deactivate(&devices_to_modify);
+        let pvs = ::physical_volumes_to_deactivate(&devices_to_modify);
         info!("pvs: {:?}", pvs);
 
         // Handle LVM on LUKS

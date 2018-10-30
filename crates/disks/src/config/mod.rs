@@ -4,16 +4,17 @@
 mod disk;
 mod disk_trait;
 mod disks;
-pub mod lvm;
-pub mod partitions;
+mod lvm;
+mod partitions;
 
 pub use disk_types::PartitionTable;
 pub use self::disk::*;
 pub use self::disk_trait::{find_partition, find_partition_mut, DiskExt};
 pub use self::disks::*;
-pub use self::lvm::{LvmDevice, LvmEncryption};
+pub use self::lvm::*;
 pub use self::partitions::*;
 pub use disk_types::Sector;
+
 
 use std::collections::BTreeMap;
 use std::io;

@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Operations for adding, removing, moving, and resizing partitions on a disk."
 repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
 license = "MIT"
 keywords =  ["disk", "partition"]
 categories = ["filesystem", "os"]
