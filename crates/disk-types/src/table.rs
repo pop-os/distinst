@@ -68,7 +68,7 @@ mod tests {
         fn get_partition_type_count(&self) -> (usize, usize, bool) {
             self.partitions
                 .iter()
-                .fold((0, 0, false), |sum, part| match part {
+                .fold((0, 0, false), |sum, &part| match part {
                     PartitionType::Logical => (sum.0, sum.1 + 1, sum.2),
                     PartitionType::Primary => (sum.0 + 1, sum.1, sum.2),
                     PartitionType::Extended => (sum.0, sum.1, true)

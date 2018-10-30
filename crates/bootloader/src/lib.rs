@@ -1,7 +1,6 @@
 //! Detect whether a Linux system is in EFI or BIOS mode.
 //!
 //! ```rust,no_run
-//! extern crate distinst_bootloader;
 //! use distinst_bootloader::Bootloader;
 //!
 //! match Bootloader::detect() {

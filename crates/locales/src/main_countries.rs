@@ -13,8 +13,7 @@ const MAIN_COUNTRIES_PATH: &str = "/usr/share/language-tools/main-countries";
 ///
 /// # Example
 /// ```rust,no_run
-/// extern crate distinst_locale_support as locales;
-/// use locales::get_main_country;
+/// use distinst_locale_support::get_main_country;
 /// assert_eq!(get_main_country("en"), Some("US"));
 /// ```
 pub fn get_main_country(code: &str) -> Option<&'static str> {
