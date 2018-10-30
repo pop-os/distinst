@@ -129,7 +129,7 @@ impl PartitionTableExt for Disk {
     fn get_partition_type_count(&self) -> (usize, usize, bool) {
         self.partitions
             .iter()
-            .fold((0, 0, false), |sum, part| match part.part_type {
+            .fold((0, 0, false), |sum, part| match part.get_partition_type() {
                 PartitionType::Logical => (sum.0, sum.1 + 1, sum.2),
                 PartitionType::Primary => (sum.0 + 1, sum.1, sum.2),
                 PartitionType::Extended => (sum.0, sum.1, true)
@@ -151,8 +151,6 @@ impl DiskExt for Disk {
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo] { &mut self.partitions }
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
-
-    fn get_table_type(&self) -> Option<PartitionTable> { self.table_type }
 
     fn push_partition(&mut self, partition: PartitionInfo) { self.partitions.push(partition); }
 }
@@ -565,7 +563,7 @@ impl Disk {
             // Only consider partitions which are not set to be removed.
             .filter(|part| !part.flag_is_enabled(REMOVE))
             // Return upon the first partition where the sector is within the partition.
-            .find(|part| sector >= part.start_sector && sector <= part.end_sector)
+            .find(|part| part.sector_lies_within(sector))
             // If found, return the partition number.
             .map(|part| part.number)
     }
@@ -580,12 +578,7 @@ impl Disk {
             // and are not to be excluded.
             .filter(|part| !part.flag_is_enabled(REMOVE) && part.number != exclude)
             // Return upon the first partition where the sector is within the partition.
-            .find(|part|
-                !(
-                    (start < part.start_sector && end < part.start_sector)
-                    || (start > part.end_sector && end > part.end_sector)
-                )
-            )
+            .find(|part| part.sectors_overlap_with(start, end))
             // If found, return the partition number.
             .map(|part| part.number)
     }

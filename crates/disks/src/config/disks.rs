@@ -1,5 +1,5 @@
 use FileSystem::*;
-use disk_types::{BlockDeviceExt, PartitionExt, SectorExt};
+use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
 use misc::{self, hasher};
@@ -403,13 +403,13 @@ impl Disks {
         for device in &mut self.physical {
             // TODO: NLL
             if let Some(partition) = device.get_file_system_mut() {
-                if partition.device_path == path {
+                if partition.get_device_path() == path {
                     decrypt(partition, path, &enc)?;
                 }
             }
 
             for partition in device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut()) {
-                if partition.device_path == path {
+                if partition.get_device_path() == path {
                     new_device = Some(decrypt(partition, path, &enc)?);
                     break
                 }
@@ -765,7 +765,7 @@ impl Disks {
 
                 if is_efi {
                     // Check if the EFI partition is on a GPT disk.
-                    if device.get_table_type() != Some(PartitionTable::Gpt) {
+                    if device.get_partition_table() != Some(PartitionTable::Gpt) {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "EFI installs cannot be done on disks without a GPT partition layout."
@@ -865,7 +865,7 @@ impl Disks {
                         }
                     };
 
-                let path = luks_parent.as_ref().map_or(&partition.device_path, |x| &x);
+                let path = luks_parent.as_ref().map_or(partition.get_device_path(), |x| &x);
 
                 match PartitionID::get_uuid(path) {
                     Some(uuid) => {
@@ -879,12 +879,12 @@ impl Disks {
                     }
                     None => error!(
                         "unable to find UUID for {} -- skipping",
-                        partition.device_path.display()
+                        partition.get_device_path().display()
                     ),
                 }
             } else if partition.is_swap() {
                 if is_unencrypted {
-                    match PartitionID::get_uuid(&partition.device_path) {
+                    match PartitionID::get_uuid(&partition.get_device_path()) {
                         Some(uuid) => {
                             let unique_id = generate_unique_id("cryptswap", &swap_uuids)
                                 .unwrap_or_else(|_| "cryptswap".into());
@@ -906,7 +906,7 @@ impl Disks {
                         }
                         None => error!(
                             "unable to find UUID for {} -- skipping",
-                            partition.device_path.display()
+                            partition.get_device_path().display()
                         ),
                     }
                 } else {

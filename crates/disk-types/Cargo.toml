@@ -17,3 +17,4 @@ sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 failure = "0.1.3"
 failure_derive = "0.1.3"
 libparted = "0.1.3"
+bitflags = "1.0.4"

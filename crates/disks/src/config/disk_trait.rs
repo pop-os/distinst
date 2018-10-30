@@ -1,7 +1,6 @@
 use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableError, PartitionTableExt, SectorExt};
 use super::super::{
-    DiskError, Disks, PartitionBuilder, PartitionInfo,
-    PartitionTable, PartitionType, Sector,
+    DiskError, Disks, PartitionBuilder, PartitionInfo, PartitionType, Sector,
 };
 use super::partitions::REMOVE;
 use std::path::{Path, PathBuf};
@@ -38,9 +37,6 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
     /// Returns a mutable slice of all partitions in the device.
     fn get_partitions_mut(&mut self) -> &mut [PartitionInfo];
 
-    /// The partition table that is on the device.
-    fn get_table_type(&self) -> Option<PartitionTable>;
-
     /// Returns true if this partition is mounted at root.
     fn contains_mount(&self, mount: &str, parent: &Disks) -> bool {
         let check_partitions = || {
@@ -74,12 +70,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
             // And which aren't extended
             .filter(|part| part.part_type != PartitionType::Extended)
             // Return upon the first partition where the sector is within the partition.
-            .find(|part|
-                !(
-                    (start < part.start_sector && end < part.start_sector)
-                    || (start > part.end_sector && end > part.end_sector)
-                )
-            )
+            .find(|part| part.sectors_overlap_with(start, end))
             // If found, return the partition number.
             .map(|part| part.number)
     }

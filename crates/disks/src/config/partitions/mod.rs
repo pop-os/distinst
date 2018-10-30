@@ -211,12 +211,7 @@ impl PartitionInfo {
             || self.flags != other.flags || other.flag_is_enabled(FORMAT)
     }
 
-    /// True if the sectors in the compared partition differs from the source.
-    pub fn sectors_differ_from(&self, other: &PartitionInfo) -> bool {
-        self.start_sector != other.start_sector || self.end_sector != other.end_sector
-    }
-
-    /// Ture if the compared partition is the same as the source.
+    /// True if the compared partition is the same as the source.
     pub fn is_same_partition_as(&self, other: &PartitionInfo) -> bool {
         self.flag_is_enabled(SOURCE) && other.flag_is_enabled(SOURCE) && self.number == other.number
     }

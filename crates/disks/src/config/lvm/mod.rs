@@ -83,8 +83,6 @@ impl DiskExt for LvmDevice {
 
     fn get_partitions(&self) -> &[PartitionInfo] { &self.partitions }
 
-    fn get_table_type(&self) -> Option<PartitionTable> { None }
-
     fn push_partition(&mut self, partition: PartitionInfo) { self.partitions.push(partition); }
 }
 

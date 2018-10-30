@@ -7,7 +7,7 @@ use std::ptr;
 
 use distinst::{
     DecryptionError, Disk, DiskExt, Disks, FileSystem, BlockDeviceExt, LvmDevice, LvmEncryption,
-    PartitionBuilder, PartitionInfo, PartitionTable, Sector, SectorExt
+    PartitionBuilder, PartitionInfo, PartitionTable, PartitionTableExt, Sector, SectorExt
 };
 
 use super::{get_str, null_check};
@@ -252,7 +252,7 @@ pub unsafe extern "C" fn distinst_disk_get_partition_table(
     }
 
     let disk = &*(disk as *const Disk);
-    disk.get_table_type().into()
+    disk.get_partition_table().into()
 }
 
 #[no_mangle]
