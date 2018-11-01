@@ -296,6 +296,7 @@ dependencies = [
  "distinst-chroot 0.1.0",
  "distinst-disks 0.1.0",
  "distinst-external-commands 0.1.0",
+ "distinst-hardware-support 0.1.0",
  "distinst-locale-support 0.1.0",
  "distinst-squashfs 0.1.0",
  "distinst-utils 0.1.0",
@@ -314,9 +315,7 @@ dependencies = [
  "os-release 0.1.0",
  "partition-identity 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pbr 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "proc-modules 0.1.0",
  "proc-mounts 0.1.0",
- "raw-cpuid 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sys-mount 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -371,9 +370,21 @@ dependencies = [
  "disk-types 0.1.0",
  "distinst-utils 0.1.0",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-mounts 0.1.0",
  "rand 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "sys-mount 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "distinst-hardware-support"
+version = "0.1.0"
+dependencies = [
+ "distinst-utils 0.1.0",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "os-release 0.1.0",
+ "proc-modules 0.1.0",
+ "raw-cpuid 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

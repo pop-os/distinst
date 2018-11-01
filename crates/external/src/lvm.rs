@@ -2,10 +2,81 @@ use rand::{self, Rng};
 use rand::distributions::Alphanumeric;
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
+use std::fs::read_link;
 use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use misc::{concat_osstr, device_maps, read_dirs};
+use proc_mounts::{swapoff, MOUNTS, SWAPS};
+use sys_mount::{unmount, UnmountFlags};
 use super::*;
+
+pub fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
+    let mounts = MOUNTS.read().expect("failed to get mounts in deactivate_devices");
+    let swaps = SWAPS.read().expect("failed to get swaps in deactivate_devices");
+    let umount = move |vg: &str| -> io::Result<()> {
+        for lv in lvs(vg)? {
+            if let Some(mount) = mounts.get_mount_point(&lv) {
+                info!(
+                    "unmounting logical volume mounted at {}",
+                    mount.display()
+                );
+                unmount(&mount, UnmountFlags::empty())?;
+            } else if let Ok(lv) = lv.canonicalize() {
+                if swaps.get_swapped(&lv) {
+                    swapoff(&lv)?;
+                }
+            }
+        }
+
+        Ok(())
+    };
+
+    for pv in &physical_volumes_to_deactivate(devices) {
+        let mut pvs = pvs()?;
+        let device = CloseBy::Path(&pv);
+        match pvs.remove(pv) {
+            Some(Some(ref vg)) => umount(vg)
+                .and_then(|_| vgdeactivate(vg))
+                .and_then(|_| cryptsetup_close(device))?,
+            _ => cryptsetup_close(device)?,
+        }
+    }
+
+    Ok(())
+}
+
+/// The input shall contain physical device paths (ie: /dev/sda1), and the output
+/// will contain a list of physical volumes (ie: /dev/mapper/cryptroot) that need
+/// to be deactivated.
+pub fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec<PathBuf> {
+    info!("searching for device maps to deactivate");
+    let mut discovered = Vec::new();
+
+    device_maps(|pv| {
+        if let Ok(path) = read_link(pv) {
+            let slave_path = concat_osstr(&[
+                "/sys/block/".as_ref(),
+                path.file_name().expect("pv does not have file name"),
+                "/slaves".as_ref(),
+            ]);
+
+            let _ = read_dirs(&slave_path, |slave| {
+                let slave_path = slave.path();
+                let slave_path = slave_path.file_name().expect("slave path does not have file name");
+                if paths
+                    .iter()
+                    .any(|p| p.as_ref().file_name().expect("slave path does not have file name") == slave_path)
+                {
+                    discovered.push(pv.to_path_buf());
+                }
+            });
+        }
+    });
+
+    discovered
+}
+
 
 /// Get a vector of logical devices.
 pub fn dmlist() -> io::Result<Vec<String>> {

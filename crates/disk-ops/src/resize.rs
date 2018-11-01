@@ -166,7 +166,6 @@ pub fn resize_partition<P: AsRef<Path>>(
             resize_cmd.arg(size);
         }
 
-        eprintln!("{:?}", resize_cmd);
         let status = resize_cmd.stdout(Stdio::null()).status()?;
         if status.success() {
             Ok(())
@@ -208,8 +207,6 @@ pub struct PartitionChange {
     pub start: u64,
     /// The end sector that the partition will have.
     pub end: u64,
-    /// Required information if the partition will be moved.
-    pub sector_size: u64,
     /// The file system that is currently on the partition.
     pub filesystem: Option<FileSystem>,
     /// A diff of flags which should be set on the partition.
@@ -338,7 +335,7 @@ where
             let abs_sectors = resize.absolute_sectors();
             resize.old.resize_to(abs_sectors); // TODO: NLL
 
-            move_partition(&change.device_path, resize.offset(), change.sector_size)
+            move_partition(&change.device_path, resize.offset(), 512)
                 .map_err(|why| io::Error::new(
                     why.kind(),
                     format!("failed to move partition at {}: {}", change.path.display(), why)
@@ -376,7 +373,7 @@ where
         let abs_sectors = resize.absolute_sectors();
         resize.old.resize_to(abs_sectors); // TODO: NLL
 
-        move_partition(&change.device_path, resize.offset(), change.sector_size)
+        move_partition(&change.device_path, resize.offset(), 512)
             .map_err(|why| io::Error::new(
                 why.kind(),
                 format!("failed to move partition at {}: {}", change.path.display(), why)

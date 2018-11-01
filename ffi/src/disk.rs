@@ -6,7 +6,7 @@ use std::path::Path;
 use std::ptr;
 
 use distinst::{
-    DecryptionError, Disk, DiskExt, Disks, FileSystem, BlockDeviceExt, LvmDevice, LvmEncryption,
+    DecryptionError, Disk, DiskExt, Disks, FileSystem, BlockDeviceExt, LogicalDevice, LvmEncryption,
     PartitionBuilder, PartitionInfo, PartitionTable, PartitionTableExt, Sector, SectorExt
 };
 
@@ -560,7 +560,7 @@ pub unsafe extern "C" fn distinst_disks_list_logical(
 
     let mut output: Vec<*mut DistinstLvmDevice> = Vec::new();
     for disk in disks.get_logical_devices_mut().iter_mut() {
-        output.push(disk as *mut LvmDevice as *mut DistinstLvmDevice);
+        output.push(disk as *mut LogicalDevice as *mut DistinstLvmDevice);
     }
 
     *len = output.len() as libc::c_int;

@@ -73,7 +73,7 @@ impl FileSystem {
 impl FromStr for FileSystem {
     type Err = &'static str;
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let type_ = match string {
+        let type_ = match string.to_lowercase().as_str() {
             "btrfs" => FileSystem::Btrfs,
             "exfat" => FileSystem::Exfat,
             "ext2" => FileSystem::Ext2,
@@ -85,8 +85,8 @@ impl FromStr for FileSystem {
             "swap" | "linux-swap(v1)" => FileSystem::Swap,
             "ntfs" => FileSystem::Ntfs,
             "xfs" => FileSystem::Xfs,
-            "lvm" => FileSystem::Lvm,
-            "luks" => FileSystem::Luks,
+            "lvm" | "lvm2_member" => FileSystem::Lvm,
+            "luks" | "crypto_luks" => FileSystem::Luks,
             _ => return Err("invalid file system name"),
         };
         Ok(type_)

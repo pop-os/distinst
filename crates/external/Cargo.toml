@@ -9,9 +9,10 @@ license = "MIT"
 keywords = ["distinst", "external", "commands"]
 
 [dependencies]
-distinst-utils = { path = "../utils" }
 disk-types = { path = "../disk-types" }
+distinst-utils = { path = "../utils" }
+log = "0.4.5"
+proc-mounts = { path = "../proc-mounts" }
+rand = "0.5.5"
 sys-mount = "1.0.3"
 tempdir = "0.3.7"
-log = "0.4.5"
-rand = "0.5.5"

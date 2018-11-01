@@ -5,6 +5,7 @@
 /ffi/target/
 /target/
 /vendor/
+/vendor.tar.xz
 /tests/filesystem.squashfs
 /tests/filesystem.manifest-remove
 /tests/loopback.bin

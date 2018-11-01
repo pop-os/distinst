@@ -24,6 +24,7 @@ members = [
     "crates/envfile",
     "crates/external",
     "crates/fstab-generate",
+    "crates/hardware",
     "crates/hostname-validator",
     "crates/locales",
     "crates/logind-dbus",
@@ -50,6 +51,7 @@ distinst-bootloader = { path = "crates/bootloader" }
 distinst-chroot = { path = "crates/chroot" }
 distinst-disks = { path = "crates/disks" }
 distinst-external-commands = { path = "crates/external" }
+distinst-hardware-support = { path = "crates/hardware" }
 distinst-locale-support = { path = "crates/locales" }
 distinst-squashfs = { path = "crates/squashfs" }
 distinst-utils = { path = "crates/utils" }
@@ -65,9 +67,7 @@ logind-dbus = { path = "crates/logind-dbus" }
 os-detect = { path = "crates/os-detect" }
 os-release = { path = "crates/os-release" }
 partition-identity = "0.1.2"
-proc-modules = { path = "crates/proc-modules" }
 proc-mounts = { path = "crates/proc-mounts" }
-raw-cpuid = "5.0.0"
 rayon = "1.0.2"
 sys-mount = "1.0.3"
 tempdir = "0.3.7"

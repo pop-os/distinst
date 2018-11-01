@@ -1,4 +1,10 @@
-use misc;
+extern crate distinst_utils as misc;
+#[macro_use]
+extern crate log;
+extern crate os_release;
+extern crate proc_modules;
+extern crate raw_cpuid;
+
 use os_release::OsRelease;
 use raw_cpuid::CpuId;
 use std::io::Read;

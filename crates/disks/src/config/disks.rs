@@ -5,7 +5,8 @@ use libparted::{Device, DeviceType};
 use misc::{self, hasher};
 use proc_mounts::{swapoff, MOUNTS, SWAPS};
 use external::{
-    cryptsetup_close, cryptsetup_open, generate_unique_id, lvs, pvs, vgdeactivate, CloseBy
+    cryptsetup_close, cryptsetup_open, generate_unique_id, lvs,
+    physical_volumes_to_deactivate, pvs, vgdeactivate, CloseBy
 };
 use partition_identity::PartitionID;
 use rayon::iter::IntoParallelRefIterator;
@@ -22,7 +23,7 @@ use super::{detect_fs_on_device, find_partition, find_partition_mut, Disk, LvmEn
 use super::partitions::{FORMAT, REMOVE, SOURCE};
 use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystem, FileSystemSupport,
-    PartitionFlag, PartitionInfo, LvmDevice
+    PartitionFlag, PartitionInfo, LogicalDevice
 };
 use sys_mount::{unmount, UnmountFlags};
 
@@ -30,7 +31,7 @@ use sys_mount::{unmount, UnmountFlags};
 #[derive(Debug, Default, PartialEq)]
 pub struct Disks {
     pub physical: Vec<Disk>,
-    pub logical:  Vec<LvmDevice>,
+    pub logical:  Vec<LogicalDevice>,
 }
 
 impl Disks {
@@ -121,17 +122,17 @@ impl Disks {
     }
 
     /// Searches for a LVM device by the LVM volume group name.
-    pub fn get_logical_device(&self, group: &str) -> Option<&LvmDevice> {
+    pub fn get_logical_device(&self, group: &str) -> Option<&LogicalDevice> {
         self.logical.iter().find(|d| d.volume_group == group)
     }
 
     /// Searches for a LVM device by the LVM volume group name.
-    pub fn get_logical_device_mut(&mut self, group: &str) -> Option<&mut LvmDevice> {
+    pub fn get_logical_device_mut(&mut self, group: &str) -> Option<&mut LogicalDevice> {
         self.logical.iter_mut().find(|d| d.volume_group == group)
     }
 
     /// Searches for a LVM device which is inside of the given LUKS physical volume name.
-    pub fn get_logical_device_within_pv(&self, pv: &str) -> Option<&LvmDevice> {
+    pub fn get_logical_device_within_pv(&self, pv: &str) -> Option<&LogicalDevice> {
         self.logical.iter().find(|d| {
             d.encryption
                 .as_ref()
@@ -140,7 +141,7 @@ impl Disks {
     }
 
     /// Searches for a LVM device which is inside of the given LUKS physical volume name.
-    pub fn get_logical_device_within_pv_mut(&mut self, pv: &str) -> Option<&mut LvmDevice> {
+    pub fn get_logical_device_within_pv_mut(&mut self, pv: &str) -> Option<&mut LogicalDevice> {
         self.logical.iter_mut().find(|d| {
             d.encryption
                 .as_ref()
@@ -149,11 +150,11 @@ impl Disks {
     }
 
     /// Returns a slice of logical disks stored within the configuration.
-    pub fn get_logical_devices(&self) -> &[LvmDevice] { &self.logical }
+    pub fn get_logical_devices(&self) -> &[LogicalDevice] { &self.logical }
 
     /// Returns a mutable slice of logical disks stored within the
     /// configuration.
-    pub fn get_logical_devices_mut(&mut self) -> &mut [LvmDevice] { &mut self.logical }
+    pub fn get_logical_devices_mut(&mut self) -> &mut [LogicalDevice] { &mut self.logical }
 
     /// Uses a boxed iterator to get an iterator over all logical partitions.
     pub fn get_logical_partitions<'a>(&'a self) -> Box<Iterator<Item = &'a PartitionInfo> + 'a> {
@@ -296,7 +297,7 @@ impl Disks {
         info!("devices to modify: {:?}", devices_to_modify);
         let volume_map = pvs().map_err(|why| DiskError::ExternalCommand { why })?;
         info!("volume map: {:?}", volume_map);
-        let pvs = ::physical_volumes_to_deactivate(&devices_to_modify);
+        let pvs = physical_volumes_to_deactivate(&devices_to_modify);
         info!("pvs: {:?}", pvs);
 
         // Handle LVM on LUKS
@@ -348,7 +349,7 @@ impl Disks {
             partition: &mut PartitionInfo,
             path: &Path,
             enc: &LvmEncryption,
-        ) -> Result<LvmDevice, DecryptionError> {
+        ) -> Result<LogicalDevice, DecryptionError> {
             // Attempt to decrypt the device.
             cryptsetup_open(path, &enc).map_err(|why| DecryptionError::Open {
                 device: path.to_path_buf(),
@@ -369,13 +370,13 @@ impl Disks {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
 
-                    Ok(LvmDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true))
+                    Ok(LogicalDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true))
                 }
                 _ => {
                     // Detect a file system on the device
                     if let Some(fs) = detect_fs_on_device(&pv) {
                         let pv = enc.physical_volume.clone();
-                        let mut luks = LvmDevice::new(
+                        let mut luks = LogicalDevice::new(
                             pv,
                             Some(enc.clone()),
                             partition.get_sectors(),
@@ -934,7 +935,7 @@ impl Disks {
 
     /// Loads existing logical volume data into memory, excluding encrypted volumes.
     pub fn initialize_volume_groups(&mut self) -> Result<(), DiskError> {
-        let mut existing_devices: Vec<LvmDevice> = Vec::new();
+        let mut existing_devices: Vec<LogicalDevice> = Vec::new();
 
         for disk in &self.physical {
             let sector_size = disk.get_sector_size();
@@ -953,7 +954,7 @@ impl Disks {
                     };
 
                     if push {
-                        existing_devices.push(LvmDevice::new(
+                        existing_devices.push(LogicalDevice::new(
                             lvm.0.clone(),
                             lvm.1.clone(),
                             partition.get_sectors(),
@@ -978,7 +979,7 @@ impl Disks {
                     }
 
                     if !found {
-                        existing_devices.push(LvmDevice::new(
+                        existing_devices.push(LogicalDevice::new(
                             vg.clone(),
                             None,
                             partition.get_sectors(),

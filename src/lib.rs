@@ -9,13 +9,13 @@ pub extern crate distinst_bootloader as bootloader;
 pub extern crate distinst_chroot as chroot;
 pub extern crate distinst_disks as disks;
 pub extern crate distinst_external_commands as external;
+pub extern crate distinst_hardware_support as hardware_support;
 pub extern crate distinst_locale_support as locale;
 pub extern crate distinst_squashfs as squashfs;
 pub extern crate hostname_validator as hostname;
 pub extern crate os_detect;
 pub extern crate os_release;
 pub extern crate partition_identity;
-pub extern crate proc_modules;
 pub extern crate proc_mounts;
 pub extern crate sys_mount;
 
@@ -36,7 +36,6 @@ extern crate libparted;
 extern crate log;
 extern crate logind_dbus;
 extern crate rayon;
-extern crate raw_cpuid;
 extern crate tempdir;
 
 pub use disks::*;
@@ -45,7 +44,6 @@ pub use bootloader::*;
 pub use misc::device_layout_hash;
 
 mod distribution;
-mod hardware_support;
 mod installer;
 mod logging;
 pub mod auto;

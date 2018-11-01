@@ -94,8 +94,6 @@ pub struct Disk {
     pub mount_point: Option<PathBuf>,
     /// The size of the disk in sectors.
     pub size: u64,
-    /// The size of sectors on the disk.
-    pub sector_size: u64,
     /// The type of the device, such as SCSI.
     pub device_type: String,
     /// The partition table may be either **MSDOS** or **GPT**.
@@ -116,7 +114,7 @@ impl BlockDeviceExt for Disk {
 }
 
 impl SectorExt for Disk {
-    fn get_sector_size(&self) -> u64 { self.sector_size }
+    fn get_sector_size(&self) -> u64 { 512 }
 
     fn get_sectors(&self) -> u64 { self.size }
 }
@@ -170,7 +168,6 @@ impl Disk {
         };
 
         let size = device.length();
-        let sector_size = device.sector_size();
         let device_type = format!("{:?}", device.type_());
         let read_only = device.read_only();
 
@@ -195,7 +192,6 @@ impl Disk {
             file_system: None,
             serial,
             size,
-            sector_size,
             device_type,
             read_only,
             table_type,
@@ -434,7 +430,7 @@ impl Disk {
             end
         );
 
-        let sector_size = self.sector_size;
+        let sector_size = 512;
         let (backup, num, start);
         {
             let partition = self.get_partition_mut(partition)
@@ -519,7 +515,7 @@ impl Disk {
             self.path().display(),
             fs,
         );
-        let sector_size = self.sector_size;
+        let sector_size = 512;
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
             .and_then(|partition| {
@@ -657,7 +653,6 @@ impl Disk {
         let mut change_partitions = Vec::new();
         let mut create_partitions = Vec::new();
 
-        let sector_size = new.sector_size;
         let device_path = new.device_path.clone();
 
         let (new_sorted, old_sorted): (Vec<&PartitionInfo>, Vec<&PartitionInfo>) = if !new.mklabel {
@@ -730,7 +725,6 @@ impl Disk {
                                         kind: new.part_type,
                                         start: new.start_sector,
                                         end: new.end_sector,
-                                        sector_size,
                                         filesystem: source.filesystem,
                                         flags: flags_diff(
                                             &source.flags,

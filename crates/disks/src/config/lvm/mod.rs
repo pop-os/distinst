@@ -1,9 +1,6 @@
-mod deactivate;
-mod detect;
 mod encryption;
 
-pub use self::deactivate::deactivate_devices;
-pub use self::detect::physical_volumes_to_deactivate;
+pub use external::deactivate_devices;
 pub use self::encryption::LvmEncryption;
 use external::{
     blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
@@ -20,12 +17,10 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
 
-// TODO: Change name to LogicalDevice?
-
 /// An LVM device acts similar to a Disk, but consists of one more block devices
 /// that comprise a volume group, and may optionally be encrypted.
 #[derive(Debug, Clone, PartialEq)]
-pub struct LvmDevice {
+pub struct LogicalDevice {
     pub model_name:   String,
     pub volume_group: String,
     pub device_path:  PathBuf,
@@ -40,19 +35,19 @@ pub struct LvmDevice {
     pub remove:       bool,
 }
 
-impl BlockDeviceExt for LvmDevice {
+impl BlockDeviceExt for LogicalDevice {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
 }
 
-impl SectorExt for LvmDevice {
+impl SectorExt for LogicalDevice {
     fn get_sector_size(&self) -> u64 { self.sector_size }
 
     fn get_sectors(&self) -> u64 { self.sectors }
 }
 
-impl PartitionTableExt for LvmDevice {
+impl PartitionTableExt for LogicalDevice {
     fn get_partition_table(&self) -> Option<PartitionTable> {
         Some(PartitionTable::Gpt)
     }
@@ -62,7 +57,7 @@ impl PartitionTableExt for LvmDevice {
     }
 }
 
-impl DiskExt for LvmDevice {
+impl DiskExt for LogicalDevice {
     const LOGICAL: bool = true;
 
     fn get_file_system(&self) -> Option<&PartitionInfo> { self.file_system.as_ref() }
@@ -86,7 +81,7 @@ impl DiskExt for LvmDevice {
     fn push_partition(&mut self, partition: PartitionInfo) { self.partitions.push(partition); }
 }
 
-impl LvmDevice {
+impl LogicalDevice {
     /// Creates a new volume group, with an optional encryption configuration.
     pub fn new(
         volume_group: String,
@@ -94,11 +89,11 @@ impl LvmDevice {
         sectors: u64,
         sector_size: u64,
         is_source: bool,
-    ) -> LvmDevice {
+    ) -> LogicalDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group.replace("-", "--")));
-        let mounts = MOUNTS.read().expect("unable to get mounts within LvmDevice::new");
+        let mounts = MOUNTS.read().expect("unable to get mounts within LogicalDevice::new");
 
-        LvmDevice {
+        LogicalDevice {
             model_name: ["LVM ", &volume_group].concat(),
             mount_point: mounts.get_mount_point(&device_path),
             volume_group,
