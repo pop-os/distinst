@@ -9,10 +9,10 @@ license = "MIT"
 keywords = ["distinst", "external", "commands"]
 
 [dependencies]
-disk-types = { path = "../disk-types" }
+disk-types = { git = "https://github.com/pop-os/disk-types" }
 distinst-utils = { path = "../utils" }
 log = "0.4.5"
-proc-mounts = { path = "../proc-mounts" }
+proc-mounts = { git = "https://github.com/pop-os/proc-mounts" }
 rand = "0.5.5"
-sys-mount = "1.0.3"
+sys-mount = "1.1.0"
 tempdir = "0.3.7"

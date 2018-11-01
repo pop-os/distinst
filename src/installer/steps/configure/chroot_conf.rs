@@ -225,18 +225,19 @@ impl<'a> ChrootConfigurator<'a> {
         }
 
         let mounts = MountList::new()?;
-        let recovery_mount = mounts.find_mount(&recovery_path)
+        let recovery_mount = mounts.get_mount_by_dest(&recovery_path)
             .expect("/recovery is mount not associated with block device");
-        let efi_mount = mounts.find_mount(&efi_path)
+
+        let efi_mount = mounts.get_mount_by_dest(&efi_path)
             .expect("efi is mount not associated with block device");
 
-        let recovery_partuuid = PartitionID::get_partuuid(&recovery_mount)
+        let recovery_partuuid = PartitionID::get_partuuid(&recovery_mount.source)
             .expect("/recovery does not have a PartUUID");
-        let efi_partuuid = PartitionID::get_partuuid(&efi_mount)
+        let efi_partuuid = PartitionID::get_partuuid(&efi_mount.source)
             .expect("efi partiton does not have a PartUUID");
 
-        let recovery_uuid = PartitionID::get_uuid(&recovery_mount)
-            .or_else(|| PartitionID::get_uuid(&efi_mount))
+        let recovery_uuid = PartitionID::get_uuid(&recovery_mount.source)
+            .or_else(|| PartitionID::get_uuid(&efi_mount.source))
             .expect("/recovery does not have a UUID");
 
         let cdrom_uuid = Command::new("findmnt")

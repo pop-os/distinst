@@ -13,21 +13,21 @@ categories = ["filesystem", "os"]
 bitflags = "1.0.4"
 derive-new = "0.5.5"
 disk-ops = { path = "../disk-ops" }
-disk-types = { path = "../disk-types" }
+disk-types = { git = "https://github.com/pop-os/disk-types" }
 distinst-bootloader = { path = "../bootloader" }
 distinst-external-commands = { path = "../external" }
 distinst-utils = { path = "../utils" }
-envfile = { path = "../envfile" }
+envfile = { git = "https://github.com/pop-os/envfile" }
 failure = "0.1.3"
 failure_derive = "0.1.3"
-fstab-generate = { path = "../fstab-generate" }
+fstab-generate = { git = "https://github.com/pop-os/fstab-generate" }
 itertools = "0.7.8"
 libc = "0.2.43"
 libparted = "0.1.3"
 log = "0.4.5"
-os-detect = { path = "../os-detect" }
+os-detect = { git = "https://github.com/pop-os/os-detect" }
 partition-identity = "0.1.2"
-proc-mounts = { path = "../proc-mounts" }
+proc-mounts = { git = "https://github.com/pop-os/proc-mounts" }
 rand = "0.5.5"
 rayon = "1.0.2"
 sys-mount = "1.0.3"

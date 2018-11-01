@@ -95,7 +95,7 @@ impl LogicalDevice {
 
         LogicalDevice {
             model_name: ["LVM ", &volume_group].concat(),
-            mount_point: mounts.get_mount_point(&device_path),
+            mount_point: mounts.get_mount_by_source(&device_path).map(|m| m.dest.clone()),
             volume_group,
             device_path,
             luks_parent: None,

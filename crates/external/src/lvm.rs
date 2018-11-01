@@ -7,8 +7,8 @@ use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use misc::{concat_osstr, device_maps, read_dirs};
-use proc_mounts::{swapoff, MOUNTS, SWAPS};
-use sys_mount::{unmount, UnmountFlags};
+use proc_mounts::{MOUNTS, SWAPS};
+use sys_mount::{unmount, swapoff, UnmountFlags};
 use super::*;
 
 pub fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
@@ -16,12 +16,12 @@ pub fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
     let swaps = SWAPS.read().expect("failed to get swaps in deactivate_devices");
     let umount = move |vg: &str| -> io::Result<()> {
         for lv in lvs(vg)? {
-            if let Some(mount) = mounts.get_mount_point(&lv) {
+            if let Some(mount) = mounts.get_mount_by_source(&lv) {
                 info!(
                     "unmounting logical volume mounted at {}",
-                    mount.display()
+                    mount.dest.display()
                 );
-                unmount(&mount, UnmountFlags::empty())?;
+                unmount(&mount.dest, UnmountFlags::empty())?;
             } else if let Ok(lv) = lv.canonicalize() {
                 if swaps.get_swapped(&lv) {
                     swapoff(&lv)?;

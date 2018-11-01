@@ -4,12 +4,13 @@ pub use self::builder::PartitionBuilder;
 pub use disk_types::{FileSystem, PartitionType, BlockDeviceExt, PartitionExt};
 pub use os_detect::OS;
 use libparted::{Partition, PartitionFlag};
-use proc_mounts::{swapoff, MountList, SwapList};
+use proc_mounts::{MountList, SwapList};
 use external::{get_label, is_encrypted};
 use fstab_generate::BlockInfo;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use sys_mount::swapoff;
 use super::PVS;
 use super::super::{LvmEncryption, PartitionError};
 
@@ -171,7 +172,7 @@ impl PartitionInfo {
             };
         }
 
-        self.mount_point = mounts.get_mount_point(device_path);
+        self.mount_point = mounts.get_mount_by_source(device_path).map(|m| m.dest.clone());
         self.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
         self.original_vg = original_vg;
     }

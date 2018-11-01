@@ -58,7 +58,7 @@ pub fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
                                 };
                             }
 
-                            part.mount_point = mounts.get_mount_point(device_path);
+                            part.mount_point = mounts.get_mount_by_source(device_path).map(|m| m.dest.clone());
                             part.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
                             part.original_vg = original_vg;
                         }
@@ -187,7 +187,7 @@ impl Disk {
 
         Ok(Disk {
             model_name,
-            mount_point: mounts.get_mount_point(&device_path),
+            mount_point: mounts.get_mount_by_source(&device_path).map(|m| m.dest.clone()),
             device_path,
             file_system: None,
             serial,
@@ -574,7 +574,7 @@ impl Disk {
             // and are not to be excluded.
             .filter(|part| !part.flag_is_enabled(REMOVE) && part.number != exclude)
             // Return upon the first partition where the sector is within the partition.
-            .find(|part| part.sectors_overlap_with(start, end))
+            .find(|part| part.sectors_overlap(start, end))
             // If found, return the partition number.
             .map(|part| part.number)
     }

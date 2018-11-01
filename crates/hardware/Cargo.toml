@@ -11,7 +11,7 @@ keywords = ["linux", "hardware", "support"]
 
 [dependencies]
 distinst-utils = { path = "../utils" }
-os-release = { path = "../os-release" }
-proc-modules = { path = "../proc-modules" }
+os-release = { git = "https://github.com/pop-os/os-release" }
+proc-modules = { git = "https://github.com/pop-os/proc-modules" }
 raw-cpuid = "5.0.0"
 log = "0.4.6"

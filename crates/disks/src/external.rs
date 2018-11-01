@@ -2,7 +2,7 @@
 
 pub use external_::*;
 use config::{deactivate_devices};
-use proc_mounts::{swapoff, MountList, SwapList};
+use proc_mounts::{MountList, SwapList};
 use LvmEncryption;
 use std::fs::Permissions;
 use std::io::{self, Read, Write};
@@ -17,12 +17,12 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
     let swaps = SwapList::new().expect("failed to get swaps in deactivate_device_maps");
     let umount = move |vg: &str| -> io::Result<()> {
         for lv in lvs(vg)? {
-            if let Some(mount) = mounts.get_mount_point(&lv) {
+            if let Some(mount) = mounts.get_mount_by_source(&lv) {
                 info!(
                     "libdistinst: unmounting logical volume mounted at {}",
-                    mount.display()
+                    mount.dest.display()
                 );
-                unmount(&mount, UnmountFlags::empty())?;
+                unmount(&mount.dest, UnmountFlags::empty())?;
             } else if let Ok(lv) = lv.canonicalize() {
                 if swaps.get_swapped(&lv) {
                     swapoff(&lv)?;

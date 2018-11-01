@@ -3,7 +3,7 @@ use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
 use misc::{self, hasher};
-use proc_mounts::{swapoff, MOUNTS, SWAPS};
+use proc_mounts::{MOUNTS, SWAPS};
 use external::{
     cryptsetup_close, cryptsetup_open, generate_unique_id, lvs,
     physical_volumes_to_deactivate, pvs, vgdeactivate, CloseBy
@@ -25,7 +25,7 @@ use super::super::{
     Bootloader, DecryptionError, DiskError, DiskExt, FileSystem, FileSystemSupport,
     PartitionFlag, PartitionInfo, LogicalDevice
 };
-use sys_mount::{unmount, UnmountFlags};
+use sys_mount::{unmount, swapoff, UnmountFlags};
 
 /// A configuration of disks, both physical and logical.
 #[derive(Debug, Default, PartialEq)]
@@ -271,12 +271,12 @@ impl Disks {
         let swaps = SWAPS.read().expect("failed to get swaps in deactivate_device_maps");
         let umount = move |vg: &str| -> Result<(), DiskError> {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
-                if let Some(mount) = mounts.get_mount_point(&lv) {
+                if let Some(mount) = mounts.get_mount_by_source(&lv) {
                     info!(
                         "unmounting logical volume mounted at {}",
-                        mount.display()
+                        mount.dest.display()
                     );
-                    unmount(&mount, UnmountFlags::empty()).map_err(|why| DiskError::Unmount {
+                    unmount(&mount.dest, UnmountFlags::empty()).map_err(|why| DiskError::Unmount {
                         device: lv,
                         why
                     })?;

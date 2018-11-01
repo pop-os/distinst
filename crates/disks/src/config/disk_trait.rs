@@ -70,7 +70,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
             // And which aren't extended
             .filter(|part| part.part_type != PartitionType::Extended)
             // Return upon the first partition where the sector is within the partition.
-            .find(|part| part.sectors_overlap_with(start, end))
+            .find(|part| part.sectors_overlap(start, end))
             // If found, return the partition number.
             .map(|part| part.number)
     }
