@@ -274,7 +274,7 @@ fn main() {
 
         // The lock is an `OwnedFd`, which on drop will close / unlock the inhibitor.
         let _inhibit_suspend = match distinst::dbus_interfaces::LoginManager::new() {
-            Ok(manager) => match manager.connect().inhibit_suspend() {
+            Ok(manager) => match manager.connect().inhibit_suspend("Distinst Installer", "prevent suspension while installing a distribution") {
                 Ok(lock) => Some(lock),
                 Err(why) => {
                     eprintln!("distinst: failed to inhibit suspend: {}", why);

@@ -6,38 +6,8 @@ git = "https://github.com/pop-os/disk-types"
 branch = "master"
 replace-with = "vendored-sources"
 
-[source."https://github.com/pop-os/envfile"]
-git = "https://github.com/pop-os/envfile"
-branch = "master"
-replace-with = "vendored-sources"
-
 [source."https://github.com/pop-os/fstab-generate"]
 git = "https://github.com/pop-os/fstab-generate"
-branch = "master"
-replace-with = "vendored-sources"
-
-[source."https://github.com/pop-os/hostname-validator"]
-git = "https://github.com/pop-os/hostname-validator"
-branch = "master"
-replace-with = "vendored-sources"
-
-[source."https://github.com/pop-os/os-detect"]
-git = "https://github.com/pop-os/os-detect"
-branch = "master"
-replace-with = "vendored-sources"
-
-[source."https://github.com/pop-os/os-release"]
-git = "https://github.com/pop-os/os-release"
-branch = "master"
-replace-with = "vendored-sources"
-
-[source."https://github.com/pop-os/proc-modules"]
-git = "https://github.com/pop-os/proc-modules"
-branch = "master"
-replace-with = "vendored-sources"
-
-[source."https://github.com/pop-os/proc-mounts"]
-git = "https://github.com/pop-os/proc-mounts"
 branch = "master"
 replace-with = "vendored-sources"
 
