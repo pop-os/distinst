@@ -335,9 +335,9 @@ impl Disk {
                 mount.dest.display(),
             );
 
-            mounts.insert(&mount.dest);
+            mounts.insert(&mount.source);
             for target in mountstab.destination_starts_with(&mount.dest) {
-                mounts.insert(&target.dest);
+                mounts.insert(&target.source);
             }
         }
 
