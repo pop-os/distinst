@@ -39,6 +39,13 @@ namespace Distinst {
         uint8 flags;
     }
 
+    [CCode (has_type_id = false, destroy_function = "")]
+    public struct UserAccountCreate {
+        string username;
+        string? realname;
+        string? password;
+    }
+
     [CCode (cname = "DISTINST_PARTITION_TABLE", has_type_id = false)]
     public enum PartitionTable {
         NONE,
@@ -364,6 +371,41 @@ namespace Distinst {
     public uint8[] get_os_version_codename ();
     public uint8[] get_os_version_id ();
     public uint8[] get_os_version ();
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "")]
+    [Compact]
+    public class Timezones {
+        public Timezones ();
+        public Zones zones ();
+    }
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "")]
+    [Compact]
+    public class Zones {
+        public unowned Zone? next ();
+        public unowned Zone? nth (int nth);
+    }
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "")]
+    [Compact]
+    public class Regions {
+        public unowned Region? next ();
+        public unowned Region? nth (int nth);
+    }
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "", destroy_function = "")]
+    [Compact]
+    public class Zone {
+        public unowned uint8[] name ();
+        public Regions regions ();
+    }
+
+    [CCode (has_type_id = false, ref_function = "", unref_function = "", destroy_function = "")]
+    [Compact]
+    public class Region {
+        public unowned uint8[] name ();
+        public Region clone ();
+    }
 
     [CCode (cname = "DISTINST_PARTITION_FLAG", has_type_id = false)]
     public enum PartitionFlag {
@@ -954,6 +996,10 @@ namespace Distinst {
 
     public delegate void StatusCallback (Distinst.Status status);
 
+    public delegate unowned Region TimezoneCallback ();
+
+    public delegate UserAccountCreate UserAccountCallback ();
+
     int log (Distinst.LogCallback callback);
 
     [Compact]
@@ -964,6 +1010,8 @@ namespace Distinst {
         public void on_error (Distinst.ErrorCallback callback);
         public void emit_status (Distinst.Status error);
         public void on_status (Distinst.StatusCallback callback);
+        public void set_timezone_callback (TimezoneCallback callback);
+        public void set_user_callback (UserAccountCallback callback);
         public int install (owned Distinst.Disks disks, Distinst.Config config);
     }
 }

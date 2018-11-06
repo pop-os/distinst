@@ -11,7 +11,16 @@ mod errors;
 
 use clap::{App, Arg, ArgMatches, Values};
 use configure::*;
+<<<<<<< HEAD
 use distinst::*;
+=======
+use distinst::{
+    Config, DecryptionError, Disk, DiskError, Disks, FileSystemType, Installer,
+    LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
+    Sector, Step, UserAccountCreate, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER, NO_EFI_VARIABLES
+};
+use distinst::timezones::Timezones;
+>>>>>>> 0e193dc556e764b975613f42b0fbe1e4287bd97e
 use errors::DistinstError;
 
 use pbr::ProgressBar;
@@ -25,6 +34,34 @@ use std::sync::atomic::Ordering;
 
 fn main() {
     let matches = App::new("distinst")
+        .arg(
+            Arg::with_name("username")
+                .long("username")
+                .help("specifies a default user account to create")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("password")
+                .long("password")
+                .help("set the password for the username")
+                .requires("username")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("realname")
+                .long("realname")
+                .help("the full name of user to create")
+                .requires("username")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("timezone")
+                .long("tz")
+                .help("the timezone to set for the new install")
+                .value_delimiter("/")
+                .min_values(2)
+                .max_values(2)
+        )
         .arg(
             Arg::with_name("squashfs")
                 .short("s")
@@ -195,6 +232,43 @@ fn main() {
     let lang = matches.value_of("lang").unwrap();
     let remove = matches.value_of("remove").unwrap();
 
+    let tzs_;
+    let timezone = match matches.values_of("timezone") {
+        Some(mut tz) => {
+            let (zone, region) = (tz.next().unwrap(), tz.next().unwrap());
+            tzs_ = Timezones::new().expect("failed to get timzones");
+            let zone = tzs_.zones()
+                .into_iter()
+                .find(|z| z.name() == zone)
+                .expect(&format!("failed to find zone: {}", zone));
+            let region = zone.regions()
+                .into_iter()
+                .find(|r| r.name() == region)
+                .expect(&format!("failed to find region: {}", region));
+            Some(region.clone())
+        },
+        None => None
+    };
+
+    let user_account = matches.value_of("username").map(|username| {
+        let username = username.to_owned();
+        let realname = matches.value_of("realname").map(String::from);
+        let password = matches.value_of("password")
+            .map(String::from)
+            .or_else(|| {
+                if unsafe { libc::isatty(0) } == 0 {
+                    let mut pass = String::new();
+                    io::stdin().read_line(&mut pass).unwrap();
+                    pass.pop();
+                    Some(pass)
+                } else {
+                    None
+                }
+            });
+
+        UserAccountCreate { realname, username, password }
+    });
+
     let pb_opt: Rc<RefCell<Option<ProgressBar<io::Stdout>>>> = Rc::new(RefCell::new(None));
 
     let res = {
@@ -240,6 +314,14 @@ fn main() {
                     pb.set(status.percent as u64);
                 }
             });
+        }
+
+        if let Some(timezone) = timezone {
+            installer.set_timezone_callback(move || timezone.clone());
+        }
+
+        if let Some(user_account) = user_account {
+            installer.set_user_callback(move || user_account.clone());
         }
 
         let disks = match configure_disks(&matches) {
@@ -298,7 +380,7 @@ fn main() {
                 old_root:         None,
                 lang:             lang.into(),
                 remove:           remove.into(),
-                squashfs:         squashfs.into(),
+                squashfs:         squashfs.into()
             },
         )
     };

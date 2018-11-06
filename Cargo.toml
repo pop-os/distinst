@@ -24,6 +24,7 @@ members = [
     "crates/hardware",
     "crates/locales",
     "crates/squashfs",
+    "crates/timezones",
     "crates/utils",
 ]
 
@@ -36,6 +37,7 @@ pbr = "1.0.1"
 
 [dependencies]
 cascade = "0.1.2"
+derive-new = "0.5.5"
 dirs = "1.0.3"
 disk-types = "0.1.0"
 distinst-bootloader = { path = "crates/bootloader" }
@@ -45,6 +47,7 @@ distinst-external-commands = { path = "crates/external" }
 distinst-hardware-support = { path = "crates/hardware" }
 distinst-locale-support = { path = "crates/locales" }
 distinst-squashfs = { path = "crates/squashfs" }
+distinst-timezones = { path = "crates/timezones" }
 distinst-utils = { path = "crates/utils" }
 envfile = "0.1.0"
 fern = "0.5.6"

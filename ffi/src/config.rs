@@ -1,8 +1,7 @@
-use distinst::Config;
+use distinst::{Config, UserAccountCreate};
+use get_str;
 use libc;
 use std::io;
-
-use get_str;
 
 /// Installer configuration
 #[repr(C)]
@@ -20,7 +19,7 @@ pub struct DistinstConfig {
 }
 
 impl DistinstConfig {
-    pub unsafe fn as_config(&self) -> Result<Config, io::Error> {
+    pub unsafe fn as_config(&self) -> io::Result<Config> {
         Ok(Config {
             squashfs:         get_str(self.squashfs)?.to_string(),
             hostname:         get_str(self.hostname)?.to_string(),
@@ -31,6 +30,23 @@ impl DistinstConfig {
             old_root:         get_str(self.old_root).ok().map(String::from),
             remove:           get_str(self.remove)?.to_string(),
             flags:            self.flags,
+        })
+    }
+}
+
+#[repr(C)]
+pub struct DistinstUserAccountCreate {
+    pub username: *const libc::c_char,
+    pub realname: *const libc::c_char,
+    pub password: *const libc::c_char,
+}
+
+impl DistinstUserAccountCreate {
+    pub unsafe fn as_config(&self) -> io::Result<UserAccountCreate> {
+        Ok(UserAccountCreate {
+            username: get_str(self.username)?.to_owned(),
+            realname: get_str(self.realname).ok().map(String::from),
+            password: get_str(self.password).ok().map(String::from)
         })
     }
 }

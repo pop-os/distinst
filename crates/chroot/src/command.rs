@@ -1,37 +1,40 @@
-use std::process::{self, Stdio};
-use std::io::{self, BufRead, BufReader, Error, ErrorKind};
+use std::process::{self, Child, Stdio};
+use std::io::{self, BufRead, BufReader, Error, ErrorKind, Write};
 use std::ffi::OsStr;
 use std::thread;
 
 /// Convenient wrapper around `process::Command` to make it easier to work with.
-pub struct Command(process::Command);
+pub struct Command<'a> {
+    cmd: process::Command,
+    stdin: Option<&'a str>,
+}
 
-impl Command {
-    pub fn new<S: AsRef<OsStr>>(program: S) -> Command {
-        Command(process::Command::new(program))
+impl<'a> Command<'a> {
+    pub fn new<S: AsRef<OsStr>>(program: S) -> Self {
+        Command { cmd: process::Command::new(program), stdin: None }
     }
 
-    pub fn arg<S: AsRef<OsStr>>(&mut self, arg: S) -> &mut Command {
-        self.0.arg(arg);
+    pub fn arg<S: AsRef<OsStr>>(&mut self, arg: S) -> &mut Command<'a> {
+        self.cmd.arg(arg);
         self
     }
 
-    pub fn args<S: AsRef<OsStr>, I: IntoIterator<Item = S>>(&mut self, args: I) -> &mut Command {
-        self.0.args(args);
+    pub fn args<S: AsRef<OsStr>, I: IntoIterator<Item = S>>(&mut self, args: I) -> &mut Command<'a> {
+        self.cmd.args(args);
         self
     }
 
     pub fn env(&mut self, key: &str, value: &str) {
-        self.0.env(key, value);
+        self.cmd.env(key, value);
     }
 
     pub fn env_clear(&mut self) {
-        self.0.env_clear();
+        self.cmd.env_clear();
     }
 
-    pub fn stdin(&mut self, stdio: Stdio) { self.0.stdin(stdio); }
-    pub fn stderr(&mut self, stdio: Stdio) { self.0.stderr(stdio); }
-    pub fn stdout(&mut self, stdio: Stdio) { self.0.stdout(stdio); }
+    pub fn stdin(&mut self, stdio: Stdio) { self.cmd.stdin(stdio); }
+    pub fn stderr(&mut self, stdio: Stdio) { self.cmd.stderr(stdio); }
+    pub fn stdout(&mut self, stdio: Stdio) { self.cmd.stdout(stdio); }
 
     fn redirect<R: io::Read + Send + 'static, F: FnMut(&str) + Send + 'static>(
         reader: Option<R>,
@@ -53,17 +56,32 @@ impl Command {
     }
 
     /// Run the program, check the status, and get the output of `stdout`
+    pub fn stdin_input(mut self, input: &'a str) -> Self {
+        self.stdin = Some(input);
+        self.stdin(Stdio::piped());
+        self
+    }
+
+    pub fn stdin_redirect(&mut self, child: &mut Child) -> io::Result<()> {
+        match self.stdin {
+            Some(input) => child.stdin.as_mut().unwrap().write_all(input.as_bytes()),
+            None => Ok(())
+        }
+    }
+
     pub fn run_with_stdout(&mut self) -> io::Result<String> {
-        let cmd = format!("{:?}", self.0);
+        let cmd = format!("{:?}", self.cmd);
         info!("running {}", cmd);
 
-        self.0.stdout(Stdio::piped());
+        self.cmd.stdout(Stdio::piped());
 
-        let child = self.0.spawn()
+        let mut child = self.cmd.spawn()
             .map_err(|why| Error::new(
                 why.kind(),
-                format!("failed to wait for process {}: {}", cmd, why)
+                format!("failed to spawn process {}: {}", cmd, why)
             ))?;
+        
+        self.stdin_redirect(&mut child)?;
 
         child.wait_with_output()
             .map_err(|why| Error::new(
@@ -81,15 +99,16 @@ impl Command {
 
     /// Run the program and check the status.
     pub fn run(&mut self) -> io::Result<()> {
-        let cmd = format!("{:?}", self.0);
+        let cmd = format!("{:?}", self.cmd);
         info!("running {}", cmd);
 
-        let mut child = self.0.spawn()
+        let mut child = self.cmd.spawn()
             .map_err(|why| Error::new(
                 why.kind(),
                 format!("failed to spawn process {}: {}", cmd, why)
             ))?;
 
+        self.stdin_redirect(&mut child)?;
         Self::redirect(child.stdout.take(), |msg| info!("{}", msg));
         Self::redirect(child.stderr.take(), |msg| warn!("{}", msg));
 

@@ -15,7 +15,7 @@ impl<'a> InstallerState<'a> {
     }
 
     pub fn apply<T, F>(&mut self, step: Step, msg: &str, mut action: F) -> io::Result<T>
-        where F: for<'b> FnMut(&'b mut Self) -> io::Result<T>
+        where F: for<'c> FnMut(&'c mut Self) -> io::Result<T>
     {
         unsafe {
             libc::sync();

@@ -5,10 +5,17 @@ libdir = $(exec_prefix)/lib
 includedir = $(prefix)/include
 datarootdir = $(prefix)/share
 datadir = $(datarootdir)
+RELEASE = debug
+
+ifndef DEBUG
+  ARGS += --release
+  RELEASE = release
+endif
 
 SRC=Cargo.toml src/* src/*/*
 FFI_SRC=ffi/Cargo.toml ffi/build.rs ffi/src/*
 PACKAGE=distinst
+
 HEADER=target/$(PACKAGE).h
 PKGCONFIG=target/$(PACKAGE).pc
 VAPI=ffi/$(PACKAGE).vapi
@@ -73,6 +80,7 @@ endif
 
 vendor: .cargo/config vendor.tar.xz
 
+<<<<<<< HEAD
 tests: extract $(SRC)
 	cargo test $(ARGS)
 	for crate in crates/*; do \
@@ -84,6 +92,27 @@ $(BINARY): extract $(SRC)
 
 $(LIBRARY) $(HEADER) $(PKGCONFIG).stub: extract $(FFI_SRC)
 	cargo build --manifest-path ffi/Cargo.toml $(ARGS) $(ARGSD)
+=======
+tests:
+	cargo test
+
+$(BINARY): $(SRC)
+	if [ -f vendor.tar.xz ]; \
+	then \
+		tar pxf vendor.tar.xz; \
+		cargo build --frozen --manifest-path cli/Cargo.toml $(ARGS); \
+	else \
+		cargo build --manifest-path cli/Cargo.toml $(ARGS); \
+	fi
+
+$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(FFI_SRC)
+	if [ -d vendor ]; \
+	then \
+		cargo build --manifest-path ffi/Cargo.toml --frozen --lib $(ARGS); \
+	else \
+		cargo build --manifest-path ffi/Cargo.toml --lib $(ARGS); \
+	fi
+>>>>>>> 0e193dc556e764b975613f42b0fbe1e4287bd97e
 
 $(PKGCONFIG): $(PKGCONFIG).stub
 	echo "libdir=$(libdir)" > "$@.partial"

@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use sys_mount::Mounts;
 use tempdir::TempDir;
+use timezones::Region;
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
@@ -30,7 +31,6 @@ macro_rules! percent {
 }
 
 /// Installer configuration
-#[derive(Debug)]
 pub struct Config {
     /// Hostname to assign to the installed system.
     pub hostname: String,
@@ -52,6 +52,14 @@ pub struct Config {
     pub flags: u8,
 }
 
+/// Credentials for creating a new user account.
+#[derive(Clone)]
+pub struct UserAccountCreate {
+    pub username: String,
+    pub realname: Option<String>,
+    pub password: Option<String>,
+}
+
 /// Installer error
 #[derive(Debug)]
 pub struct Error {
@@ -70,6 +78,8 @@ pub struct Status {
 pub struct Installer {
     error_cb:  Option<Box<FnMut(&Error)>>,
     status_cb: Option<Box<FnMut(&Status)>>,
+    timezone_cb:  Option<Box<FnMut() -> Region>>,
+    user_creation_cb: Option<Box<FnMut() -> UserAccountCreate>>
 }
 
 impl Default for Installer {
@@ -79,10 +89,12 @@ impl Default for Installer {
     /// use distinst::Installer;
     /// let installer = Installer::new();
     /// ```
-    fn default() -> Installer {
+    fn default() -> Self {
         Self {
             error_cb: None,
             status_cb: None,
+            timezone_cb: None,
+            user_creation_cb: None,
         }
     }
 }
@@ -128,8 +140,6 @@ impl Installer {
             let bootloader = Bootloader::detect();
             disks.verify_partitions(bootloader)?;
 
-            info!("installing {:?} with {:?}", config, bootloader);
-
             let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
                 Installer::initialize(&mut disks, config, percent!(steps))
             })?;
@@ -153,12 +163,17 @@ impl Installer {
                 Installer::extract(squashfs.as_path(), mount_dir.path(), percent!(steps))
             })?;
 
+            let timezone = steps.installer.timezone_cb.as_mut().map(|func| func());
+            let user = steps.installer.user_creation_cb.as_mut().map(|func| func());
+
             steps.apply(Step::Configure, "configuring chroot", |steps| {
                 Installer::configure(
                     &disks,
                     mount_dir.path(),
                     &config,
                     &iso_os_release,
+                    timezone.as_ref(),
+                    user.as_ref(),
                     &remove_pkgs,
                     percent!(steps),
                 )
@@ -339,6 +354,15 @@ impl Installer {
         self.status_cb = Some(Box::new(callback));
     }
 
+    /// Set the timezone callback
+    pub fn set_timezone_callback<F: FnMut() -> Region + 'static>(&mut self, callback: F) {
+        self.timezone_cb = Some(Box::new(callback));
+    }
+
+    pub fn set_user_callback<F: FnMut() -> UserAccountCreate + 'static>(&mut self, callback: F) {
+        self.user_creation_cb = Some(Box::new(callback));
+    }
+
     fn initialize<F: FnMut(i32)>(disks: &mut Disks, config: &Config, callback: F)
         -> io::Result<(PathBuf, Vec<String>)>
     {
@@ -382,10 +406,12 @@ impl Installer {
         mount_dir: P,
         config: &Config,
         iso_os_release: &OsRelease,
+        region: Option<&Region>,
+        user: Option<&UserAccountCreate>,
         remove_pkgs: &[S],
         callback: F,
     ) -> io::Result<()> {
-        steps::configure(disks, mount_dir, config, iso_os_release, remove_pkgs, callback)
+        steps::configure(disks, mount_dir, config, iso_os_release, region, user, remove_pkgs, callback)
     }
 
     /// Installs and configures the boot loader after it has been configured.
