@@ -11,16 +11,8 @@ mod errors;
 
 use clap::{App, Arg, ArgMatches, Values};
 use configure::*;
-<<<<<<< HEAD
 use distinst::*;
-=======
-use distinst::{
-    Config, DecryptionError, Disk, DiskError, Disks, FileSystemType, Installer,
-    LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
-    Sector, Step, UserAccountCreate, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER, NO_EFI_VARIABLES
-};
 use distinst::timezones::Timezones;
->>>>>>> 0e193dc556e764b975613f42b0fbe1e4287bd97e
 use errors::DistinstError;
 
 use pbr::ProgressBar;
