@@ -11,7 +11,7 @@ license = "LGPL-3.0"
 readme = "README.md"
 
 [workspace]
-members = ["cli", "ffi"]
+members = ["cli", "ffi", "crates/timezones"]
 
 [lib]
 name = "distinst"
@@ -22,6 +22,7 @@ pbr = "1.0.1"
 
 [dependencies]
 derive-new = "0.5.5"
+distinst-timezones = { path = "crates/timezones" }
 fern = "0.5.6"
 gettext-rs = "0.3.0"
 iso3166-1 = "1.0.1"

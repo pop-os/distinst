@@ -2,11 +2,11 @@ use libc;
 
 use std::io;
 
+use distinst::timezones::Region;
 use distinst::{Disks, Error, Installer, Status, Step};
-
 use config::DistinstConfig;
 use disk::DistinstDisks;
-use gen_object_ptr;
+use {gen_object_ptr, DistinstRegion, DistinstUserAccountCreate};
 
 /// Bootloader steps
 #[repr(C)]
@@ -71,6 +71,14 @@ pub struct DistinstStatus {
 /// Installer status callback
 pub type DistinstStatusCallback =
     extern "C" fn(status: *const DistinstStatus, user_data: *mut libc::c_void);
+
+/// Installer timezone callback
+pub type DistinstTimezoneCallback =
+    extern "C" fn(user_data: *mut libc::c_void) -> *const DistinstRegion;
+
+/// Installer user account creation callback
+pub type DistinstUserAccountCallback =
+    extern "C" fn(user_data: *mut libc::c_void) -> DistinstUserAccountCreate;
 
 /// An installer object
 #[repr(C)]
@@ -139,6 +147,28 @@ pub unsafe extern "C" fn distinst_installer_on_status(
             } as *const DistinstStatus,
             user_data,
         )
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_installer_set_timezone_callback(
+    installer: *mut DistinstInstaller,
+    callback: DistinstTimezoneCallback,
+    user_data: *mut libc::c_void,
+) {
+    (*(installer as *mut Installer)).set_timezone_callback(move || {
+        (&*(callback(user_data) as *const Region)).clone()
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_installer_set_user_callback(
+    installer: *mut DistinstInstaller,
+    callback: DistinstUserAccountCallback,
+    user_data: *mut libc::c_void,
+) {
+    (*(installer as *mut Installer)).set_user_callback(move || {
+        (callback(user_data)).as_config().expect("user callback invalid")
     });
 }
 

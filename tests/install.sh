@@ -25,7 +25,7 @@ done
 
 set -e -x
 
-sudo target/debug/distinst \
+echo "system76" | sudo target/debug/distinst \
     -s "${FS}" \
     -r "${REMOVE}" \
     -h "pop-testing" \
@@ -35,4 +35,7 @@ sudo target/debug/distinst \
     -t "$1:gpt" \
     -n "$1:primary:start:512M:fat32:mount=/boot/efi:flags=esp" \
     -n "$1:primary:512M:-4096M:ext4:mount=/" \
-    -n "$1:primary:-4096M:end:swap"
+    -n "$1:primary:-4096M:end:swap" \
+    --username "oem" \
+    --realname "System76 OEM Account" \
+    --tz "America/Denver"

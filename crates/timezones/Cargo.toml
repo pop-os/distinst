@@ -1,0 +1,6 @@
+[package]
+name = "distinst-timezones"
+version = "0.1.0"
+authors = ["Michael Aaron Murphy <mmstickman@gmail.com>"]
+
+[dependencies]

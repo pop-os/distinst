@@ -10,6 +10,7 @@ extern crate dirs;
 extern crate dbus;
 #[macro_use]
 extern crate derive_new;
+pub extern crate distinst_timezones as timezones;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
