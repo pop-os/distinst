@@ -1,20 +1,5 @@
 [source.crates-io]
 replace-with = "vendored-sources"
 
-[source."https://github.com/pop-os/disk-types"]
-git = "https://github.com/pop-os/disk-types"
-branch = "master"
-replace-with = "vendored-sources"
-
-[source."https://github.com/pop-os/fstab-generate"]
-git = "https://github.com/pop-os/fstab-generate"
-branch = "master"
-replace-with = "vendored-sources"
-
-[source."https://github.com/pop-os/sysfs-class"]
-git = "https://github.com/pop-os/sysfs-class"
-branch = "master"
-replace-with = "vendored-sources"
-
 [source.vendored-sources]
 directory = "vendor"
