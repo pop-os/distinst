@@ -8,7 +8,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 /// Defines a new partition to be created on the file system.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, SmartDefault, Clone, PartialEq)]
 pub struct PartitionCreate {
     /// The location of the disk in the system.
     pub path: PathBuf,
@@ -21,6 +21,7 @@ pub struct PartitionCreate {
     /// The format that the file system should be formatted to.
     pub file_system: Option<FileSystem>,
     /// Whether the partition should be primary or logical.
+    #[default = "PartitionType::Primary"]
     pub kind: PartitionType,
     /// Flags which should be set on the partition.
     pub flags: Vec<PartitionFlag>,

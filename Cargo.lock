@@ -257,21 +257,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "disk-ops"
-version = "0.1.0"
-dependencies = [
- "derive-new 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "disk-types 0.1.0 (git+https://github.com/pop-os/disk-types)",
- "distinst-bootloader 0.1.0",
- "distinst-external-commands 0.1.0",
- "libparted 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "rayon 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sys-mount 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "disk-types"
 version = "0.1.0"
 source = "git+https://github.com/pop-os/disk-types#4f7e61525a3ec5b22864549a26941fcb2c39d05b"
@@ -336,14 +321,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "distinst-disk-ops"
+version = "0.1.0"
+dependencies = [
+ "derive-new 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "disk-types 0.1.0 (git+https://github.com/pop-os/disk-types)",
+ "distinst-bootloader 0.1.0",
+ "distinst-external-commands 0.1.0",
+ "libparted 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smart-default 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sys-mount 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "distinst-disks"
 version = "0.1.0"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive-new 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "disk-ops 0.1.0",
  "disk-types 0.1.0 (git+https://github.com/pop-os/disk-types)",
  "distinst-bootloader 0.1.0",
+ "distinst-disk-ops 0.1.0",
  "distinst-external-commands 0.1.0",
  "distinst-utils 0.1.0",
  "envfile 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -360,7 +361,7 @@ dependencies = [
  "rand 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sys-mount 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sysfs-class 0.1.0 (git+https://github.com/pop-os/sysfs-class)",
+ "sysfs-class 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1096,6 +1097,15 @@ version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "smart-default"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "quote 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 0.11.11 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "strsim"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1205,6 +1215,11 @@ dependencies = [
 name = "sysfs-class"
 version = "0.1.0"
 source = "git+https://github.com/pop-os/sysfs-class#e26a0246ae27211b65a7351fab5e3c643525dc7f"
+
+[[package]]
+name = "sysfs-class"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "tempdir"
@@ -1463,6 +1478,7 @@ dependencies = [
 "checksum serde_derive_internals 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)" = "32f1926285523b2db55df263d2aa4eb69ddcfa7a7eade6430323637866b513ab"
 "checksum serde_json 1.0.32 (registry+https://github.com/rust-lang/crates.io-index)" = "43344e7ce05d0d8280c5940cabb4964bea626aa58b1ec0e8c73fa2a8512a38ce"
 "checksum siphasher 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "0b8de496cf83d4ed58b6be86c3a275b8602f6ffe98d3024a869e124147a9a3ac"
+"checksum smart-default 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3e7392ae8cdf79428cc98170bf264af7219887def8a30bb61d7ad2200313e88d"
 "checksum strsim 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bb4f380125926a99e52bc279241539c018323fab05ad6368b56f93d9369ff550"
 "checksum syn 0.11.11 (registry+https://github.com/rust-lang/crates.io-index)" = "d3b891b9015c88c576343b9b3e41c2c11a51c219ef067b264bd9c8aa9b441dad"
 "checksum syn 0.14.9 (registry+https://github.com/rust-lang/crates.io-index)" = "261ae9ecaa397c42b960649561949d69311f08eeaea86a65696e6e46517cf741"
@@ -1475,6 +1491,7 @@ dependencies = [
 "checksum syntex_syntax 0.58.1 (registry+https://github.com/rust-lang/crates.io-index)" = "6e0e4dbae163dd98989464c23dd503161b338790640e11537686f2ef0f25c791"
 "checksum sys-mount 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e96422d1dbc3ef5590fc3997a04e41d026b747b7cfdcbd2a4ba67ea792097362"
 "checksum sysfs-class 0.1.0 (git+https://github.com/pop-os/sysfs-class)" = "<none>"
+"checksum sysfs-class 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "48eda022981a576eb4a94023ac833ef425be8d1237cef6515654347feaccf612"
 "checksum tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)" = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
 "checksum term 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "fa63644f74ce96fbeb9b794f66aff2a52d601cbd5e80f4b97123e3899f4570f1"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"

@@ -12,9 +12,9 @@ categories = ["filesystem", "os"]
 [dependencies]
 bitflags = "1.0.4"
 derive-new = "0.5.5"
-disk-ops = { path = "../disk-ops" }
 disk-types = { git = "https://github.com/pop-os/disk-types" }
 distinst-bootloader = { path = "../bootloader" }
+distinst-disk-ops = { path = "../disk-ops" }
 distinst-external-commands = { path = "../external" }
 distinst-utils = { path = "../utils" }
 envfile = "0.1.0"
@@ -31,5 +31,5 @@ proc-mounts = "0.1.0"
 rand = "0.5.5"
 rayon = "1.0.2"
 sys-mount = "1.0.3"
-sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
+sysfs-class = "0.1.1"
 tempdir = "0.3.7"

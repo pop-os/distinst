@@ -12,7 +12,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 /// Obtains a partition from the disk by its ID.
-fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> io::Result<PedPartition<'a>> {
+pub fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> io::Result<PedPartition<'a>> {
     disk.get_partition(part)
         .ok_or_else(|| io::Error::new(
             io::ErrorKind::NotFound,
@@ -271,7 +271,7 @@ impl<'a> CreatePartitions<'a> {
     }
 }
 
-fn get_partition_and<T, F: FnOnce(PedPartition) -> T>(
+pub fn get_partition_and<T, F: FnOnce(PedPartition) -> T>(
     path: &Path,
     start_sector: i64,
     action: F,
@@ -288,13 +288,13 @@ fn get_partition_and<T, F: FnOnce(PedPartition) -> T>(
     Ok(result)
 }
 
-fn get_partition_id(path: &Path, start_sector: i64) -> io::Result<PathBuf> {
+pub fn get_partition_id(path: &Path, start_sector: i64) -> io::Result<PathBuf> {
     get_partition_and(path, start_sector, |part| {
         part.get_path().expect("ped partition does not have path").to_path_buf()
     })
 }
 
-fn get_partition_id_and_path(path: &Path, start_sector: i64) -> io::Result<(i32, PathBuf)> {
+pub fn get_partition_id_and_path(path: &Path, start_sector: i64) -> io::Result<(i32, PathBuf)> {
     get_partition_and(path, start_sector, |part| {
         (part.num(), part.get_path().expect("ped partition does not have path").to_path_buf())
     })

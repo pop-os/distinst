@@ -9,6 +9,8 @@ extern crate libparted;
 #[macro_use]
 extern crate log;
 extern crate rayon;
+#[macro_use]
+extern crate smart_default;
 extern crate sys_mount;
 extern crate tempdir;
 

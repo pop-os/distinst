@@ -24,7 +24,7 @@ extern crate rayon;
 extern crate sys_mount;
 extern crate sysfs_class;
 extern crate tempdir;
-pub extern crate disk_ops as operations;
+pub extern crate distinst_disk_ops as operations;
 
 mod config;
 mod error;
