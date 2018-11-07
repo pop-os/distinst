@@ -1,0 +1,12 @@
+[package]
+name = "distinst-bootloader"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Type for checking whether the host environment is in EFI or BIOS mode"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+keywords =  ["efi", "mbr", "bootloader", "distinst"]
+categories = ["os", "os::unix-apis"]
+
+[dependencies]

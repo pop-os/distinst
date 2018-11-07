@@ -1,0 +1,20 @@
+[package]
+name = "distinst-locale-support"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Keyboard and language locale detection for Linux distribution installers"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+categories = ["os::unix-apis", "localization"]
+keywords = ["distinst", "linux", "locale", "keyboard", "language", "country"]
+
+[dependencies]
+distinst-utils = { path = "../utils/" }
+gettext-rs = "0.3.0"
+iso3166-1 = "1.0.1"
+isolang = "0.2.1"
+lazy_static = "1.1.0"
+serde = "1.0.21"
+serde_derive = "1.0.21"
+serde-xml-rs = "0.2.1"

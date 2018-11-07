@@ -9,9 +9,7 @@ pub fn log<F: Fn(Level, &str) + Send + Sync + 'static>(
 ) -> Result<(), fern::InitError> {
     fern::Dispatch::new()
         // Exclude logs for crates that we use
-        .level(LevelFilter::Off)
-        // Include only the logs for this binary
-        .level_for("distinst", LevelFilter::Debug)
+        .level(LevelFilter::Debug)
         // This will be used by the front end for display logs in a UI
         .chain(fern::Output::call(move |record| {
             callback(record.level(), &format!("{}", record.args()))
@@ -21,11 +19,11 @@ pub fn log<F: Fn(Level, &str) + Send + Sync + 'static>(
             let mut logger = fern::Dispatch::new()
                 .format(|out, message, record| {
                     out.finish(format_args!(
-                        "[{}] {}: {}",
+                        "[{} distinst{}] {}",
                         record.level(),
-                        {
-                            let target = record.target();
-                            target.find(':').map_or(target, |pos| &target[..pos])
+                        match (record.file(), record.line()) {
+                            (Some(file), Some(line)) => format!(":{}:{}", file, line),
+                            _ => "".into()
                         },
                         message
                     ))

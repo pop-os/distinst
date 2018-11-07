@@ -1,5 +1,4 @@
 use super::*;
-use distinst::DiskExt;
 use errors::DistinstError;
 
 pub(crate) fn moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), DistinstError> {

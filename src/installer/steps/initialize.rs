@@ -1,4 +1,5 @@
-use {Config, DiskExt, Disks, misc};
+use disks::*;
+use {Config, misc};
 use rayon;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};

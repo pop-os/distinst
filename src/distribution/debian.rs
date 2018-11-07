@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
-use process::Chroot;
-use disk::{Bootloader, Disks, FileSystemSupport};
+use chroot::Chroot;
+use disks::{Disks, FileSystemSupport};
+use bootloader::Bootloader;
 use os_release::OsRelease;
 
 pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<String>> {

@@ -7,23 +7,31 @@ datarootdir = $(prefix)/share
 datadir = $(datarootdir)
 RELEASE = debug
 
-ifndef DEBUG
-  ARGS += --release
-  RELEASE = release
-endif
-
-.PHONY: all clean distclean install uninstall update
-
 SRC=Cargo.toml src/* src/*/*
 FFI_SRC=ffi/Cargo.toml ffi/build.rs ffi/src/*
-
 PACKAGE=distinst
 
-BINARY=target/$(RELEASE)/$(PACKAGE)
-LIBRARY=target/$(RELEASE)/lib$(PACKAGE).so
 HEADER=target/$(PACKAGE).h
 PKGCONFIG=target/$(PACKAGE).pc
 VAPI=ffi/$(PACKAGE).vapi
+
+DEBUG ?= 0
+VENDORED = 0
+
+ifeq (0,$(DEBUG))
+	ARGSD += --release
+	RELEASE = release
+endif
+
+ifneq ($(wildcard vendor.tar.xz),)
+	VENDORED = 1
+	ARGS += --frozen
+endif
+
+BINARY=target/$(RELEASE)/$(PACKAGE)
+LIBRARY=target/$(RELEASE)/lib$(PACKAGE).so
+
+.PHONY: all clean distclean install uninstall update
 
 all: $(BINARY) $(LIBRARY) $(HEADER) $(PKGCONFIG)
 
@@ -60,27 +68,24 @@ vendor.tar.xz:
 	tar pcfJ vendor.tar.xz vendor
 	rm -rf vendor
 
+extract:
+ifeq (1,$(VENDORED)$(wildcard vendor))
+	tar pxf vendor.tar.xz
+endif
+
 vendor: .cargo/config vendor.tar.xz
 
-tests:
-	cargo test
+tests: extract $(SRC)
+	cargo test $(ARGS)
+	for crate in crates/*; do \
+		cargo test $(ARGS) --manifest-path $$crate/Cargo.toml; \
+	done
 
-$(BINARY): $(SRC)
-	if [ -f vendor.tar.xz ]; \
-	then \
-		tar pxf vendor.tar.xz; \
-		cargo build --frozen --manifest-path cli/Cargo.toml $(ARGS); \
-	else \
-		cargo build --manifest-path cli/Cargo.toml $(ARGS); \
-	fi
+$(BINARY): extract $(SRC)
+	cargo build --manifest-path cli/Cargo.toml $(ARGS) $(ARGSD)
 
-$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(FFI_SRC)
-	if [ -d vendor ]; \
-	then \
-		cargo build --manifest-path ffi/Cargo.toml --frozen --lib $(ARGS); \
-	else \
-		cargo build --manifest-path ffi/Cargo.toml --lib $(ARGS); \
-	fi
+$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: extract $(FFI_SRC)
+	cargo build --manifest-path ffi/Cargo.toml $(ARGS) $(ARGSD)
 
 $(PKGCONFIG): $(PKGCONFIG).stub
 	echo "libdir=$(libdir)" > "$@.partial"

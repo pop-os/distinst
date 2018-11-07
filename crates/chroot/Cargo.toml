@@ -1,0 +1,15 @@
+[package]
+name = "distinst-chroot"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Convenience wrapper for executing external commands, with chroot support"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+keywords =  ["chroot", "command", "process", "distinst"]
+categories = ["os", "os::unix-apis"]
+
+[dependencies]
+sys-mount = "1.0.3"
+cascade = "0.1.2"
+log = "0.4.5"

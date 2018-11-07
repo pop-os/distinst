@@ -6,13 +6,13 @@ use std::path::Path;
 use std::ptr;
 
 use distinst::{
-    DecryptionError, Disk, DiskExt, Disks, FileSystemType, LvmDevice, LvmEncryption,
-    PartitionBuilder, PartitionInfo, PartitionTable, Sector,
+    DecryptionError, Disk, DiskExt, Disks, FileSystem, BlockDeviceExt, LogicalDevice, LvmEncryption,
+    PartitionBuilder, PartitionInfo, PartitionTable, PartitionTableExt, Sector, SectorExt
 };
 
 use super::{get_str, null_check};
 use ffi::AsMutPtr;
-use filesystem::DISTINST_FILE_SYSTEM_TYPE;
+use filesystem::DISTINST_FILE_SYSTEM;
 use gen_object_ptr;
 use lvm::{DistinstLvmDevice, DistinstLvmEncryption};
 use partition::{
@@ -252,7 +252,7 @@ pub unsafe extern "C" fn distinst_disk_get_partition_table(
     }
 
     let disk = &*(disk as *const Disk);
-    disk.get_table_type().into()
+    disk.get_partition_table().into()
 }
 
 #[no_mangle]
@@ -366,7 +366,7 @@ pub unsafe extern "C" fn distinst_disk_move_partition(
 pub unsafe extern "C" fn distinst_disk_format_partition(
     disk: *mut DistinstDisk,
     partition: libc::c_int,
-    fs: DISTINST_FILE_SYSTEM_TYPE,
+    fs: DISTINST_FILE_SYSTEM,
 ) -> libc::c_int {
     if null_check(disk).is_err() {
         return -1;
@@ -374,7 +374,7 @@ pub unsafe extern "C" fn distinst_disk_format_partition(
 
     let disk = &mut *(disk as *mut Disk);
 
-    let fs = match Option::<FileSystemType>::from(fs) {
+    let fs = match Option::<FileSystem>::from(fs) {
         Some(fs) => fs,
         None => {
             info!("file system type required");
@@ -560,7 +560,7 @@ pub unsafe extern "C" fn distinst_disks_list_logical(
 
     let mut output: Vec<*mut DistinstLvmDevice> = Vec::new();
     for disk in disks.get_logical_devices_mut().iter_mut() {
-        output.push(disk as *mut LvmDevice as *mut DistinstLvmDevice);
+        output.push(disk as *mut LogicalDevice as *mut DistinstLvmDevice);
     }
 
     *len = output.len() as libc::c_int;

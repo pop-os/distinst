@@ -1,10 +1,5 @@
 [source.crates-io]
 replace-with = "vendored-sources"
 
-[source."https://github.com/pop-os/partition-identity"]
-git = "https://github.com/pop-os/partition-identity"
-branch = "master"
-replace-with = "vendored-sources"
-
 [source.vendored-sources]
 directory = "vendor"

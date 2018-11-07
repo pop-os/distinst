@@ -2,6 +2,7 @@
 #![allow(cast_ptr_alignment)]
 
 extern crate distinst;
+extern crate distinst_external_commands as external;
 extern crate libc;
 #[macro_use]
 extern crate log;
@@ -93,7 +94,7 @@ pub unsafe extern "C" fn distinst_generate_unique_id(
 ) -> *mut libc::c_char {
     get_str(prefix)
         .ok()
-        .and_then(|prefix| distinst::generate_unique_id(prefix, &[]).ok().map(to_cstr))
+        .and_then(|prefix| distinst::external::generate_unique_id(prefix, &[]).ok().map(to_cstr))
         .unwrap_or(ptr::null_mut())
 }
 

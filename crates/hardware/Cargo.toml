@@ -1,0 +1,17 @@
+[package]
+name = "distinst-hardware-support"
+version = "0.1.0"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Linux hardware detection and package recommendation"
+repository = "https://github.com/pop-os/distinst"
+readme = "README.md"
+license = "MIT"
+categories = ["os", "os::unix-apis"]
+keywords = ["linux", "hardware", "support"]
+
+[dependencies]
+distinst-utils = { path = "../utils" }
+os-release = "0.1.0"
+proc-modules = "0.1.0"
+raw-cpuid = "5.0.0"
+log = "0.4.6"

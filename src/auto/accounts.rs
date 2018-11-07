@@ -1,6 +1,6 @@
 //! User account information will be collected here.
 
-use super::super::FileSystemType;
+use disk_types::FileSystem;
 use super::{mount_and_then, ReinstallError};
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -36,7 +36,7 @@ pub(crate) fn lines<T: ::std::iter::FromIterator<(Vec<u8>, Vec<u8>)>>(input: &[u
 }
 
 impl AccountFiles {
-    pub fn new(device: &Path, fs: FileSystemType) -> Result<AccountFiles, ReinstallError> {
+    pub fn new(device: &Path, fs: FileSystem) -> Result<AccountFiles, ReinstallError> {
         info!("retrieving user account data");
         mount_and_then(device, fs, |base| {
             read(base.join("etc/passwd"))

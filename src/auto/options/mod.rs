@@ -12,6 +12,8 @@ pub use self::erase_option::*;
 pub use self::recovery_option::*;
 pub use self::refresh_option::*;
 
+use disk_types::{PartitionExt, SectorExt};
+use disks::*;
 use partition_identity::PartitionID;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -56,8 +58,8 @@ impl InstallOptions {
                                 home_part:      home.clone(),
                                 efi_part:       efi.clone(),
                                 recovery_part:  recovery.clone(),
-                                can_retain_old: if let Some(Ok(used)) = part.sectors_used(512) {
-                                     part.sectors() - used > required_space
+                                can_retain_old: if let Ok(used) = part.sectors_used() {
+                                     part.get_sectors() - used > required_space
                                 } else {
                                     false
                                 }
@@ -133,8 +135,8 @@ impl InstallOptions {
                     best_free_region.compare(last_end_sector, part.start_sector);
                     last_end_sector = part.end_sector;
 
-                    if let Some(Ok(used)) = part.sectors_used(512) {
-                        let free = part.sectors() - used;
+                    if let Ok(used) = part.sectors_used() {
+                        let free = part.get_sectors() - used;
                         let num = part.number;
                         match other_os.entry(device.get_device_path()) {
                             Entry::Occupied(mut entry) => {
@@ -180,27 +182,23 @@ impl InstallOptions {
 
         let mut alongside_options = Vec::new();
         for (device, data) in other_os {
-            if required_space < data.sectors_free {
-                if ! data.systems.is_empty() {
-                    alongside_options.push(AlongsideOption {
-                        device: device.to_path_buf(),
-                        alongside: data.systems[0].clone(),
-                        method: AlongsideMethod::Shrink {
-                            partition: data.largest_partition,
-                            sectors_free: data.sectors_free,
-                        }
-                    });
-                }
+            if required_space < data.sectors_free && ! data.systems.is_empty() {
+                alongside_options.push(AlongsideOption {
+                    device: device.to_path_buf(),
+                    alongside: data.systems[0].clone(),
+                    method: AlongsideMethod::Shrink {
+                        partition: data.largest_partition,
+                        sectors_free: data.sectors_free,
+                    }
+                });
             }
 
-            if required_space < data.best_free_region.size() {
-                if ! data.systems.is_empty() {
-                    alongside_options.push(AlongsideOption {
-                        device: device.to_path_buf(),
-                        alongside: data.systems[0].clone(),
-                        method: AlongsideMethod::Free(data.best_free_region)
-                    });
-                }
+            if required_space < data.best_free_region.size() && ! data.systems.is_empty() {
+                alongside_options.push(AlongsideOption {
+                    device: device.to_path_buf(),
+                    alongside: data.systems[0].clone(),
+                    method: AlongsideMethod::Free(data.best_free_region)
+                });
             }
         }
 

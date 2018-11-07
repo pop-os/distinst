@@ -105,7 +105,7 @@ public static int main (string[] args) {
             // defined as an EXT4 partition with the `boot` partition flag, and shall be
             // mounted to `/` within the `/etc/fstab` of the installed system.
             int result = disk.add_partition(
-                new PartitionBuilder (start, end, FileSystemType.EXT4)
+                new PartitionBuilder (start, end, FileSystem.EXT4)
                     .partition_type (PartitionType.PRIMARY)
                     .flag (PartitionFlag.BOOT)
                     .mount ("/")
@@ -139,7 +139,7 @@ public static int main (string[] args) {
             // with the `esp` flag, and shall be mounted to `/boot/efi` after install. This
             // meets the requirement for an EFI partition with an EFI install.
             int result = disk.add_partition(
-                new PartitionBuilder (start, end, FileSystemType.FAT32)
+                new PartitionBuilder (start, end, FileSystem.FAT32)
                     .partition_type (PartitionType.PRIMARY)
                     .flag (PartitionFlag.ESP)
                     .mount ("/boot/efi")
@@ -157,7 +157,7 @@ public static int main (string[] args) {
             // partition that is configured to start at the end of the EFI sector, and
             // continue to the end of the disk.
             result = disk.add_partition (
-                new PartitionBuilder (start, end, FileSystemType.EXT4)
+                new PartitionBuilder (start, end, FileSystem.EXT4)
                     .partition_type (PartitionType.PRIMARY)
                     .mount ("/")
             );

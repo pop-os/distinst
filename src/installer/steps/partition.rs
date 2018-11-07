@@ -1,6 +1,6 @@
-use process::external::{blockdev, pvs, vgactivate, vgdeactivate};
-use disk::Disks;
-use disk::operations::FormatPartitions;
+use external::{blockdev, pvs, vgactivate, vgdeactivate};
+use disks::Disks;
+use disks::operations::FormatPartitions;
 use itertools::Itertools;
 use rayon;
 use rayon::prelude::*;

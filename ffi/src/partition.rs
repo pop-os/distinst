@@ -3,12 +3,12 @@ use libc;
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
-use std::ptr;
+use std::{io, ptr};
 
 use distinst::{
-    Bootloader, FileSystemType, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
+    Bootloader, FileSystem, BlockDeviceExt, PartitionExt, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
 };
-use filesystem::DISTINST_FILE_SYSTEM_TYPE;
+use filesystem::DISTINST_FILE_SYSTEM;
 use {gen_object_ptr, null_check, get_str, DistinstLvmEncryption};
 
 #[repr(C)]
@@ -150,9 +150,9 @@ pub struct DistinstPartitionBuilder;
 pub unsafe extern "C" fn distinst_partition_builder_new(
     start_sector: libc::uint64_t,
     end_sector: libc::uint64_t,
-    filesystem: DISTINST_FILE_SYSTEM_TYPE,
+    filesystem: DISTINST_FILE_SYSTEM,
 ) -> *mut DistinstPartitionBuilder {
-    let filesystem: FileSystemType = match filesystem.into() {
+    let filesystem: FileSystem = match filesystem.into() {
         Some(filesystem) => filesystem,
         None => {
             error!("distinst_partition_builder_new: filesystem is NONE");
@@ -331,15 +331,15 @@ pub unsafe extern "C" fn distinst_partition_get_device_path(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_file_system(
     partition: *const DistinstPartition,
-) -> DISTINST_FILE_SYSTEM_TYPE {
+) -> DISTINST_FILE_SYSTEM {
     if null_check(partition).is_err() {
-        return DISTINST_FILE_SYSTEM_TYPE::NONE;
+        return DISTINST_FILE_SYSTEM::NONE;
     }
 
     let part = &*(partition as *const PartitionInfo);
     match part.filesystem {
-        Some(fs) => DISTINST_FILE_SYSTEM_TYPE::from(fs),
-        None => DISTINST_FILE_SYSTEM_TYPE::NONE,
+        Some(fs) => DISTINST_FILE_SYSTEM::from(fs),
+        None => DISTINST_FILE_SYSTEM::NONE,
     }
 }
 
@@ -474,7 +474,7 @@ pub unsafe extern "C" fn distinst_partition_set_flags(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_format_and_keep_name(
     partition: *mut DistinstPartition,
-    fs: DISTINST_FILE_SYSTEM_TYPE,
+    fs: DISTINST_FILE_SYSTEM,
 ) -> libc::c_int {
     if null_check(partition).is_err() {
         return -1;
@@ -491,7 +491,7 @@ pub unsafe extern "C" fn distinst_partition_format_and_keep_name(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_format_with(
     partition: *mut DistinstPartition,
-    fs: DISTINST_FILE_SYSTEM_TYPE,
+    fs: DISTINST_FILE_SYSTEM,
 ) -> libc::c_int {
     if null_check(partition).is_err() {
         return -1;
@@ -574,20 +574,20 @@ pub struct DistinstPartitionUsage {
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_sectors_used(
     partition: *const DistinstPartition,
-    sector_size: libc::uint64_t,
+    _sector_size: libc::uint64_t,
 ) -> DistinstPartitionUsage {
     if null_check(partition).is_err() {
         return DistinstPartitionUsage { tag:   2, value: 0 };
     }
 
     let part = &*(partition as *const PartitionInfo);
-    match part.sectors_used(sector_size) {
-        None => DistinstPartitionUsage { tag:   0, value: 0 },
-        Some(Ok(used)) => DistinstPartitionUsage {
+    match part.sectors_used() {
+        Ok(used) => DistinstPartitionUsage {
             tag:   1,
             value: used,
         },
-        Some(Err(why)) => {
+        Err(ref why) if why.kind() == io::ErrorKind::NotFound => DistinstPartitionUsage { tag:   0, value: 0 },
+        Err(ref why) => {
             error!("unable to get partition sector usage: {}", why);
             DistinstPartitionUsage { tag:   2, value: 0 }
         }

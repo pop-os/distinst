@@ -11,11 +11,7 @@ mod errors;
 
 use clap::{App, Arg, ArgMatches, Values};
 use configure::*;
-use distinst::{
-    Config, DecryptionError, Disk, DiskError, Disks, FileSystemType, Installer,
-    LvmEncryption, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
-    Sector, Step, UserAccountCreate, KILL_SWITCH, PARTITIONING_TEST, FORCE_BOOTLOADER, NO_EFI_VARIABLES
-};
+use distinst::*;
 use distinst::timezones::Timezones;
 use errors::DistinstError;
 
@@ -352,7 +348,7 @@ fn main() {
 
         // The lock is an `OwnedFd`, which on drop will close / unlock the inhibitor.
         let _inhibit_suspend = match distinst::dbus_interfaces::LoginManager::new() {
-            Ok(manager) => match manager.connect().inhibit_suspend() {
+            Ok(manager) => match manager.connect().inhibit_suspend("Distinst Installer", "prevent suspension while installing a distribution") {
                 Ok(lock) => Some(lock),
                 Err(why) => {
                     eprintln!("distinst: failed to inhibit suspend: {}", why);
@@ -436,7 +432,7 @@ fn configure_signal_handling() {
 
 enum PartType {
     /// A normal partition with a standard file system
-    Fs(Option<FileSystemType>),
+    Fs(Option<FileSystem>),
     /// A partition that is formatted with LVM, optionally with encryption.
     Lvm(String, Option<LvmEncryption>),
 }
@@ -504,7 +500,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
             None,
         ))
     } else {
-        Ok(PartType::Fs(fs.parse::<FileSystemType>().ok()))
+        Ok(PartType::Fs(fs.parse::<FileSystem>().ok()))
     }
 }
 
