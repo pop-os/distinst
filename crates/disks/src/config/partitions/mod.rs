@@ -7,6 +7,7 @@ use libparted::{Partition, PartitionFlag};
 use proc_mounts::{MountList, SwapList};
 use external::{get_label, is_encrypted};
 use fstab_generate::BlockInfo;
+use partition_identity::PartitionIdentifiers;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -89,6 +90,8 @@ pub struct PartitionInfo {
     pub volume_group: Option<(String, Option<LvmEncryption>)>,
     /// If the partition is associated with a keyfile, this will name the key.
     pub key_id: Option<String>,
+    /// Possible identifiers for this partition.
+    pub identifiers: PartitionIdentifiers,
 }
 
 impl BlockDeviceExt for PartitionInfo {
@@ -121,6 +124,8 @@ impl PartitionInfo {
             device_path.display()
         );
 
+        let identifiers = PartitionIdentifiers::from_path(&device_path);
+
         let filesystem = partition
             .fs_type_name()
             .and_then(|name| FileSystem::from_str(name).ok());
@@ -146,6 +151,7 @@ impl PartitionInfo {
             original_vg: None,
             volume_group: None,
             key_id: None,
+            identifiers,
         }))
     }
 
@@ -330,6 +336,7 @@ mod tests {
             key_id:       None,
             original_vg:  None,
             volume_group: None,
+            identifiers:  PartitionIdentifiers::default(),
         }
     }
 
@@ -350,6 +357,7 @@ mod tests {
             key_id:       None,
             original_vg:  None,
             volume_group: None,
+            identifiers:  PartitionIdentifiers::default(),
         }
     }
 
@@ -369,6 +377,7 @@ mod tests {
             part_type:    PartitionType::Primary,
             key_id:       None,
             original_vg:  None,
+            identifiers:  PartitionIdentifiers::default(),
             volume_group: Some((
                 "LVM_GROUP".into(),
                 Some(LvmEncryption {
@@ -397,6 +406,7 @@ mod tests {
             key_id:       None,
             original_vg:  None,
             volume_group: Some(("LVM_GROUP".into(), None)),
+            identifiers:  PartitionIdentifiers::default(),
         }
     }
 
@@ -417,6 +427,7 @@ mod tests {
             key_id:       None,
             original_vg:  None,
             volume_group: None,
+            identifiers:  PartitionIdentifiers::default(),
         }
     }
 

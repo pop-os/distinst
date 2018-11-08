@@ -15,7 +15,7 @@ pub use self::lvm::*;
 pub use self::partitions::*;
 pub use disk_types::Sector;
 
-
+use partition_identity::PartitionIdentifiers;
 use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -69,6 +69,7 @@ mod tests {
                         key_id:       None,
                         original_vg:  None,
                         volume_group: None,
+                        identifiers:  PartitionIdentifiers::default(),
                     },
                     PartitionInfo {
                         bitflags:     ACTIVE | BUSY | SOURCE,
@@ -86,6 +87,7 @@ mod tests {
                         key_id:       None,
                         original_vg:  None,
                         volume_group: None,
+                        identifiers:  PartitionIdentifiers::default(),
                     },
                     PartitionInfo {
                         bitflags:     SOURCE,
@@ -103,6 +105,7 @@ mod tests {
                         key_id:       None,
                         original_vg:  None,
                         volume_group: None,
+                        identifiers:  PartitionIdentifiers::default(),
                     },
                     PartitionInfo {
                         bitflags:     ACTIVE | SOURCE,
@@ -120,6 +123,7 @@ mod tests {
                         key_id:       None,
                         original_vg:  None,
                         volume_group: None,
+                        identifiers:  PartitionIdentifiers::default(),
                     },
                 ],
             }],

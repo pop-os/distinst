@@ -231,12 +231,26 @@ impl Disks {
             .find(|part| misc::canonicalize(part.get_device_path()) == target.as_ref())
     }
 
+    /// Obtains the partition which contains the given identity
+    pub fn get_partition_by_id(&self, id: &PartitionID) -> Option<&PartitionInfo> {
+        self.get_partitions()
+            .find(|part| part.identifiers.matches(id))
+    }
+
+    /// Obtains the partition which contains the given identity
+    pub fn get_partition_by_id_mut(&mut self, id: &PartitionID) -> Option<&mut PartitionInfo> {
+        self.get_partitions_mut()
+            .find(|part| part.identifiers.matches(id))
+    }
+
+    #[deprecated(note = "use the 'get_partition_by_id()' method instead")]
     pub fn get_partition_by_uuid(&self, target: String) -> Option<&PartitionInfo> {
         PartitionID::new_uuid(target)
             .get_device_path()
             .and_then(|ref target| self.get_partition_by_path(target))
     }
 
+    #[deprecated(note = "use the 'get_partition_by_id_mut()' method instead")]
     pub fn get_partition_by_uuid_mut(&mut self, target: String) -> Option<&mut PartitionInfo> {
         PartitionID::new_uuid(target)
             .get_device_path()

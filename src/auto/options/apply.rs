@@ -46,10 +46,10 @@ impl<'a> fmt::Debug for InstallOption<'a> {
     }
 }
 
-fn set_mount_by_uuid(disks: &mut Disks, uuid: &str, mount: &str) -> Result<(), InstallOptionError> {
+fn set_mount_by_identity(disks: &mut Disks, id: &PartitionID, mount: &str) -> Result<(), InstallOptionError> {
     disks
-        .get_partition_by_uuid_mut(uuid.to_owned())
-        .ok_or_else(|| InstallOptionError::PartitionNotFound { uuid: uuid.to_owned() })
+        .get_partition_by_id_mut(id)
+        .ok_or_else(|| InstallOptionError::PartitionIDNotFound { id: id.clone() })
         .map(|part| {
             part.set_mount(mount.into());
             ()
@@ -247,16 +247,22 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
         root.set_mount("/".into());
     }
 
+    eprintln!("Setting refresh config");
+
     if let Some(ref home) = option.home_part.clone() {
-        set_mount_by_uuid(disks, home, "/home")?;
+        set_mount_by_identity(disks, home, "/home")?;
     }
 
     if let Some(ref efi) = option.efi_part.clone() {
-        set_mount_by_uuid(disks, efi, "/boot/efi")?;
+        eprintln!("setting mount for efi");
+        set_mount_by_identity(disks, efi, "/boot/efi")?;
+    } else if Bootloader::detect() == Bootloader::Efi {
+        return Err(InstallOptionError::RefreshWithoutEFI);
     }
 
     if let Some(ref recovery) = option.recovery_part.clone() {
-        set_mount_by_uuid(disks, recovery, "/recovery")?;
+        eprintln!("setting mount for recovery");
+        set_mount_by_identity(disks, recovery, "/recovery")?;
     }
 
     Ok(())

@@ -1,4 +1,4 @@
-use super::{FileSystem, LvmEncryption, PartitionFlag, PartitionInfo, PartitionType, FORMAT};
+use super::{FileSystem, LvmEncryption, PartitionFlag, PartitionIdentifiers, PartitionInfo, PartitionType, FORMAT};
 use std::path::PathBuf;
 
 /// Partition builders are supplied as inputs to `Disk::add_partition`.
@@ -104,6 +104,7 @@ impl PartitionBuilder {
             original_vg:  None,
             volume_group: self.volume_group.clone(),
             key_id:       self.key_id,
+            identifiers:  PartitionIdentifiers::default(),
         }
     }
 }

@@ -14,11 +14,11 @@ pub use self::refresh_option::*;
 
 use disk_types::{PartitionExt, SectorExt};
 use disks::*;
-use partition_identity::PartitionID;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use super::super::*;
+use partition_identity::PartitionID;
 
 #[derive(Debug)]
 pub struct InstallOptions {
@@ -48,16 +48,19 @@ impl InstallOptions {
             let mut check_partition = |part: &PartitionInfo| -> Option<OS> {
                 if part.is_linux_compatible() {
                     if let Some(os) = part.probe_os() {
-                        if let OS::Linux { ref info, ref home, ref efi, ref recovery } = os {
+                        if let OS::Linux { ref info, ref partitions, ref targets } = os {
+                            let home = targets.iter().position(|t| t == Path::new("/home"));
+                            let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
+                            let recovery = targets.iter().position(|t| t == Path::new("/recovery"));
                             refresh_options.push(RefreshOption {
                                 os_name:        info.name.clone(),
                                 os_pretty_name: info.pretty_name.clone(),
                                 os_version:     info.version.clone(),
                                 root_part:      PartitionID::get_uuid(part.get_device_path())
                                     .expect("root device did not have uuid").id,
-                                home_part:      home.clone(),
-                                efi_part:       efi.clone(),
-                                recovery_part:  recovery.clone(),
+                                home_part:      home.map(|pos| partitions[pos].clone()),
+                                efi_part:       efi.map(|pos| partitions[pos].clone()),
+                                recovery_part:  recovery.map(|pos| partitions[pos].clone()),
                                 can_retain_old: if let Ok(used) = part.sectors_used() {
                                      part.get_sectors() - used > required_space
                                 } else {
@@ -202,6 +205,8 @@ impl InstallOptions {
             }
         }
 
+        eprintln!("refresh option: {:#?}", refresh_options);
+
         InstallOptions {
             alongside_options,
             erase_options,
@@ -213,6 +218,8 @@ impl InstallOptions {
 
 #[derive(Debug, Fail)]
 pub enum InstallOptionError {
+    #[fail(display = "partition ID ({:?}) was not found", id)]
+    PartitionIDNotFound { id: PartitionID },
     #[fail(display = "partition ({}) was not found in disks object", uuid)]
     PartitionNotFound { uuid: String },
     #[fail(display = "partition {} was not found in {:?}", number, device)]
@@ -229,6 +236,8 @@ pub enum InstallOptionError {
     GenerateID { why: io::Error },
     #[fail(display = "recovery does not have LVM partition")]
     RecoveryNoLvm,
+    #[fail(display = "EFI partition is required, but not found on this option")]
+    RefreshWithoutEFI,
 }
 
 impl From<DiskError> for InstallOptionError {

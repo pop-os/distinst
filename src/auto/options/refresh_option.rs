@@ -7,9 +7,9 @@ pub struct RefreshOption {
     pub os_pretty_name: String,
     pub os_version:     String,
     pub root_part:      String,
-    pub home_part:      Option<String>,
-    pub efi_part:       Option<String>,
-    pub recovery_part:  Option<String>,
+    pub home_part:      Option<PartitionID>,
+    pub efi_part:       Option<PartitionID>,
+    pub recovery_part:  Option<PartitionID>,
     pub can_retain_old: bool,
 }
 
