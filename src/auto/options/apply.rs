@@ -229,7 +229,10 @@ fn alongside_config(
                 .name("root".into())
                 .mount("/".into()),
         ).and_then(|_| {
-            lvm_device.add_partition(PartitionBuilder::new(swap, end, Swap))
+            lvm_device.add_partition(
+                PartitionBuilder::new(swap, end, Swap)
+                    .name("swap".into()),
+            )
         })?;
     }
 
