@@ -187,6 +187,8 @@ impl LogicalDevice {
                     }
                 };
 
+                let identifiers = PartitionIdentifiers::from_path(&path);
+
                 let partition = PartitionInfo {
                     bitflags: SOURCE,
                     number: -1,
@@ -207,7 +209,7 @@ impl LogicalDevice {
                     original_vg: None,
                     volume_group: None,
                     key_id: None,
-                    identifiers: PartitionIdentifiers::default(),
+                    identifiers,
                 };
 
                 start_sector += length + 1;
