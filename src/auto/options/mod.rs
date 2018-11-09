@@ -117,7 +117,7 @@ impl InstallOptions {
                     },
                 });
 
-                let mut last_end_sector = 0;
+                let mut last_end_sector = 1024;
                 let mut best_free_region = Region::new(0, 0);
 
                 for part in device.get_partitions() {
@@ -171,6 +171,8 @@ impl InstallOptions {
                     }
                 }
 
+                best_free_region.compare(last_end_sector, device.get_sectors () - 2048);
+
                 match other_os.entry(device.get_device_path()) {
                     Entry::Occupied(mut entry) => {
                         entry.get_mut().best_free_region = best_free_region;
@@ -218,8 +220,6 @@ impl InstallOptions {
                 });
             }
         }
-
-        eprintln!("refresh option: {:#?}", refresh_options);
 
         InstallOptions {
             alongside_options,
