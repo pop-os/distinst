@@ -6,7 +6,9 @@ use std::path::PathBuf;
 pub enum AlongsideMethod {
     Shrink {
         partition: i32,
+        sectors_total: u64,
         sectors_free: u64,
+        path: PathBuf,
     },
     Free(Region)
 }
@@ -34,23 +36,24 @@ impl fmt::Display for AlongsideOption {
         let device = self.device.display();
 
         match self.method {
-            AlongsideMethod::Shrink { partition, sectors_free } => {
+            AlongsideMethod::Shrink { sectors_total, sectors_free, ref path, .. } => {
                 write!(
                     f,
-                    "Install alongside {:?} ({}) by shrinking partition {}: {} MiB free",
+                    "alongside {:?} ({}) by shrinking {}: {} of {} MiB free",
                     os,
                     device,
-                    partition,
-                    sectors_free / 2048
+                    path.display(),
+                    sectors_free / 2048,
+                    sectors_total / 2048
                 )
             },
             AlongsideMethod::Free(ref region) => {
                 write!(
                     f,
-                    "Install alongside {:?} ({}) using free space: {} MiB free",
+                    "alongside {:?} ({}) using free space: {} MiB free",
                     os,
                     device,
-                    region.size() / 2048
+                    region.size() / 2048,
                 )
             }
         }
@@ -60,7 +63,9 @@ impl fmt::Display for AlongsideOption {
 pub struct AlongsideData {
     pub systems: Vec<OS>,
     pub largest_partition: i32,
+    pub largest_path: PathBuf,
     pub sectors_free: u64,
+    pub sectors_total: u64,
     pub best_free_region: Region
 }
 

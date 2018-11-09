@@ -126,10 +126,12 @@ impl InstallOptions {
                             Entry::Occupied(mut entry) => entry.get_mut().systems.push(os),
                             Entry::Vacant(entry) => {
                                 entry.insert(AlongsideData {
-                                    systems: vec![os],
+                                    best_free_region: Region::new(0, 0),
                                     largest_partition: -1,
+                                    largest_path: PathBuf::new(),
                                     sectors_free: 0,
-                                    best_free_region: Region::new(0, 0)
+                                    sectors_total: 0,
+                                    systems: vec![os],
                                 });
                             }
                         }
@@ -139,21 +141,29 @@ impl InstallOptions {
                     last_end_sector = part.end_sector;
 
                     if let Ok(used) = part.sectors_used() {
-                        let free = part.get_sectors() - used;
+                        let sectors = part.get_sectors();
+                        let free = sectors - used;
                         let num = part.number;
+                        let path = part.get_device_path().to_path_buf();
                         match other_os.entry(device.get_device_path()) {
                             Entry::Occupied(mut entry) => {
-                                let entry = entry.get_mut();
-                                if entry.sectors_free < free {
-                                    entry.largest_partition = num;
-                                    entry.sectors_free = free;
+                                if entry.get().sectors_free < free {
+                                    cascade! {
+                                        entry.get_mut();
+                                        ..largest_partition = num;
+                                        ..largest_path = path;
+                                        ..sectors_free = free;
+                                        ..sectors_total = sectors;
+                                    };
                                 }
                             }
                             Entry::Vacant(entry) => {
                                 entry.insert(AlongsideData {
                                     systems: Vec::new(),
                                     largest_partition: num,
+                                    largest_path: path,
                                     sectors_free: free,
+                                    sectors_total: sectors,
                                     best_free_region: Region::new(0, 0),
                                 });
                             }
@@ -168,8 +178,10 @@ impl InstallOptions {
                     Entry::Vacant(entry) => {
                         entry.insert(AlongsideData {
                             systems: Vec::new(),
+                            largest_path: PathBuf::new(),
                             largest_partition: -1,
                             sectors_free: 0,
+                            sectors_total: 0,
                             best_free_region,
                         });
                     }
@@ -190,8 +202,10 @@ impl InstallOptions {
                     device: device.to_path_buf(),
                     alongside: data.systems[0].clone(),
                     method: AlongsideMethod::Shrink {
+                        path: data.largest_path,
                         partition: data.largest_partition,
                         sectors_free: data.sectors_free,
+                        sectors_total: data.sectors_total,
                     }
                 });
             }

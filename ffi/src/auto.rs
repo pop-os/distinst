@@ -44,12 +44,39 @@ pub unsafe extern "C" fn distinst_alongside_option_get_partition(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_path(
+    option: *const DistinstAlongsideOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const AlongsideOption);
+    match option.method {
+        AlongsideMethod::Shrink { ref path, .. } => {
+            let bytes = path.as_os_str().as_bytes();
+            *len = bytes.len() as libc::c_int;
+            bytes.as_ptr()
+        },
+        _ => ptr::null()
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_alongside_option_get_sectors_free(
     option: *const DistinstAlongsideOption,
 ) -> libc::uint64_t {
     let option = &*(option as *const AlongsideOption);
     match option.method {
         AlongsideMethod::Shrink { sectors_free, .. } => sectors_free,
+        AlongsideMethod::Free(ref region) => region.size()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_sectors_total(
+    option: *const DistinstAlongsideOption,
+) -> libc::uint64_t {
+    let option = &*(option as *const AlongsideOption);
+    match option.method {
+        AlongsideMethod::Shrink { sectors_total, .. } => sectors_total,
         AlongsideMethod::Free(ref region) => region.size()
     }
 }

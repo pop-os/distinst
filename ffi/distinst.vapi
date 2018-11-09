@@ -91,8 +91,10 @@ namespace Distinst {
     public class AlongsideOption {
         public unowned uint8[] get_device ();
         public unowned uint8[] get_os ();
+        public unowned uint8[] get_path ();
         public int get_partition ();
         public uint64 get_sectors_free ();
+        public uint64 get_sectors_total ();
     }
 
     /**
