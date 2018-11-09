@@ -247,21 +247,17 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
         root.set_mount("/".into());
     }
 
-    eprintln!("Setting refresh config");
-
     if let Some(ref home) = option.home_part.clone() {
         set_mount_by_identity(disks, home, "/home")?;
     }
 
     if let Some(ref efi) = option.efi_part.clone() {
-        eprintln!("setting mount for efi");
         set_mount_by_identity(disks, efi, "/boot/efi")?;
     } else if Bootloader::detect() == Bootloader::Efi {
         return Err(InstallOptionError::RefreshWithoutEFI);
     }
 
     if let Some(ref recovery) = option.recovery_part.clone() {
-        eprintln!("setting mount for recovery");
         set_mount_by_identity(disks, recovery, "/recovery")?;
     }
 
