@@ -144,27 +144,24 @@ fn alongside_config(
     let bootloader = Bootloader::detect();
 
     if bootloader == Bootloader::Efi {
-        let mut create_esp = false;
+        // NOTE: Logic that can enable re-using an existing EFI partition.
+        // {
+        //     let mut partitions = device.partitions.iter_mut();
+        //     match partitions.find(|p| p.is_esp_partition() && p.get_sectors() > 819_200) {
+        //         Some(esp) => esp.set_mount("/boot/efi".into()),
+        //         None => create_esp = true
+        //     }
+        // }
 
-        {
-            let mut partitions = device.partitions.iter_mut();
-            match partitions.find(|p| p.is_esp_partition() && p.get_sectors() > 819_200) {
-                Some(esp) => esp.set_mount("/boot/efi".into()),
-                None => create_esp = true
-            }
-        }
+        let esp_end = start + DEFAULT_ESP_SECTORS;
 
-        if create_esp {
-            let esp_end = start + DEFAULT_ESP_SECTORS;
+        device.add_partition(
+            PartitionBuilder::new(start, esp_end, Fat32)
+                .flag(PartitionFlag::PED_PARTITION_ESP)
+                .mount("/boot/efi".into())
+        )?;
 
-            device.add_partition(
-                PartitionBuilder::new(start, esp_end, Fat32)
-                    .flag(PartitionFlag::PED_PARTITION_ESP)
-                    .mount("/boot/efi".into())
-            )?;
-
-            start = esp_end;
-        }
+        start = esp_end;
 
         let recovery_end = start + DEFAULT_RECOVER_SECTORS;
         device.add_partition(
