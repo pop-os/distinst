@@ -14,8 +14,6 @@ pub use self::refresh_option::*;
 
 use disk_types::{PartitionExt, SectorExt};
 use disks::*;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use super::super::*;
 use partition_identity::PartitionID;
@@ -36,8 +34,7 @@ impl InstallOptions {
     pub fn new(disks: &Disks, required_space: u64) -> InstallOptions {
         let mut erase_options = Vec::new();
         let mut refresh_options = Vec::new();
-
-        let mut other_os: HashMap<&Path, AlongsideData> = HashMap::new();
+        let mut alongside_options = Vec::new();
 
         let recovery_option = detect_recovery();
 
@@ -116,75 +113,44 @@ impl InstallOptions {
                 });
 
                 let mut last_end_sector = 1024;
-                let mut best_free_region = Region::new(0, 0);
 
                 for part in device.get_partitions() {
-                    if let Some(os) = check_partition(part) {
-                        match other_os.entry(device.get_device_path()) {
-                            Entry::Occupied(mut entry) => entry.get_mut().systems.push(os),
-                            Entry::Vacant(entry) => {
-                                entry.insert(AlongsideData {
-                                    best_free_region: Region::new(0, 0),
-                                    largest_partition: -1,
-                                    largest_path: PathBuf::new(),
-                                    sectors_free: 0,
-                                    sectors_total: 0,
-                                    systems: vec![os],
-                                });
-                            }
-                        }
-                    }
-
-                    best_free_region.compare(last_end_sector, part.start_sector);
-                    last_end_sector = part.end_sector;
-
                     if let Ok(used) = part.sectors_used() {
                         let sectors = part.get_sectors();
                         let free = sectors - used;
-                        let num = part.number;
-                        let path = part.get_device_path().to_path_buf();
-                        match other_os.entry(device.get_device_path()) {
-                            Entry::Occupied(mut entry) => {
-                                if entry.get().sectors_free < free {
-                                    cascade! {
-                                        entry.get_mut();
-                                        ..largest_partition = num;
-                                        ..largest_path = path;
-                                        ..sectors_free = free;
-                                        ..sectors_total = sectors;
-                                    };
-                                }
-                            }
-                            Entry::Vacant(entry) => {
-                                entry.insert(AlongsideData {
-                                    systems: Vec::new(),
-                                    largest_partition: num,
-                                    largest_path: path,
+                        if required_space < free {
+                            let os = check_partition(part);
+                            alongside_options.push(AlongsideOption {
+                                device: device.get_device_path().to_path_buf(),
+                                alongside: os,
+                                method: AlongsideMethod::Shrink {
+                                    path: part.get_device_path().to_path_buf(),
+                                    partition: part.number,
                                     sectors_free: free,
-                                    sectors_total: sectors,
-                                    best_free_region: Region::new(0, 0),
-                                });
-                            }
+                                    sectors_total: sectors
+                                }
+                            });
                         }
                     }
+
+                    if required_space < part.start_sector - last_end_sector {
+                        alongside_options.push(AlongsideOption {
+                            device: device.get_device_path().to_path_buf(),
+                            alongside: None,
+                            method: AlongsideMethod::Free(Region::new(last_end_sector + 1, part.start_sector - 1))
+                        })
+                    }
+
+                    last_end_sector = part.end_sector;
                 }
 
-                best_free_region.compare(last_end_sector, device.get_sectors () - 2048);
-
-                match other_os.entry(device.get_device_path()) {
-                    Entry::Occupied(mut entry) => {
-                        entry.get_mut().best_free_region = best_free_region;
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(AlongsideData {
-                            systems: Vec::new(),
-                            largest_path: PathBuf::new(),
-                            largest_partition: -1,
-                            sectors_free: 0,
-                            sectors_total: 0,
-                            best_free_region,
-                        });
-                    }
+                let last_sector = device.get_sectors () - 2048;
+                if required_space < last_sector - last_end_sector {
+                    alongside_options.push(AlongsideOption {
+                        device: device.get_device_path().to_path_buf(),
+                        alongside: None,
+                        method: AlongsideMethod::Free(Region::new(last_end_sector + 1, last_end_sector))
+                    })
                 }
             }
 
@@ -192,30 +158,6 @@ impl InstallOptions {
                 for part in device.get_partitions() {
                     check_partition(part);
                 }
-            }
-        }
-
-        let mut alongside_options = Vec::new();
-        for (device, data) in other_os {
-            if required_space < data.sectors_free && ! data.systems.is_empty() {
-                alongside_options.push(AlongsideOption {
-                    device: device.to_path_buf(),
-                    alongside: data.systems[0].clone(),
-                    method: AlongsideMethod::Shrink {
-                        path: data.largest_path,
-                        partition: data.largest_partition,
-                        sectors_free: data.sectors_free,
-                        sectors_total: data.sectors_total,
-                    }
-                });
-            }
-
-            if required_space < data.best_free_region.size() && ! data.systems.is_empty() {
-                alongside_options.push(AlongsideOption {
-                    device: device.to_path_buf(),
-                    alongside: data.systems[0].clone(),
-                    method: AlongsideMethod::Free(data.best_free_region)
-                });
             }
         }
 

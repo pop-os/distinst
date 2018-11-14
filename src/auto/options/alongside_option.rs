@@ -15,7 +15,7 @@ pub enum AlongsideMethod {
 
 #[derive(Debug)]
 pub struct AlongsideOption {
-    pub alongside: OS,
+    pub alongside: Option<OS>,
     pub device: PathBuf,
     pub method: AlongsideMethod
 }
@@ -23,9 +23,10 @@ pub struct AlongsideOption {
 impl AlongsideOption {
     pub fn get_os(&self) -> &str {
         match self.alongside {
-            OS::Linux { ref info, .. } => info.pretty_name.as_str(),
-            OS::Windows(ref name) => name.as_str(),
-            OS::MacOs(ref name) => name.as_str()
+            Some(OS::Linux { ref info, .. }) => info.pretty_name.as_str(),
+            Some(OS::Windows(ref name)) => name.as_str(),
+            Some(OS::MacOs(ref name)) => name.as_str(),
+            None => "none"
         }
     }
 }

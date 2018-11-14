@@ -41,7 +41,7 @@ pub unsafe extern "C" fn distinst_alongside_option_get_os_release(
         1
     } else {
         let option = &*(option as *const AlongsideOption);
-        if let OS::Linux { ref info, .. } = option.alongside {
+        if let Some(OS::Linux { ref info, .. }) = option.alongside {
             *os_release = DistinstOsRelease::from_os_release(info);
             0
         } else {
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn distinst_alongside_option_is_linux(
     option: *const DistinstAlongsideOption,
 ) -> bool {
     let option = &*(option as *const AlongsideOption);
-    if let OS::Linux { .. } = option.alongside {
+    if let Some(OS::Linux { .. }) = option.alongside {
         true
     } else {
         false
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn distinst_alongside_option_is_mac_os(
     option: *const DistinstAlongsideOption,
 ) -> bool {
     let option = &*(option as *const AlongsideOption);
-    if let OS::MacOs(_) = option.alongside {
+    if let Some(OS::MacOs(_)) = option.alongside {
         true
     } else {
         false
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn distinst_alongside_option_is_windows(
     option: *const DistinstAlongsideOption,
 ) -> bool {
     let option = &*(option as *const AlongsideOption);
-    if let OS::Windows(_) = option.alongside {
+    if let Some(OS::Windows(_)) = option.alongside {
         true
     } else {
         false
