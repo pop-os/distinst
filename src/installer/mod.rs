@@ -8,6 +8,7 @@ use disk_types::BlockDeviceExt;
 use disks::{Bootloader, Disks};
 use external::luks::deactivate_logical_devices;
 use os_release::OsRelease;
+use partition_identity::PartitionID;
 use self::state::InstallerState;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -215,7 +216,7 @@ impl Installer {
             info!("installing while retaining home");
 
             let old_root = disks
-                .get_partition_by_uuid(old_root_uuid.clone())
+                .get_partition_by_id(&PartitionID::new_uuid(old_root_uuid.clone()))
                 .ok_or(ReinstallError::NoRootPartition)?;
 
             let new_root = disks

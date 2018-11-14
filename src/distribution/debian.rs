@@ -138,6 +138,7 @@ pub fn get_required_packages(disks: &Disks, release: &OsRelease) -> Vec<&'static
 
     if flags.contains(FileSystemSupport::LUKS) {
         retain.extend_from_slice(&["cryptsetup", "cryptsetup-bin"]);
+        #[allow(single_match)]
         match (release.id.as_str(), release.version.as_str()) {
             ("ubuntu", "18.10") => retain.extend_from_slice(&["cryptsetup-initramfs", "cryptsetup-run"]),
             _ => ()

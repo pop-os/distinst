@@ -2,7 +2,7 @@ use std::fmt;
 use std::mem;
 
 use disks::*;
-use disk_types::{PartitionExt, SectorExt};
+use disk_types::{SectorExt};
 use disk_types::FileSystem::*;
 use misc;
 use partition_identity::PartitionID;
@@ -239,7 +239,7 @@ fn alongside_config(
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
     {
-        let root = disks.get_partition_by_uuid_mut(option.root_part.clone()).ok_or(
+        let root = disks.get_partition_by_id_mut(&PartitionID::new_uuid(option.root_part.clone())).ok_or(
             InstallOptionError::PartitionNotFound {
                 uuid: option.root_part.clone(),
             },

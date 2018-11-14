@@ -53,9 +53,7 @@ impl InstallOptions {
                             let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
                             let recovery = targets.iter().position(|t| t == Path::new("/recovery"));
                             refresh_options.push(RefreshOption {
-                                os_name:        info.name.clone(),
-                                os_pretty_name: info.pretty_name.clone(),
-                                os_version:     info.version.clone(),
+                                os_release:     info.clone(),
                                 root_part:      PartitionID::get_uuid(part.get_device_path())
                                     .expect("root device did not have uuid").id,
                                 home_part:      home.map(|pos| partitions[pos].clone()),
