@@ -563,12 +563,13 @@ pub struct DistinstInstallOptions;
 pub unsafe extern "C" fn distinst_install_options_new(
     disks: *const DistinstDisks,
     required: libc::uint64_t,
+    shrink_overhead: libc::uint64_t,
 ) -> *mut DistinstInstallOptions {
     if null_check(disks).is_err() {
         return ptr::null_mut();
     }
 
-    let options = InstallOptions::new(&*(disks as *const Disks), required);
+    let options = InstallOptions::new(&*(disks as *const Disks), required, shrink_overhead);
     gen_object_ptr(options) as *mut DistinstInstallOptions
 }
 

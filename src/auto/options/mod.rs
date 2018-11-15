@@ -31,7 +31,7 @@ impl InstallOptions {
     ///
     /// Note that encrypted partitions will need to be decrypted within the `disks` object
     /// in order for the installed operating systems on them to be detected and reinstalled to.
-    pub fn new(disks: &Disks, required_space: u64) -> InstallOptions {
+    pub fn new(disks: &Disks, required_space: u64, shrink_overhead: u64) -> InstallOptions {
         let mut erase_options = Vec::new();
         let mut refresh_options = Vec::new();
         let mut alongside_options = Vec::new();
@@ -118,7 +118,7 @@ impl InstallOptions {
                     if let Ok(used) = part.sectors_used() {
                         let sectors = part.get_sectors();
                         let free = sectors - used;
-                        if required_space < free {
+                        if required_space + shrink_overhead < free {
                             let os = check_partition(part);
                             alongside_options.push(AlongsideOption {
                                 device: device.get_device_path().to_path_buf(),

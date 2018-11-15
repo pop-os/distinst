@@ -249,7 +249,7 @@ namespace Distinst {
          * The `required` field will be used to set the `MEETS_REQUIREMENTS`
          * flag for each erase option collected.
          */
-        public InstallOptions (Disks disks, uint64 required);
+        public InstallOptions (Disks disks, uint64 required, uint64 shrink_overhead);
 
         public unowned RecoveryOption? get_alongside_option ();
 
