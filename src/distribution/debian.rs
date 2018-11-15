@@ -1,10 +1,11 @@
+use bootloader::Bootloader;
+use chroot::Chroot;
+use installer::bitflags::FileSystemSupport;
+use installer::traits::InstallerDiskOps;
+use os_release::OsRelease;
 use std::collections::HashSet;
 use std::io::{self, BufRead};
 use std::process::Command;
-use chroot::Chroot;
-use disks::{Disks, FileSystemSupport};
-use bootloader::Bootloader;
-use os_release::OsRelease;
 
 pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<String>> {
     // Takes the locale, such as `en_US.UTF-8`, and changes it into `en`.
@@ -107,7 +108,7 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
     }
 }
 
-pub fn get_required_packages(disks: &Disks, release: &OsRelease) -> Vec<&'static str> {
+pub fn get_required_packages<D: InstallerDiskOps>(disks: &D, release: &OsRelease) -> Vec<&'static str> {
     let flags = disks.get_support_flags();
 
     let mut retain = Vec::new();

@@ -1,13 +1,11 @@
 mod bootloader;
 mod configure;
 mod initialize;
-mod mount;
 mod partition;
 
 pub use self::bootloader::*;
 pub use self::configure::*;
 pub use self::initialize::*;
-pub use self::mount::*;
 pub use self::partition::*;
 
 use std::io;

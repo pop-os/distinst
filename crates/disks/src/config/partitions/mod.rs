@@ -15,19 +15,6 @@ use sys_mount::swapoff;
 use super::PVS;
 use super::super::{LvmEncryption, PartitionError};
 
-bitflags! {
-    pub struct FileSystemSupport: u8 {
-        const LVM = 1;
-        const LUKS = 2;
-        const FAT = 4;
-        const XFS = 8;
-        const EXT4 = 16;
-        const BTRFS = 32;
-        const NTFS = 64;
-        const F2FS = 128;
-    }
-}
-
 pub fn get_preferred_options(fs: FileSystem) -> &'static str {
     match fs {
         FileSystem::Fat16 | FileSystem::Fat32 => "umask=0077",
@@ -308,7 +295,7 @@ const FLAGS: &[PartitionFlag] = &[
 
 fn get_flags(partition: &Partition) -> Vec<PartitionFlag> {
     FLAGS
-        .into_iter()
+        .iter()
         .filter(|&&f| partition.is_flag_available(f) && partition.get_flag(f))
         .cloned()
         .collect::<Vec<PartitionFlag>>()

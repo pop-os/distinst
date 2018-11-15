@@ -82,7 +82,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystem) -> io::Result<()> {
     };
 
     exec(cmd, None, None, &{
-        let mut args = args.into_iter().map(Into::into).collect::<Vec<OsString>>();
+        let mut args = args.iter().map(Into::into).collect::<Vec<OsString>>();
         args.push(part.as_ref().into());
         args
     })
