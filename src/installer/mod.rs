@@ -1,3 +1,6 @@
+pub mod bitflags;
+pub mod traits;
+
 mod state;
 mod steps;
 
@@ -8,11 +11,11 @@ use disk_types::BlockDeviceExt;
 use disks::{Bootloader, Disks};
 use external::luks::deactivate_logical_devices;
 use os_release::OsRelease;
+use partition_identity::PartitionID;
 use self::state::InstallerState;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
-use sys_mount::Mounts;
 use tempdir::TempDir;
 use timezones::Region;
 
@@ -152,7 +155,7 @@ impl Installer {
             info!("mounting temporary chroot directory at {}", Self::CHROOT_ROOT);
 
             let mount_dir = TempDir::new(Self::CHROOT_ROOT)?;
-            let mut mounts = Installer::mount(&disks, mount_dir.path())?;
+            let mut mounts = disks.mount_all_targets(mount_dir.path())?;
 
             if PARTITIONING_TEST.load(Ordering::SeqCst) {
                 info!("PARTITION_TEST enabled: exiting before unsquashing");
@@ -215,7 +218,7 @@ impl Installer {
             info!("installing while retaining home");
 
             let old_root = disks
-                .get_partition_by_uuid(old_root_uuid.clone())
+                .get_partition_by_id(&PartitionID::new_uuid(old_root_uuid.clone()))
                 .ok_or(ReinstallError::NoRootPartition)?;
 
             let new_root = disks
@@ -373,12 +376,6 @@ impl Installer {
     /// configuration specified.
     fn partition<F: FnMut(i32)>(disks: &mut Disks, callback: F) -> io::Result<()> {
         steps::partition(disks, callback)
-    }
-
-    /// Mount all target paths defined within the provided `disks`
-    /// configuration.
-    fn mount(disks: &Disks, chroot: &Path) -> io::Result<Mounts> {
-        steps::mount(disks, chroot)
     }
 
     /// Extracts the squashfs image into the new install, and then gets the os-release data.

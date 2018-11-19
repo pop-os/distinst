@@ -5,6 +5,7 @@ pub use self::encryption::LvmEncryption;
 use external::{
     blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
 };
+use partition_identity::PartitionIdentifiers;
 use proc_mounts::MOUNTS;
 use super::super::{
     DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
@@ -186,6 +187,8 @@ impl LogicalDevice {
                     }
                 };
 
+                let identifiers = PartitionIdentifiers::from_path(&path);
+
                 let partition = PartitionInfo {
                     bitflags: SOURCE,
                     number: -1,
@@ -206,6 +209,7 @@ impl LogicalDevice {
                     original_vg: None,
                     volume_group: None,
                     key_id: None,
+                    identifiers,
                 };
 
                 start_sector += length + 1;

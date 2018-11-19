@@ -1,9 +1,9 @@
 use libc;
 
-use super::{gen_object_ptr, get_str, null_check, DistinstDisks};
+use super::{gen_object_ptr, get_str, null_check, DistinstDisks, DistinstOsRelease};
 use distinst::auto::{AlongsideMethod, AlongsideOption, EraseOption, InstallOption,
     InstallOptions, RecoveryOption, RefreshOption};
-use distinst::Disks;
+use distinst::{Disks, OS};
 use std::os::unix::ffi::OsStrExt;
 use std::ptr;
 
@@ -33,6 +33,60 @@ pub unsafe extern "C" fn distinst_alongside_option_get_os(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_os_release(
+    option: *const DistinstAlongsideOption,
+    os_release: *mut DistinstOsRelease
+) -> libc::c_int {
+    if option.is_null() {
+        1
+    } else {
+        let option = &*(option as *const AlongsideOption);
+        if let Some(OS::Linux { ref info, .. }) = option.alongside {
+            *os_release = DistinstOsRelease::from_os_release(info);
+            0
+        } else {
+            2
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_is_linux(
+    option: *const DistinstAlongsideOption,
+) -> bool {
+    let option = &*(option as *const AlongsideOption);
+    if let Some(OS::Linux { .. }) = option.alongside {
+        true
+    } else {
+        false
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_is_mac_os(
+    option: *const DistinstAlongsideOption,
+) -> bool {
+    let option = &*(option as *const AlongsideOption);
+    if let Some(OS::MacOs(_)) = option.alongside {
+        true
+    } else {
+        false
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_is_windows(
+    option: *const DistinstAlongsideOption,
+) -> bool {
+    let option = &*(option as *const AlongsideOption);
+    if let Some(OS::Windows(_)) = option.alongside {
+        true
+    } else {
+        false
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_alongside_option_get_partition(
     option: *const DistinstAlongsideOption,
 ) -> libc::c_int {
@@ -44,12 +98,39 @@ pub unsafe extern "C" fn distinst_alongside_option_get_partition(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_path(
+    option: *const DistinstAlongsideOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    let option = &*(option as *const AlongsideOption);
+    match option.method {
+        AlongsideMethod::Shrink { ref path, .. } => {
+            let bytes = path.as_os_str().as_bytes();
+            *len = bytes.len() as libc::c_int;
+            bytes.as_ptr()
+        },
+        _ => ptr::null()
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_alongside_option_get_sectors_free(
     option: *const DistinstAlongsideOption,
 ) -> libc::uint64_t {
     let option = &*(option as *const AlongsideOption);
     match option.method {
         AlongsideMethod::Shrink { sectors_free, .. } => sectors_free,
+        AlongsideMethod::Free(ref region) => region.size()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_sectors_total(
+    option: *const DistinstAlongsideOption,
+) -> libc::uint64_t {
+    let option = &*(option as *const AlongsideOption);
+    match option.method {
+        AlongsideMethod::Shrink { sectors_total, .. } => sectors_total,
         AlongsideMethod::Free(ref region) => region.size()
     }
 }
@@ -70,6 +151,20 @@ pub unsafe extern "C" fn distinst_refresh_option_can_retain_old(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_refresh_option_get_os_release (
+    option: *const DistinstRefreshOption,
+    os_release: *mut DistinstOsRelease
+) -> libc::c_int {
+    if option.is_null() {
+        1
+    } else {
+        let option = &*(option as *const RefreshOption);
+        *os_release = DistinstOsRelease::from_os_release(&option.os_release);
+        0
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_refresh_option_get_os_name(
     option: *const DistinstRefreshOption,
     len: *mut libc::c_int,
@@ -79,7 +174,7 @@ pub unsafe extern "C" fn distinst_refresh_option_get_os_name(
     }
 
     let option = &*(option as *const RefreshOption);
-    let output = option.os_name.as_bytes();
+    let output = option.os_release.name.as_bytes();
     *len = output.len() as libc::c_int;
     output.as_ptr()
 }
@@ -94,7 +189,7 @@ pub unsafe extern "C" fn distinst_refresh_option_get_os_pretty_name(
     }
 
     let option = &*(option as *const RefreshOption);
-    let output = option.os_pretty_name.as_bytes();
+    let output = option.os_release.pretty_name.as_bytes();
     *len = output.len() as libc::c_int;
     output.as_ptr()
 }
@@ -109,7 +204,7 @@ pub unsafe extern "C" fn distinst_refresh_option_get_os_version(
     }
 
     let option = &*(option as *const RefreshOption);
-    let output = option.os_version.as_bytes();
+    let output = option.os_release.version.as_bytes();
     *len = output.len() as libc::c_int;
     output.as_ptr()
 }
@@ -468,12 +563,13 @@ pub struct DistinstInstallOptions;
 pub unsafe extern "C" fn distinst_install_options_new(
     disks: *const DistinstDisks,
     required: libc::uint64_t,
+    shrink_overhead: libc::uint64_t,
 ) -> *mut DistinstInstallOptions {
     if null_check(disks).is_err() {
         return ptr::null_mut();
     }
 
-    let options = InstallOptions::new(&*(disks as *const Disks), required);
+    let options = InstallOptions::new(&*(disks as *const Disks), required, shrink_overhead);
     gen_object_ptr(options) as *mut DistinstInstallOptions
 }
 

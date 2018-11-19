@@ -20,11 +20,11 @@ pub extern crate proc_mounts;
 pub extern crate sys_mount;
 
 #[macro_use]
+extern crate bitflags;
+#[macro_use]
 extern crate cascade;
 extern crate dirs;
 extern crate distinst_utils as misc;
-#[macro_use]
-extern crate derive_new;
 pub extern crate distinst_timezones as timezones;
 extern crate envfile;
 extern crate failure;

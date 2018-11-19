@@ -15,7 +15,6 @@ pub use self::lvm::*;
 pub use self::partitions::*;
 pub use disk_types::Sector;
 
-
 use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -38,6 +37,7 @@ pub fn get_size(path: &Path) -> io::Result<u64> {
 mod tests {
     use super::*;
     use operations::*;
+    use partition_identity::PartitionIdentifiers;
 
     fn get_default() -> Disks {
         Disks {
@@ -69,6 +69,7 @@ mod tests {
                         key_id:       None,
                         original_vg:  None,
                         volume_group: None,
+                        identifiers:  PartitionIdentifiers::default(),
                     },
                     PartitionInfo {
                         bitflags:     ACTIVE | BUSY | SOURCE,
@@ -86,6 +87,7 @@ mod tests {
                         key_id:       None,
                         original_vg:  None,
                         volume_group: None,
+                        identifiers:  PartitionIdentifiers::default(),
                     },
                     PartitionInfo {
                         bitflags:     SOURCE,
@@ -103,6 +105,7 @@ mod tests {
                         key_id:       None,
                         original_vg:  None,
                         volume_group: None,
+                        identifiers:  PartitionIdentifiers::default(),
                     },
                     PartitionInfo {
                         bitflags:     ACTIVE | SOURCE,
@@ -120,6 +123,7 @@ mod tests {
                         key_id:       None,
                         original_vg:  None,
                         volume_group: None,
+                        identifiers:  PartitionIdentifiers::default(),
                     },
                 ],
             }],

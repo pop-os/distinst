@@ -2,7 +2,6 @@ mod chroot_conf;
 use {INSTALL_HARDWARE_SUPPORT, misc, hardware_support, UserAccountCreate};
 use chroot::Chroot;
 use Config;
-use disks::Disks;
 use distribution;
 use envfile::EnvFile;
 use external::remount_rw;
@@ -19,6 +18,7 @@ use std::path::Path;
 use super::{mount_efivars, mount_cdrom};
 use tempdir::TempDir;
 use timezones::Region;
+use installer::traits::InstallerDiskOps;
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
@@ -57,8 +57,8 @@ macro_rules! map_errors {
     }
 }
 
-pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
-    disks: &Disks,
+pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
+    disks: &D,
     mount_dir: P,
     config: &Config,
     iso_os_release: &OsRelease,
@@ -161,14 +161,7 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         callback(15);
 
         info!("retrieving root partition");
-        let root_entry = disks
-            .get_partitions()
-            .filter_map(|part| part.get_block_info())
-            .find(|entry| entry.mount() == "/")
-            .ok_or_else(|| io::Error::new(
-                io::ErrorKind::Other,
-                "root partition not found",
-            ))?;
+        let root_entry = disks.get_root_block_info()?;
 
         callback(20);
 
@@ -185,7 +178,7 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
 
         let (retain, lang_output) = rayon::join(
             // Get packages required by this disk configuration.
-            || distribution::debian::get_required_packages(&disks, iso_os_release),
+            || distribution::debian::get_required_packages(disks, iso_os_release),
             // Attempt to run the check-language-support external command.
             || distribution::debian::check_language_support(&config.lang, &chroot)
         );
@@ -219,7 +212,7 @@ pub fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
         install_pkgs.extend_from_slice(&retain);
 
         // Filter the discovered language packs and retained packages from the remove list.
-        let remove = remove_pkgs.into_iter()
+        let remove = remove_pkgs.iter()
             .map(AsRef::as_ref)
             .filter(|pkg| !lang_packs.iter().any(|x| pkg == x) && !retain.contains(&pkg))
             .collect::<Vec<&str>>();

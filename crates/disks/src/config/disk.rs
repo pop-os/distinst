@@ -5,18 +5,19 @@ use super::super::{
     DiskError, DiskExt, Disks, FileSystem, BlockDeviceExt, PartitionError, PartitionFlag,
     PartitionInfo, PartitionTable, PartitionType,
 };
-use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
-use super::PVS;
+use disk_types::{PartitionExt, PartitionTableExt, SectorExt};
+use libparted::{Device, DeviceType, Disk as PedDisk};
 use operations::*;
 use operations::parted::{get_device, open_disk};
-use libparted::{Device, DeviceType, Disk as PedDisk};
+use partition_identity::PartitionID;
+use rayon::prelude::*;
 use std::collections::BTreeSet;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str;
+use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
+use super::PVS;
 use sys_mount::{unmount, UnmountFlags};
-use rayon::prelude::*;
-use disk_types::{PartitionExt, PartitionTableExt, SectorExt};
 
 /// Detects a partition on the device, if it exists.
 /// Useful for detecting if a LUKS device has a file system.
@@ -335,9 +336,9 @@ impl Disk {
                 mount.dest.display(),
             );
 
-            mounts.insert(&mount.source);
+            mounts.insert(&mount.dest);
             for target in mountstab.destination_starts_with(&mount.dest) {
-                mounts.insert(&target.source);
+                mounts.insert(&target.dest);
             }
         }
 
@@ -416,6 +417,15 @@ impl Disk {
         self.partitions
             .iter_mut()
             .find(|part| part.number == partition)
+    }
+
+    /// Find a partition by an identifier.
+    pub fn get_partition_by_identity(&self, id: &PartitionID) -> Option<&PartitionInfo> {
+        self.partitions.iter().find(|part| part.identifiers.matches(id))
+    }
+
+    pub fn get_partition_by_identity_mut(&mut self, id: &PartitionID) -> Option<&mut PartitionInfo> {
+        self.partitions.iter_mut().find(|part| part.identifiers.matches(id))
     }
 
     /// Designates that the provided partition number should be resized so that the end sector

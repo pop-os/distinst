@@ -39,6 +39,20 @@ namespace Distinst {
         uint8 flags;
     }
 
+    [CCode (has_type_id = false)]
+    public struct OsRelease {
+        string bug_report_url;
+        string home_url;
+        string id_like;
+        string id;
+        string name;
+        string pretty_name;
+        string privacy_policy_url;
+        string support_url;
+        string version_codename;
+        string version_id;
+    }
+
     [CCode (has_type_id = false, destroy_function = "")]
     public struct UserAccountCreate {
         string username;
@@ -89,10 +103,16 @@ namespace Distinst {
 
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class AlongsideOption {
+        public bool is_linux ();
+        public bool is_mac_os ();
+        public bool is_windows ();
         public unowned uint8[] get_device ();
         public unowned uint8[] get_os ();
+        public int get_os_release (out OsRelease release);
+        public unowned uint8[] get_path ();
         public int get_partition ();
         public uint64 get_sectors_free ();
+        public uint64 get_sectors_total ();
     }
 
     /**
@@ -140,6 +160,11 @@ namespace Distinst {
          * If true, the original system may be kept in a backup directory.
          */
         public bool can_retain_old ();
+
+        /**
+         * Data from the /etc/os-release file, parsed into a data structure.
+         */
+        public int get_os_release (out OsRelease release);
 
         /**
          * The OS name string obtained from the disk.
@@ -224,7 +249,7 @@ namespace Distinst {
          * The `required` field will be used to set the `MEETS_REQUIREMENTS`
          * flag for each erase option collected.
          */
-        public InstallOptions (Disks disks, uint64 required);
+        public InstallOptions (Disks disks, uint64 required, uint64 shrink_overhead);
 
         public unowned RecoveryOption? get_alongside_option ();
 

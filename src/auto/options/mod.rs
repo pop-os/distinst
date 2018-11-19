@@ -14,11 +14,9 @@ pub use self::refresh_option::*;
 
 use disk_types::{PartitionExt, SectorExt};
 use disks::*;
-use partition_identity::PartitionID;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use super::super::*;
+use partition_identity::PartitionID;
 
 #[derive(Debug)]
 pub struct InstallOptions {
@@ -33,11 +31,10 @@ impl InstallOptions {
     ///
     /// Note that encrypted partitions will need to be decrypted within the `disks` object
     /// in order for the installed operating systems on them to be detected and reinstalled to.
-    pub fn new(disks: &Disks, required_space: u64) -> InstallOptions {
+    pub fn new(disks: &Disks, required_space: u64, shrink_overhead: u64) -> InstallOptions {
         let mut erase_options = Vec::new();
         let mut refresh_options = Vec::new();
-
-        let mut other_os: HashMap<&Path, AlongsideData> = HashMap::new();
+        let mut alongside_options = Vec::new();
 
         let recovery_option = detect_recovery();
 
@@ -48,16 +45,17 @@ impl InstallOptions {
             let mut check_partition = |part: &PartitionInfo| -> Option<OS> {
                 if part.is_linux_compatible() {
                     if let Some(os) = part.probe_os() {
-                        if let OS::Linux { ref info, ref home, ref efi, ref recovery } = os {
+                        if let OS::Linux { ref info, ref partitions, ref targets } = os {
+                            let home = targets.iter().position(|t| t == Path::new("/home"));
+                            let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
+                            let recovery = targets.iter().position(|t| t == Path::new("/recovery"));
                             refresh_options.push(RefreshOption {
-                                os_name:        info.name.clone(),
-                                os_pretty_name: info.pretty_name.clone(),
-                                os_version:     info.version.clone(),
+                                os_release:     info.clone(),
                                 root_part:      PartitionID::get_uuid(part.get_device_path())
                                     .expect("root device did not have uuid").id,
-                                home_part:      home.clone(),
-                                efi_part:       efi.clone(),
-                                recovery_part:  recovery.clone(),
+                                home_part:      home.map(|pos| partitions[pos].clone()),
+                                efi_part:       efi.map(|pos| partitions[pos].clone()),
+                                recovery_part:  recovery.map(|pos| partitions[pos].clone()),
                                 can_retain_old: if let Ok(used) = part.sectors_used() {
                                      part.get_sectors() - used > required_space
                                 } else {
@@ -114,62 +112,45 @@ impl InstallOptions {
                     },
                 });
 
-                let mut last_end_sector = 0;
-                let mut best_free_region = Region::new(0, 0);
+                let mut last_end_sector = 1024;
 
                 for part in device.get_partitions() {
-                    if let Some(os) = check_partition(part) {
-                        match other_os.entry(device.get_device_path()) {
-                            Entry::Occupied(mut entry) => entry.get_mut().systems.push(os),
-                            Entry::Vacant(entry) => {
-                                entry.insert(AlongsideData {
-                                    systems: vec![os],
-                                    largest_partition: -1,
-                                    sectors_free: 0,
-                                    best_free_region: Region::new(0, 0)
-                                });
-                            }
-                        }
-                    }
-
-                    best_free_region.compare(last_end_sector, part.start_sector);
-                    last_end_sector = part.end_sector;
-
                     if let Ok(used) = part.sectors_used() {
-                        let free = part.get_sectors() - used;
-                        let num = part.number;
-                        match other_os.entry(device.get_device_path()) {
-                            Entry::Occupied(mut entry) => {
-                                let entry = entry.get_mut();
-                                if entry.sectors_free < free {
-                                    entry.largest_partition = num;
-                                    entry.sectors_free = free;
-                                }
-                            }
-                            Entry::Vacant(entry) => {
-                                entry.insert(AlongsideData {
-                                    systems: Vec::new(),
-                                    largest_partition: num,
+                        let sectors = part.get_sectors();
+                        let free = sectors - used;
+                        if required_space + shrink_overhead < free {
+                            let os = check_partition(part);
+                            alongside_options.push(AlongsideOption {
+                                device: device.get_device_path().to_path_buf(),
+                                alongside: os,
+                                method: AlongsideMethod::Shrink {
+                                    path: part.get_device_path().to_path_buf(),
+                                    partition: part.number,
                                     sectors_free: free,
-                                    best_free_region: Region::new(0, 0),
-                                });
-                            }
+                                    sectors_total: sectors
+                                }
+                            });
                         }
                     }
+
+                    if required_space < part.start_sector - last_end_sector {
+                        alongside_options.push(AlongsideOption {
+                            device: device.get_device_path().to_path_buf(),
+                            alongside: None,
+                            method: AlongsideMethod::Free(Region::new(last_end_sector + 1, part.start_sector - 1))
+                        })
+                    }
+
+                    last_end_sector = part.end_sector;
                 }
 
-                match other_os.entry(device.get_device_path()) {
-                    Entry::Occupied(mut entry) => {
-                        entry.get_mut().best_free_region = best_free_region;
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(AlongsideData {
-                            systems: Vec::new(),
-                            largest_partition: -1,
-                            sectors_free: 0,
-                            best_free_region,
-                        });
-                    }
+                let last_sector = device.get_sectors () - 2048;
+                if required_space < last_sector - last_end_sector {
+                    alongside_options.push(AlongsideOption {
+                        device: device.get_device_path().to_path_buf(),
+                        alongside: None,
+                        method: AlongsideMethod::Free(Region::new(last_end_sector + 1, last_end_sector))
+                    })
                 }
             }
 
@@ -177,28 +158,6 @@ impl InstallOptions {
                 for part in device.get_partitions() {
                     check_partition(part);
                 }
-            }
-        }
-
-        let mut alongside_options = Vec::new();
-        for (device, data) in other_os {
-            if required_space < data.sectors_free && ! data.systems.is_empty() {
-                alongside_options.push(AlongsideOption {
-                    device: device.to_path_buf(),
-                    alongside: data.systems[0].clone(),
-                    method: AlongsideMethod::Shrink {
-                        partition: data.largest_partition,
-                        sectors_free: data.sectors_free,
-                    }
-                });
-            }
-
-            if required_space < data.best_free_region.size() && ! data.systems.is_empty() {
-                alongside_options.push(AlongsideOption {
-                    device: device.to_path_buf(),
-                    alongside: data.systems[0].clone(),
-                    method: AlongsideMethod::Free(data.best_free_region)
-                });
             }
         }
 
@@ -213,6 +172,8 @@ impl InstallOptions {
 
 #[derive(Debug, Fail)]
 pub enum InstallOptionError {
+    #[fail(display = "partition ID ({:?}) was not found", id)]
+    PartitionIDNotFound { id: PartitionID },
     #[fail(display = "partition ({}) was not found in disks object", uuid)]
     PartitionNotFound { uuid: String },
     #[fail(display = "partition {} was not found in {:?}", number, device)]
@@ -229,6 +190,8 @@ pub enum InstallOptionError {
     GenerateID { why: io::Error },
     #[fail(display = "recovery does not have LVM partition")]
     RecoveryNoLvm,
+    #[fail(display = "EFI partition is required, but not found on this option")]
+    RefreshWithoutEFI,
 }
 
 impl From<DiskError> for InstallOptionError {

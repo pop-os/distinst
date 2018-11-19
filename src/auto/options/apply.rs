@@ -2,7 +2,7 @@ use std::fmt;
 use std::mem;
 
 use disks::*;
-use disk_types::{PartitionExt, SectorExt};
+use disk_types::{SectorExt};
 use disk_types::FileSystem::*;
 use misc;
 use partition_identity::PartitionID;
@@ -46,10 +46,10 @@ impl<'a> fmt::Debug for InstallOption<'a> {
     }
 }
 
-fn set_mount_by_uuid(disks: &mut Disks, uuid: &str, mount: &str) -> Result<(), InstallOptionError> {
+fn set_mount_by_identity(disks: &mut Disks, id: &PartitionID, mount: &str) -> Result<(), InstallOptionError> {
     disks
-        .get_partition_by_uuid_mut(uuid.to_owned())
-        .ok_or_else(|| InstallOptionError::PartitionNotFound { uuid: uuid.to_owned() })
+        .get_partition_by_id_mut(id)
+        .ok_or_else(|| InstallOptionError::PartitionIDNotFound { id: id.clone() })
         .map(|part| {
             part.set_mount(mount.into());
             ()
@@ -144,27 +144,24 @@ fn alongside_config(
     let bootloader = Bootloader::detect();
 
     if bootloader == Bootloader::Efi {
-        let mut create_esp = false;
+        // NOTE: Logic that can enable re-using an existing EFI partition.
+        // {
+        //     let mut partitions = device.partitions.iter_mut();
+        //     match partitions.find(|p| p.is_esp_partition() && p.get_sectors() > 819_200) {
+        //         Some(esp) => esp.set_mount("/boot/efi".into()),
+        //         None => create_esp = true
+        //     }
+        // }
 
-        {
-            let mut partitions = device.partitions.iter_mut();
-            match partitions.find(|p| p.is_esp_partition() && p.get_sectors() > 819_200) {
-                Some(esp) => esp.set_mount("/boot/efi".into()),
-                None => create_esp = true
-            }
-        }
+        let esp_end = start + DEFAULT_ESP_SECTORS;
 
-        if create_esp {
-            let esp_end = start + DEFAULT_ESP_SECTORS;
+        device.add_partition(
+            PartitionBuilder::new(start, esp_end, Fat32)
+                .flag(PartitionFlag::PED_PARTITION_ESP)
+                .mount("/boot/efi".into())
+        )?;
 
-            device.add_partition(
-                PartitionBuilder::new(start, esp_end, Fat32)
-                    .flag(PartitionFlag::PED_PARTITION_ESP)
-                    .mount("/boot/efi".into())
-            )?;
-
-            start = esp_end;
-        }
+        start = esp_end;
 
         let recovery_end = start + DEFAULT_RECOVER_SECTORS;
         device.add_partition(
@@ -229,7 +226,10 @@ fn alongside_config(
                 .name("root".into())
                 .mount("/".into()),
         ).and_then(|_| {
-            lvm_device.add_partition(PartitionBuilder::new(swap, end, Swap))
+            lvm_device.add_partition(
+                PartitionBuilder::new(swap, end, Swap)
+                    .name("swap".into()),
+            )
         })?;
     }
 
@@ -239,7 +239,7 @@ fn alongside_config(
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
     {
-        let root = disks.get_partition_by_uuid_mut(option.root_part.clone()).ok_or(
+        let root = disks.get_partition_by_id_mut(&PartitionID::new_uuid(option.root_part.clone())).ok_or(
             InstallOptionError::PartitionNotFound {
                 uuid: option.root_part.clone(),
             },
@@ -248,15 +248,17 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
     }
 
     if let Some(ref home) = option.home_part.clone() {
-        set_mount_by_uuid(disks, home, "/home")?;
+        set_mount_by_identity(disks, home, "/home")?;
     }
 
     if let Some(ref efi) = option.efi_part.clone() {
-        set_mount_by_uuid(disks, efi, "/boot/efi")?;
+        set_mount_by_identity(disks, efi, "/boot/efi")?;
+    } else if Bootloader::detect() == Bootloader::Efi {
+        return Err(InstallOptionError::RefreshWithoutEFI);
     }
 
     if let Some(ref recovery) = option.recovery_part.clone() {
-        set_mount_by_uuid(disks, recovery, "/recovery")?;
+        set_mount_by_identity(disks, recovery, "/recovery")?;
     }
 
     Ok(())

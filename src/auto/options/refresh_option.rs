@@ -1,15 +1,14 @@
+use os_release::OsRelease;
 use partition_identity::PartitionID;
 use std::fmt;
 
 #[derive(Debug)]
 pub struct RefreshOption {
-    pub os_name:        String,
-    pub os_pretty_name: String,
-    pub os_version:     String,
+    pub os_release:     OsRelease,
     pub root_part:      String,
-    pub home_part:      Option<String>,
-    pub efi_part:       Option<String>,
-    pub recovery_part:  Option<String>,
+    pub home_part:      Option<PartitionID>,
+    pub efi_part:       Option<PartitionID>,
+    pub recovery_part:  Option<PartitionID>,
     pub can_retain_old: bool,
 }
 
@@ -20,6 +19,6 @@ impl fmt::Display for RefreshOption {
             None => "None".into(),
         };
 
-        write!(f, "Refresh {} on {}", self.os_name, root_part)
+        write!(f, "Refresh {} on {}", self.os_release.name, root_part)
     }
 }
