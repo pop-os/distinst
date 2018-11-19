@@ -12,7 +12,7 @@ categories = ["filesystem", "os"]
 [dependencies]
 bitflags = "1.0.4"
 derive-new = "0.5.5"
-disk-types = "0.1.0"
+disk-types = "0.1.2"
 distinst-bootloader = { path = "../bootloader" }
 distinst-disk-ops = { path = "../disk-ops" }
 distinst-external-commands = { path = "../external" }
