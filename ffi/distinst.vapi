@@ -772,6 +772,11 @@ namespace Distinst {
         public bool contains_mount (string mount, Distinst.Disks disks);
 
         /**
+         * Returns true if the device is read-only
+         */
+        public bool is_read_only ();
+
+        /**
          * Returns true if the device is a removable device.
          */
         public bool is_removable ();
