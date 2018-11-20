@@ -38,7 +38,7 @@ pbr = "1.0.1"
 [dependencies]
 cascade = "0.1.2"
 dirs = "1.0.3"
-disk-types = "0.1.0"
+disk-types = "0.1.2"
 distinst-bootloader = { path = "crates/bootloader" }
 distinst-chroot = { path = "crates/chroot" }
 distinst-disks = { path = "crates/disks" }

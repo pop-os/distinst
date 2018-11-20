@@ -112,6 +112,10 @@ impl BlockDeviceExt for Disk {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
     fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
+
+    fn is_read_only(&self) -> bool {
+        self.read_only
+    }
 }
 
 impl SectorExt for Disk {

@@ -72,10 +72,18 @@ impl InstallOptions {
             };
 
             for device in disks.get_physical_devices() {
-                let has_recovery = !Path::new("/cdrom/recovery.conf").exists()
-                    && (device.contains_mount("/", &disks) || device.contains_mount("/cdrom", &disks));
+                // A device should be ignored if it is read-oly, or happens to be mounted at
+                // either `/`, or `/cdrom`, with the exception of being in recovery mode.
+                let ignore = device.is_read_only()
+                    || (
+                        ! Path::new("/cdrom/recovery.conf").exists()
+                            && (
+                                device.contains_mount("/", &disks)
+                                || device.contains_mount("/cdrom", &disks)
+                            )
+                    );
 
-                if has_recovery {
+                if ignore {
                     continue
                 }
 

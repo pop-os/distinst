@@ -155,6 +155,16 @@ pub unsafe extern "C" fn distinst_disk_contains_mount(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disk_is_read_only(disk: *mut DistinstDisk) -> bool {
+    if null_check(disk).is_err() {
+        return false;
+    }
+
+    let disk = &mut *(disk as *mut Disk);
+    disk.is_read_only()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disk_is_removable(disk: *mut DistinstDisk) -> bool {
     if null_check(disk).is_err() {
         return false;
