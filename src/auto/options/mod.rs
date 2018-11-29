@@ -157,7 +157,7 @@ impl InstallOptions {
                     alongside_options.push(AlongsideOption {
                         device: device.get_device_path().to_path_buf(),
                         alongside: None,
-                        method: AlongsideMethod::Free(Region::new(last_end_sector + 1, last_end_sector))
+                        method: AlongsideMethod::Free(Region::new(last_end_sector + 1, last_sector))
                     })
                 }
             }
