@@ -4,6 +4,7 @@ use chroot::Chroot;
 use Config;
 use distribution;
 use envfile::EnvFile;
+use errors::IoContext;
 use external::remount_rw;
 use libc;
 use os_release::OsRelease;
@@ -294,10 +295,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(75);
 
-        chroot.bootloader().map_err(|why| io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed to install bootloader: {}", why)
-        ))?;
+        chroot.bootloader().with_context(|why| format!("failed to install bootloader: {}", why))?;
 
         callback(80);
 
@@ -305,10 +303,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             chroot.disable_nvidia();
         }
 
-        chroot.keyboard_layout(config).map_err(|why| io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed to set keyboard layout: {}", why)
-        ))?;
+        chroot.keyboard_layout(config).with_context(|why| format!("failed to set keyboard layout: {}", why))?;
         callback(85);
 
         chroot.update_initramfs()?;

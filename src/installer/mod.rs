@@ -116,10 +116,7 @@ impl Installer {
     pub fn disks(&self) -> io::Result<Disks> {
         info!("probing disks on system");
         Disks::probe_devices()
-            .map_err(|err| io::Error::new(
-                io::ErrorKind::Other,
-                format!("disk probing error: {}", err)
-            ))
+            .with_context(|err| format!("disk probing error: {}", err))
     }
 
     /// The user will use this method to hand off installation tasks to distinst.
@@ -401,10 +398,7 @@ impl Installer {
         let mount_dir = mount_dir.as_ref();
         squashfs::extract(squashfs, mount_dir, callback)?;
         OsRelease::new_from(&mount_dir.join("etc/os-release"))
-            .map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to parse /etc/os-release from extracted image: {}", why)
-            ))
+            .with_context(|why| format!("failed to parse /etc/os-release from extracted image: {}", why))
     }
 
     /// Configures the new install after it has been extracted.
