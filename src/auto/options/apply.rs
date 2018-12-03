@@ -259,16 +259,8 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
 
     if let Some(ref recovery) = option.recovery_part.clone() {
         if let Some(path) = recovery.get_device_path() {
-            let mut recovery_is_root = false;
-
-            let mounts = MountIter::new().map_err(|why| InstallOptionError::ProcMounts { why })?;
-            for mount in mounts {
-                let mount = mount.map_err(|why| InstallOptionError::ProcMounts { why })?;
-                if &mount.dest == &Path::new("/") {
-                    recovery_is_root = mount.source == path;
-                    break
-                }
-            }
+            let recovery_is_root = MountIter::source_mounted_at(path, "/")
+                .map_err(|why| InstallOptionError::ProcMounts { why })?;
 
             if ! recovery_is_root {
                 set_mount_by_identity(disks, recovery, "/recovery")?;
