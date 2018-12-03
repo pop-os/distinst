@@ -6,6 +6,7 @@ use disk_types::{SectorExt};
 use disk_types::FileSystem::*;
 use misc;
 use partition_identity::PartitionID;
+use proc_mounts::MountIter;
 use super::{AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
 use super::super::super::*;
 use external::generate_unique_id;
@@ -52,7 +53,6 @@ fn set_mount_by_identity(disks: &mut Disks, id: &PartitionID, mount: &str) -> Re
         .ok_or_else(|| InstallOptionError::PartitionIDNotFound { id: id.clone() })
         .map(|part| {
             part.set_mount(mount.into());
-            ()
         })
 }
 
@@ -258,7 +258,22 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
     }
 
     if let Some(ref recovery) = option.recovery_part.clone() {
-        set_mount_by_identity(disks, recovery, "/recovery")?;
+        if let Some(path) = recovery.get_device_path() {
+            let mut recovery_is_root = false;
+
+            let mounts = MountIter::new().map_err(|why| InstallOptionError::ProcMounts { why })?;
+            for mount in mounts {
+                let mount = mount.map_err(|why| InstallOptionError::ProcMounts { why })?;
+                if &mount.dest == &Path::new("/") {
+                    recovery_is_root = mount.source == path;
+                    break
+                }
+            }
+
+            if ! recovery_is_root {
+                set_mount_by_identity(disks, recovery, "/recovery")?;
+            }
+        }
     }
 
     Ok(())

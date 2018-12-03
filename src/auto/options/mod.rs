@@ -200,6 +200,8 @@ pub enum InstallOptionError {
     RecoveryNoLvm,
     #[fail(display = "EFI partition is required, but not found on this option")]
     RefreshWithoutEFI,
+    #[fail(display = "Failed to retrieve list of mounts from /proc/mounts: {}", why)]
+    ProcMounts { why: io::Error }
 }
 
 impl From<DiskError> for InstallOptionError {
