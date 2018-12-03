@@ -259,7 +259,7 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
 
     if let Some(ref recovery) = option.recovery_part.clone() {
         if let Some(path) = recovery.get_device_path() {
-            let recovery_is_root = MountIter::source_mounted_at(path, "/")
+            let recovery_is_root = MountIter::source_mounted_at(path, "/cdrom")
                 .map_err(|why| InstallOptionError::ProcMounts { why })?;
 
             if ! recovery_is_root {
