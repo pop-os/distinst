@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use tempdir::TempDir;
 use timezones::Region;
+use errors::IoContext;
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
@@ -141,21 +142,29 @@ impl Installer {
             }
 
             let bootloader = Bootloader::detect();
-            disks.verify_partitions(bootloader)?;
+            disks.verify_partitions(bootloader)
+                .with_context(|err| format!("partition validation: {}", err))?;
 
             let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
                 Installer::initialize(&mut disks, config, percent!(steps))
+                    .with_context(|err| format!("initializing step: {}", err))
             })?;
 
             steps.apply(Step::Partition, "partitioning", |steps| {
                 Installer::partition(&mut disks, percent!(steps))
+                    .with_context(|err| format!("partitioning step: {}", err))
             })?;
 
             // Mount the temporary directory, and all of our mount targets.
             info!("mounting temporary chroot directory at {}", Self::CHROOT_ROOT);
 
-            let mount_dir = TempDir::new(Self::CHROOT_ROOT)?;
-            let mut mounts = disks.mount_all_targets(mount_dir.path())?;
+            let mount_dir = TempDir::new(Self::CHROOT_ROOT)
+                .with_context(|err| format!("chroot root temp mount: {}", err))?;
+
+            info!("mounting all targets to the temporary chroot");
+
+            let mut mounts = disks.mount_all_targets(mount_dir.path())
+                .with_context(|err| format!("mounting all targets: {}", err))?;
 
             if PARTITIONING_TEST.load(Ordering::SeqCst) {
                 info!("PARTITION_TEST enabled: exiting before unsquashing");
@@ -164,6 +173,7 @@ impl Installer {
 
             let iso_os_release = steps.apply(Step::Extract, "extracting", |steps| {
                 Installer::extract(squashfs.as_path(), mount_dir.path(), percent!(steps))
+                    .with_context(|err| format!("extraction step: {}", err))
             })?;
 
             let timezone = steps.installer.timezone_cb.as_mut().map(|func| func());
@@ -179,7 +189,7 @@ impl Installer {
                     user.as_ref(),
                     &remove_pkgs,
                     percent!(steps),
-                )
+                ).with_context(|err| format!("chroot configuration: {}", err))
             })?;
 
             steps.apply(Step::Bootloader, "configuring bootloader", |steps| {
@@ -190,11 +200,11 @@ impl Installer {
                     &config,
                     &iso_os_release,
                     percent!(steps)
-                )
+                ).with_context(|err| format!("bootloader configuration: {}", err))
             })?;
 
-            mounts.unmount(false)?;
-            mount_dir.close()
+            mounts.unmount(false).with_context(|err| format!("chroot unmount: {}", err))?;
+            mount_dir.close().with_context(|err| format!("closing mount directory: {}", err))
         })?;
 
         let _ = deactivate_logical_devices();

@@ -50,6 +50,7 @@ mod distribution;
 mod installer;
 mod logging;
 pub mod auto;
+pub(crate) mod errors;
 
 /// Useful DBus interfaces for installers to implement.
 pub mod dbus_interfaces {
