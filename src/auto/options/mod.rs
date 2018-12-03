@@ -72,53 +72,9 @@ impl InstallOptions {
             };
 
             for device in disks.get_physical_devices() {
-                // A device should be ignored if it is read-oly, or happens to be mounted at
-                // either `/`, or `/cdrom`, with the exception of being in recovery mode.
-                let ignore = device.is_read_only()
-                    || (
-                        ! Path::new("/cdrom/recovery.conf").exists()
-                            && (
-                                device.contains_mount("/", &disks)
-                                || device.contains_mount("/cdrom", &disks)
-                            )
-                    );
-
-                if ignore {
+                if device.is_read_only() || device.contains_mount("/", &disks) {
                     continue
                 }
-
-                let sectors = device.get_sectors();
-                erase_options.push(EraseOption {
-                    device: device.get_device_path().to_path_buf(),
-                    model: {
-                        let model = device.get_model();
-                        if model.is_empty() {
-                            device.get_serial().replace("_", " ")
-                        } else {
-                            model.into()
-                        }
-                    },
-                    sectors,
-                    flags: {
-                        let mut flags = if device.is_removable() {
-                            IS_REMOVABLE
-                        } else {
-                            0
-                        };
-                        flags |= if device.is_rotational() {
-                            IS_ROTATIONAL
-                        } else {
-                            0
-                        };
-
-                        flags |= if sectors >= required_space || required_space == 0 {
-                            MEETS_REQUIREMENTS
-                        } else {
-                            0
-                        };
-                        flags
-                    },
-                });
 
                 let mut last_end_sector = 1024;
 
@@ -160,6 +116,49 @@ impl InstallOptions {
                         method: AlongsideMethod::Free(Region::new(last_end_sector + 1, last_sector))
                     })
                 }
+
+                let skip = ! Path::new("/cdrom/recovery.conf").exists()
+                    && (
+                        device.contains_mount("/", &disks)
+                        || device.contains_mount("/cdrom", &disks)
+                    );
+
+                if skip {
+                    continue
+                }
+
+                let sectors = device.get_sectors();
+                erase_options.push(EraseOption {
+                    device: device.get_device_path().to_path_buf(),
+                    model: {
+                        let model = device.get_model();
+                        if model.is_empty() {
+                            device.get_serial().replace("_", " ")
+                        } else {
+                            model.into()
+                        }
+                    },
+                    sectors,
+                    flags: {
+                        let mut flags = if device.is_removable() {
+                            IS_REMOVABLE
+                        } else {
+                            0
+                        };
+                        flags |= if device.is_rotational() {
+                            IS_ROTATIONAL
+                        } else {
+                            0
+                        };
+
+                        flags |= if sectors >= required_space || required_space == 0 {
+                            MEETS_REQUIREMENTS
+                        } else {
+                            0
+                        };
+                        flags
+                    },
+                });
             }
 
             for device in disks.get_logical_devices() {
