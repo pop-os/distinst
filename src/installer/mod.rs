@@ -144,12 +144,10 @@ impl Installer {
 
             let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
                 Installer::initialize(&mut disks, config, percent!(steps))
-                    .with_context(|err| format!("initializing step: {}", err))
             })?;
 
             steps.apply(Step::Partition, "partitioning", |steps| {
                 Installer::partition(&mut disks, percent!(steps))
-                    .with_context(|err| format!("partitioning step: {}", err))
             })?;
 
             // Mount the temporary directory, and all of our mount targets.
@@ -170,7 +168,6 @@ impl Installer {
 
             let iso_os_release = steps.apply(Step::Extract, "extracting", |steps| {
                 Installer::extract(squashfs.as_path(), mount_dir.path(), percent!(steps))
-                    .with_context(|err| format!("extraction step: {}", err))
             })?;
 
             let timezone = steps.installer.timezone_cb.as_mut().map(|func| func());
@@ -186,7 +183,7 @@ impl Installer {
                     user.as_ref(),
                     &remove_pkgs,
                     percent!(steps),
-                ).with_context(|err| format!("chroot configuration: {}", err))
+                )
             })?;
 
             steps.apply(Step::Bootloader, "configuring bootloader", |steps| {
@@ -197,7 +194,7 @@ impl Installer {
                     &config,
                     &iso_os_release,
                     percent!(steps)
-                ).with_context(|err| format!("bootloader configuration: {}", err))
+                )
             })?;
 
             mounts.unmount(false).with_context(|err| format!("chroot unmount: {}", err))?;

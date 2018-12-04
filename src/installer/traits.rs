@@ -1,6 +1,7 @@
 use disk_types::{BlockDeviceExt, FileSystem, PartitionExt};
 use disks::{Disks, PartitionInfo};
 use external::generate_unique_id;
+use errors::IntoIoResult;
 use fstab_generate::BlockInfo;
 use misc::hasher;
 use partition_identity::PartitionID;
@@ -79,7 +80,7 @@ impl InstallerDiskOps for Disks {
                         crypttab.push(" luks\n");
                         write_fstab(&mut fstab, &partition);
                     }
-                    None => error!(
+                    None => warn!(
                         "unable to find UUID for {} -- skipping",
                         partition.get_device_path().display()
                     ),
@@ -106,7 +107,7 @@ impl InstallerDiskOps for Disks {
                                 "  none  swap  defaults  0  0\n",
                             ].concat());
                         }
-                        None => error!(
+                        None => warn!(
                             "unable to find UUID for {} -- skipping",
                             partition.get_device_path().display()
                         ),
@@ -139,10 +140,7 @@ impl InstallerDiskOps for Disks {
         self.get_partitions()
             .filter_map(|part| part.get_block_info())
             .find(|entry| entry.mount() == "/")
-            .ok_or_else(|| io::Error::new(
-                io::ErrorKind::Other,
-                "root partition not found",
-            ))
+            .into_io_result(|| "root partition not found")
     }
 
     fn get_support_flags(&self) -> FileSystemSupport {

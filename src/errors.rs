@@ -1,7 +1,27 @@
 use std::io;
+use std::error::Error;
 use std::fmt::Display;
 use disks::DiskError;
 
+/// Extends `Option<T>` to be converted into an `io::Result<T>`.
+pub trait IntoIoResult<T> {
+    fn into_io_result<E, F>(self, error: F) -> io::Result<T>
+    where E: Into<Box<Error + Send + Sync>>,
+          F: FnMut() -> E;
+}
+
+impl<T> IntoIoResult<T> for Option<T> {
+    fn into_io_result<E, F>(self, mut error: F) -> io::Result<T>
+    where E: Into<Box<Error + Send + Sync>>,
+          F: FnMut() -> E
+    {
+        self.ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, error())
+        })
+    }
+}
+
+/// Extends `io::Result<T>` to enable supplying additional context to an I/O error.
 pub trait IoContext<T> {
     fn with_context<F: FnMut(Box<Display>) -> String>(self, func: F) -> io::Result<T>;
 }
