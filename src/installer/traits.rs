@@ -16,7 +16,7 @@ pub trait InstallerDiskOps: Sync {
     fn generate_fstabs(&self) -> (OsString, OsString);
 
     /// Find the root partition's block info from this disks object.
-    fn get_root_block_info(&self) -> io::Result<BlockInfo>;
+    fn get_block_info_of(&self, mount: &str) -> io::Result<BlockInfo>;
 
     /// Reports file systems that need to be supported in the install.
     fn get_support_flags(&self) -> FileSystemSupport;
@@ -136,10 +136,10 @@ impl InstallerDiskOps for Disks {
         (crypttab, fstab)
     }
 
-    fn get_root_block_info(&self) -> io::Result<BlockInfo> {
+    fn get_block_info_of(&self, path: &str) -> io::Result<BlockInfo> {
         self.get_partitions()
             .filter_map(|part| part.get_block_info())
-            .find(|entry| entry.mount() == "/")
+            .find(|entry| entry.mount() == path)
             .into_io_result(|| "root partition not found")
     }
 

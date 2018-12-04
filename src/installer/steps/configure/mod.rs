@@ -163,8 +163,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(15);
 
-        info!("retrieving root partition");
-        let root_entry = disks.get_root_block_info()?;
+        let root_entry = disks.get_block_info_of("/")?;
+        let recovery_entry = disks.get_block_info_of("/recovery");
 
         callback(20);
 
@@ -177,6 +177,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         let root_uuid = &root_entry.uid;
         update_recovery_config(&mount_dir, &root_uuid.id, luks_uuid.as_ref().map(|x| x.id.as_str()))?;
+
         callback(30);
 
         let (retain, lang_output) = rayon::join(
@@ -338,7 +339,7 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
             .with_context(|err| format!("error reading dir at {:?}: {}", efi_path, err))?;
 
         for directory in readdir {
-            let entry = directory?;
+            let entry = directory.with_context(|err| format!("bad entry in {:?}: {}", efi_path, err))?;
             let full_path = entry.path();
             if let Some(path) = entry.file_name().to_str() {
                 if path.ends_with(uuid) {
@@ -353,7 +354,7 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
     }
 
     let recovery_path = Path::new("/cdrom/recovery.conf");
-    if recovery_path.exists() {
+    if recovery_path.exists()  {
         let recovery_conf = &mut EnvFile::new(recovery_path).with_context(|err| {
             format!("error parsing envfile at {:?}: {}", recovery_path, err)
         })?;
@@ -368,10 +369,14 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
                 recovery_conf.get("ROOT_UUID")
                     .into_io_result(|| "no ROOT_UUID found in /cdrom/recovery.conf")
             })
-            .and_then(|old_uuid| {
-                remove_boot(mount, old_uuid).with_context(|err| {
+            .map(|old_uuid| {
+                let res = remove_boot(mount, old_uuid).with_context(|err| {
                     format!("unable to remove an older boot from recovery.conf: {}", err)
-                })
+                });
+
+                if let Err(why) = res {
+                    warn!("{}", why);
+                }
             })
             .and_then(|_| {
                 recovery_conf.update("ROOT_UUID", root_uuid);

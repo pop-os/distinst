@@ -276,6 +276,14 @@ impl<'a> ChrootConfigurator<'a> {
             .run_with_stdout()?;
         let cdrom_uuid = cdrom_uuid.trim();
 
+        let casper_data_: String;
+        let casper_data: &str = if Path::new("/cdrom/recovery.conf").exists() {
+            casper_data_ = ["/cdrom/casper-", cdrom_uuid, "/"].concat();
+            &casper_data_
+        } else {
+            "/cdrom/casper/"
+        };
+
         let casper = ["casper-", &recovery_uuid.id].concat();
         let recovery = ["Recovery-", &recovery_uuid.id].concat();
         if recovery_uuid.id != cdrom_uuid {
@@ -284,7 +292,7 @@ impl<'a> ChrootConfigurator<'a> {
             ]).run()?;
 
             self.chroot.command("rsync", &[
-                "-KLavc", "/cdrom/casper/", &["/recovery/", &casper].concat()
+                "-KLavc", casper_data, &["/recovery/", &casper].concat()
             ]).run()?;
         }
 
@@ -324,8 +332,8 @@ OEM_MODE=0
         fs::create_dir_all(self.chroot.path.join(efi_recovery))
             .with_context(|err| format!("failed to create EFI recovery directories: {}", err))?;
 
-        misc::cp("/cdrom/casper/initrd.gz", &efi_initrd)?;
-        misc::cp("/cdrom/casper/vmlinuz.efi", &efi_vmlinuz)?;
+        misc::cp(&[casper_data, "initrd.gz"].concat(), &efi_initrd)?;
+        misc::cp(&[casper_data, "vmlinuz.efi"].concat(), &efi_vmlinuz)?;
 
         let rec_entry_data = format!(r#"title {0} recovery
 linux /EFI/{1}/vmlinuz.efi
