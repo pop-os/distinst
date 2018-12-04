@@ -1,0 +1,5 @@
+language: rust
+rust: 1.24.1
+before_script:
+  - apt install -qq clang gettext libdbus-1-dev libparted-dev
+script: make tests
