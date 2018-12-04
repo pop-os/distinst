@@ -82,8 +82,8 @@ impl InstallOptions {
                     if let Ok(used) = part.sectors_used() {
                         let sectors = part.get_sectors();
                         let free = sectors - used;
+                        let os = check_partition(part);
                         if required_space + shrink_overhead < free {
-                            let os = check_partition(part);
                             alongside_options.push(AlongsideOption {
                                 device: device.get_device_path().to_path_buf(),
                                 alongside: os,

@@ -238,14 +238,8 @@ fn alongside_config(
 
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
-    {
-        let root = disks.get_partition_by_id_mut(&PartitionID::new_uuid(option.root_part.clone())).ok_or(
-            InstallOptionError::PartitionNotFound {
-                uuid: option.root_part.clone(),
-            },
-        )?;
-        root.set_mount("/".into());
-    }
+    info!("applying refresh install config");
+    set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_part.clone()), "/")?;
 
     if let Some(ref home) = option.home_part.clone() {
         set_mount_by_identity(disks, home, "/home")?;

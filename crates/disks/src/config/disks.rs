@@ -49,7 +49,7 @@ impl Disks {
             }
         }
 
-        remove.into_iter().for_each(|id| {
+        remove.into_iter().rev().for_each(|id| {
             self.physical.remove(id);
         });
     }
