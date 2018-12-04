@@ -122,7 +122,7 @@ pub fn resize_partition<P: AsRef<Path>>(
     // Attempt to sync three times before returning an error.
     for attempt in 0..3 {
         ::std::thread::sleep(::std::time::Duration::from_secs(1));
-        let result = blockdev(&path, &["--flushbufs", "--rereadpt"]);
+        let result = blockdev(&path, &["--flushbufs"]);
         if result.is_err() && attempt == 2 {
             result?;
         } else {
