@@ -6,12 +6,15 @@ extern crate disk_types;
 extern crate log;
 extern crate proc_mounts;
 extern crate rand;
+#[macro_use]
+extern crate smart_default;
 extern crate sys_mount;
 extern crate tempdir;
 
 pub mod block;
 pub mod luks;
 pub mod lvm;
+pub(crate) mod retry;
 
 pub use self::block::*;
 pub use self::luks::*;

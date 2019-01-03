@@ -1,4 +1,5 @@
 use disk_types::FileSystem;
+use retry::Retry;
 use self::FileSystem::*;
 use std::io;
 use std::ffi::{OsStr, OsString};
@@ -54,7 +55,11 @@ pub fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystem> {
 /// Checks & corrects errors with partitions that have been moved / resized.
 pub fn fsck<P: AsRef<Path>>(part: P, cmd: Option<(&str, &str)>) -> io::Result<()> {
     let (cmd, arg) = cmd.unwrap_or(("fsck", "-fy"));
-    exec(cmd, None, None, &[arg.into(), part.as_ref().into()])
+
+    Retry::default()
+        .attempts(3)
+        .interval(1000)
+        .retry_until_ok(move || exec(cmd, None, None, &[arg.into(), part.as_ref().into()]))
 }
 
 /// Formats the supplied `part` device with the file system specified.
