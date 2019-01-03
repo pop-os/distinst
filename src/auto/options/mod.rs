@@ -49,6 +49,13 @@ impl InstallOptions {
                             let home = targets.iter().position(|t| t == Path::new("/home"));
                             let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
                             let recovery = targets.iter().position(|t| t == Path::new("/recovery"));
+
+                            info!(
+                                "found refresh option {}on {:?}",
+                                if efi.is_some() { "with EFI partition " } else { "" },
+                                part.get_device_path()
+                            );
+
                             refresh_options.push(RefreshOption {
                                 os_release:     info.clone(),
                                 root_part:      PartitionID::get_uuid(part.get_device_path())
@@ -84,6 +91,7 @@ impl InstallOptions {
                         let free = sectors - used;
                         let os = check_partition(part);
                         if required_space + shrink_overhead < free {
+                            info!("found shrinkable partition on {:?}: {} free of {}", part.get_device_path(), free, sectors);
                             alongside_options.push(AlongsideOption {
                                 device: device.get_device_path().to_path_buf(),
                                 alongside: os,
@@ -98,6 +106,7 @@ impl InstallOptions {
                     }
 
                     if required_space < part.start_sector - last_end_sector {
+                        info!("found free sectors on {:?}: {} - {}", device.get_device_path(), last_end_sector + 1, part.start_sector - 1);
                         alongside_options.push(AlongsideOption {
                             device: device.get_device_path().to_path_buf(),
                             alongside: None,
@@ -110,6 +119,7 @@ impl InstallOptions {
 
                 let last_sector = device.get_sectors () - 2048;
                 if required_space < last_sector - last_end_sector {
+                    info!("found free sectors at the end on {:?}: {} - {}", device.get_device_path(), last_end_sector + 1, last_sector);
                     alongside_options.push(AlongsideOption {
                         device: device.get_device_path().to_path_buf(),
                         alongside: None,
@@ -117,17 +127,18 @@ impl InstallOptions {
                     })
                 }
 
-                let skip = ! Path::new("/cdrom/recovery.conf").exists()
-                    && (
-                        device.contains_mount("/", &disks)
-                        || device.contains_mount("/cdrom", &disks)
-                    );
+                let skip = ! Path::new("/cdrom/recovery.conf").exists() && (
+                    device.contains_mount("/", &disks)
+                    || device.contains_mount("/cdrom", &disks)
+                );
 
                 if skip {
+                    info!("install options: skipping options on {:?}", device.get_device_path());
                     continue
                 }
 
                 let sectors = device.get_sectors();
+                info!("found erase option on {:?}: {} sectors", device.get_device_path(), sectors);
                 erase_options.push(EraseOption {
                     device: device.get_device_path().to_path_buf(),
                     model: {
