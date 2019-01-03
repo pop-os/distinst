@@ -229,6 +229,7 @@ impl Disks {
                 error!("unable to create '{}': {}", why, target_mount.display());
             }
 
+            info!("mounting {:?} ({}) to {:?}", device_path, filesystem, target_mount);
             mounts.push(Mount::new(
                 device_path,
                 &target_mount,
