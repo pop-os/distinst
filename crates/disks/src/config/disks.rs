@@ -180,7 +180,7 @@ impl Disks {
 
         enum MountKind {
             Direct { device: PathBuf, fs: &'static str },
-            Bind { device: PathBuf }
+            Bind { source: PathBuf }
         }
 
         // The mount path will actually consist of the target concatenated with the
@@ -204,7 +204,6 @@ impl Disks {
                     // Cut the starting '/' from the target path if it exists.
                     let target_path = target.target.as_ref().unwrap().as_os_str().as_bytes();
                     let target_path = if ! target_path.is_empty() && target_path[0] == b'/' {
-
                         if target_path.len() > 1 { &target_path[1..] } else { b"" }
                     } else {
                         target_path
@@ -217,8 +216,8 @@ impl Disks {
 
                 // If a partition is already mounted, we should perform a bind mount.
                 // If it is not mounted, we can mount it directly.
-                let kind = if target.mount_point.is_some() {
-                    MountKind::Bind { device: target.device_path.clone() }
+                let kind = if let Some(source) = target.mount_point.clone() {
+                    MountKind::Bind { source }
                 } else {
                     let fs = match target.filesystem.unwrap() {
                         FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
@@ -227,7 +226,6 @@ impl Disks {
 
                     MountKind::Direct { device: target.device_path.clone(), fs }
                 };
-
                 (target_mount, kind)
             })
             .collect();
@@ -248,12 +246,11 @@ impl Disks {
                     info!("mounting {:?} ({}) to {:?}", device, fs, target_mount);
                     Mount::new(device, &target_mount, fs, MountFlags::empty(), None)?
                 }
-                MountKind::Bind { device } => {
-                    info!("bind mounting {:?} to {:?}", device, target_mount);
-                    Mount::new(device, &target_mount, "", MountFlags::BIND, None)?
+                MountKind::Bind { source } => {
+                    info!("bind mounting {:?} to {:?}", source, target_mount);
+                    Mount::new(source, &target_mount, "", MountFlags::BIND, None)?
                 }
             };
-
 
             mounts.push(mount.into_unmount_drop(UnmountFlags::DETACH));
         }

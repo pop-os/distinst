@@ -9,7 +9,7 @@ use partition_identity::PartitionID;
 use proc_mounts::MountIter;
 use super::{AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
 use super::super::super::*;
-use external::generate_unique_id;
+use external::{generate_unique_id, remount_rw};
 
 pub enum InstallOption<'a> {
     Alongside {
@@ -253,12 +253,15 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
 
     if let Some(ref recovery) = option.recovery_part.clone() {
         if let Some(path) = recovery.get_device_path() {
-            let recovery_is_root = MountIter::source_mounted_at(path, "/cdrom")
+            let recovery_is_cdrom = MountIter::source_mounted_at(path, "/cdrom")
                 .map_err(|why| InstallOptionError::ProcMounts { why })?;
 
-            if ! recovery_is_root {
-                set_mount_by_identity(disks, recovery, "/recovery")?;
+            if recovery_is_cdrom {
+                info!("remounting /cdrom as rewriteable");
+                remount_rw("/cdrom").map_err(InstallOptionError::RemountCdrom)?;
             }
+
+            set_mount_by_identity(disks, recovery, "/recovery")?;
         }
     }
 

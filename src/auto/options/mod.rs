@@ -210,8 +210,10 @@ pub enum InstallOptionError {
     RecoveryNoLvm,
     #[fail(display = "EFI partition is required, but not found on this option")]
     RefreshWithoutEFI,
-    #[fail(display = "Failed to retrieve list of mounts from /proc/mounts: {}", why)]
-    ProcMounts { why: io::Error }
+    #[fail(display = "failed to retrieve list of mounts from /proc/mounts: {}", why)]
+    ProcMounts { why: io::Error },
+    #[fail(display = "could not remount /cdrom as rewriteable: {}", _0)]
+    RemountCdrom(io::Error)
 }
 
 impl From<DiskError> for InstallOptionError {

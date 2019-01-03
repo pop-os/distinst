@@ -8,10 +8,10 @@ pub fn log<F: Fn(Level, &str) + Send + Sync + 'static>(
     callback: F,
 ) -> Result<(), fern::InitError> {
     fern::Dispatch::new()
-        // Exclude logs for crates that we use
-        .level(LevelFilter::Off)
-        // Include logs for distinst
-        .level_for("distinst", LevelFilter::Debug)
+        // Include logs for crates that we use.
+        .level(LevelFilter::Debug)
+        // Exclude logs for crates which we don't care to log.
+        .level_for("serde_xml_rs", LevelFilter::Off)
         // This will be used by the front end for display logs in a UI
         .chain(fern::Output::call(move |record| {
             callback(record.level(), &format!("{}", record.args()))
