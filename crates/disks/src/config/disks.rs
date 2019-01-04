@@ -49,7 +49,7 @@ impl Disks {
             }
         }
 
-        remove.into_iter().for_each(|id| {
+        remove.into_iter().rev().for_each(|id| {
             self.physical.remove(id);
         });
     }
@@ -178,9 +178,14 @@ impl Disks {
         let targets = self.get_partitions()
             .filter(|part| part.target.is_some() && part.filesystem.is_some());
 
+        enum MountKind {
+            Direct { device: PathBuf, fs: &'static str },
+            Bind { source: PathBuf }
+        }
+
         // The mount path will actually consist of the target concatenated with the
         // root. NOTE: It is assumed that the target is an absolute path.
-        let paths: BTreeMap<PathBuf, (PathBuf, &'static str)> = targets
+        let paths: BTreeMap<PathBuf, MountKind> = targets
             .map(|target| {
                 // Path mangling commences here, since we need to concatenate an absolute
                 // path onto another absolute path, and the standard library opts for
@@ -209,12 +214,19 @@ impl Disks {
                     PathBuf::from(OsString::from_vec(target_mount))
                 };
 
-                let fs = match target.filesystem.unwrap() {
-                    FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
-                    fs => fs.into(),
-                };
+                // If a partition is already mounted, we should perform a bind mount.
+                // If it is not mounted, we can mount it directly.
+                let kind = if let Some(source) = target.mount_point.clone() {
+                    MountKind::Bind { source }
+                } else {
+                    let fs = match target.filesystem.unwrap() {
+                        FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
+                        fs => fs.into(),
+                    };
 
-                (target_mount, (target.device_path.clone(), fs))
+                    MountKind::Direct { device: target.device_path.clone(), fs }
+                };
+                (target_mount, kind)
             })
             .collect();
 
@@ -224,18 +236,23 @@ impl Disks {
         // the correct order.
         let mut mounts = Vec::new();
 
-        for (target_mount, (device_path, filesystem)) in paths {
+        for (target_mount, kind) in paths {
             if let Err(why) = fs::create_dir_all(&target_mount) {
                 error!("unable to create '{}': {}", why, target_mount.display());
             }
 
-            mounts.push(Mount::new(
-                device_path,
-                &target_mount,
-                filesystem,
-                MountFlags::empty(),
-                None,
-            )?.into_unmount_drop(UnmountFlags::DETACH));
+            let mount = match kind {
+                MountKind::Direct { device, fs } => {
+                    info!("mounting {:?} ({}) to {:?}", device, fs, target_mount);
+                    Mount::new(device, &target_mount, fs, MountFlags::empty(), None)?
+                }
+                MountKind::Bind { source } => {
+                    info!("bind mounting {:?} to {:?}", source, target_mount);
+                    Mount::new(source, &target_mount, "", MountFlags::BIND, None)?
+                }
+            };
+
+            mounts.push(mount.into_unmount_drop(UnmountFlags::DETACH));
         }
 
         Ok(Mounts(mounts))
