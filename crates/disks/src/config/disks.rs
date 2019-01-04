@@ -566,6 +566,84 @@ impl Disks {
         Ok(disks)
     }
 
+    /// Locate a partition which contains the given file.
+    ///
+    /// ```rust
+    /// extern crate disk_types;
+    /// use disk_types::FileSystem;
+    ///
+    /// Disks::probe_for(
+    ///     "recovery.conf",
+    ///     "/recovery",
+    ///     |fs| fs == Fat16 || fs == Fat32,
+    ///     |recovery_path| {
+    ///         let mut file = File::open(recovery_path)?;
+    ///         let mut output = String::new();
+    ///         file.read_to_end(&mut output)?;
+    ///
+    ///         println!("Found recovery.conf at {:?}:\n\n{}", recovery_path, output);
+    ///         Ok(())
+    ///     }
+    /// )
+    /// ```
+    pub fn probe_for<T, P, F, E, S>(
+        file: P,
+        expected_at: E,
+        mut supported: S,
+        mut func: F
+    ) -> io::Result<T>
+    where P: AsRef<Path>,
+          E: AsRef<Path>,
+          S: FnMut(FileSystem) -> bool,
+          F: FnMut(&Path) -> T
+    {
+        let disks = Disks::probe_devices()?;
+        let expected_at = expected_at.as_ref();
+        let file = file.as_ref();
+
+        // Check partitions which have already been mounted first.
+        for partition in disks.get_physical_partitions() {
+            match partition.mount_point {
+                Some(ref path) if path == expected_at => return Ok(func(path)),
+                Some(_) => continue,
+                None => (),
+            }
+        }
+
+        // Then check partitions which have not been mounted yet.
+        for partition in disks.get_physical_partitions() {
+            if partition.mount_point.is_some() {
+                continue;
+            }
+
+            let has_filesystem = match partition.filesystem {
+                Some(fs) => supported(fs),
+                None => false
+            };
+
+            if has_filesystem {
+                let result = partition.probe(|mount| {
+                    mount.and_then(|(path, _mount)| {
+                        if path.join(file).exists() {
+                            Some(func(path))
+                        } else {
+                            None
+                        }
+                    })
+                });
+
+                if let Some(result) = result {
+                    return Ok(result);
+                }
+            }
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "partition was not found",
+        ))
+    }
+
     /// Returns an immutable reference to the disk specified by its path, if it
     /// exists.
     pub fn find_disk<P: AsRef<Path>>(&self, path: P) -> Option<&Disk> {
