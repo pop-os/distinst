@@ -262,10 +262,11 @@ impl<'a> ChrootConfigurator<'a> {
         let efi_mount = mounts.get_mount_by_dest(&efi_path)
             .expect("efi is mount not associated with block device");
 
-        let recovery_partuuid = PartitionID::get_partuuid(&recovery_mount.source)
-            .expect("/recovery does not have a PartUUID");
         let efi_partuuid = PartitionID::get_partuuid(&efi_mount.source)
             .expect("efi partiton does not have a PartUUID");
+
+        let recovery_partuuid = PartitionID::get_partuuid(&recovery_mount.source)
+            .expect("/recovery does not have a PartUUID");
 
         let recovery_uuid = PartitionID::get_uuid(&recovery_mount.source)
             .or_else(|| PartitionID::get_uuid(&efi_mount.source))
@@ -275,6 +276,11 @@ impl<'a> ChrootConfigurator<'a> {
             .args(&["-n", "-o", "UUID", "/cdrom"])
             .run_with_stdout()?;
         let cdrom_uuid = cdrom_uuid.trim();
+
+        // If we are installing from the recovery partition, then we can skip this step.
+        if recovery_uuid.id == cdrom_uuid {
+            return Ok(());
+        }
 
         let casper_data_: String;
         let casper_data: &str = if Path::new("/cdrom/recovery.conf").exists() {
