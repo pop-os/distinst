@@ -323,7 +323,8 @@ fn recovery_config(
                 .get_partitions_mut()
                 .iter_mut()
                 .find(|d| d.get_device_path() == path)
-                .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.clone() })?;
+                .ok_or(InstallOptionError::PartitionNotFound { uuid: uuid.clone() })?
+                .set_mount("/recovery".into());
         }
 
         let (start, end);
