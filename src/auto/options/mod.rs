@@ -125,7 +125,7 @@ impl InstallOptions {
                 }
 
                 let last_sector = device.get_sectors () - 2048;
-                if required_space < last_sector - last_end_sector {
+                if last_sector > last_end_sector && required_space < last_sector - last_end_sector {
                     info!("found free sectors at the end on {:?}: {} - {}", device.get_device_path(), last_end_sector + 1, last_sector);
                     alongside_options.push(AlongsideOption {
                         device: device.get_device_path().to_path_buf(),
