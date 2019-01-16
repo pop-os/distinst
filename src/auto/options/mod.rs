@@ -48,6 +48,12 @@ impl InstallOptions {
                 // We're only going to find Linux on a Linux-compatible file system.
                 if part.is_linux_compatible() {
                     if let Some(os) = part.probe_os() {
+                        info!("found OS on {:?}: {}", part.get_device_path(), match os {
+                            OS::Windows(ref version) => format!("Windows ({})", version),
+                            OS::Linux { ref info, .. } => format!("Linux ({})", info.pretty_name),
+                            OS::MacOs(ref version) => format!("Mac OS ({})", version)
+                        });
+
                         // Only consider Linux installs for refreshing.
                         if let OS::Linux { ref info, ref partitions, ref targets } = os {
                             // Only consider versions of Linux that are the same as the installer's version.
