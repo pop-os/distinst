@@ -54,34 +54,32 @@ impl InstallOptions {
                     });
 
                     // Only consider Linux installs for refreshing.
-                    if part.is_linux_compatible() {
-                        if let OS::Linux { ref info, ref partitions, ref targets } = os {
-                            // Only consider versions of Linux that are the same as the installer's version.
-                            if info.version_id == os_release.version_id {
-                                let home = targets.iter().position(|t| t == Path::new("/home"));
-                                let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
-                                let recovery = targets.iter().position(|t| t == Path::new("/recovery"));
+                    if let OS::Linux { ref info, ref partitions, ref targets } = os {
+                        // Only consider versions of Linux that are the same as the installer's version.
+                        if info.version_id == os_release.version_id {
+                            let home = targets.iter().position(|t| t == Path::new("/home"));
+                            let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
+                            let recovery = targets.iter().position(|t| t == Path::new("/recovery"));
 
-                                info!(
-                                    "found refresh option {}on {:?}",
-                                    if efi.is_some() { "with EFI partition " } else { "" },
-                                    part.get_device_path()
-                                );
+                            info!(
+                                "found refresh option {}on {:?}",
+                                if efi.is_some() { "with EFI partition " } else { "" },
+                                part.get_device_path()
+                            );
 
-                                refresh_options.push(RefreshOption {
-                                    os_release:     info.clone(),
-                                    root_part:      PartitionID::get_uuid(part.get_device_path())
-                                        .expect("root device did not have uuid").id,
-                                    home_part:      home.map(|pos| partitions[pos].clone()),
-                                    efi_part:       efi.map(|pos| partitions[pos].clone()),
-                                    recovery_part:  recovery.map(|pos| partitions[pos].clone()),
-                                    can_retain_old: if let Ok(used) = part.sectors_used() {
-                                        part.get_sectors() - used > required_space
-                                    } else {
-                                        false
-                                    }
-                                });
-                            }
+                            refresh_options.push(RefreshOption {
+                                os_release:     info.clone(),
+                                root_part:      PartitionID::get_uuid(part.get_device_path())
+                                    .expect("root device did not have uuid").id,
+                                home_part:      home.map(|pos| partitions[pos].clone()),
+                                efi_part:       efi.map(|pos| partitions[pos].clone()),
+                                recovery_part:  recovery.map(|pos| partitions[pos].clone()),
+                                can_retain_old: if let Ok(used) = part.sectors_used() {
+                                    part.get_sectors() - used > required_space
+                                } else {
+                                    false
+                                }
+                            });
                         }
                     }
 
