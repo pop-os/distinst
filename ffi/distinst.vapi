@@ -968,6 +968,16 @@ namespace Distinst {
         public unowned Partition? get_partition_by_uuid (string uuid);
 
         /**
+         * Find the disk that contains the mount.
+         */
+        public unowned Disk? get_disk_with_mount (string target);
+
+        /**
+         * Find the disk that contains the partition.
+         */
+        public unowned Disk? get_disk_with_partition (Partition? partition);
+
+        /**
          * Obtains the physical device at the specified path.
          *
          * Will return a null value if the input string is not UTF-8,

@@ -6,6 +6,7 @@ extern crate distinst_external_commands as external;
 extern crate libc;
 #[macro_use]
 extern crate log;
+extern crate partition_identity;
 
 use std::ffi::{CStr, CString};
 use std::ptr;

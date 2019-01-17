@@ -23,3 +23,4 @@ distinst-external-commands = { path = "../crates/external" }
 distinst = { path = ".." }
 libc = "0.2.43"
 log = "0.4.3"
+partition-identity = "0.2.1"

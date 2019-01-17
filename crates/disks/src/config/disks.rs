@@ -24,6 +24,7 @@ use super::super::{
     PartitionFlag, PartitionInfo, LogicalDevice
 };
 use sys_mount::{unmount, swapoff, Mount, MountFlags, Mounts, Unmount, UnmountFlags};
+use proc_mounts::MountIter;
 
 /// A configuration of disks, both physical and logical.
 #[derive(Debug, Default, PartialEq)]
@@ -81,27 +82,31 @@ impl Disks {
     pub fn get_physical_devices_mut(&mut self) -> &mut [Disk] { &mut self.physical }
 
     /// Returns the physical device that contains the partition at path.
+    pub fn get_physical_device_with_partition<P: AsRef<Path>>(
+        &self,
+        path: P
+    ) -> Option<&Disk> {
+        let path = path.as_ref();
+        self.get_physical_devices()
+            .iter()
+            .find(|device| {
+                device.get_device_path() == path
+                    || device.get_partitions().iter().any(|p| p.get_device_path() == path)
+            })
+    }
+
+    /// Returns the physical device, mutably, that contains the partition at path.
     pub fn get_physical_device_with_partition_mut<P: AsRef<Path>>(
         &mut self,
         path: P
     ) -> Option<&mut Disk> {
         let path = path.as_ref();
-        for device in self.get_physical_devices_mut() {
-            let mut found = false;
-
-            for part in device.get_partitions_mut() {
-                if part.get_device_path() == path {
-                    found = true;
-                    break
-                }
-            }
-
-            if found {
-                return Some(device);
-            }
-        }
-
-        None
+        self.get_physical_devices_mut()
+            .iter_mut()
+            .find(|device| {
+                device.get_device_path() == path
+                    || device.get_partitions().iter().any(|p| p.get_device_path() == path)
+            })
     }
 
     /// Uses a boxed iterator to get an iterator over all physical partitions.
@@ -342,6 +347,32 @@ impl Disks {
         PartitionID::new_uuid(target)
             .get_device_path()
             .and_then(move |ref target| self.get_partition_by_path_mut(target))
+    }
+
+    /// Find the disk which contains the given mount.
+    pub fn get_disk_with_mount<P: AsRef<Path>>(&self, target: P) -> Option<&Disk> {
+        let device_path = find_device_path_of_mount(target).ok()?;
+        self.get_physical_device_with_partition(&device_path)
+    }
+
+    /// Find the disk, mutably, which contains the given mount.
+    pub fn get_disk_with_mount_mut<P: AsRef<Path>>(&mut self, target: P) -> Option<&mut Disk> {
+        let device_path = find_device_path_of_mount(target).ok()?;
+        self.get_physical_device_with_partition_mut(&device_path)
+    }
+
+    /// Find the disk which contains the partition with the given Partition ID.
+    pub fn get_disk_with_partition(&self, target: &PartitionID) -> Option<&Disk> {
+        self.get_physical_devices()
+            .iter()
+            .find(|disk| disk.partitions.iter().any(|p| p.identifiers.matches(target)))
+    }
+
+    /// Find the disk, mutably, which contains the partition with the given Partition ID.
+    pub fn get_disk_with_partition_mut(&mut self, target: &PartitionID) -> Option<&mut Disk> {
+        self.get_physical_devices_mut()
+            .iter_mut()
+            .find(|disk| disk.partitions.iter().any(|p| p.identifiers.matches(target)))
     }
 
     /// Deactivates all device maps associated with the inner disks/partitions
@@ -1147,4 +1178,16 @@ impl FromIterator<Disk> for Disks {
             logical:  Vec::new(),
         }
     }
+}
+
+fn find_device_path_of_mount<P: AsRef<Path>>(path: P) -> io::Result<PathBuf> {
+    let path = path.as_ref();
+    for mount in MountIter::new()? {
+        let mount = mount?;
+        if &mount.dest == path {
+            return Ok(mount.source);
+        }
+    }
+
+    Err(io::Error::new(io::ErrorKind::NotFound, "mount not found"))
 }
