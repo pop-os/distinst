@@ -223,12 +223,17 @@ impl PartitionInfo {
     }
 
     /// Shrinks the partition, if possible.
-    pub fn shrink_to(&mut self, sectors: u64) -> Result<(), PartitionError> {
+    ///
+    /// The provided value will be truncated to the nearest mebibyte, and returned.
+    pub fn shrink_to(&mut self, mut sectors: u64) -> Result<u64, PartitionError> {
+        sectors -= sectors % (2 * 1024);
         if self.end_sector - self.start_sector < sectors {
             Err(PartitionError::ShrinkValueTooHigh)
         } else {
-            self.end_sector -= sectors;
-            Ok(())
+            self.end_sector = self.start_sector + sectors;
+            eprintln!("shrinking to {} sectors", sectors);
+            assert_eq!(0, (self.end_sector - self.start_sector) % ( 2 * 1024));
+            Ok(sectors)
         }
     }
 
