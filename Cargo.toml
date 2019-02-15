@@ -48,7 +48,7 @@ distinst-locale-support = { path = "crates/locales" }
 distinst-squashfs = { path = "crates/squashfs" }
 distinst-timezones = { path = "crates/timezones" }
 distinst-utils = { path = "crates/utils" }
-envfile = "0.1.0"
+envfile = ">=0.2.0"
 fern = "0.5.6"
 fstab-generate = "0.1.2"
 hostname-validator = "1.0.0"

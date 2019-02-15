@@ -1,4 +1,4 @@
-use serde_xml_rs::deserialize;
+use serde_xml_rs as xml;
 use std::io::{self, BufReader};
 use misc;
 
@@ -91,6 +91,6 @@ const X11_BASE_RULES: &str = "/usr/share/X11/xkb/rules/base.xml";
 
 /// Fetches a list of keyboard layouts from `/usr/share/X11/xkb/rules/base.xml`.
 pub fn get_keyboard_layouts() -> io::Result<KeyboardLayouts> {
-    deserialize(BufReader::new(misc::open(X11_BASE_RULES)?))
+    xml::from_reader(BufReader::new(misc::open(X11_BASE_RULES)?))
         .map_err(|why| io::Error::new(io::ErrorKind::InvalidData, format!("{}", why)))
 }

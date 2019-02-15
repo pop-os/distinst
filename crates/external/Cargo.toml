@@ -13,7 +13,7 @@ disk-types = "0.1.2"
 distinst-utils = { path = "../utils" }
 log = "0.4.5"
 proc-mounts = "0.1.2"
-rand = "0.5.5"
+rand = "0.6.5"
 smart-default = "0.2.0"
 sys-mount = "1.1.0"
 tempdir = "0.3.7"
