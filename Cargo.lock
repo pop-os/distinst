@@ -299,7 +299,7 @@ dependencies = [
  "libc 0.2.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "libparted 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "logind-dbus 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "logind-dbus 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "os-detect 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "os-release 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "partition-identity 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -431,11 +431,14 @@ name = "distinst_cli"
 version = "0.4.0"
 dependencies = [
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dbus 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "distinst 0.5.0",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.48 (registry+https://github.com/rust-lang/crates.io-index)",
+ "partition-identity 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pbr 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-mounts 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -443,11 +446,13 @@ name = "distinst_ffi"
 version = "0.4.0"
 dependencies = [
  "cbindgen 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dbus 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "distinst 0.5.0",
  "distinst-external-commands 0.1.0",
  "libc 0.2.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "partition-identity 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-mounts 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -700,7 +705,7 @@ dependencies = [
 
 [[package]]
 name = "logind-dbus"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cascade 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1564,7 +1569,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum locale_config 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "14fbee0e39bc2dd6a2427c4fdea66e9826cc1fd09b0a0b7550359f5f6efe1dab"
 "checksum log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
 "checksum log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c84ec4b527950aa83a329754b01dbe3f58361d1c5efacd1f6d68c494d08a17c6"
-"checksum logind-dbus 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bba92213266fa4e8e7976c1b5904cf1e9f1963499d4432415f8c0a2bf34eeafd"
+"checksum logind-dbus 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "da250ebd784c9cad97c3d33abc56886148846b52da7a30d2b86a9f14e65b9f6b"
 "checksum loopdev 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ac9e35cfb6646d67059f2ca8913a90e6c60633053c103df423975297f33d6fcc"
 "checksum memchr 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "148fab2e51b4f1cfc66da2a7c32981d1d3c083a803978268bb11fe4b86925e7a"
 "checksum memchr 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2efc7bc57c883d4a4d6e3246905283d8dae951bb3bd32f49d6ef297f546e1c39"
