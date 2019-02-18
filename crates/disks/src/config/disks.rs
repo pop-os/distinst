@@ -617,25 +617,24 @@ impl Disks {
     ///     }
     /// )
     /// ```
-    pub fn probe_for<T, P, F, E, S>(
-        file: P,
+    pub fn probe_for<T, E, F, C, S>(
         expected_at: E,
         mut supported: S,
+        mut condition: C,
         mut func: F
     ) -> io::Result<T>
-    where P: AsRef<Path>,
-          E: AsRef<Path>,
+    where E: AsRef<Path>,
           S: FnMut(FileSystem) -> bool,
-          F: FnMut(&Path) -> T
+          C: FnMut(&PartitionInfo, &Path) -> bool,
+          F: FnMut(&PartitionInfo, &Path) -> T
     {
         let disks = Disks::probe_devices()?;
         let expected_at = expected_at.as_ref();
-        let file = file.as_ref();
 
         // Check partitions which have already been mounted first.
         for partition in disks.get_physical_partitions() {
             match partition.mount_point {
-                Some(ref path) if path == expected_at => return Ok(func(path)),
+                Some(ref path) if path == expected_at => return Ok(func(partition, path)),
                 Some(_) => continue,
                 None => (),
             }
@@ -655,8 +654,8 @@ impl Disks {
             if has_filesystem {
                 let result = partition.probe(|mount| {
                     mount.and_then(|(path, _mount)| {
-                        if path.join(file).exists() {
-                            Some(func(path))
+                        if condition(partition, path) {
+                            Some(func(partition, path))
                         } else {
                             None
                         }
