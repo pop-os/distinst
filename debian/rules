@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+export GETTEXT_SYSTEM = 1
+
 %:
 	dh $@
 
