@@ -1,7 +1,7 @@
 //! A collection of external commands used throughout the program.
 
 pub use external_::*;
-use config::{deactivate_devices};
+pub use config::{deactivate_devices};
 use proc_mounts::{MountList, SwapList};
 use LvmEncryption;
 use std::fs::Permissions;
