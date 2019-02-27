@@ -10,10 +10,11 @@ pub struct RecoveryOption {
     pub kbd_model:     Option<String>,
     pub kbd_variant:   Option<String>,
     pub language:      String,
+    pub luks_uuid:     Option<String>,
     pub oem_mode:      bool,
     pub recovery_uuid: String,
     pub root_uuid:     String,
-    pub luks_uuid:     Option<String>,
+    pub upgrade_mode:  bool,
 }
 
 impl RecoveryOption {
@@ -31,7 +32,7 @@ impl RecoveryOption {
         } else {
             PartitionID::new_uuid(id)
         }
-    } 
+    }
 }
 
 const RECOVERY_CONF: &str = "/cdrom/recovery.conf";
@@ -61,6 +62,7 @@ pub(crate) fn detect_recovery() -> Option<RecoveryOption> {
             root_uuid:     env.get("ROOT_UUID")?.to_owned(),
             oem_mode:      env.get("OEM_MODE").map_or(false, |oem| oem == "1"),
             luks_uuid:     env.get("LUKS_UUID").map(|x| x.to_owned()),
+            upgrade_mode:  env.get("UPGRADE").map_or(false, |oem| oem == "1")
         });
     }
 
