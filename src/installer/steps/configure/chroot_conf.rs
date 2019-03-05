@@ -58,7 +58,7 @@ impl<'a> ChrootConfigurator<'a> {
             "--esp-path", "/boot/efi",
             "--kernel-path", "/vmlinuz",
             "--initrd-path", "/initrd.img",
-            "--options", BOOT_OPTIONS,
+            "--add-options", BOOT_OPTIONS,
             "--loader",
             "--manage-only",
             "--force-update",
