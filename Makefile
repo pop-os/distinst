@@ -16,16 +16,14 @@ PKGCONFIG=target/$(PACKAGE).pc
 VAPI=ffi/$(PACKAGE).vapi
 
 DEBUG ?= 0
-VENDORED = 0
-
 ifeq (0,$(DEBUG))
 	ARGSD += --release
 	RELEASE = release
 endif
 
-ifneq ($(wildcard vendor.tar.xz),)
-	VENDORED = 1
-	ARGS += --frozen
+VENDORED ?= 0
+ifneq ($(VENDORED),0)
+	ARGS += "--frozen"
 endif
 
 BINARY=target/$(RELEASE)/$(PACKAGE)
@@ -59,32 +57,16 @@ uninstall:
 update:
 	cargo update
 
-.cargo/config: vendor_config
-	mkdir -p .cargo
-	cp $< $@
-
-vendor.tar.xz:
-	cargo vendor
-	tar pcfJ vendor.tar.xz vendor
-	rm -rf vendor
-
-extract:
-ifeq (1,$(VENDORED)$(wildcard vendor))
-	tar pxf vendor.tar.xz
-endif
-
-vendor: .cargo/config vendor.tar.xz
-
-tests: extract $(SRC)
+tests: $(SRC)
 	cargo test $(ARGS)
 	for crate in crates/*; do \
 		cargo test $(ARGS) --manifest-path $$crate/Cargo.toml; \
 	done
 
-$(BINARY): extract $(SRC)
+$(BINARY): $(SRC)
 	cargo build --manifest-path cli/Cargo.toml $(ARGS) $(ARGSD)
 
-$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: extract $(FFI_SRC)
+$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(FFI_SRC)
 	cargo build --manifest-path ffi/Cargo.toml $(ARGS) $(ARGSD)
 
 $(PKGCONFIG): $(PKGCONFIG).stub
