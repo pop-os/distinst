@@ -71,18 +71,20 @@ pub type DistinstUpgradeEventCallback =
 pub type DistinstUpgradeRepairCallback =
     extern "C" fn(user_data: *mut libc::c_void) -> libc::uint8_t;
 
+#[no_mangle]
 pub unsafe extern "C" fn distinst_upgrade(
     disks: *mut DistinstDisks,
     option: *const DistinstRecoveryOption,
     event_cb: DistinstUpgradeEventCallback,
+    user_data1: *mut libc::c_void,
     repair_cb: DistinstUpgradeRepairCallback,
-    user_data: *mut libc::c_void,
+    user_data2: *mut libc::c_void,
 ) -> libc::c_int {
     let result = distinst::upgrade(
         &mut *(disks as *mut Disks),
         &*(option as *const RecoveryOption),
-        move |event| event_cb(DistinstUpgradeEvent::from(event), user_data),
-        move || repair_cb(user_data) != 0
+        move |event| event_cb(DistinstUpgradeEvent::from(event), user_data1),
+        move || repair_cb(user_data2) != 0
     );
 
     match result {

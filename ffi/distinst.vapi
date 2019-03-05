@@ -25,7 +25,6 @@ namespace Distinst {
     public const uint8 MODIFY_BOOT_ORDER;
     public const uint8 INSTALL_HARDWARE_SUPPORT;
     public const uint8 KEEP_OLD_ROOT;
-    public const uint8 UPGRADE;
 
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
@@ -94,6 +93,18 @@ namespace Distinst {
         LUKS,
     }
 
+    [CCode (cname = "DISTINST_UPRGADE_TAG", has_type_id = false)]
+    public enum UpgradeTag {
+        ATTEMPTING_REPAIR,
+        ATTEMPTING_UPGRADE,
+        DPKG_INFO,
+        DPKG_ERR,
+        UPGRADE_INFO,
+        UPGRADE_ERR,
+        PROGRESS,
+        RESUMING_UPGRADE,
+    }
+
     [CCode (cname = "DISTINST_INSTALL_OPTION_VARIANT", has_type_id = false)]
     public enum InstallOptionVariant {
         ALONGSIDE,
@@ -102,6 +113,21 @@ namespace Distinst {
         REFRESH,
         UPGRADE,
     }
+
+    [SimpleType]
+    [CCode (has_type_id = false)]
+    public struct UpgradeEvent {
+        public UpgradeTag tag;
+        public unowned uint8[] message;
+        public uint8 percent;
+    }
+
+    public delegate void UpgradeEventCallback (UpgradeEvent event);
+
+    public delegate bool UpgradeRepairCallback ();
+
+    public int upgrade (Disks disks, RecoveryOption option, UpgradeEventCallback event_cb,
+                        UpgradeRepairCallback repair_cb);
 
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class AlongsideOption {
