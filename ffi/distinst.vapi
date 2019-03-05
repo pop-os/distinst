@@ -25,6 +25,7 @@ namespace Distinst {
     public const uint8 MODIFY_BOOT_ORDER;
     public const uint8 INSTALL_HARDWARE_SUPPORT;
     public const uint8 KEEP_OLD_ROOT;
+    public const uint8 UPGRADE;
 
     [CCode (has_type_id = false, destroy_function = "")]
     public struct Config {
@@ -99,6 +100,7 @@ namespace Distinst {
         ERASE,
         RECOVERY,
         REFRESH,
+        UPGRADE,
     }
 
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
@@ -191,6 +193,7 @@ namespace Distinst {
     public class RecoveryOption {
         public unowned uint8[]? get_efi_uuid ();
         public unowned uint8[] get_recovery_uuid ();
+        public unowned uint8[] get_luks_uuid ();
         public unowned uint8[] get_root_uuid ();
         public unowned uint8[] get_hostname ();
         public unowned uint8[] get_kbd_layout ();

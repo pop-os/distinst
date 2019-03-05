@@ -19,10 +19,13 @@ pub extern crate partition_identity;
 pub extern crate proc_mounts;
 pub extern crate sys_mount;
 
+extern crate apt_cli_wrappers;
 #[macro_use]
 extern crate bitflags;
 #[macro_use]
 extern crate cascade;
+#[macro_use]
+extern crate err_derive;
 extern crate dirs;
 extern crate distinst_utils as misc;
 pub extern crate distinst_timezones as timezones;
@@ -45,10 +48,13 @@ pub use disks::*;
 pub use disk_types::*;
 pub use bootloader::*;
 pub use misc::device_layout_hash;
+pub use upgrade::*;
 
 mod distribution;
 mod installer;
 mod logging;
+mod upgrade;
+
 pub mod auto;
 pub(crate) mod errors;
 

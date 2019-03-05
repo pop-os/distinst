@@ -419,6 +419,29 @@ pub unsafe extern "C" fn distinst_recovery_option_get_root_uuid(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_luks_uuid(
+    option: *const DistinstRecoveryOption,
+    len: *mut libc::c_int,
+) -> *const u8 {
+    if null_check(option).or_else(|_| null_check(len)).is_err() {
+        return ptr::null();
+    }
+
+    let option = &*(option as *const RecoveryOption);
+    match option.luks_uuid {
+        Some(ref uuid) => {
+            let output = uuid.as_bytes();
+            *len = output.len() as libc::c_int;
+            output.as_ptr()
+        }
+        None => {
+            *len = 0;
+            ptr::null()
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_recovery_option_get_kbd_model(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
@@ -488,6 +511,7 @@ pub enum DISTINST_INSTALL_OPTION_VARIANT {
     ERASE,
     RECOVERY,
     REFRESH,
+    UPGRADE,
 }
 
 #[repr(C)]
@@ -525,6 +549,9 @@ impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
                 DISTINST_INSTALL_OPTION_VARIANT::ERASE => InstallOption::Erase {
                     option:   &*(opt.option as *const EraseOption),
                     password: get_passwd(),
+                },
+                DISTINST_INSTALL_OPTION_VARIANT::UPGRADE => {
+                    InstallOption::Upgrade(&*(opt.option as *const RecoveryOption))
                 },
             }
         }

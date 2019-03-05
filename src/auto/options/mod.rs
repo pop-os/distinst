@@ -78,7 +78,7 @@ impl InstallOptions {
                                     part.get_sectors() - used > required_space
                                 } else {
                                     false
-                                }
+                                },
                             });
                         }
                     }

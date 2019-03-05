@@ -26,6 +26,7 @@ pub enum InstallOption<'a> {
         option:   &'a RecoveryOption,
         password: Option<String>,
     },
+    Upgrade(&'a RecoveryOption)
 }
 
 impl<'a> fmt::Debug for InstallOption<'a> {
@@ -36,6 +37,9 @@ impl<'a> fmt::Debug for InstallOption<'a> {
             }
             InstallOption::Refresh(ref option) => {
                 write!(f, "InstallOption::RefreshOption({:?})", option)
+            }
+            InstallOption::Upgrade(ref option) => {
+                write!(f, "InstallOption::UpgradeOption({:?})", option)
             }
             InstallOption::Recovery { .. } => write!(f, "InstallOption::RecoveryOption"),
             InstallOption::Erase { ref option, .. } => write!(
@@ -80,27 +84,27 @@ impl<'a> InstallOption<'a> {
     ///
     /// If the option is to erase and install, the `disks` object will be replaced with a new one.
     pub fn apply(self, disks: &mut Disks) -> Result<(), InstallOptionError> {
-
         match self {
             // Install alongside another OS, taking `sectors` from the largest free partition.
             InstallOption::Alongside { option, password, sectors } => {
-                alongside_config(disks, option, password, sectors)?;
+                alongside_config(disks, option, password, sectors)
             }
             // Reuse existing partitions, without making any modifications.
             InstallOption::Refresh(option) => {
-                refresh_config(disks, option)?;
+                refresh_config(disks, option)
             }
             // Perform a recovery install
             InstallOption::Recovery { option, password } => {
-                recovery_config(disks, option, password)?;
+                recovery_config(disks, option, password)
             }
             // Reset the `disks` object and designate a disk to be wiped and installed.
             InstallOption::Erase { option, password } => {
-                erase_config(disks, option, password)?;
+                erase_config(disks, option, password)
+            }
+            InstallOption::Upgrade(option) => {
+                upgrade_config(disks, option)
             }
         }
-
-        Ok(())
     }
 }
 
@@ -236,33 +240,54 @@ fn alongside_config(
     Ok(())
 }
 
+fn upgrade_config(disks: &mut Disks, option: &RecoveryOption) -> Result<(), InstallOptionError> {
+    info!("applying upgrade config");
+    set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_uuid.clone()), "/")?;
+
+    if let Some(ref efi) = option.efi_uuid {
+        let efi = efi.parse::<PartitionID>().unwrap();
+        set_mount_by_identity(disks, &efi, "/boot/efi")?;
+    }
+
+    let recovery = option.recovery_uuid.parse::<PartitionID>().unwrap();
+    mount_recovery_partid(disks, &recovery)?;
+
+    Ok(())
+}
+
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
     info!("applying refresh install config");
     set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_part.clone()), "/")?;
 
-    if let Some(ref home) = option.home_part.clone() {
+    if let Some(ref home) = option.home_part {
         set_mount_by_identity(disks, home, "/home")?;
     }
 
-    if let Some(ref efi) = option.efi_part.clone() {
+    if let Some(ref efi) = option.efi_part {
         set_mount_by_identity(disks, efi, "/boot/efi")?;
     } else if Bootloader::detect() == Bootloader::Efi {
         return Err(InstallOptionError::RefreshWithoutEFI);
     }
 
-    if let Some(ref recovery) = option.recovery_part.clone() {
-        if let Some(path) = recovery.get_device_path() {
-            let recovery_is_cdrom = MountIter::source_mounted_at(path, "/cdrom")
-                .map_err(|why| InstallOptionError::ProcMounts { why })?;
+    if let Some(ref recovery) = option.recovery_part {
+        mount_recovery_partid(disks, recovery)?;
+    }
 
-            if recovery_is_cdrom {
-                info!("remounting /cdrom as rewriteable");
-                remount_rw("/cdrom").map_err(InstallOptionError::RemountCdrom)?;
-            }
+    Ok(())
+}
 
-            set_mount_by_identity(disks, recovery, "/recovery")?;
+fn mount_recovery_partid(disks: &mut Disks, recovery: &PartitionID) -> Result<(), InstallOptionError> {
+    if let Some(path) = recovery.get_device_path() {
+        let recovery_is_cdrom = MountIter::source_mounted_at(path, "/cdrom")
+            .map_err(|why| InstallOptionError::ProcMounts { why })?;
+
+        if recovery_is_cdrom {
+            info!("remounting /cdrom as rewriteable");
+            remount_rw("/cdrom").map_err(InstallOptionError::RemountCdrom)?;
         }
+
+        set_mount_by_identity(disks, recovery, "/recovery")?;
     }
 
     Ok(())

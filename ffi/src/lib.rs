@@ -24,6 +24,7 @@ pub use self::os::*;
 pub use self::partition::*;
 pub use self::sector::*;
 pub use self::timezones::*;
+pub use self::upgrade::*;
 
 pub const DISTINST_MODIFY_BOOT_ORDER:        u8 = 0b1;
 pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
@@ -45,6 +46,7 @@ mod os;
 mod partition;
 mod sector;
 mod timezones;
+mod upgrade;
 
 /// In comes a stack-allocated struct, and out goes a heap-allocated object.
 pub fn gen_object_ptr<T>(obj: T) -> *mut T { Box::into_raw(Box::new(obj)) as *mut T }

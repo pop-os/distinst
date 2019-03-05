@@ -2,7 +2,7 @@ pub mod bitflags;
 pub mod traits;
 
 mod state;
-mod steps;
+pub(crate) mod steps;
 
 pub use self::steps::Step;
 use {PARTITIONING_TEST, hostname, squashfs};
@@ -433,3 +433,4 @@ impl From<ReinstallError> for io::Error {
         )
     }
 }
+
