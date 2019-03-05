@@ -4,6 +4,8 @@
 extern crate cascade;
 #[macro_use]
 extern crate log;
+
+extern crate libc;
 extern crate sys_mount;
 
 mod chroot;
