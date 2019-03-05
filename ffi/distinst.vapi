@@ -93,7 +93,7 @@ namespace Distinst {
         LUKS,
     }
 
-    [CCode (cname = "DISTINST_UPRGADE_TAG", has_type_id = false)]
+    [CCode (cname = "DISTINST_UPGRADE_TAG", has_type_id = false)]
     public enum UpgradeTag {
         ATTEMPTING_REPAIR,
         ATTEMPTING_UPGRADE,

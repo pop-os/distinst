@@ -8,6 +8,7 @@ use std::ptr;
 pub struct DistinstUpgradeEvent {
     tag: DISTINST_UPGRADE_TAG,
     message: *const libc::uint8_t,
+    message_length1: libc::size_t,
     percent: libc::uint8_t
 }
 
@@ -28,8 +29,15 @@ impl From<UpgradeEvent<'_>> for DistinstUpgradeEvent {
         let mut c_event = DistinstUpgradeEvent {
             tag: DISTINST_UPGRADE_TAG::ATTEMPTING_REPAIR,
             message: ptr::null(),
+            message_length1: 0,
             percent: 0
         };
+
+        fn set_message(event: &mut DistinstUpgradeEvent, message: &str) {
+            let message = message.as_bytes();
+            event.message = message.as_ptr();
+            event.message_length1 = message.len();
+        }
 
         match event {
             UpgradeEvent::AttemptingRepair => (),
@@ -38,19 +46,19 @@ impl From<UpgradeEvent<'_>> for DistinstUpgradeEvent {
             }
             UpgradeEvent::DpkgInfo(info) => {
                 c_event.tag = DISTINST_UPGRADE_TAG::DPKG_INFO;
-                c_event.message = info.as_bytes().as_ptr();
+                set_message(&mut c_event, info);
             }
             UpgradeEvent::DpkgErr(info) => {
                 c_event.tag = DISTINST_UPGRADE_TAG::DPKG_ERR;
-                c_event.message = info.as_bytes().as_ptr();
+                set_message(&mut c_event, info);
             }
             UpgradeEvent::UpgradeInfo(info) => {
                 c_event.tag = DISTINST_UPGRADE_TAG::UPGRADE_INFO;
-                c_event.message = info.as_bytes().as_ptr();
+                set_message(&mut c_event, info);
             }
             UpgradeEvent::UpgradeErr(info) => {
                 c_event.tag = DISTINST_UPGRADE_TAG::UPGRADE_ERR;
-                c_event.message = info.as_bytes().as_ptr();
+                set_message(&mut c_event, info);
             }
             UpgradeEvent::Progress(percent) => {
                 c_event.tag = DISTINST_UPGRADE_TAG::PROGRESS;
