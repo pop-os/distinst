@@ -160,8 +160,8 @@ fn non_blocking_line_reading<B: BufRead, F: Fn(&str)>(
     loop {
         match reader.read_line(buffer) {
             Ok(0) => break,
-            Ok(_read) => {
-                callback(&buffer);
+            Ok(read) => {
+                callback(&buffer[..read-1]);
                 buffer.clear();
             }
             Err(ref why) if why.kind() == io::ErrorKind::WouldBlock => break,

@@ -10,6 +10,8 @@ extern crate sys_mount;
 
 mod chroot;
 mod command;
+mod sd_nspawn;
 
-pub use self::chroot::*;
-pub use self::command::*;
+pub use self::chroot::Chroot;
+pub use self::command::Command;
+pub use self::sd_nspawn::SystemdNspawn;
