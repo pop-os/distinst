@@ -101,7 +101,10 @@ namespace Distinst {
         DPKG_ERR,
         UPGRADE_INFO,
         UPGRADE_ERR,
-        PROGRESS,
+        PACKAGE_PROCESSING,
+        PACKAGE_PROGRESS,
+        PACKAGE_SETTING_UP,
+        PACKAGE_UNPACKING,
         RESUMING_UPGRADE,
     }
 
@@ -118,8 +121,10 @@ namespace Distinst {
     [CCode (has_type_id = false)]
     public struct UpgradeEvent {
         public UpgradeTag tag;
-        public unowned uint8[] message;
         public uint8 percent;
+        public unowned uint8[] str1;
+        public unowned uint8[] str2;
+        public unowned uint8[] str3;
     }
 
     public delegate void UpgradeEventCallback (UpgradeEvent event);
