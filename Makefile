@@ -7,8 +7,11 @@ datarootdir = $(prefix)/share
 datadir = $(datarootdir)
 RELEASE = debug
 
-SRC=Cargo.toml src/* src/*/*
-FFI_SRC=ffi/Cargo.toml ffi/build.rs ffi/src/*
+SRC=Cargo.toml $(shell find src crates -type f -wholename '*src/*.rs' \
+	-o -name 'Cargo.toml' \
+	-o -name 'Cargo.lock')
+CLI_SRC=cli/Cargo.toml $(shell find cli/src -type f -name '*.rs')
+FFI_SRC=ffi/Cargo.toml ffi/build.rs $(shell find ffi/src -type f -name '*.rs')
 PACKAGE=distinst
 
 HEADER=target/$(PACKAGE).h
@@ -63,10 +66,10 @@ tests: $(SRC)
 		cargo test $(ARGS) --manifest-path $$crate/Cargo.toml; \
 	done
 
-$(BINARY): $(SRC)
+$(BINARY): $(SRC) $(CLI_SRC)
 	cargo build --manifest-path cli/Cargo.toml $(ARGS) $(ARGSD)
 
-$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(FFI_SRC)
+$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(SRC) $(FFI_SRC)
 	cargo build --manifest-path ffi/Cargo.toml $(ARGS) $(ARGSD)
 
 $(PKGCONFIG): $(PKGCONFIG).stub
