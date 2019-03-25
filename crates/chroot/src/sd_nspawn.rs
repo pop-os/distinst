@@ -26,11 +26,6 @@ impl<'a> SystemdNspawn<'a> {
         self.envs.push((key, value));
     }
 
-    /// Clear all environment variables for this chroot.
-    pub fn clear_envs(&mut self, clear: bool) {
-        self.clear_envs = clear;
-    }
-
     /// Executes an external command with `systemd-nspawn`
     pub fn command<S: AsRef<OsStr>, T: AsRef<OsStr>, I: IntoIterator<Item = T>>(
         &self,
@@ -55,12 +50,8 @@ impl<'a> SystemdNspawn<'a> {
             ..stdout(Stdio::piped());
         };
 
-        if self.clear_envs {
-            command.env_clear();
-        }
-
         for &(key, value) in &self.envs {
-            command.env(key, value);
+            command.arg(&["--setenv=", key, "=", value].concat());
         }
 
         command
