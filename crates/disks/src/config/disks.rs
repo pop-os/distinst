@@ -480,8 +480,10 @@ impl Disks {
                 Some(Some(vg)) => {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
+                    let mut luks = LogicalDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true);
+                    luks.set_luks_parent(path.to_path_buf());
 
-                    Ok(LogicalDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true))
+                    Ok(luks)
                 }
                 _ => {
                     // Detect a file system on the device
