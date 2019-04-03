@@ -481,6 +481,7 @@ impl Disks {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
                     let mut luks = LogicalDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true);
+                    info!("settings luks_parent to {:?}", path);
                     luks.set_luks_parent(path.to_path_buf());
 
                     Ok(luks)
@@ -498,6 +499,7 @@ impl Disks {
                         );
 
                         luks.set_file_system(fs);
+                        info!("settings luks_parent to {:?}", path);
                         luks.set_luks_parent(path.to_path_buf());
 
                         return Ok(luks);
@@ -1130,8 +1132,11 @@ impl Disks {
         // Ensure that the keyfile paths are mapped to their mount targets.
         self.resolve_keyfile_paths()?;
 
+        // LUKS associations with LVM devices.
+        let mut associations = Vec::new();
+
         // Now we will apply the logical layout.
-        for device in &self.logical {
+        for (id, device) in self.logical.iter().enumerate() {
             // Only create the device if it does not exist.
             if !device.is_source {
                 let volumes: Vec<(&Path, &Path)> = self.find_volume_paths(&device.volume_group);
@@ -1144,6 +1149,8 @@ impl Disks {
                     device_path = Some(PathBuf::from(
                         ["/dev/mapper/", &encryption.physical_volume].concat(),
                     ));
+
+                    associations.push((volumes[0].1.to_path_buf(), id));
                 }
 
                 // Obtains an iterator which may produce one or more device paths.
@@ -1158,6 +1165,12 @@ impl Disks {
             }
 
             device.modify_partitions()?;
+        }
+
+        for (luks_parent, id) in associations {
+            let mut logical = &mut self.logical[id];
+            info!("associating {:?} with {:?}", logical.device_path, luks_parent);
+            logical.luks_parent = Some(luks_parent);
         }
 
         Ok(())

@@ -68,39 +68,34 @@ impl InstallerDiskOps for Disks {
                 let ppath = partition.get_device_path();
                 let luks_path = luks_parent.as_ref().map_or(ppath, |x| &x);
 
-                let mut add_luks = false;
-
                 for logical in logical {
                     if let Some(ref parent) = logical.luks_parent {
                         if parent == ppath {
-                            add_luks = logical.partitions.iter().any(|p| p.target.is_some());
+                            if logical.partitions.iter().any(|p| p.target.is_some()) {
+                                match PartitionID::get_uuid(luks_path) {
+                                    Some(uuid) => {
+                                        let id = hasher(&enc.physical_volume);
+                                        if !crypt_ids.contains(&id) {
+                                            crypt_ids.push(id);
+
+                                            crypttab.push(&enc.physical_volume);
+                                            crypttab.push(" UUID=");
+                                            crypttab.push(&uuid.id);
+                                            crypttab.push(" ");
+                                            crypttab.push(&password);
+                                            crypttab.push(" luks\n");
+                                        }
+                                    }
+                                    None => warn!(
+                                        "unable to find UUID for {} -- skipping",
+                                        ppath.display()
+                                    ),
+                                }
+                            }
                             break
                         }
                     }
                 }
-
-                if add_luks {
-                    match PartitionID::get_uuid(luks_path) {
-                        Some(uuid) => {
-                            let id = hasher(&enc.physical_volume);
-                            if !crypt_ids.contains(&id) {
-                                crypt_ids.push(id);
-
-                                crypttab.push(&enc.physical_volume);
-                                crypttab.push(" UUID=");
-                                crypttab.push(&uuid.id);
-                                crypttab.push(" ");
-                                crypttab.push(&password);
-                                crypttab.push(" luks\n");
-                            }
-                        }
-                        None => warn!(
-                            "unable to find UUID for {} -- skipping",
-                            ppath.display()
-                        ),
-                    }
-                }
-
                 if let Some(blockinfo) = partition.get_block_info() {
                     blockinfo.write_entry(&mut fstab);
                 }
