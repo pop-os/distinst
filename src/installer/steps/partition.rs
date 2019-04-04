@@ -1,6 +1,7 @@
 use external::{blockdev, pvs, vgactivate, vgdeactivate};
 use disks::Disks;
 use disks::operations::FormatPartitions;
+use errors::IoContext;
 use itertools::Itertools;
 use rayon;
 use rayon::prelude::*;
@@ -19,7 +20,7 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
             // This collection of physical volumes and their optional volume groups
             // will be used to obtain a list of volume groups associated with our
             // modified partitions.
-            pvs().map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{}", why)))
+            pvs().with_context(|why| format!("failed to get PVS map: {}", why))
         },
         || {
             // Perform layout changes serially, due to libparted thread safety issues,
@@ -29,10 +30,7 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
             for disk in disks.get_physical_devices_mut() {
                 info!("{}: Committing changes to disk", disk.path().display());
                 if let Some(partitions) = disk.commit()
-                    .map_err(|why| io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("disk commit error: {}", why)
-                    ))?
+                    .with_context(|why| format!("disk commit error: {}", why))?
                 {
                     partitions_to_format.0.extend_from_slice(&partitions.0);
                 }
@@ -83,10 +81,7 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
 
     let res = disks
         .commit_logical_partitions()
-        .map_err(|why| io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed to commit logical partitions: {}", why)
-        ));
+        .with_context(|why| format!("failed to commit logical partitions: {}", why));
 
     callback(100);
     res

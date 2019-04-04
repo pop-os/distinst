@@ -2,7 +2,7 @@ use Command;
 use std::ffi::OsStr;
 use std::io::Result;
 use std::path::{Path, PathBuf};
-use std::process::{Stdio};
+use std::process::Stdio;
 use sys_mount::*;
 
 /// Defines the location where a `chroot` will be performed, as well as storing

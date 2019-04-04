@@ -1,6 +1,7 @@
 use disk_types::{BlockDeviceExt, FileSystem, PartitionExt};
 use disks::{Disks, PartitionInfo};
 use external::generate_unique_id;
+use errors::IntoIoResult;
 use fstab_generate::BlockInfo;
 use misc::hasher;
 use partition_identity::PartitionID;
@@ -15,7 +16,7 @@ pub trait InstallerDiskOps: Sync {
     fn generate_fstabs(&self) -> (OsString, OsString);
 
     /// Find the root partition's block info from this disks object.
-    fn get_root_block_info(&self) -> io::Result<BlockInfo>;
+    fn get_block_info_of(&self, mount: &str) -> io::Result<BlockInfo>;
 
     /// Reports file systems that need to be supported in the install.
     fn get_support_flags(&self) -> FileSystemSupport;
@@ -24,18 +25,20 @@ pub trait InstallerDiskOps: Sync {
 impl InstallerDiskOps for Disks {
     /// Generates the crypttab and fstab files in memory.
     fn generate_fstabs(&self) -> (OsString, OsString) {
+        let &Disks { ref logical, ref physical, .. } = self;
+
         info!("generating /etc/crypttab & /etc/fstab in memory");
         let mut crypttab = OsString::with_capacity(1024);
         let mut fstab = OsString::with_capacity(1024);
 
-        let partitions = self.physical
+        let partitions = physical
             .iter()
             .flat_map(|x| {
                 x.file_system.as_ref().into_iter()
                     .chain(x.partitions.iter())
                     .map(|p| (true, &None, p))
             })
-            .chain(self.logical.iter().flat_map(|x| {
+            .chain(logical.iter().flat_map(|x| {
                 let luks_parent = &x.luks_parent;
                 let is_unencrypted: bool = x.encryption.is_none();
                 x.file_system.as_ref().into_iter()
@@ -43,13 +46,8 @@ impl InstallerDiskOps for Disks {
                     .map(move |p| (is_unencrypted, luks_parent, p))
             }));
 
-        fn write_fstab(fstab: &mut OsString, partition: &PartitionInfo) {
-            if let Some(entry) = partition.get_block_info() {
-                entry.write_entry(fstab);
-            }
-        }
-
         let mut swap_uuids: Vec<u64> = Vec::new();
+        let mut crypt_ids: Vec<u64> = Vec::new();
 
         for (is_unencrypted, luks_parent, partition) in partitions {
             if let Some(&(_, Some(ref enc))) = partition.volume_group.as_ref() {
@@ -67,22 +65,39 @@ impl InstallerDiskOps for Disks {
                         }
                     };
 
-                let path = luks_parent.as_ref().map_or(partition.get_device_path(), |x| &x);
+                let ppath = partition.get_device_path();
+                let luks_path = luks_parent.as_ref().map_or(ppath, |x| &x);
 
-                match PartitionID::get_uuid(path) {
-                    Some(uuid) => {
-                        crypttab.push(&enc.physical_volume);
-                        crypttab.push(" UUID=");
-                        crypttab.push(&uuid.id);
-                        crypttab.push(" ");
-                        crypttab.push(&password);
-                        crypttab.push(" luks\n");
-                        write_fstab(&mut fstab, &partition);
+                for logical in logical {
+                    if let Some(ref parent) = logical.luks_parent {
+                        if parent == ppath {
+                            if logical.partitions.iter().any(|p| p.target.is_some()) {
+                                match PartitionID::get_uuid(luks_path) {
+                                    Some(uuid) => {
+                                        let id = hasher(&enc.physical_volume);
+                                        if !crypt_ids.contains(&id) {
+                                            crypt_ids.push(id);
+
+                                            crypttab.push(&enc.physical_volume);
+                                            crypttab.push(" UUID=");
+                                            crypttab.push(&uuid.id);
+                                            crypttab.push(" ");
+                                            crypttab.push(&password);
+                                            crypttab.push(" luks\n");
+                                        }
+                                    }
+                                    None => warn!(
+                                        "unable to find UUID for {} -- skipping",
+                                        ppath.display()
+                                    ),
+                                }
+                            }
+                            break
+                        }
                     }
-                    None => error!(
-                        "unable to find UUID for {} -- skipping",
-                        partition.get_device_path().display()
-                    ),
+                }
+                if let Some(blockinfo) = partition.get_block_info() {
+                    blockinfo.write_entry(&mut fstab);
                 }
             } else if partition.is_swap() {
                 if is_unencrypted {
@@ -106,7 +121,7 @@ impl InstallerDiskOps for Disks {
                                 "  none  swap  defaults  0  0\n",
                             ].concat());
                         }
-                        None => error!(
+                        None => warn!(
                             "unable to find UUID for {} -- skipping",
                             partition.get_device_path().display()
                         ),
@@ -115,8 +130,8 @@ impl InstallerDiskOps for Disks {
                     fstab.push(partition.get_device_path());
                     fstab.push("  none  swap  defaults  0  0\n");
                 }
-            } else {
-                write_fstab(&mut fstab, &partition);
+            } else if let Some(blockinfo) = partition.get_block_info() {
+                blockinfo.write_entry(&mut fstab);
             }
         }
 
@@ -135,14 +150,11 @@ impl InstallerDiskOps for Disks {
         (crypttab, fstab)
     }
 
-    fn get_root_block_info(&self) -> io::Result<BlockInfo> {
+    fn get_block_info_of(&self, path: &str) -> io::Result<BlockInfo> {
         self.get_partitions()
             .filter_map(|part| part.get_block_info())
-            .find(|entry| entry.mount() == "/")
-            .ok_or_else(|| io::Error::new(
-                io::ErrorKind::Other,
-                "root partition not found",
-            ))
+            .find(|entry| entry.mount() == path)
+            .into_io_result(|| "root partition not found")
     }
 
     fn get_support_flags(&self) -> FileSystemSupport {

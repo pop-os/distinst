@@ -1,4 +1,5 @@
 use chroot::{Chroot, Command};
+use errors::IoContext;
 use Config;
 use misc;
 use proc_mounts::MountList;
@@ -133,6 +134,7 @@ impl<'a> ChrootConfigurator<'a> {
         let initramfs_post_update = self.chroot.path.join("etc/initramfs/post-update.d/");
         if initramfs_post_update.is_dir() {
             fs::remove_dir_all(&initramfs_post_update)
+                .with_context(|err| format!("removing initramfs post-update.d: {}", err))
         } else {
             Ok(())
         }
@@ -155,17 +157,21 @@ impl<'a> ChrootConfigurator<'a> {
     /// Set the hostname of the new install.
     pub fn hostname(&self, hostname: &str) -> io::Result<()> {
         info!("setting hostname to {}", hostname);
-        let mut file = misc::create(&self.chroot.path.join("etc/hostname"))?;
+        let hostfile = self.chroot.path.join("etc/hostname");
+        let mut file = misc::create(&hostfile)?;
         writeln!(&mut file, "{}", hostname)
+            .with_context(|err| format!("failed to write hostname to {:?}: {}", hostfile, err))
     }
 
     /// Create a default hosts file for the new install.
     pub fn hosts(&self, hostname: &str) -> io::Result<()> {
         info!("setting hosts file");
-        let mut file = misc::create(&self.chroot.path.join("etc/hosts"))?;
+        let hosts = self.chroot.path.join("etc/hosts");
+        let mut file = misc::create(&hosts)?;
         writeln!(&mut file, r#"127.0.0.1	localhost
 ::1		localhost
 127.0.1.1	{0}.localdomain	{0}"#, hostname)
+            .with_context(|err| format!("failed to write hosts to {:?}: {}", hosts, err))
     }
 
     /// Set the keyboard layout so that the layout will function, even within the decryption screen.
@@ -189,7 +195,8 @@ impl<'a> ChrootConfigurator<'a> {
 
         let cached_file = self.chroot.path.join("etc/console-setup/cached.kmap.gz");
         if cached_file.exists () {
-            fs::remove_file(cached_file)?;
+            fs::remove_file(cached_file)
+                .with_context(|err| format!("failed to remove console-setup cache: {}", err))?;
         }
 
         self.chroot.command("ln", &[
@@ -275,6 +282,14 @@ impl<'a> ChrootConfigurator<'a> {
             return Ok(());
         }
 
+        let casper_data_: String;
+        let casper_data: &str = if Path::new("/cdrom/recovery.conf").exists() {
+            casper_data_ = ["/cdrom/casper-", cdrom_uuid, "/"].concat();
+            &casper_data_
+        } else {
+            "/cdrom/casper/"
+        };
+
         let casper = ["casper-", &recovery_uuid.id].concat();
         let recovery = ["Recovery-", &recovery_uuid.id].concat();
         if recovery_uuid.id != cdrom_uuid {
@@ -283,7 +298,7 @@ impl<'a> ChrootConfigurator<'a> {
             ]).run()?;
 
             self.chroot.command("rsync", &[
-                "-KLavc", "/cdrom/casper/", &["/recovery/", &casper].concat()
+                "-KLavc", casper_data, &["/recovery/", &casper].concat()
             ]).run()?;
         }
 
@@ -313,16 +328,18 @@ OEM_MODE=0
         // Copy initrd and vmlinuz to EFI partition
         let recovery_path = self.chroot.path.join("recovery/recovery.conf");
         let mut recovery_file = misc::create(&recovery_path)?;
-        recovery_file.write_all(recovery_data.as_bytes())?;
+        recovery_file.write_all(recovery_data.as_bytes())
+            .with_context(|err| format!("failed to write recovery file: {}", err))?;
 
         let efi_recovery = ["boot/efi/EFI/", recovery.as_str()].concat();
         let efi_initrd = self.chroot.path.join([&efi_recovery, "/initrd.gz"].concat());
         let efi_vmlinuz = self.chroot.path.join([&efi_recovery, "/vmlinuz.efi"].concat());
 
-        fs::create_dir_all(self.chroot.path.join(efi_recovery))?;
+        fs::create_dir_all(self.chroot.path.join(efi_recovery))
+            .with_context(|err| format!("failed to create EFI recovery directories: {}", err))?;
 
-        misc::cp("/cdrom/casper/initrd.gz", &efi_initrd)?;
-        misc::cp("/cdrom/casper/vmlinuz.efi", &efi_vmlinuz)?;
+        misc::cp(&[casper_data, "initrd.gz"].concat(), &efi_initrd)?;
+        misc::cp(&[casper_data, "vmlinuz.efi"].concat(), &efi_vmlinuz)?;
 
         let rec_entry_data = format!(r#"title {0} recovery
 linux /EFI/{1}/vmlinuz.efi
@@ -337,12 +354,14 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
         );
         let loader_entries = self.chroot.path.join("boot/efi/loader/entries/");
         if ! loader_entries.exists() {
-            fs::create_dir_all(&loader_entries)?;
+            fs::create_dir_all(&loader_entries)
+                .with_context(|err| format!("failed to create EFI loader directories: {}", err))?;
         }
 
         let rec_entry_path = loader_entries.join([recovery.as_str(), ".conf"].concat());
         let mut rec_entry_file = misc::create(&rec_entry_path)?;
-        rec_entry_file.write_all(rec_entry_data.as_bytes())?;
+        rec_entry_file.write_all(rec_entry_data.as_bytes())
+            .with_context(|err| format!("failed to write recovery EFI entry: {}", err))?;
         Ok(())
     }
 
@@ -357,9 +376,9 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
     }
 
     pub fn update_initramfs(&self) -> io::Result<()> {
-        self.chroot.command("update-initramfs", &["-u"]).run().map_err(|why| io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed to update initramfs: {}", why)
-        ))
+        self.chroot
+            .command("update-initramfs", &["-u"])
+            .run()
+            .with_context(|why| format!("failed to update initramfs: {}", why))
     }
 }

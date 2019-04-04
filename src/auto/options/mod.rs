@@ -14,6 +14,7 @@ pub use self::refresh_option::*;
 
 use disk_types::{PartitionExt, SectorExt};
 use disks::*;
+use os_release::OS_RELEASE;
 use std::path::PathBuf;
 use super::super::*;
 use partition_identity::PartitionID;
@@ -37,18 +38,35 @@ impl InstallOptions {
         let mut alongside_options = Vec::new();
 
         let recovery_option = detect_recovery();
+        let os_release = OS_RELEASE.as_ref().expect("OS_RELEASE fetch failed");
 
         {
             let erase_options = &mut erase_options;
             let refresh_options = &mut refresh_options;
 
             let mut check_partition = |part: &PartitionInfo| -> Option<OS> {
-                if part.is_linux_compatible() {
-                    if let Some(os) = part.probe_os() {
-                        if let OS::Linux { ref info, ref partitions, ref targets } = os {
+                // We're only going to find Linux on a Linux-compatible file system.
+                if let Some(os) = part.probe_os() {
+                    info!("found OS on {:?}: {}", part.get_device_path(), match os {
+                        OS::Windows(ref version) => format!("Windows ({})", version),
+                        OS::Linux { ref info, .. } => format!("Linux ({})", info.pretty_name),
+                        OS::MacOs(ref version) => format!("Mac OS ({})", version)
+                    });
+
+                    // Only consider Linux installs for refreshing.
+                    if let OS::Linux { ref info, ref partitions, ref targets } = os {
+                        // Only consider versions of Linux that are the same as the installer's version.
+                        if info.version_id == os_release.version_id {
                             let home = targets.iter().position(|t| t == Path::new("/home"));
                             let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
                             let recovery = targets.iter().position(|t| t == Path::new("/recovery"));
+
+                            info!(
+                                "found refresh option {}on {:?}",
+                                if efi.is_some() { "with EFI partition " } else { "" },
+                                part.get_device_path()
+                            );
+
                             refresh_options.push(RefreshOption {
                                 os_release:     info.clone(),
                                 root_part:      PartitionID::get_uuid(part.get_device_path())
@@ -57,37 +75,81 @@ impl InstallOptions {
                                 efi_part:       efi.map(|pos| partitions[pos].clone()),
                                 recovery_part:  recovery.map(|pos| partitions[pos].clone()),
                                 can_retain_old: if let Ok(used) = part.sectors_used() {
-                                     part.get_sectors() - used > required_space
+                                    part.get_sectors() - used > required_space
                                 } else {
                                     false
-                                }
+                                },
                             });
                         }
-
-                        return Some(os);
                     }
+
+                    return Some(os);
                 }
 
                 None
             };
 
             for device in disks.get_physical_devices() {
-                // A device should be ignored if it is read-oly, or happens to be mounted at
-                // either `/`, or `/cdrom`, with the exception of being in recovery mode.
-                let ignore = device.is_read_only()
-                    || (
-                        ! Path::new("/cdrom/recovery.conf").exists()
-                            && (
-                                device.contains_mount("/", &disks)
-                                || device.contains_mount("/cdrom", &disks)
-                            )
-                    );
+                if device.is_read_only() || device.contains_mount("/", &disks) {
+                    continue
+                }
 
-                if ignore {
+                let mut last_end_sector = 1024;
+
+                for part in device.get_partitions() {
+                    if let Ok(used) = part.sectors_used() {
+                        let sectors = part.get_sectors();
+                        let free = sectors - used;
+                        let os = check_partition(part);
+                        if required_space + shrink_overhead < free {
+                            info!("found shrinkable partition on {:?}: {} free of {}", part.get_device_path(), free, sectors);
+                            alongside_options.push(AlongsideOption {
+                                device: device.get_device_path().to_path_buf(),
+                                alongside: os,
+                                method: AlongsideMethod::Shrink {
+                                    path: part.get_device_path().to_path_buf(),
+                                    partition: part.number,
+                                    sectors_free: free,
+                                    sectors_total: sectors
+                                }
+                            });
+                        }
+                    }
+
+                    if last_end_sector < part.start_sector && required_space < part.start_sector - last_end_sector {
+                        info!("found free sectors on {:?}: {} - {}", device.get_device_path(), last_end_sector + 1, part.start_sector - 1);
+                        alongside_options.push(AlongsideOption {
+                            device: device.get_device_path().to_path_buf(),
+                            alongside: None,
+                            method: AlongsideMethod::Free(Region::new(last_end_sector + 1, part.start_sector - 1))
+                        })
+                    }
+
+                    last_end_sector = part.end_sector;
+                }
+
+                let last_sector = device.get_sectors () - 2048;
+                if last_sector > last_end_sector && required_space < last_sector - last_end_sector {
+                    info!("found free sectors at the end on {:?}: {} - {}", device.get_device_path(), last_end_sector + 1, last_sector);
+                    alongside_options.push(AlongsideOption {
+                        device: device.get_device_path().to_path_buf(),
+                        alongside: None,
+                        method: AlongsideMethod::Free(Region::new(last_end_sector + 1, last_sector))
+                    })
+                }
+
+                let skip = ! Path::new("/cdrom/recovery.conf").exists() && (
+                    device.contains_mount("/", &disks)
+                    || device.contains_mount("/cdrom", &disks)
+                );
+
+                if skip {
+                    info!("install options: skipping options on {:?}", device.get_device_path());
                     continue
                 }
 
                 let sectors = device.get_sectors();
+                info!("found erase option on {:?}: {} sectors", device.get_device_path(), sectors);
                 erase_options.push(EraseOption {
                     device: device.get_device_path().to_path_buf(),
                     model: {
@@ -119,47 +181,6 @@ impl InstallOptions {
                         flags
                     },
                 });
-
-                let mut last_end_sector = 1024;
-
-                for part in device.get_partitions() {
-                    if let Ok(used) = part.sectors_used() {
-                        let sectors = part.get_sectors();
-                        let free = sectors - used;
-                        if required_space + shrink_overhead < free {
-                            let os = check_partition(part);
-                            alongside_options.push(AlongsideOption {
-                                device: device.get_device_path().to_path_buf(),
-                                alongside: os,
-                                method: AlongsideMethod::Shrink {
-                                    path: part.get_device_path().to_path_buf(),
-                                    partition: part.number,
-                                    sectors_free: free,
-                                    sectors_total: sectors
-                                }
-                            });
-                        }
-                    }
-
-                    if required_space < part.start_sector - last_end_sector {
-                        alongside_options.push(AlongsideOption {
-                            device: device.get_device_path().to_path_buf(),
-                            alongside: None,
-                            method: AlongsideMethod::Free(Region::new(last_end_sector + 1, part.start_sector - 1))
-                        })
-                    }
-
-                    last_end_sector = part.end_sector;
-                }
-
-                let last_sector = device.get_sectors () - 2048;
-                if required_space < last_sector - last_end_sector {
-                    alongside_options.push(AlongsideOption {
-                        device: device.get_device_path().to_path_buf(),
-                        alongside: None,
-                        method: AlongsideMethod::Free(Region::new(last_end_sector + 1, last_end_sector))
-                    })
-                }
             }
 
             for device in disks.get_logical_devices() {
@@ -200,6 +221,10 @@ pub enum InstallOptionError {
     RecoveryNoLvm,
     #[fail(display = "EFI partition is required, but not found on this option")]
     RefreshWithoutEFI,
+    #[fail(display = "failed to retrieve list of mounts from /proc/mounts: {}", why)]
+    ProcMounts { why: io::Error },
+    #[fail(display = "could not remount /cdrom as rewriteable: {}", _0)]
+    RemountCdrom(io::Error)
 }
 
 impl From<DiskError> for InstallOptionError {

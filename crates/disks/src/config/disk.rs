@@ -435,23 +435,34 @@ impl Disk {
     /// Designates that the provided partition number should be resized so that the end sector
     /// will be located at the provided `end` value, and checks whether or not that this will
     /// be possible to do.
-    pub fn resize_partition(&mut self, partition: i32, end: u64) -> Result<(), DiskError> {
-        let end = end - 1;
-        info!(
-            "specifying to resize partition {} on {} to sector {}",
-            partition,
-            self.path().display(),
-            end
-        );
-
-        let sector_size = 512;
+    pub fn resize_partition(&mut self, partition: i32, mut end: u64) -> Result<u64, DiskError> {
         let (backup, num, start);
         {
             let partition = self.get_partition_mut(partition)
                 .ok_or(DiskError::PartitionNotFound { partition })?;
 
+            if end < partition.start_sector {
+                return Err(DiskError::new_partition_error(
+                    partition.device_path.clone(),
+                    PartitionError::ResizeTooSmall
+                ));
+            }
+
+            {
+                let length = end - partition.start_sector;
+                end -= length % (2 * 1024);
+            }
+
+            info!(
+                "specifying to resize {} to {} sectors",
+                partition.get_device_path().display(),
+                end - partition.start_sector
+            );
+
+            assert_eq!(0, (end - partition.start_sector) % (2 * 1024));
+
             if end < partition.start_sector
-                || end - partition.start_sector <= (10 * 1024 * 1024) / sector_size
+                || end - partition.start_sector <= (10 * 1024 * 1024) / 512
             {
                 return Err(DiskError::new_partition_error(
                     partition.device_path.clone(),
@@ -473,7 +484,7 @@ impl Disk {
             return Err(DiskError::SectorOverlaps { id });
         }
 
-        Ok(())
+        Ok(end)
     }
 
     /// Designates that the provided partition number should be moved to a specified sector,

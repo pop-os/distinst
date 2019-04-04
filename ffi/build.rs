@@ -16,9 +16,9 @@ fn main() {
     );
 
     fs::File::create(target_dir.join("distinst.pc.stub"))
-        .unwrap()
+        .expect("failed to create pc.stub")
         .write_all(&pkg_config.as_bytes())
-        .unwrap();
+        .expect("failed to write pc.stub");
 
     cbindgen::generate(env::var("CARGO_MANIFEST_DIR").unwrap())
         .expect("unable to generate bindings")

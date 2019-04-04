@@ -46,6 +46,7 @@ Depends:
   parted,
   rsync,
   squashfs-tools,
+  systemd-container,
   util-linux,
   xfsprogs,
   ${misc:Depends},

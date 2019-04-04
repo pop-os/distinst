@@ -1,7 +1,9 @@
-use std::process::{self, Child, Stdio};
+use libc;
+use std::process::{self, Child, ExitStatus, Stdio};
 use std::io::{self, BufRead, BufReader, Error, ErrorKind, Write};
 use std::ffi::OsStr;
-use std::thread;
+use std::os::unix::io::{FromRawFd, IntoRawFd};
+use std::fs::File;
 
 /// Convenient wrapper around `process::Command` to make it easier to work with.
 pub struct Command<'a> {
@@ -32,28 +34,9 @@ impl<'a> Command<'a> {
         self.cmd.env_clear();
     }
 
-    pub fn stdin(&mut self, stdio: Stdio) { self.cmd.stdin(stdio); }
-    pub fn stderr(&mut self, stdio: Stdio) { self.cmd.stderr(stdio); }
-    pub fn stdout(&mut self, stdio: Stdio) { self.cmd.stdout(stdio); }
-
-    fn redirect<R: io::Read + Send + 'static, F: FnMut(&str) + Send + 'static>(
-        reader: Option<R>,
-        mut writer: F
-    ) {
-        if let Some(reader) = reader {
-            let mut reader = BufReader::new(reader);
-            thread::spawn(move || {
-                let buffer = &mut String::with_capacity(8 * 1024);
-                loop {
-                    buffer.clear();
-                    match reader.read_line(buffer) {
-                        Ok(0) | Err(_) => break,
-                        Ok(_) => writer(buffer.trim_right())
-                    }
-                }
-            });
-        }
-    }
+    pub fn stdin(&mut self, stdio: Stdio) -> &mut Self { self.cmd.stdin(stdio); self }
+    pub fn stderr(&mut self, stdio: Stdio) -> &mut Self { self.cmd.stderr(stdio); self }
+    pub fn stdout(&mut self, stdio: Stdio) -> &mut Self { self.cmd.stdout(stdio); self }
 
     /// Run the program, check the status, and get the output of `stdout`
     pub fn stdin_input(mut self, input: &'a str) -> Self {
@@ -80,7 +63,7 @@ impl<'a> Command<'a> {
                 why.kind(),
                 format!("failed to spawn process {}: {}", cmd, why)
             ))?;
-        
+
         self.stdin_redirect(&mut child)?;
 
         child.wait_with_output()
@@ -99,6 +82,17 @@ impl<'a> Command<'a> {
 
     /// Run the program and check the status.
     pub fn run(&mut self) -> io::Result<()> {
+        self.run_with_callbacks(
+            |info| info!("{}", info),
+            |error| warn!("{}", error)
+        )
+    }
+
+    /// Run the program and check the status.
+    pub fn run_with_callbacks<I, E>(&mut self, info: I, error: E) -> io::Result<()>
+        where I: Fn(&str),
+              E: Fn(&str)
+    {
         let cmd = format!("{:?}", self.cmd);
         info!("running {}", cmd);
 
@@ -109,31 +103,74 @@ impl<'a> Command<'a> {
             ))?;
 
         self.stdin_redirect(&mut child)?;
-        Self::redirect(child.stdout.take(), |msg| info!("{}", msg));
-        Self::redirect(child.stderr.take(), |msg| warn!("{}", msg));
 
-        let status = child.wait()
-            .map_err(|why| Error::new(
-                why.kind(),
-                format!("failed to wait for process {}: {}", cmd, why)
-            ))?;
+        let mut stdout_buffer = String::new();
+        let mut stdout = child.stdout.take().map(non_blocking).map(BufReader::new);
 
-        if status.success() {
-            Ok(())
-        } else if let Some(127) = status.code() {
-            Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("command {} was not found", cmd)
-            ))
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("command failed with exit status: {}", status)
-            ))
+        let mut stderr_buffer = String::new();
+        let mut stderr = child.stderr.take().map(non_blocking).map(BufReader::new);
+
+        loop {
+            match child.try_wait()? {
+                Some(status) => return status_as_result(status, &cmd),
+                None => {
+                    if let Some(ref mut stdout) = stdout {
+                        non_blocking_line_reading(stdout, &mut stdout_buffer, &info)?;
+                    }
+
+                    if let Some(ref mut stderr) = stderr {
+                        non_blocking_line_reading(stderr, &mut stderr_buffer, &error)?;
+                    }
+                }
+            }
         }
     }
 }
 
+fn status_as_result(status: ExitStatus, cmd: &str) -> io::Result<()> {
+    if status.success() {
+        Ok(())
+    } else if let Some(127) = status.code() {
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("command {} was not found", cmd)
+        ))
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("command failed with exit status: {}", status)
+        ))
+    }
+}
+
+fn non_blocking<F: IntoRawFd>(fd: F) -> File {
+    let fd = fd.into_raw_fd();
+    unsafe {
+        let flags = libc::fcntl(fd, libc::F_GETFL, 0);
+        libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+        File::from_raw_fd(fd)
+    }
+}
+
+fn non_blocking_line_reading<B: BufRead, F: Fn(&str)>(
+    reader: &mut B,
+    buffer: &mut String,
+    callback: F,
+) -> io::Result<()> {
+    loop {
+        match reader.read_line(buffer) {
+            Ok(0) => break,
+            Ok(read) => {
+                callback(&buffer[..read-1]);
+                buffer.clear();
+            }
+            Err(ref why) if why.kind() == io::ErrorKind::WouldBlock => break,
+            Err(why) => return Err(why),
+        }
+    }
+
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {

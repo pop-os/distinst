@@ -7,8 +7,11 @@ datarootdir = $(prefix)/share
 datadir = $(datarootdir)
 RELEASE = debug
 
-SRC=Cargo.toml src/* src/*/*
-FFI_SRC=ffi/Cargo.toml ffi/build.rs ffi/src/*
+SRC=Cargo.toml $(shell find src crates -type f -wholename '*src/*.rs' \
+	-o -name 'Cargo.toml' \
+	-o -name 'Cargo.lock')
+CLI_SRC=cli/Cargo.toml $(shell find cli/src -type f -name '*.rs')
+FFI_SRC=ffi/Cargo.toml ffi/build.rs $(shell find ffi/src -type f -name '*.rs')
 PACKAGE=distinst
 
 HEADER=target/$(PACKAGE).h
@@ -16,16 +19,14 @@ PKGCONFIG=target/$(PACKAGE).pc
 VAPI=ffi/$(PACKAGE).vapi
 
 DEBUG ?= 0
-VENDORED = 0
-
 ifeq (0,$(DEBUG))
 	ARGSD += --release
 	RELEASE = release
 endif
 
-ifneq ($(wildcard vendor.tar.xz),)
-	VENDORED = 1
-	ARGS += --frozen
+VENDORED ?= 0
+ifneq ($(VENDORED),0)
+	ARGS += "--frozen"
 endif
 
 BINARY=target/$(RELEASE)/$(PACKAGE)
@@ -59,32 +60,16 @@ uninstall:
 update:
 	cargo update
 
-.cargo/config: vendor_config
-	mkdir -p .cargo
-	cp $< $@
-
-vendor.tar.xz:
-	cargo vendor
-	tar pcfJ vendor.tar.xz vendor
-	rm -rf vendor
-
-extract:
-ifeq (1,$(VENDORED)$(wildcard vendor))
-	tar pxf vendor.tar.xz
-endif
-
-vendor: .cargo/config vendor.tar.xz
-
-tests: extract $(SRC)
+tests: $(SRC)
 	cargo test $(ARGS)
 	for crate in crates/*; do \
 		cargo test $(ARGS) --manifest-path $$crate/Cargo.toml; \
 	done
 
-$(BINARY): extract $(SRC)
+$(BINARY): $(SRC) $(CLI_SRC)
 	cargo build --manifest-path cli/Cargo.toml $(ARGS) $(ARGSD)
 
-$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: extract $(FFI_SRC)
+$(LIBRARY) $(HEADER) $(PKGCONFIG).stub: $(SRC) $(FFI_SRC)
 	cargo build --manifest-path ffi/Cargo.toml $(ARGS) $(ARGSD)
 
 $(PKGCONFIG): $(PKGCONFIG).stub

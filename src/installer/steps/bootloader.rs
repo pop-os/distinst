@@ -1,7 +1,8 @@
 use {Config, MODIFY_BOOT_ORDER};
-use libc;
 use chroot::Chroot;
 use disks::{Bootloader, Disks};
+use errors::IoContext;
+use libc;
 use os_release::OsRelease;
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -52,7 +53,8 @@ pub fn bootloader<F: FnMut(i32)>(
 
         // Also ensure that the /boot/efi directory is created.
         if bootloader == Bootloader::Efi && boot_opt.is_some() {
-            fs::create_dir_all(&efi_path)?;
+            fs::create_dir_all(&efi_path)
+                .with_context(|err| format!("failed to create efi directory: {}", err))?;
         }
 
         {

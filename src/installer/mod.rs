@@ -2,7 +2,7 @@ pub mod bitflags;
 pub mod traits;
 
 mod state;
-mod steps;
+pub(crate) mod steps;
 
 pub use self::steps::Step;
 use {PARTITIONING_TEST, hostname, squashfs};
@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use tempdir::TempDir;
 use timezones::Region;
+use errors::IoContext;
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
@@ -115,10 +116,7 @@ impl Installer {
     pub fn disks(&self) -> io::Result<Disks> {
         info!("probing disks on system");
         Disks::probe_devices()
-            .map_err(|err| io::Error::new(
-                io::ErrorKind::Other,
-                format!("disk probing error: {}", err)
-            ))
+            .with_context(|err| format!("disk probing error: {}", err))
     }
 
     /// The user will use this method to hand off installation tasks to distinst.
@@ -141,7 +139,8 @@ impl Installer {
             }
 
             let bootloader = Bootloader::detect();
-            disks.verify_partitions(bootloader)?;
+            disks.verify_partitions(bootloader)
+                .with_context(|err| format!("partition validation: {}", err))?;
 
             let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
                 Installer::initialize(&mut disks, config, percent!(steps))
@@ -154,8 +153,13 @@ impl Installer {
             // Mount the temporary directory, and all of our mount targets.
             info!("mounting temporary chroot directory at {}", Self::CHROOT_ROOT);
 
-            let mount_dir = TempDir::new(Self::CHROOT_ROOT)?;
-            let mut mounts = disks.mount_all_targets(mount_dir.path())?;
+            let mount_dir = TempDir::new(Self::CHROOT_ROOT)
+                .with_context(|err| format!("chroot root temp mount: {}", err))?;
+
+            info!("mounting all targets to the temporary chroot");
+
+            let mut mounts = disks.mount_all_targets(mount_dir.path())
+                .with_context(|err| format!("mounting all targets: {}", err))?;
 
             if PARTITIONING_TEST.load(Ordering::SeqCst) {
                 info!("PARTITION_TEST enabled: exiting before unsquashing");
@@ -193,8 +197,8 @@ impl Installer {
                 )
             })?;
 
-            mounts.unmount(false)?;
-            mount_dir.close()
+            mounts.unmount(false).with_context(|err| format!("chroot unmount: {}", err))?;
+            mount_dir.close().with_context(|err| format!("closing mount directory: {}", err))
         })?;
 
         let _ = deactivate_logical_devices();
@@ -391,10 +395,7 @@ impl Installer {
         let mount_dir = mount_dir.as_ref();
         squashfs::extract(squashfs, mount_dir, callback)?;
         OsRelease::new_from(&mount_dir.join("etc/os-release"))
-            .map_err(|why| io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to parse /etc/os-release from extracted image: {}", why)
-            ))
+            .with_context(|why| format!("failed to parse /etc/os-release from extracted image: {}", why))
     }
 
     /// Configures the new install after it has been extracted.
@@ -432,3 +433,4 @@ impl From<ReinstallError> for io::Error {
         )
     }
 }
+

@@ -18,9 +18,21 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
 
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct VgData {
+    /// Size of a PE, measured in sectors.
+    pe_size:  u64,
+    // Total amount of PEs in this VG.
+    total_pe: u64,
+    /// PEs which have been allocated / used.
+    alloc_pe: u64,
+    /// PEs which are free.
+    free_pe: u64,
+}
+
 /// An LVM device acts similar to a Disk, but consists of one more block devices
 /// that comprise a volume group, and may optionally be encrypted.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct LogicalDevice {
     pub model_name:   String,
     pub volume_group: String,
@@ -34,6 +46,7 @@ pub struct LogicalDevice {
     pub encryption:   Option<LvmEncryption>,
     pub is_source:    bool,
     pub remove:       bool,
+    pub vg_data:      VgData,
 }
 
 impl BlockDeviceExt for LogicalDevice {
@@ -99,14 +112,13 @@ impl LogicalDevice {
             mount_point: mounts.get_mount_by_source(&device_path).map(|m| m.dest.clone()),
             volume_group,
             device_path,
-            luks_parent: None,
-            file_system: None,
             sectors,
             sector_size,
             partitions: Vec::new(),
             encryption,
             is_source,
             remove: false,
+            .. Default::default()
         }
     }
 
@@ -135,6 +147,22 @@ impl LogicalDevice {
             vg: self.volume_group.clone(),
             why
         })
+    }
+
+    pub fn get_pe_free(&self) -> u64 {
+        self.vg_data.free_pe
+    }
+
+    pub fn get_pe_size_in_sectors(&self) -> u64 {
+        self.vg_data.pe_size
+    }
+
+    pub fn shrink_vg(&mut self, pes: u64) -> Result<(), DiskError> {
+        Ok(())
+    }
+
+    pub fn shrink_pv(&mut self, sectors: u64) -> Result<(), DiskError> {
+        Ok(())
     }
 
     pub fn get_last_sector(&self) -> u64 {

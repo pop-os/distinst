@@ -16,9 +16,12 @@ path = "src/main.rs"
 
 [dependencies]
 clap = "=2.32.0"
+dbus = "=0.6.2"
 distinst = { path = ".." }
 libc = "0.2.43"
 pbr = "1.0.1"
+partition-identity = "=0.2.2"
+proc-mounts = "=0.1.2"
 
 [dependencies.failure]
 version = "0.1.2"

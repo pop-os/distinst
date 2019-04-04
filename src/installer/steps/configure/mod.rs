@@ -4,6 +4,7 @@ use chroot::Chroot;
 use Config;
 use distribution;
 use envfile::EnvFile;
+use errors::*;
 use external::remount_rw;
 use libc;
 use os_release::OsRelease;
@@ -69,7 +70,9 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 ) -> io::Result<()> {
     let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
     info!("Configuring on {}", mount_dir.display());
-    let configure_dir = TempDir::new_in(mount_dir.join("tmp"), "distinst")?;
+    let tpath = mount_dir.join("tmp");
+    let configure_dir = TempDir::new_in(&tpath, "distinst")
+        .with_context(|err| format!("creating tempdir at {:?}: {}", tpath, err))?;
 
     let install_pkgs = &mut cascade! {
         Vec::with_capacity(32);
@@ -160,8 +163,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(15);
 
-        info!("retrieving root partition");
-        let root_entry = disks.get_root_block_info()?;
+        let root_entry = disks.get_block_info_of("/")?;
+        let recovery_entry = disks.get_block_info_of("/recovery");
 
         callback(20);
 
@@ -174,6 +177,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         let root_uuid = &root_entry.uid;
         update_recovery_config(&mount_dir, &root_uuid.id, luks_uuid.as_ref().map(|x| x.id.as_str()))?;
+
         callback(30);
 
         let (retain, lang_output) = rayon::join(
@@ -265,16 +269,16 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         });
 
         map_errors! {
-            hostname => "failed to write hostname";
-            hosts => "failed to write hosts";
-            machine_id => "failed to write unique machine id";
-            netresolv => "failed to link netresolve";
-            locale => "failed to generate locales";
-            apt_install => "failed to install packages";
-            etc_cleanup => "failed to remove pre-existing files in /etc";
-            kernel_copy => "failed to copy kernel from casper to chroot";
-            timezone => "failed to set timezone";
-            useradd => "failed to create user account"
+            hostname => "error writing hostname";
+            hosts => "error writing hosts";
+            machine_id => "error writing unique machine id";
+            netresolv => "error linking netresolve";
+            locale => "error generating locales";
+            apt_install => "error installing packages";
+            etc_cleanup => "error removing pre-existing files in /etc";
+            kernel_copy => "error copying kernel from casper to chroot";
+            timezone => "error setting timezone";
+            useradd => "error creating user account"
         }
 
         callback(70);
@@ -288,16 +292,13 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         );
 
         map_errors! {
-            apt_remove => "failed to remove packages";
-            recovery => "failed to create recovery partition"
+            apt_remove => "error removing packages";
+            recovery => "error creating recovery partition"
         }
 
         callback(75);
 
-        chroot.bootloader().map_err(|why| io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed to install bootloader: {}", why)
-        ))?;
+        chroot.bootloader().with_context(|why| format!("error installing bootloader: {}", why))?;
 
         callback(80);
 
@@ -305,13 +306,10 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             chroot.disable_nvidia();
         }
 
-        chroot.keyboard_layout(config).map_err(|why| io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed to set keyboard layout: {}", why)
-        ))?;
+        chroot.keyboard_layout(config).with_context(|why| format!("error setting keyboard layout: {}", why))?;
         callback(85);
 
-        chroot.update_initramfs()?;
+        chroot.update_initramfs().with_context(|why| format!("error updating initramfs: {}", why))?;
         callback(90);
 
         // Sync to the disk before unmounting
@@ -336,13 +334,18 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
 fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>) -> io::Result<()> {
     fn remove_boot(mount: &Path, uuid: &str) -> io::Result<()> {
-        for directory in mount.join("boot/efi/EFI").read_dir()? {
-            let entry = directory?;
+        let efi_path = mount.join("boot/efi/EFI");
+        let readdir = efi_path.read_dir()
+            .with_context(|err| format!("error reading dir at {:?}: {}", efi_path, err))?;
+
+        for directory in readdir {
+            let entry = directory.with_context(|err| format!("bad entry in {:?}: {}", efi_path, err))?;
             let full_path = entry.path();
             if let Some(path) = entry.file_name().to_str() {
                 if path.ends_with(uuid) {
-                    info!("removing old boot files for {}", path);
-                    fs::remove_dir_all(&full_path)?;
+                    fs::remove_dir_all(&full_path).with_context(|err| {
+                        format!("error removing old boot files for {}: {}", path, err)
+                    })?;
                 }
             }
         }
@@ -351,26 +354,35 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
     }
 
     let recovery_path = Path::new("/cdrom/recovery.conf");
-    if recovery_path.exists() {
-        let recovery_conf = &mut EnvFile::new(recovery_path)?;
-        let luks_value = luks_uuid.map_or("", |uuid| if root_uuid == uuid { "" } else { uuid});
+    if recovery_path.exists()  {
+        let recovery_conf = &mut EnvFile::new(recovery_path).with_context(|err| {
+            format!("error parsing envfile at {:?}: {}", recovery_path, err)
+        })?;
 
+        let luks_value = luks_uuid.map_or("", |uuid| if root_uuid == uuid { "" } else { uuid});
         recovery_conf.update("LUKS_UUID", luks_value);
 
         remount_rw("/cdrom")
+            .with_context(|err| format!("could not remount /cdrom as rw: {}", err))
             .and_then(|_| {
                 recovery_conf.update("OEM_MODE", "0");
-                recovery_conf.get("ROOT_UUID").ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "no ROOT_UUID found in /cdrom/recovery.conf",
-                    )
-                })
+                recovery_conf.get("ROOT_UUID")
+                    .into_io_result(|| "no ROOT_UUID found in /cdrom/recovery.conf")
             })
-            .and_then(|old_uuid| remove_boot(mount, old_uuid))
+            .map(|old_uuid| {
+                let res = remove_boot(mount, old_uuid).with_context(|err| {
+                    format!("unable to remove an older boot from recovery.conf: {}", err)
+                });
+
+                if let Err(why) = res {
+                    warn!("{}", why);
+                }
+            })
             .and_then(|_| {
                 recovery_conf.update("ROOT_UUID", root_uuid);
-                recovery_conf.write()
+                recovery_conf.write().with_context(|err| {
+                    format!("error writing recovery conf: {}", err)
+                })
             })?;
     }
 

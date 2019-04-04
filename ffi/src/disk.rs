@@ -19,6 +19,7 @@ use partition::{
     DistinstPartition, DistinstPartitionAndDiskPath, DistinstPartitionBuilder,
     DISTINST_PARTITION_TABLE,
 };
+use partition_identity::PartitionID;
 use sector::DistinstSector;
 
 #[repr(C)]
@@ -474,6 +475,56 @@ pub unsafe extern "C" fn distinst_disks_contains_luks(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn distinst_disks_get_disk_with_mount(
+    disks: *mut DistinstDisks,
+    target: *const libc::c_char
+) -> *mut DistinstDisk {
+    if disks.is_null() || target.is_null() {
+        return ptr::null_mut();
+    }
+
+    let disks = &mut *(disks as *mut Disks);
+
+    let target = match get_str(target) {
+        Ok(target) => target,
+        Err(_) => {
+            return ptr::null_mut();
+        }
+    };
+
+    disks.get_disk_with_mount_mut(&target)
+        .as_mut_ptr() as *mut DistinstDisk
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_disks_get_disk_with_partition(
+    disks: *mut DistinstDisks,
+    partition: *const DistinstPartition
+) -> *mut DistinstDisk {
+    if disks.is_null() || partition.is_null() {
+        return ptr::null_mut();
+    }
+
+    let disks = &mut *(disks as *mut Disks);
+    let partition = &*(partition as *const PartitionInfo);
+
+    // Attempt to identify the partition by either its PartUUID or UUID.
+    //
+    // PartUUID should have preference over UUID, to avoid UUID collisions.
+    // UUID is a good fallback if PartUUID does not exist.
+    let id = if let Some(ref id) = partition.identifiers.part_uuid {
+        PartitionID::new_partuuid(id.clone())
+    } else if let Some(ref id) = partition.identifiers.uuid {
+        PartitionID::new_uuid(id.clone())
+    } else {
+        return ptr::null_mut();
+    };
+
+    disks.get_disk_with_partition_mut(&id)
+        .as_mut_ptr() as *mut DistinstDisk
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn distinst_disks_get_encrypted_partitions(
     disks: *mut DistinstDisks,
     len: *mut libc::c_int,
@@ -507,7 +558,8 @@ pub unsafe extern "C" fn distinst_disks_get_partition_by_uuid(
     match get_str(uuid) {
         Ok(uuid) => {
             let disks = &mut *(disks as *mut Disks);
-            disks.get_partition_by_uuid_mut(uuid.to_owned()).as_mut_ptr() as *mut DistinstPartition
+            let id = PartitionID::new_uuid(uuid.to_owned());
+            disks.get_partition_by_id_mut(&id).as_mut_ptr() as *mut DistinstPartition
         }
         Err(why) => {
             eprintln!("libdistinst: uuid is not UTF-8: {}", why);

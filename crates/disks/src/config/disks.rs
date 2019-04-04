@@ -24,6 +24,7 @@ use super::super::{
     PartitionFlag, PartitionInfo, LogicalDevice
 };
 use sys_mount::{unmount, swapoff, Mount, MountFlags, Mounts, Unmount, UnmountFlags};
+use proc_mounts::MountIter;
 
 /// A configuration of disks, both physical and logical.
 #[derive(Debug, Default, PartialEq)]
@@ -81,27 +82,31 @@ impl Disks {
     pub fn get_physical_devices_mut(&mut self) -> &mut [Disk] { &mut self.physical }
 
     /// Returns the physical device that contains the partition at path.
+    pub fn get_physical_device_with_partition<P: AsRef<Path>>(
+        &self,
+        path: P
+    ) -> Option<&Disk> {
+        let path = path.as_ref();
+        self.get_physical_devices()
+            .iter()
+            .find(|device| {
+                device.get_device_path() == path
+                    || device.get_partitions().iter().any(|p| p.get_device_path() == path)
+            })
+    }
+
+    /// Returns the physical device, mutably, that contains the partition at path.
     pub fn get_physical_device_with_partition_mut<P: AsRef<Path>>(
         &mut self,
         path: P
     ) -> Option<&mut Disk> {
         let path = path.as_ref();
-        for device in self.get_physical_devices_mut() {
-            let mut found = false;
-
-            for part in device.get_partitions_mut() {
-                if part.get_device_path() == path {
-                    found = true;
-                    break
-                }
-            }
-
-            if found {
-                return Some(device);
-            }
-        }
-
-        None
+        self.get_physical_devices_mut()
+            .iter_mut()
+            .find(|device| {
+                device.get_device_path() == path
+                    || device.get_partitions().iter().any(|p| p.get_device_path() == path)
+            })
     }
 
     /// Uses a boxed iterator to get an iterator over all physical partitions.
@@ -344,6 +349,32 @@ impl Disks {
             .and_then(move |ref target| self.get_partition_by_path_mut(target))
     }
 
+    /// Find the disk which contains the given mount.
+    pub fn get_disk_with_mount<P: AsRef<Path>>(&self, target: P) -> Option<&Disk> {
+        let device_path = find_device_path_of_mount(target).ok()?;
+        self.get_physical_device_with_partition(&device_path)
+    }
+
+    /// Find the disk, mutably, which contains the given mount.
+    pub fn get_disk_with_mount_mut<P: AsRef<Path>>(&mut self, target: P) -> Option<&mut Disk> {
+        let device_path = find_device_path_of_mount(target).ok()?;
+        self.get_physical_device_with_partition_mut(&device_path)
+    }
+
+    /// Find the disk which contains the partition with the given Partition ID.
+    pub fn get_disk_with_partition(&self, target: &PartitionID) -> Option<&Disk> {
+        self.get_physical_devices()
+            .iter()
+            .find(|disk| disk.partitions.iter().any(|p| p.identifiers.matches(target)))
+    }
+
+    /// Find the disk, mutably, which contains the partition with the given Partition ID.
+    pub fn get_disk_with_partition_mut(&mut self, target: &PartitionID) -> Option<&mut Disk> {
+        self.get_physical_devices_mut()
+            .iter_mut()
+            .find(|disk| disk.partitions.iter().any(|p| p.identifiers.matches(target)))
+    }
+
     /// Deactivates all device maps associated with the inner disks/partitions
     /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
@@ -449,8 +480,11 @@ impl Disks {
                 Some(Some(vg)) => {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
+                    let mut luks = LogicalDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true);
+                    info!("settings luks_parent to {:?}", path);
+                    luks.set_luks_parent(path.to_path_buf());
 
-                    Ok(LogicalDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true))
+                    Ok(luks)
                 }
                 _ => {
                     // Detect a file system on the device
@@ -465,6 +499,7 @@ impl Disks {
                         );
 
                         luks.set_file_system(fs);
+                        info!("settings luks_parent to {:?}", path);
                         luks.set_luks_parent(path.to_path_buf());
 
                         return Ok(luks);
@@ -564,6 +599,83 @@ impl Disks {
             });
 
         Ok(disks)
+    }
+
+    /// Locate a partition which contains the given file.
+    ///
+    /// ```rust
+    /// extern crate disk_types;
+    /// use disk_types::FileSystem;
+    ///
+    /// Disks::probe_for(
+    ///     "recovery.conf",
+    ///     "/recovery",
+    ///     |fs| fs == Fat16 || fs == Fat32,
+    ///     |recovery_path| {
+    ///         let mut file = File::open(recovery_path)?;
+    ///         let mut output = String::new();
+    ///         file.read_to_end(&mut output)?;
+    ///
+    ///         println!("Found recovery.conf at {:?}:\n\n{}", recovery_path, output);
+    ///         Ok(())
+    ///     }
+    /// )
+    /// ```
+    pub fn probe_for<T, E, F, C, S>(
+        expected_at: E,
+        mut supported: S,
+        mut condition: C,
+        mut func: F
+    ) -> io::Result<T>
+    where E: AsRef<Path>,
+          S: FnMut(FileSystem) -> bool,
+          C: FnMut(&PartitionInfo, &Path) -> bool,
+          F: FnMut(&PartitionInfo, &Path) -> T
+    {
+        let disks = Disks::probe_devices()?;
+        let expected_at = expected_at.as_ref();
+
+        // Check partitions which have already been mounted first.
+        for partition in disks.get_physical_partitions() {
+            match partition.mount_point {
+                Some(ref path) if path == expected_at => return Ok(func(partition, path)),
+                Some(_) => continue,
+                None => (),
+            }
+        }
+
+        // Then check partitions which have not been mounted yet.
+        for partition in disks.get_physical_partitions() {
+            if partition.mount_point.is_some() {
+                continue;
+            }
+
+            let has_filesystem = match partition.filesystem {
+                Some(fs) => supported(fs),
+                None => false
+            };
+
+            if has_filesystem {
+                let result = partition.probe(|mount| {
+                    mount.and_then(|(path, _mount)| {
+                        if condition(partition, path) {
+                            Some(func(partition, path))
+                        } else {
+                            None
+                        }
+                    })
+                });
+
+                if let Some(result) = result {
+                    return Ok(result);
+                }
+            }
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "partition was not found",
+        ))
     }
 
     /// Returns an immutable reference to the disk specified by its path, if it
@@ -1020,8 +1132,11 @@ impl Disks {
         // Ensure that the keyfile paths are mapped to their mount targets.
         self.resolve_keyfile_paths()?;
 
+        // LUKS associations with LVM devices.
+        let mut associations = Vec::new();
+
         // Now we will apply the logical layout.
-        for device in &self.logical {
+        for (id, device) in self.logical.iter().enumerate() {
             // Only create the device if it does not exist.
             if !device.is_source {
                 let volumes: Vec<(&Path, &Path)> = self.find_volume_paths(&device.volume_group);
@@ -1034,6 +1149,8 @@ impl Disks {
                     device_path = Some(PathBuf::from(
                         ["/dev/mapper/", &encryption.physical_volume].concat(),
                     ));
+
+                    associations.push((volumes[0].1.to_path_buf(), id));
                 }
 
                 // Obtains an iterator which may produce one or more device paths.
@@ -1048,6 +1165,12 @@ impl Disks {
             }
 
             device.modify_partitions()?;
+        }
+
+        for (luks_parent, id) in associations {
+            let mut logical = &mut self.logical[id];
+            info!("associating {:?} with {:?}", logical.device_path, luks_parent);
+            logical.luks_parent = Some(luks_parent);
         }
 
         Ok(())
@@ -1069,4 +1192,16 @@ impl FromIterator<Disk> for Disks {
             logical:  Vec::new(),
         }
     }
+}
+
+fn find_device_path_of_mount<P: AsRef<Path>>(path: P) -> io::Result<PathBuf> {
+    let path = path.as_ref();
+    for mount in MountIter::new()? {
+        let mount = mount?;
+        if &mount.dest == path {
+            return Ok(mount.source);
+        }
+    }
+
+    Err(io::Error::new(io::ErrorKind::NotFound, "mount not found"))
 }

@@ -93,13 +93,46 @@ namespace Distinst {
         LUKS,
     }
 
+    [CCode (cname = "DISTINST_UPGRADE_TAG", has_type_id = false)]
+    public enum UpgradeTag {
+        ATTEMPTING_REPAIR,
+        ATTEMPTING_UPGRADE,
+        DPKG_INFO,
+        DPKG_ERR,
+        UPGRADE_INFO,
+        UPGRADE_ERR,
+        PACKAGE_PROCESSING,
+        PACKAGE_PROGRESS,
+        PACKAGE_SETTING_UP,
+        PACKAGE_UNPACKING,
+        RESUMING_UPGRADE,
+    }
+
     [CCode (cname = "DISTINST_INSTALL_OPTION_VARIANT", has_type_id = false)]
     public enum InstallOptionVariant {
         ALONGSIDE,
         ERASE,
         RECOVERY,
         REFRESH,
+        UPGRADE,
     }
+
+    [SimpleType]
+    [CCode (has_type_id = false)]
+    public struct UpgradeEvent {
+        public UpgradeTag tag;
+        public uint8 percent;
+        public unowned uint8[] str1;
+        public unowned uint8[] str2;
+        public unowned uint8[] str3;
+    }
+
+    public delegate void UpgradeEventCallback (UpgradeEvent event);
+
+    public delegate bool UpgradeRepairCallback ();
+
+    public int upgrade (Disks disks, RecoveryOption option, UpgradeEventCallback event_cb,
+                        UpgradeRepairCallback repair_cb);
 
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class AlongsideOption {
@@ -191,6 +224,7 @@ namespace Distinst {
     public class RecoveryOption {
         public unowned uint8[]? get_efi_uuid ();
         public unowned uint8[] get_recovery_uuid ();
+        public unowned uint8[] get_luks_uuid ();
         public unowned uint8[] get_root_uuid ();
         public unowned uint8[] get_hostname ();
         public unowned uint8[] get_kbd_layout ();
@@ -198,6 +232,7 @@ namespace Distinst {
         public unowned uint8[]? get_kbd_variant ();
         public unowned uint8[] get_language ();
         public bool get_oem_mode ();
+        public bool get_upgrade_mode ();
     }
 
     /**
@@ -966,6 +1001,16 @@ namespace Distinst {
          * Returns the probed partition with the given UUID string.
          */
         public unowned Partition? get_partition_by_uuid (string uuid);
+
+        /**
+         * Find the disk that contains the mount.
+         */
+        public unowned Disk? get_disk_with_mount (string target);
+
+        /**
+         * Find the disk that contains the partition.
+         */
+        public unowned Disk? get_disk_with_partition (Partition? partition);
 
         /**
          * Obtains the physical device at the specified path.
