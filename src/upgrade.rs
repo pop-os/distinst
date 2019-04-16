@@ -32,6 +32,8 @@ pub enum UpgradeError {
     ModeNotSet,
     #[error(display = "systemd-boot loader conf error: {}", _0)]
     SystemdBootConf(systemd_boot_conf::Error),
+    #[error(display = "systemd-boot loader conf write error: {}", _0)]
+    SystemdBootConfWrite(systemd_boot_conf::Error),
     #[error(display = "failed to remove upgrade flag from recovery.conf: {}", _0)]
     UpgradeFlag(io::Error),
 }
@@ -140,15 +142,31 @@ fn systemd_boot_entry_restore<P: AsRef<Path>>(base: P) -> Result<(), UpgradeErro
         loader_conf.default = Some(current_entry.filename.to_owned());
     }
 
+    systemd_boot_conf.overwrite_loader_conf().map_err(UpgradeError::SystemdBootConfWrite)?;
+
     Ok(())
 }
 
 fn apt_upgrade<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()> {
-    chroot.command("apt-get", &["-y", "--allow-downgrades", "--show-progress", "full-upgrade"])
+    const ARGS: &[&str] = &[
+        "-o",  r#"Dpkg::Options::=--force-overwrite"#,
+        "full-upgrade",
+        "-y",
+        "--allow-downgrades",
+        "--show-progress",
+        "--no-download",
+        "--ignore-missing"
+    ];
+
+    chroot.command("apt-get", ARGS)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .run_with_callbacks(
             |info| {
+                if info.is_empty() {
+                    return;
+                }
+
                 info!("apt-info: '{}'", info);
                 let result = info.parse::<AptUpgradeEvent>();
                 let event = match result.as_ref() {

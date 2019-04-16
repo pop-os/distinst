@@ -32,8 +32,8 @@ impl<'a> SystemdNspawn<'a> {
         cmd: S,
         args: I,
     ) -> Command {
-        let mut command = cascade! {
-            Command::new("systemd-nspawn");
+        let command = cascade! {
+            command: Command::new("systemd-nspawn");
             ..args(&[
                 "--bind", "/dev",
                 "--bind", "/sys",
@@ -41,7 +41,11 @@ impl<'a> SystemdNspawn<'a> {
                 "--bind", "/dev/mapper/control",
                 "--property=DeviceAllow=block-sd rw",
                 "--property=DeviceAllow=block-devices-mapper rw",
+
             ]);
+            | for &(key, value) in &self.envs {
+                command.arg(&["--setenv=", key, "=", value].concat());
+            };
             ..arg("-D");
             ..arg(&self.path);
             ..arg(cmd.as_ref());
@@ -49,10 +53,6 @@ impl<'a> SystemdNspawn<'a> {
             ..stderr(Stdio::piped());
             ..stdout(Stdio::piped());
         };
-
-        for &(key, value) in &self.envs {
-            command.arg(&["--setenv=", key, "=", value].concat());
-        }
 
         command
     }
