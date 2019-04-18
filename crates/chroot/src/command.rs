@@ -1,9 +1,11 @@
 use libc;
-use std::process::{self, Child, ExitStatus, Stdio};
-use std::io::{self, BufRead, BufReader, Error, ErrorKind, Write};
 use std::ffi::OsStr;
-use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::fs::File;
+use std::io::{self, BufRead, BufReader, Error, ErrorKind, Write};
+use std::os::unix::io::{FromRawFd, IntoRawFd};
+use std::process::{self, Child, ExitStatus, Stdio};
+use std::thread;
+use std::time::Duration;
 
 /// Convenient wrapper around `process::Command` to make it easier to work with.
 pub struct Command<'a> {
@@ -111,6 +113,7 @@ impl<'a> Command<'a> {
         let mut stderr = child.stderr.take().map(non_blocking).map(BufReader::new);
 
         loop {
+            thread::sleep(Duration::from_millis(16));
             match child.try_wait()? {
                 Some(status) => return status_as_result(status, &cmd),
                 None => {
