@@ -118,11 +118,11 @@ impl<'a> Command<'a> {
                 Some(status) => return status_as_result(status, &cmd),
                 None => {
                     if let Some(ref mut stdout) = stdout {
-                        non_blocking_line_reading(stdout, &mut stdout_buffer, &info)?;
+                        non_blocking_line_reading(stdout, &mut stdout_buffer, &info);
                     }
 
                     if let Some(ref mut stderr) = stderr {
-                        non_blocking_line_reading(stderr, &mut stderr_buffer, &error)?;
+                        non_blocking_line_reading(stderr, &mut stderr_buffer, &error);
                     }
                 }
             }
@@ -161,12 +161,10 @@ fn non_blocking_line_reading<B: BufRead, F: Fn(&str)>(
     callback: F,
 ) -> io::Result<()> {
     loop {
+        buffer.clear();
         match reader.read_line(buffer) {
             Ok(0) => break,
-            Ok(read) => {
-                callback(&buffer[..read-1]);
-                buffer.clear();
-            }
+            Ok(read) => callback(&buffer[..read-1]),
             Err(ref why) if why.kind() == io::ErrorKind::WouldBlock => break,
             Err(why) => return Err(why),
         }
