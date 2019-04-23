@@ -95,6 +95,8 @@ pub struct Disk {
     pub mount_point: Option<PathBuf>,
     /// The size of the disk in sectors.
     pub size: u64,
+    /// The size of each sector
+    pub sector_size: u64,
     /// The type of the device, such as SCSI.
     pub device_type: String,
     /// The partition table may be either **MSDOS** or **GPT**.
@@ -119,7 +121,7 @@ impl BlockDeviceExt for Disk {
 }
 
 impl SectorExt for Disk {
-    fn get_sector_size(&self) -> u64 { 512 }
+    fn get_sector_size(&self) -> u64 { self.sector_size }
 
     fn get_sectors(&self) -> u64 { self.size }
 }
@@ -173,6 +175,7 @@ impl Disk {
         };
 
         let size = device.length();
+        let sector_size = device.sector_size();
         let device_type = format!("{:?}", device.type_());
         let read_only = device.read_only();
 
@@ -197,6 +200,7 @@ impl Disk {
             file_system: None,
             serial,
             size,
+            sector_size,
             device_type,
             read_only,
             table_type,
@@ -436,6 +440,7 @@ impl Disk {
     /// will be located at the provided `end` value, and checks whether or not that this will
     /// be possible to do.
     pub fn resize_partition(&mut self, partition: i32, mut end: u64) -> Result<u64, DiskError> {
+        let sector_size = self.get_sector_size();
         let (backup, num, start);
         {
             let partition = self.get_partition_mut(partition)
@@ -450,7 +455,7 @@ impl Disk {
 
             {
                 let length = end - partition.start_sector;
-                end -= length % (2 * 1024);
+                end -= length % (crate::sectors_normalize(2 * 1024, sector_size));
             }
 
             info!(
@@ -459,10 +464,10 @@ impl Disk {
                 end - partition.start_sector
             );
 
-            assert_eq!(0, (end - partition.start_sector) % (2 * 1024));
+            assert_eq!(0, (end - partition.start_sector) % (crate::sectors_normalize(2 * 1024, sector_size)));
 
             if end < partition.start_sector
-                || end - partition.start_sector <= (10 * 1024 * 1024) / 512
+                || end - partition.start_sector <= crate::sectors_normalize(10 * 1024 * 1024, sector_size) / sector_size
             {
                 return Err(DiskError::new_partition_error(
                     partition.device_path.clone(),
@@ -540,7 +545,7 @@ impl Disk {
             self.path().display(),
             fs,
         );
-        let sector_size = 512;
+        let sector_size = self.get_sector_size();
         self.get_partition_mut(partition)
             .ok_or(DiskError::PartitionNotFound { partition })
             .and_then(|partition| {
@@ -750,6 +755,7 @@ impl Disk {
                                         kind: new.part_type,
                                         start: new.start_sector,
                                         end: new.end_sector,
+                                        sector_size: self.get_sector_size(),
                                         filesystem: source.filesystem,
                                         flags: flags_diff(
                                             &source.flags,

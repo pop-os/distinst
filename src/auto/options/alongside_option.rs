@@ -8,9 +8,10 @@ pub enum AlongsideMethod {
         partition: i32,
         sectors_total: u64,
         sectors_free: u64,
+        sector_size: u64,
         path: PathBuf,
     },
-    Free(Region)
+    Free(Region, u64)
 }
 
 #[derive(Debug)]
@@ -37,24 +38,24 @@ impl fmt::Display for AlongsideOption {
         let device = self.device.display();
 
         match self.method {
-            AlongsideMethod::Shrink { sectors_total, sectors_free, ref path, .. } => {
+            AlongsideMethod::Shrink { sectors_total, sectors_free, sector_size, ref path, .. } => {
                 write!(
                     f,
                     "alongside {:?} ({}) by shrinking {}: {} of {} MiB free",
                     os,
                     device,
                     path.display(),
-                    sectors_free / 2048,
-                    sectors_total / 2048
+                    sectors_free / 2048 * (sector_size / 512),
+                    sectors_total / 2048 * (sector_size / 512)
                 )
             },
-            AlongsideMethod::Free(ref region) => {
+            AlongsideMethod::Free(ref region, ref sector_size) => {
                 write!(
                     f,
                     "alongside {:?} ({}) using free space: {} MiB free",
                     os,
                     device,
-                    region.size() / 2048,
+                    region.size() / 2048 * (*sector_size / 512),
                 )
             }
         }

@@ -460,6 +460,7 @@ impl Disks {
             partition: &mut PartitionInfo,
             path: &Path,
             enc: &LvmEncryption,
+            sector_size: u64,
         ) -> Result<LogicalDevice, DecryptionError> {
             // Attempt to decrypt the device.
             cryptsetup_open(path, &enc).map_err(|why| DecryptionError::Open {
@@ -480,7 +481,7 @@ impl Disks {
                 Some(Some(vg)) => {
                     // Set values in the device's partition.
                     partition.volume_group = Some((vg.clone(), Some(enc.clone())));
-                    let mut luks = LogicalDevice::new(vg, Some(enc.clone()), partition.get_sectors(), 512, true);
+                    let mut luks = LogicalDevice::new(vg, Some(enc.clone()), partition.get_sectors(), sector_size, true);
                     info!("settings luks_parent to {:?}", path);
                     luks.set_luks_parent(path.to_path_buf());
 
@@ -494,7 +495,7 @@ impl Disks {
                             pv,
                             Some(enc.clone()),
                             partition.get_sectors(),
-                            512,
+                            sector_size,
                             true
                         );
 
@@ -516,16 +517,18 @@ impl Disks {
 
         // Attempt to find the device in the configuration.
         for device in &mut self.physical {
+            let sector_size = device.get_sector_size();
+
             // TODO: NLL
             if let Some(partition) = device.get_file_system_mut() {
                 if partition.get_device_path() == path {
-                    decrypt(partition, path, &enc)?;
+                    decrypt(partition, path, &enc, sector_size)?;
                 }
             }
 
             for partition in device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut()) {
                 if partition.get_device_path() == path {
-                    new_device = Some(decrypt(partition, path, &enc)?);
+                    new_device = Some(decrypt(partition, path, &enc, sector_size)?);
                     break
                 }
             }
@@ -955,6 +958,8 @@ impl Disks {
                     }
                 };
 
+                let sector_size = device.get_sector_size();
+
                 if is_efi {
                     // Check if the EFI partition is on a GPT disk.
                     if device.get_partition_table() != Some(PartitionTable::Gpt) {
@@ -988,9 +993,9 @@ impl Disks {
                     }
 
                     // 256 MiB should be the minimal size of the ESP partition.
-                    const REQUIRED_SECTORS: u64 = 524_288;
+                    let required_sectors = crate::sectors_normalize(524_288, sector_size);
 
-                    if boot.get_sectors() < REQUIRED_SECTORS {
+                    if boot.get_sectors() < required_sectors {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "the ESP partition must be at least 256 MiB in size"

@@ -123,6 +123,12 @@ fn alongside_config(
             path: option.device.clone(),
         })?;
 
+    let sector_size = device.get_sector_size();
+
+    let esp_sectors = crate::sectors_normalize(DEFAULT_ESP_SECTORS, sector_size);
+    let swap_sectors = crate::sectors_normalize(DEFAULT_SWAP_SECTORS, sector_size);
+    let recovery_sectors = crate::sectors_normalize(DEFAULT_RECOVER_SECTORS, sector_size);
+
     let (mut start, end) = match option.method {
         AlongsideMethod::Shrink { partition, .. } => {
             let resize = device.get_partition_mut(partition)
@@ -135,7 +141,7 @@ fn alongside_config(
             resize.shrink_to(sectors)?;
             (resize.end_sector + 1, end)
         }
-        AlongsideMethod::Free(ref region) => {
+        AlongsideMethod::Free(ref region, _) => {
             (region.start + 1, region.end - 1)
         }
     };
@@ -157,7 +163,7 @@ fn alongside_config(
         //     }
         // }
 
-        let esp_end = start + DEFAULT_ESP_SECTORS;
+        let esp_end = start + esp_sectors;
 
         device.add_partition(
             PartitionBuilder::new(start, esp_end, Fat32)
@@ -167,7 +173,7 @@ fn alongside_config(
 
         start = esp_end;
 
-        let recovery_end = start + DEFAULT_RECOVER_SECTORS;
+        let recovery_end = start + recovery_sectors;
         device.add_partition(
             PartitionBuilder::new(start, recovery_end, Fat32)
                 .mount("/recovery".into())
@@ -177,7 +183,7 @@ fn alongside_config(
         start = recovery_end;
     } else if lvm.is_some() {
         // BIOS systems with an encrypted root must have a separate boot partition.
-        let boot_end = start + DEFAULT_ESP_SECTORS;
+        let boot_end = start + esp_sectors;
 
         device.add_partition(
             PartitionBuilder::new(start, boot_end, Ext4)
@@ -197,7 +203,7 @@ fn alongside_config(
                 .logical_volume(root_vg, Some(enc))
         )?;
     } else {
-        let swap = end - DEFAULT_SWAP_SECTORS;
+        let swap = end - swap_sectors;
 
         // Only create a new unencrypted swap partition if a swap partition does not already exist.
         let end = if !device.get_partitions().iter().any(|p| p.filesystem == Some(Swap)) {
@@ -222,7 +228,7 @@ fn alongside_config(
             .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
 
         let start = lvm_device.get_sector(Sector::Start);
-        let swap = lvm_device.get_sector(Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS));
+        let swap = lvm_device.get_sector(Sector::UnitFromEnd(swap_sectors));
         let end = lvm_device.get_sector(Sector::End);
 
         lvm_device.add_partition(
@@ -434,9 +440,9 @@ fn erase_config(
     let bootloader = Bootloader::detect();
 
     let start_sector = Sector::Start;
-    let boot_sector = Sector::Unit(DEFAULT_ESP_SECTORS);
-    let recovery_sector = Sector::Unit(DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS);
-    let swap_sector = Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS);
+    let boot_sector: Sector;
+    let recovery_sector: Sector;
+    let swap_sector: Sector;
     let end_sector = Sector::End;
 
     let (lvm, root_vg) = match generate_encryption(password)? {
@@ -450,6 +456,12 @@ fn erase_config(
                 path: option.device.clone(),
             },
         )?;
+
+        let sector_size = device.get_sector_size();
+
+        boot_sector = Sector::Unit(crate::sectors_normalize(DEFAULT_ESP_SECTORS, sector_size));
+        recovery_sector = Sector::Unit(crate::sectors_normalize(DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS, sector_size));
+        swap_sector = Sector::UnitFromEnd(crate::sectors_normalize(DEFAULT_SWAP_SECTORS, sector_size));
 
         let result = match bootloader {
             Bootloader::Efi => {

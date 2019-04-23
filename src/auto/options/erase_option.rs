@@ -7,10 +7,11 @@ pub const MEETS_REQUIREMENTS: u8 = 4;
 
 #[derive(Debug)]
 pub struct EraseOption {
-    pub device:  PathBuf,
-    pub model:   String,
-    pub sectors: u64,
-    pub flags:   u8,
+    pub device:      PathBuf,
+    pub model:       String,
+    pub sectors:     u64,
+    pub sector_size: u64,
+    pub flags:       u8,
 }
 
 impl fmt::Display for EraseOption {

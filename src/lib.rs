@@ -92,7 +92,7 @@ pub fn device_map_exists(name: &str) -> bool {
     dmlist().ok().map_or(false, |list| list.contains(&name.into()))
 }
 
-/// Gets the minimum number of sectors required. The input should be in sectors, not bytes.
+/// Gets the minimum number of 512-byte sectors required. The input should be in sectors, not bytes.
 ///
 /// The number of sectors required is calculated through:
 ///
@@ -117,4 +117,8 @@ pub fn minimum_disk_size(default: u64) -> u64 {
         .map_or(default, |size| size.max(default));
 
     casper_size + DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS + DEFAULT_SWAP_SECTORS
+}
+
+fn sectors_normalize(base_count: u64, sector_size: u64) -> u64 {
+    base_count / (sector_size / 512)
 }
