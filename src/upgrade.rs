@@ -1,6 +1,6 @@
 use apt_cli_wrappers::AptUpgradeEvent;
 use auto::{InstallOption, InstallOptionError, RecoveryOption};
-use chroot::SystemdNspawn;
+use chroot::{Command, SystemdNspawn};
 use disks::Disks;
 use envfile::EnvFile;
 use errors::IoContext;
@@ -11,6 +11,7 @@ use std::path::Path;
 use std::process::Stdio;
 use systemd_boot_conf::SystemdBootConf;
 use tempdir::TempDir;
+use crate::os_release::OS_RELEASE;
 
 #[derive(Debug, Error)]
 pub enum UpgradeError {
@@ -22,6 +23,8 @@ pub enum UpgradeError {
     ChrootTempCreate(io::Error),
     #[error(display = "failed to configure disk(s): {}", _0)]
     Configure(InstallOptionError),
+    #[error(display = "failed to rename EFI entry: {}", _0)]
+    EfiEntryRename(io::Error),
     #[error(display = "failed to mount efivars directory: _0")]
     EfiVars(io::Error),
     #[error(display = "failed to mount $CHROOT/etc to /etc: {}", _0)]
@@ -108,6 +111,7 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
 
     disable_upgrade_flag().map_err(UpgradeError::UpgradeFlag)?;
     systemd_boot_entry_restore(mount_dir)?;
+    rename_efi_entry().map_err(UpgradeError::EfiEntryRename)?;
 
     Ok(())
 }
@@ -125,6 +129,38 @@ fn disable_upgrade_flag() -> io::Result<()> {
                 format!("error writing recovery conf: {}", err)
             })
         })
+}
+
+fn rename_efi_entry() -> io::Result<()> {
+    const BOOT_MANAGER: &str = "efibootmgr";
+
+    let boot_command = Command::new(BOOT_MANAGER)
+        .run_with_stdout()
+        .with_context(|err| {
+            format!("error getting output from efibootmgr: {}", err)
+        })?;
+
+    let boot_current = boot_command.lines()
+        .find(|line| line.trim_start().starts_with("BootCurrent"))
+        .ok_or_else(|| io::Error::new(
+            io::ErrorKind::InvalidData,
+            "efibootmgr did not return BootCurrent line"
+        ))?;
+
+    let boot_current_num = boot_current.split_whitespace().nth(1).ok_or_else(|| io::Error::new(
+        io::ErrorKind::InvalidData,
+        "efibootmgr BootCurrent line lacks bootnum"
+    ))?;
+
+    let pretty_name = &OS_RELEASE.as_ref().unwrap().pretty_name;
+
+    Command::new(BOOT_MANAGER).args(&["-b", boot_current_num, "-B"]).run()
+        .with_context(|err| format!("efibootmgr failed to delete current bootnum: {}", err))?;
+
+    Command::new(BOOT_MANAGER).args(&["-c", "-L", pretty_name.as_str()]).run()
+        .with_context(|err| format!("efibootmgr failed to recreate current entry: {}", err))?;
+
+    Ok(())
 }
 
 fn systemd_boot_entry_restore<P: AsRef<Path>>(base: P) -> Result<(), UpgradeError> {
