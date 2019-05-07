@@ -366,6 +366,8 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
             .with_context(|err| format!("could not remount /cdrom as rw: {}", err))
             .and_then(|_| {
                 recovery_conf.update("OEM_MODE", "0");
+                recovery_conf.store.remove("UPGRADE");
+                recovery_conf.store.remove("REFRESH");
                 recovery_conf.get("ROOT_UUID")
                     .into_io_result(|| "no ROOT_UUID found in /cdrom/recovery.conf")
             })
