@@ -497,13 +497,20 @@ pub unsafe extern "C" fn distinst_recovery_option_get_oem_mode(
 pub unsafe extern "C" fn distinst_recovery_option_get_upgrade_mode(
     option: *const DistinstRecoveryOption,
 ) -> bool {
-    if null_check(option).is_err() {
-        return false;
-    }
-
+    assert!(!option.is_null(), "option is null");
     let option = &*(option as *const RecoveryOption);
     option.upgrade_mode
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_recovery_option_get_refresh_mode(
+    option: *const DistinstRecoveryOption,
+) -> bool {
+    assert!(!option.is_null(), "option is null");
+    let option = &*(option as *const RecoveryOption);
+    option.refresh_mode
+}
+
 
 #[repr(C)]
 pub enum DISTINST_INSTALL_OPTION_VARIANT {

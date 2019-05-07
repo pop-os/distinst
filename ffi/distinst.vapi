@@ -233,6 +233,7 @@ namespace Distinst {
         public unowned uint8[] get_language ();
         public bool get_oem_mode ();
         public bool get_upgrade_mode ();
+        public bool get_refresh_mode ();
     }
 
     /**
