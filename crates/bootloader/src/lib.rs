@@ -10,10 +10,10 @@
 //! ```
 
 use std::path::Path;
-use std::sync::atomic::{ATOMIC_USIZE_INIT, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Force the installation to perform either a BIOS or EFI installation.
-pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
+pub static FORCE_BOOTLOADER: AtomicUsize = AtomicUsize::new(0);
 
 /// Bootloader type
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

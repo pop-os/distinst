@@ -184,8 +184,8 @@ impl<'a> ChrootConfigurator<'a> {
         self.chroot.command("localectl", &[
             "set-x11-keymap",
             &config.keyboard_layout,
-            config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
-            config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
+            config.keyboard_model.as_ref().map(String::as_str).unwrap_or(""),
+            config.keyboard_variant.as_ref().map(String::as_str).unwrap_or(""),
         ]).run()?;
 
         self.chroot.command("/usr/bin/env", &[
@@ -317,8 +317,8 @@ OEM_MODE=0
             config.hostname,
             config.lang,
             config.keyboard_layout,
-            config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
-            config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
+            config.keyboard_model.as_ref().map(String::as_str).unwrap_or(""),
+            config.keyboard_variant.as_ref().map(String::as_str).unwrap_or(""),
             efi_partuuid.id,
             recovery_partuuid.id,
             root_uuid,

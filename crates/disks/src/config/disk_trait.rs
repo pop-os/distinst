@@ -79,7 +79,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
         self.get_partitions()
             .iter()
             .filter(|p| !p.flag_is_enabled(REMOVE))
-            .map(|p| p.get_sectors())
+            .map(PartitionExt::get_sectors)
             .sum()
     }
 

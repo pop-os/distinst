@@ -170,7 +170,7 @@ impl<'a> Backup<'a> {
                 base.read_dir()
             };
 
-            let users = dir?.filter_map(|entry| entry.ok())
+            let users = dir?.filter_map(Result::ok)
                 .map(|name| name.file_name())
                 .inspect(|name| {
                     info!(
@@ -197,7 +197,7 @@ impl<'a> Backup<'a> {
                 .ok()
                 .map(|directory| {
                     directory
-                        .flat_map(|entry| entry.ok())
+                        .flat_map(Result::ok)
                         .filter(|entry| entry.path().is_file())
                         .filter_map(|conn| {
                             misc::read(conn.path())

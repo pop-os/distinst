@@ -77,10 +77,10 @@ pub fn get_default(lang: &str) -> Option<String> {
 /// Equivalent to:
 ///
 /// ```rust,no_exec,no_run
-/// LOCALES.keys().map(|x| x.as_str()).collect()
+/// LOCALES.keys().map(String::as_str).collect()
 /// ```
 pub fn get_language_codes() -> Vec<&'static str> {
-    LOCALES.keys().map(|x| x.as_str()).collect()
+    LOCALES.keys().map(String::as_str).collect()
 }
 
 /// Fetch a list of countries associated with a language code.
@@ -88,7 +88,7 @@ pub fn get_countries(lang: &str) -> Vec<&'static str> {
     match LOCALES.get(lang) {
         Some(value) => {
             value.keys()
-                .map(|c| c.as_ref().map_or("None", |x| x.as_str()))
+                .map(|c| c.as_ref().map_or("None", String::as_str))
                 .collect()
         }
         None => Vec::new()

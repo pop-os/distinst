@@ -17,7 +17,7 @@ const MAIN_COUNTRIES_PATH: &str = "/usr/share/language-tools/main-countries";
 /// assert_eq!(get_main_country("en"), Some("US"));
 /// ```
 pub fn get_main_country(code: &str) -> Option<&'static str> {
-    MAIN_COUNTRIES.get(code).map(|x| x.as_str())
+    MAIN_COUNTRIES.get(code).map(String::as_str)
 }
 
 /// Fetch a list of main countries, according to `/usr/share/language-tools/main-countries`.

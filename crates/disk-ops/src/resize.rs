@@ -2,8 +2,7 @@ use disk_types::{PartitionType, FileSystem};
 use self::FileSystem::*;
 use external::{blockdev, fsck};
 use libparted::PartitionFlag;
-use std::fs::{File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use super::{
     move_partition, BlockCoordinates, OffsetCoordinates, MEBIBYTE, MEGABYTE

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use disk_types::{FileSystem, PartitionTableError};
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 #[derive(Debug, Fail)]
 pub enum DiskError {
     #[fail(display = "decryption error: {}", why)]

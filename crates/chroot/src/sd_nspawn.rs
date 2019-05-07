@@ -7,7 +7,6 @@ use std::process::Stdio;
 /// Defines the location where a `chroot` will be performed, with `systemd-nspawn`.
 pub struct SystemdNspawn<'a> {
     pub path:   PathBuf,
-    clear_envs: bool,
     envs: Vec<(&'a str, &'a str)>
 }
 
@@ -16,7 +15,6 @@ impl<'a> SystemdNspawn<'a> {
         let path = path.as_ref().canonicalize()?;
         Ok(SystemdNspawn {
             path,
-            clear_envs: false,
             envs: Vec::new()
         })
     }

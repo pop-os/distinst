@@ -53,7 +53,7 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
         }
     }
 
-    if let Some(ref vg) = volume_map.get(device).and_then(|x| x.as_ref()) {
+    if let Some(ref vg) = volume_map.get(device).and_then(Option::as_ref) {
         info!("removing pre-existing LVM volumes on {:?}", device);
         umount(vg)
             .and_then(|_| vgremove(vg))?

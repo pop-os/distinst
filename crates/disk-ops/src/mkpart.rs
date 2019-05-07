@@ -44,7 +44,7 @@ impl PartitionExt for PartitionCreate {
 
     fn get_partition_flags(&self) -> &[PartitionFlag] { &self.flags }
 
-    fn get_partition_label(&self) -> Option<&str> { self.label.as_ref().map(|s| s.as_str()) }
+    fn get_partition_label(&self) -> Option<&str> { self.label.as_ref().map(String::as_str) }
 
     fn get_partition_type(&self) -> PartitionType { self.kind }
 }
