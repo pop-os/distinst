@@ -129,10 +129,12 @@ namespace Distinst {
 
     public delegate void UpgradeEventCallback (UpgradeEvent event);
 
-    public delegate bool UpgradeRepairCallback ();
+    public delegate void UpgradeRepairCallback (uint8[] target);
 
-    public int upgrade (Disks disks, RecoveryOption option, UpgradeEventCallback event_cb,
-                        UpgradeRepairCallback repair_cb);
+    public int upgrade (Disks disks, RecoveryOption option, UpgradeEventCallback event_cb);
+
+    public int resume_upgrade (Disks disks, UpgradeEventCallback event_cb,
+                               UpgradeRepairCallback repair_cb);
 
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class AlongsideOption {

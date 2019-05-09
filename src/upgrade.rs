@@ -13,6 +13,8 @@ use systemd_boot_conf::SystemdBootConf;
 use tempdir::TempDir;
 use crate::os_release::OS_RELEASE;
 
+const TARGET: &str = "/upgrade";
+
 #[derive(Debug, Error)]
 pub enum UpgradeError {
     #[error(display = "attempted to recover from errors, but failed: {}", _0)]
@@ -57,11 +59,10 @@ pub enum UpgradeEvent<'a> {
 }
 
 /// Chroot into an existing install, and upgrade it to the next release.
-pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
+pub fn upgrade<F: Fn(UpgradeEvent)>(
     disks: &mut Disks,
     option: &RecoveryOption,
-    callback: F,
-    attempt_repair: R
+    callback: F
 ) -> Result<(), UpgradeError> {
     if !option.upgrade_mode {
         return Err(UpgradeError::ModeNotSet);
@@ -69,48 +70,35 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
 
     InstallOption::Upgrade(option).apply(disks).map_err(UpgradeError::Configure)?;
 
-    let mount_dir = TempDir::new("/upgrade")
-        .map_err(UpgradeError::ChrootTempCreate)?;
-    let mount_dir = mount_dir.path();
+    prepare_mount(disks, move |chroot| {
+        attempt_upgrade(chroot, |event| callback(event))
+    })
+}
 
-    let _mounts = disks.mount_all_targets(mount_dir)
-        .map_err(UpgradeError::ChrootMount)?;
+/// Allow the caller to attempt to resume an upgrade, after performing a manual recovery.
+pub fn resume_upgrade<F: Fn(UpgradeEvent), R: Fn(&'static str)>(
+    disks: &Disks,
+    callback: F,
+    repair: R,
+) -> Result<(), UpgradeError> {
+    prepare_mount(disks, move |chroot| {
+        repair(TARGET);
+        attempt_upgrade(chroot, |event| callback(event))
+    })
+}
 
-    let chroot = &mut SystemdNspawn::new(mount_dir).map_err(UpgradeError::ChrootMount)?;
-    chroot.env("DEBIAN_FRONTEND", "noninteractive");
-    chroot.env("LANG", "C");
-
-    let _efivars_mount = mount_efivars(mount_dir).map_err(UpgradeError::EfiVars)?;
-
-    fn attempt<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()>{
-        info!("attempting release upgrade");
-        if apt_upgrade(chroot, callback).is_err() {
-            warn!("release upgrade failed: attempting to repair");
-            callback(UpgradeEvent::AttemptingRepair);
-            dpkg_configure_all(chroot, callback)?;
-
-            info!("release upgrade failure repaired: resuming upgrade");
-            callback(UpgradeEvent::ResumingUpgrade);
-            apt_upgrade(chroot, callback)?;
-        }
-
-        Ok(())
-    }
-
+fn attempt_upgrade<F: Fn(UpgradeEvent)>(
+    chroot: &mut SystemdNspawn,
+    callback: F
+) -> Result<(), UpgradeError> {
     callback(UpgradeEvent::AttemptingUpgrade);
     if let Err(why) = attempt(chroot, &callback) {
         error!("upgrade attempt failed: {}", why);
-        if !attempt_repair() {
-            return Err(UpgradeError::AttemptFailed(why));
-        }
-
-        if let Err(why) = attempt(chroot, &callback) {
-            return Err(UpgradeError::AttemptFailed(why));
-        }
+        return Err(UpgradeError::AttemptFailed(why));
     }
 
     disable_upgrade_flag().map_err(UpgradeError::UpgradeFlag)?;
-    systemd_boot_entry_restore(mount_dir)?;
+    systemd_boot_entry_restore(TARGET)?;
     rename_efi_entry().map_err(UpgradeError::EfiEntryRename)?;
 
     Ok(())
@@ -256,4 +244,38 @@ fn dpkg_configure_all<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback:
                 callback(UpgradeEvent::DpkgErr(error));
             }
         )
+}
+
+fn attempt<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()>{
+    info!("attempting release upgrade");
+
+    if apt_upgrade(chroot, callback).is_err() {
+        warn!("release upgrade failed: attempting to repair");
+        callback(UpgradeEvent::AttemptingRepair);
+        dpkg_configure_all(chroot, callback)?;
+
+        info!("release upgrade failure repaired: resuming upgrade");
+        callback(UpgradeEvent::ResumingUpgrade);
+        apt_upgrade(chroot, callback)?;
+    }
+
+    Ok(())
+}
+
+fn prepare_mount<C>(disks: &Disks, mut callback: C) -> Result<(), UpgradeError>
+    where C: FnMut(&mut SystemdNspawn) -> Result<(), UpgradeError>
+{
+    let _mount_dir = TempDir::new(TARGET)
+        .map_err(UpgradeError::ChrootTempCreate)?;
+
+    let _mounts = disks.mount_all_targets(TARGET)
+        .map_err(UpgradeError::ChrootMount)?;
+
+    let chroot = &mut SystemdNspawn::new(TARGET).map_err(UpgradeError::ChrootMount)?;
+    chroot.env("DEBIAN_FRONTEND", "noninteractive");
+    chroot.env("LANG", "C");
+
+    let _efivars_mount = mount_efivars(TARGET).map_err(UpgradeError::EfiVars)?;
+
+    callback(chroot)
 }

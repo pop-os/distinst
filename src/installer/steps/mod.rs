@@ -33,13 +33,13 @@ fn mount_cdrom(mount_dir: &Path) -> io::Result<Option<(UnmountDrop<Mount>, PathB
         .map(|res| res.map(|m| (m, cdrom_target)))
 }
 
-pub fn mount_efivars(mount_dir: &Path) -> io::Result<Option<UnmountDrop<Mount>>> {
+pub fn mount_efivars<P: AsRef<Path>>(mount_dir: P) -> io::Result<Option<UnmountDrop<Mount>>> {
     if NO_EFI_VARIABLES.load(Ordering::Relaxed) {
         info!("was ordered to not mount the efivars directory");
         Ok(None)
     } else {
         let efivars_source = Path::new("/sys/firmware/efi/efivars");
-        let efivars_target = mount_dir.join("sys/firmware/efi/efivars");
+        let efivars_target = mount_dir.as_ref().join("sys/firmware/efi/efivars");
         mount_bind_if_exists(&efivars_source, &efivars_target)
     }
 }

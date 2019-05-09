@@ -114,28 +114,50 @@ pub type DistinstUpgradeEventCallback =
     extern "C" fn(event: DistinstUpgradeEvent, user_data: *mut libc::c_void);
 
 pub type DistinstUpgradeRepairCallback =
-    extern "C" fn(user_data: *mut libc::c_void) -> libc::uint8_t;
+    extern "C" fn(target: *const libc::uint8_t, user_data: *mut libc::c_void);
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_upgrade(
     disks: *mut DistinstDisks,
     option: *const DistinstRecoveryOption,
     event_cb: DistinstUpgradeEventCallback,
-    user_data1: *mut libc::c_void,
-    repair_cb: DistinstUpgradeRepairCallback,
-    user_data2: *mut libc::c_void,
+    cb_data: *mut libc::c_void,
 ) -> libc::c_int {
     let result = distinst::upgrade(
         &mut *(disks as *mut Disks),
         &*(option as *const RecoveryOption),
-        move |event| event_cb(DistinstUpgradeEvent::from(event), user_data1),
-        move || repair_cb(user_data2) != 0
+        move |event| event_cb(DistinstUpgradeEvent::from(event), cb_data),
     );
 
     match result {
         Ok(()) => 0,
         Err(why) => {
-            error!("{}", why);
+            error!("upgrade failed: {}", why);
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_resume_upgrade(
+    disks: *const DistinstDisks,
+    event_cb: DistinstUpgradeEventCallback,
+    cb_data1: *mut libc::c_void,
+    repair_cb: DistinstUpgradeRepairCallback,
+    cb_data2: *mut libc::c_void,
+) -> libc::c_int {
+    assert!(!disks.is_null(), "disks parameter should not be null");
+
+    let result = distinst::resume_upgrade(
+        &*(disks as *const Disks),
+        move |event| event_cb(DistinstUpgradeEvent::from(event), cb_data1),
+        move |target| repair_cb(target.as_bytes().as_ptr(), cb_data2)
+    );
+
+    match result {
+        Ok(()) => 0,
+        Err(why) => {
+            error!("resumed upgrade failed: {}", why);
             -1
         }
     }
