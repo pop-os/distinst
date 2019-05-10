@@ -1,6 +1,6 @@
 use distinst::{DiskExt, Disks, BlockDeviceExt, LogicalDevice, PartitionBuilder, PartitionInfo, Sector, SectorExt};
 use external::luks::deactivate_logical_devices;
-use ffi::AsMutPtr;
+use crate::ffi::AsMutPtr;
 use libc;
 
 use super::{get_str, null_check, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};

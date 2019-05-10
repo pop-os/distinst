@@ -3,6 +3,7 @@ use distinst::auto::RecoveryOption;
 use super::{DistinstDisks, DistinstRecoveryOption};
 use libc;
 use std::ptr;
+use crate::assert_ptr;
 
 #[repr(C)]
 pub struct DistinstUpgradeEvent {
@@ -114,7 +115,7 @@ pub type DistinstUpgradeEventCallback =
     extern "C" fn(event: DistinstUpgradeEvent, user_data: *mut libc::c_void);
 
 pub type DistinstUpgradeRepairCallback =
-    extern "C" fn(target: *const libc::uint8_t, user_data: *mut libc::c_void);
+    extern "C" fn(target: *const libc::uint8_t, target_len: libc::c_int, user_data: *mut libc::c_void);
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_upgrade(
@@ -123,6 +124,8 @@ pub unsafe extern "C" fn distinst_upgrade(
     event_cb: DistinstUpgradeEventCallback,
     cb_data: *mut libc::c_void,
 ) -> libc::c_int {
+    assert_ptr!(disks, option);
+
     let result = distinst::upgrade(
         &mut *(disks as *mut Disks),
         &*(option as *const RecoveryOption),
@@ -146,12 +149,12 @@ pub unsafe extern "C" fn distinst_resume_upgrade(
     repair_cb: DistinstUpgradeRepairCallback,
     cb_data2: *mut libc::c_void,
 ) -> libc::c_int {
-    assert!(!disks.is_null(), "disks parameter should not be null");
+    assert_ptr!(disks);
 
     let result = distinst::resume_upgrade(
         &*(disks as *const Disks),
         move |event| event_cb(DistinstUpgradeEvent::from(event), cb_data1),
-        move |target| repair_cb(target.as_bytes().as_ptr(), cb_data2)
+        move |target| repair_cb(target.as_bytes().as_ptr(), target.len() as libc::c_int, cb_data2)
     );
 
     match result {

@@ -10,6 +10,7 @@ authors = [
 license = "LGPL-3.0"
 readme = "README.md"
 build = "build.rs"
+edition = "2018"
 
 [lib]
 name = "distinst"

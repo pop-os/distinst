@@ -1,4 +1,4 @@
-use gen_object_ptr;
+use crate::gen_object_ptr;
 use distinst::timezones::*;
 use std::ptr;
 use libc;

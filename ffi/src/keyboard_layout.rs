@@ -1,7 +1,7 @@
 use distinst::locale::{self, KeyboardLayout, KeyboardLayouts, KeyboardVariant};
 use libc;
 use std::ptr;
-use super::null_check;
+use crate::null_check;
 
 #[repr(C)]
 pub struct DistinstKeyboardLayout;

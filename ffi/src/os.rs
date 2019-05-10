@@ -3,7 +3,7 @@ use libc;
 use std::ffi::CString;
 use std::mem::forget;
 use std::ptr;
-use super::null_check;
+use crate::null_check;
 
 macro_rules! get_os_release {
     () => {

@@ -8,8 +8,8 @@ use std::{io, ptr};
 use distinst::{
     Bootloader, FileSystem, BlockDeviceExt, PartitionExt, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
 };
-use filesystem::DISTINST_FILE_SYSTEM;
-use {gen_object_ptr, null_check, get_str, DistinstLvmEncryption};
+use crate::filesystem::DISTINST_FILE_SYSTEM;
+use crate::{gen_object_ptr, null_check, get_str, DistinstLvmEncryption};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
