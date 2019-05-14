@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
+
 use super::*;
 
 /// Get a vector of encrypted devices
@@ -92,6 +93,7 @@ pub fn cryptsetup_close(device: CloseBy) -> io::Result<()> {
 /// Deactivate all logical devies found on the system.
 pub fn deactivate_logical_devices() -> io::Result<()> {
     let mut res = Ok(());
+
     for luks_pv in encrypted_devices()? {
         info!("deactivating encrypted device named {}", luks_pv);
         if let Some(vg) = pvs()?.get(&PathBuf::from(["/dev/mapper/", &luks_pv].concat())) {

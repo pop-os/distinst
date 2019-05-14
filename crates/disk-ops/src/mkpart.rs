@@ -21,7 +21,7 @@ pub struct PartitionCreate {
     /// The format that the file system should be formatted to.
     pub file_system: Option<FileSystem>,
     /// Whether the partition should be primary or logical.
-    #[default = "PartitionType::Primary"]
+    #[default(PartitionType::Primary)]
     pub kind: PartitionType,
     /// Flags which should be set on the partition.
     pub flags: Vec<PartitionFlag>,

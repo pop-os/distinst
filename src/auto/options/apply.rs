@@ -1,3 +1,5 @@
+use std::io::BufReader;
+use std::fs::File;
 use std::fmt;
 use std::mem;
 
@@ -279,7 +281,7 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
 
 fn mount_recovery_partid(disks: &mut Disks, recovery: &PartitionID) -> Result<(), InstallOptionError> {
     if let Some(path) = recovery.get_device_path() {
-        let recovery_is_cdrom = MountIter::source_mounted_at(path, "/cdrom")
+        let recovery_is_cdrom = MountIter::<BufReader<File>>::source_mounted_at(path, "/cdrom")
             .map_err(|why| InstallOptionError::ProcMounts { why })?;
 
         if recovery_is_cdrom {
