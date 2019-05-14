@@ -97,6 +97,7 @@ namespace Distinst {
     public enum UpgradeTag {
         ATTEMPTING_REPAIR,
         ATTEMPTING_UPGRADE,
+        AUTOREMOVING,
         DPKG_INFO,
         DPKG_ERR,
         UPGRADE_INFO,

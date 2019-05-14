@@ -21,6 +21,7 @@ pub struct DistinstUpgradeEvent {
 pub enum DISTINST_UPGRADE_TAG {
     ATTEMPTING_REPAIR,
     ATTEMPTING_UPGRADE,
+    AUTOREMOVING,
     DPKG_INFO,
     DPKG_ERR,
     UPGRADE_INFO,
@@ -67,6 +68,9 @@ impl From<UpgradeEvent<'_>> for DistinstUpgradeEvent {
             UpgradeEvent::AttemptingRepair => (),
             UpgradeEvent::AttemptingUpgrade => {
                 c_event.tag = DISTINST_UPGRADE_TAG::ATTEMPTING_UPGRADE;
+            }
+            UpgradeEvent::Autoremoving => {
+                c_event.tag = DISTINST_UPGRADE_TAG::AUTOREMOVING;
             }
             UpgradeEvent::DpkgInfo(info) => {
                 c_event.tag = DISTINST_UPGRADE_TAG::DPKG_INFO;

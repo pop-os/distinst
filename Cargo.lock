@@ -27,7 +27,7 @@ dependencies = [
 [[package]]
 name = "apt-cli-wrappers"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/apt-cli-wrappers#fd35f27aac57225dcac3100c42c80fe7d6191a70"
+source = "git+https://github.com/pop-os/apt-cli-wrappers#cefd7b61f72c98178271886f241e29f5bd1586cc"
 dependencies = [
  "exit-status-ext 0.1.0 (git+https://github.com/pop-os/exit-status-ext)",
  "libc 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -47,6 +47,7 @@ pub enum UpgradeError {
 pub enum UpgradeEvent<'a> {
     AttemptingRepair,
     AttemptingUpgrade,
+    Autoremoving,
     DpkgInfo(&'a str),
     DpkgErr(&'a str),
     UpgradeInfo(&'a str),
@@ -171,6 +172,18 @@ fn systemd_boot_entry_restore<P: AsRef<Path>>(base: P) -> Result<(), UpgradeErro
     Ok(())
 }
 
+fn apt_fix_broken<F: Fn(UpgradeEvent)>(
+    chroot: &mut SystemdNspawn,
+    callback: &F
+)-> io::Result<()> {
+    const ARGS: &[&str] = &[
+        "-o",  r#"Dpkg::Options::=--force-overwrite"#,
+        "install", "-f", "-y"
+    ];
+
+    apt_chroot_command(chroot, ARGS, callback)
+}
+
 fn apt_upgrade<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()> {
     const ARGS: &[&str] = &[
         "-o",  r#"Dpkg::Options::=--force-overwrite"#,
@@ -182,37 +195,32 @@ fn apt_upgrade<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) ->
         "--ignore-missing"
     ];
 
-    chroot.command("apt-get", ARGS)
+    apt_chroot_command(chroot, ARGS, callback)
+}
+
+fn apt_autoremove<F: Fn(UpgradeEvent)>(
+    chroot: &mut SystemdNspawn,
+    callback: &F
+) -> io::Result<()> {
+    const ARGS: &[&str] = &[
+        "-o",  r#"Dpkg::Options::=--force-overwrite"#,
+        "autoremove", "-y",
+    ];
+
+    apt_chroot_command(chroot, ARGS, callback)
+}
+
+fn apt_chroot_command<F: Fn(UpgradeEvent)>(
+    chroot: &mut SystemdNspawn,
+    args: &[&str],
+    callback: &F
+) -> io::Result<()> {
+    chroot.command("apt-get", args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .run_with_callbacks(
-            |info| {
-                if info.is_empty() {
-                    return;
-                }
-
-                info!("apt-info: '{}'", info);
-                let result = info.parse::<AptUpgradeEvent>();
-                let event = match result.as_ref() {
-                    Ok(AptUpgradeEvent::Processing { ref package }) => UpgradeEvent::PackageProcessing(package.as_str()),
-                    Ok(AptUpgradeEvent::Progress { percent }) => UpgradeEvent::PackageProgress(*percent),
-                    Ok(AptUpgradeEvent::SettingUp { ref package }) => UpgradeEvent::PackageSettingUp(package.as_str()),
-                    Ok(AptUpgradeEvent::Unpacking { ref package, ref version, ref over }) => {
-                        UpgradeEvent::PackageUnpacking {
-                            package: package.as_str(),
-                            version: version.as_str(),
-                            over: over.as_str()
-                        }
-                    },
-                    _ => UpgradeEvent::UpgradeInfo(info)
-                };
-
-                callback(event);
-            },
-            |error| {
-                warn!("apt-err: '{}'", error);
-                callback(UpgradeEvent::UpgradeErr(error))
-            }
+            |info| apt_info_callback("apt", info, callback),
+            |error| apt_error_callback("apt", error, callback)
         )
 }
 
@@ -221,28 +229,8 @@ fn dpkg_configure_all<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback:
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .run_with_callbacks(
-            |info| {
-                info!("dpkg-info: '{}'", info);
-                let result = info.parse::<AptUpgradeEvent>();
-                let event = match result.as_ref() {
-                    Ok(AptUpgradeEvent::Processing { ref package }) => UpgradeEvent::PackageProcessing(package.as_str()),
-                    Ok(AptUpgradeEvent::SettingUp { ref package }) => UpgradeEvent::PackageSettingUp(package.as_str()),
-                    Ok(AptUpgradeEvent::Unpacking { ref package, ref version, ref over }) => {
-                        UpgradeEvent::PackageUnpacking {
-                            package: package.as_str(),
-                            version: version.as_str(),
-                            over: over.as_str()
-                        }
-                    },
-                    _ => UpgradeEvent::UpgradeInfo(info)
-                };
-
-                callback(event);
-            },
-            |error| {
-                warn!("dpkg-err: '{}'", error);
-                callback(UpgradeEvent::DpkgErr(error));
-            }
+            |info| apt_info_callback("dpkg", info, callback),
+            |error| apt_error_callback("dpkg", error, callback)
         )
 }
 
@@ -252,14 +240,56 @@ fn attempt<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io:
     if apt_upgrade(chroot, callback).is_err() {
         warn!("release upgrade failed: attempting to repair");
         callback(UpgradeEvent::AttemptingRepair);
-        dpkg_configure_all(chroot, callback)?;
+
+        let dpkg_configure = dpkg_configure_all(chroot, callback);
+        apt_fix_broken(chroot, callback)?;
+
+        if dpkg_configure.is_err() {
+            dpkg_configure_all(chroot, callback)?;
+        }
 
         info!("release upgrade failure repaired: resuming upgrade");
         callback(UpgradeEvent::ResumingUpgrade);
         apt_upgrade(chroot, callback)?;
     }
 
+    callback(UpgradeEvent::Autoremoving);
+    apt_autoremove(chroot, callback)?;
+
     Ok(())
+}
+
+fn apt_info_callback<F: Fn(UpgradeEvent)>(cmd: &str, info: &str, callback: &F) {
+    if info.is_empty() {
+        return;
+    }
+
+    info!("{}: info: '{}'", cmd, info);
+    let result = info.parse::<AptUpgradeEvent>();
+    let event = match result.as_ref() {
+        Ok(AptUpgradeEvent::Processing { ref package }) => UpgradeEvent::PackageProcessing(package.as_str()),
+        Ok(AptUpgradeEvent::Progress { percent }) => UpgradeEvent::PackageProgress(*percent),
+        Ok(AptUpgradeEvent::SettingUp { ref package }) => UpgradeEvent::PackageSettingUp(package.as_str()),
+        Ok(AptUpgradeEvent::Unpacking { ref package, ref version, ref over }) => {
+            UpgradeEvent::PackageUnpacking {
+                package: package.as_str(),
+                version: version.as_str(),
+                over: over.as_str()
+            }
+        },
+        _ => UpgradeEvent::UpgradeInfo(info)
+    };
+
+    callback(event);
+}
+
+fn apt_error_callback<F: Fn(UpgradeEvent)>(cmd: &str, error: &str, callback: &F) {
+    if error.is_empty() {
+        return;
+    }
+
+    warn!("{}: error: '{}'", cmd, error);
+    callback(UpgradeEvent::UpgradeErr(error))
 }
 
 fn prepare_mount<C>(disks: &Disks, mut callback: C) -> Result<(), UpgradeError>
