@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
+use sys_mount::*;
+use proc_mounts::MountIter;
 
 use super::*;
 
@@ -93,6 +95,16 @@ pub fn cryptsetup_close(device: CloseBy) -> io::Result<()> {
 /// Deactivate all logical devies found on the system.
 pub fn deactivate_logical_devices() -> io::Result<()> {
     let mut res = Ok(());
+
+    // Unmount all mounted logical devices.
+    if let Ok(mount_iterator) = MountIter::new() {
+        for mount in mount_iterator.filter_map(Result::ok) {
+            if mount.source.starts_with("/dev/mapper") {
+                debug!("unmounting {:?}", mount.dest);
+                let _ = unmount(&mount.dest, UnmountFlags::DETACH);
+            }
+        }
+    }
 
     for luks_pv in encrypted_devices()? {
         info!("deactivating encrypted device named {}", luks_pv);
