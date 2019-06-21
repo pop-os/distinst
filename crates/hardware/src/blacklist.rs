@@ -44,6 +44,7 @@ pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<bool> {
 
 /// Products which support switchable graphics.
 static SWITCHABLE_GRAPHICS: &[&str] = &[
+    "addp1",
     "gaze14",
     "oryp4",
     "oryp4-b",
