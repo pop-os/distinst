@@ -17,7 +17,11 @@ const APT_OPTIONS: &[&str] = &[
     "-o", "APT::CDROM::NoMount=1"
 ];
 
+// For a clean boot by default, we hide all output and use plymouth
 const BOOT_OPTIONS: &str = "quiet loglevel=0 systemd.show_status=false splash";
+
+// For a reliable boot when using recovery, we show all output and do not use plymouth
+const RECOVERY_BOOT_OPTIONS: &str = "";
 
 pub struct ChrootConfigurator<'a> {
     chroot: Chroot<'a>
@@ -348,7 +352,7 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
 "#,
             name,
             recovery,
-            BOOT_OPTIONS,
+            RECOVERY_BOOT_OPTIONS,
             casper,
             recovery_partuuid.id
         );
