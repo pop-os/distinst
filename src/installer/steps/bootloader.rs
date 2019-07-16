@@ -76,8 +76,9 @@ pub fn bootloader<F: FnMut(i32)>(
                     ).run()?;
                 }
                 Bootloader::Efi => {
-                    let name = &iso_os_release.name;
-                    if &iso_os_release.name == "Pop!_OS" {
+                    // Grub disallows whitespaces in the name.
+                    let name = iso_os_release.name.replace(" ", "_");
+                    if &name == "Pop!_OS" {
                         chroot.command(
                             "bootctl",
                             &[
@@ -124,7 +125,7 @@ pub fn bootloader<F: FnMut(i32)>(
 
                     if config.flags & MODIFY_BOOT_ORDER != 0 {
                         let efi_part_num = efi_part_num.to_string();
-                        let loader = if &iso_os_release.name == "Pop!_OS" {
+                        let loader = if &name == "Pop!_OS" {
                             "\\EFI\\systemd\\systemd-bootx64.efi".into()
                         } else {
                             format!("\\EFI\\{}\\grubx64.efi", name)
