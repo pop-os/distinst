@@ -1,7 +1,7 @@
-use gen_object_ptr;
 use distinst::timezones::*;
-use std::ptr;
+use gen_object_ptr;
 use libc;
+use std::ptr;
 
 #[repr(C)]
 pub struct DistinstTimezones;
@@ -18,18 +18,21 @@ pub unsafe extern "C" fn distinst_timezones_new() -> *mut DistinstTimezones {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_timezones_zones(tz: *const DistinstTimezones) -> *mut DistinstZones {
+pub unsafe extern "C" fn distinst_timezones_zones(
+    tz: *const DistinstTimezones,
+) -> *mut DistinstZones {
     if tz.is_null() {
         error!("distinst_timezones_zones: tz input was null");
         return ptr::null_mut();
     }
-    let boxed: Box<Iterator<Item = &Zone>> = Box::new((&*(tz as *const Timezones)).zones().into_iter());
+    let boxed: Box<Iterator<Item = &Zone>> =
+        Box::new((&*(tz as *const Timezones)).zones().into_iter());
     gen_object_ptr(boxed) as *mut DistinstZones
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_timezones_destroy(tz: *mut DistinstTimezones) {
-    if ! tz.is_null() {
+    if !tz.is_null() {
         Box::from_raw(tz as *mut Timezones);
     } else {
         error!("distinst_timezones_destroy: tz input was null");
@@ -46,16 +49,19 @@ pub unsafe extern "C" fn distinst_zones_next(tz: *mut DistinstZones) -> *const D
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_zones_nth(tz: *mut DistinstZones, nth: libc::c_int) -> *const DistinstZone {
+pub unsafe extern "C" fn distinst_zones_nth(
+    tz: *mut DistinstZones,
+    nth: libc::c_int,
+) -> *const DistinstZone {
     let zones = &mut *(tz as *mut Box<Iterator<Item = &Zone>>);
-    zones.nth(nth as usize).map_or_else(|| ptr::null(), |zone| zone as *const Zone as *const DistinstZone)
+    zones
+        .nth(nth as usize)
+        .map_or_else(|| ptr::null(), |zone| zone as *const Zone as *const DistinstZone)
 }
-
-
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_zones_destroy(tz: *mut DistinstZones) {
-    if ! tz.is_null() {
+    if !tz.is_null() {
         Box::from_raw(tz as *mut Box<Iterator<Item = &Zone>>);
     } else {
         error!("distinst_zones_destroy: tz input was null");
@@ -66,7 +72,10 @@ pub unsafe extern "C" fn distinst_zones_destroy(tz: *mut DistinstZones) {
 pub struct DistinstZone;
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_zone_name(zone: *const DistinstZone, len: *mut libc::c_int) -> *const u8 {
+pub unsafe extern "C" fn distinst_zone_name(
+    zone: *const DistinstZone,
+    len: *mut libc::c_int,
+) -> *const u8 {
     if zone.is_null() {
         error!("distinst_zone_name: zone input was null");
         return ptr::null();
@@ -84,7 +93,8 @@ pub unsafe extern "C" fn distinst_zone_regions(zone: *const DistinstZone) -> *mu
         return ptr::null_mut();
     }
 
-    let boxed: Box<Iterator<Item = &Region>> = Box::new((&*(zone as *const Zone)).regions().into_iter());
+    let boxed: Box<Iterator<Item = &Region>> =
+        Box::new((&*(zone as *const Zone)).regions().into_iter());
     gen_object_ptr(boxed) as *mut DistinstRegions
 }
 
@@ -92,20 +102,29 @@ pub unsafe extern "C" fn distinst_zone_regions(zone: *const DistinstZone) -> *mu
 pub struct DistinstRegions;
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_regions_next(regions: *mut DistinstRegions) -> *const DistinstRegion {
+pub unsafe extern "C" fn distinst_regions_next(
+    regions: *mut DistinstRegions,
+) -> *const DistinstRegion {
     let regions = &mut *(regions as *mut Box<Iterator<Item = &Region>>);
-    regions.next().map_or_else(|| ptr::null(), |region| region as *const Region as *const DistinstRegion)
+    regions
+        .next()
+        .map_or_else(|| ptr::null(), |region| region as *const Region as *const DistinstRegion)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_regions_nth(regions: *mut DistinstRegions, nth: libc::c_int) -> *const DistinstRegion {
+pub unsafe extern "C" fn distinst_regions_nth(
+    regions: *mut DistinstRegions,
+    nth: libc::c_int,
+) -> *const DistinstRegion {
     let regions = &mut *(regions as *mut Box<Iterator<Item = &Region>>);
-    regions.nth(nth as usize).map_or_else(|| ptr::null(), |region| region as *const Region as *const DistinstRegion)
+    regions
+        .nth(nth as usize)
+        .map_or_else(|| ptr::null(), |region| region as *const Region as *const DistinstRegion)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_regions_destroy(tz: *mut DistinstRegions) {
-    if ! tz.is_null() {
+    if !tz.is_null() {
         Box::from_raw(tz as *mut Box<Iterator<Item = &Region>>);
     } else {
         error!("distinst_regions_destroy: tz input was null");
@@ -116,7 +135,10 @@ pub unsafe extern "C" fn distinst_regions_destroy(tz: *mut DistinstRegions) {
 pub struct DistinstRegion;
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_region_name(region: *const DistinstRegion, len: *mut libc::c_int) -> *const u8 {
+pub unsafe extern "C" fn distinst_region_name(
+    region: *const DistinstRegion,
+    len: *mut libc::c_int,
+) -> *const u8 {
     if region.is_null() {
         error!("distinst_region_name: region input was null");
         return ptr::null();

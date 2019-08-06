@@ -2,11 +2,12 @@ use libc;
 
 use std::io;
 
-use distinst::timezones::Region;
-use distinst::{Disks, Error, Installer, Status, Step};
 use config::DistinstConfig;
 use disk::DistinstDisks;
-use {gen_object_ptr, DistinstRegion, DistinstUserAccountCreate};
+use distinst::{timezones::Region, Disks, Error, Installer, Status, Step};
+use gen_object_ptr;
+use DistinstRegion;
+use DistinstUserAccountCreate;
 
 /// Bootloader steps
 #[repr(C)]
@@ -126,10 +127,8 @@ pub unsafe extern "C" fn distinst_installer_emit_status(
     installer: *mut DistinstInstaller,
     status: *const DistinstStatus,
 ) {
-    (*(installer as *mut Installer)).emit_status(Status {
-        step:    (*status).step.into(),
-        percent: (*status).percent,
-    });
+    (*(installer as *mut Installer))
+        .emit_status(Status { step: (*status).step.into(), percent: (*status).percent });
 }
 
 /// Set the installer status callback
@@ -141,10 +140,8 @@ pub unsafe extern "C" fn distinst_installer_on_status(
 ) {
     (*(installer as *mut Installer)).on_status(move |status| {
         callback(
-            &DistinstStatus {
-                step:    status.step.into(),
-                percent: status.percent,
-            } as *const DistinstStatus,
+            &DistinstStatus { step: status.step.into(), percent: status.percent }
+                as *const DistinstStatus,
             user_data,
         )
     });
@@ -156,9 +153,8 @@ pub unsafe extern "C" fn distinst_installer_set_timezone_callback(
     callback: DistinstTimezoneCallback,
     user_data: *mut libc::c_void,
 ) {
-    (*(installer as *mut Installer)).set_timezone_callback(move || {
-        (&*(callback(user_data) as *const Region)).clone()
-    });
+    (*(installer as *mut Installer))
+        .set_timezone_callback(move || (&*(callback(user_data) as *const Region)).clone());
 }
 
 #[no_mangle]
@@ -196,10 +192,7 @@ pub unsafe extern "C" fn distinst_installer_install(
         Err(err) => {
             info!("Config error: {}", err);
             let errno = err.raw_os_error().unwrap_or(libc::EIO);
-            (*(installer as *mut Installer)).emit_error(&Error {
-                step: Step::Init,
-                err,
-            });
+            (*(installer as *mut Installer)).emit_error(&Error { step: Step::Init, err });
             errno
         }
     }

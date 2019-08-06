@@ -2,21 +2,26 @@ extern crate libc;
 #[macro_use]
 extern crate log;
 
-use std::fs::File;
-use std::io::{Error, ErrorKind, Read, Result};
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
-use std::os::unix::process::CommandExt;
-use std::path::Path;
-use std::process::{Command, Stdio};
-use std::str;
+use std::{
+    fs::File,
+    io::{Error, ErrorKind, Read, Result},
+    os::unix::{
+        io::{AsRawFd, FromRawFd, RawFd},
+        process::CommandExt,
+    },
+    path::Path,
+    process::{Command, Stdio},
+    str,
+};
 
 fn getpty(columns: u32, lines: u32) -> (RawFd, String) {
     use libc;
-    use std::ffi::CStr;
-    use std::fs::OpenOptions;
-    use std::io::{self, Error};
-    use std::os::unix::fs::OpenOptionsExt;
-    use std::os::unix::io::IntoRawFd;
+    use std::{
+        ffi::CStr,
+        fs::OpenOptions,
+        io::{self, Error},
+        os::unix::{fs::OpenOptionsExt, io::IntoRawFd},
+    };
 
     extern "C" {
         fn ptsname(fd: libc::c_int) -> *const libc::c_char;
@@ -52,11 +57,7 @@ fn getpty(columns: u32, lines: u32) -> (RawFd, String) {
         }
     }
 
-    let tty_path = unsafe {
-        CStr::from_ptr(ptsname(master_fd))
-            .to_string_lossy()
-            .into_owned()
-    };
+    let tty_path = unsafe { CStr::from_ptr(ptsname(master_fd)).to_string_lossy().into_owned() };
     (master_fd, tty_path)
 }
 
@@ -160,12 +161,7 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
         }
         ExtractFormat::Tar => {
             let mut command = Command::new("tar");
-            command
-                .arg("--overwrite")
-                .arg("-xf")
-                .arg(archive)
-                .arg("-C")
-                .arg(directory);
+            command.arg("--overwrite").arg("-xf").arg(archive).arg("-C").arg(directory);
             command
         }
     };

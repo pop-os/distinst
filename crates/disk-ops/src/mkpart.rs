@@ -1,11 +1,13 @@
 use disk_types::{BlockDeviceExt, FileSystem, PartitionExt, PartitionType};
 use libparted::{
-    Device, FileSystemType as PedFileSystem, Geometry, Partition as PedPartition,
-    PartitionFlag, PartitionType as PedPartitionType,
+    Device, FileSystemType as PedFileSystem, Geometry, Partition as PedPartition, PartitionFlag,
+    PartitionType as PedPartitionType,
 };
 use parted::*;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 /// Defines a new partition to be created on the file system.
 #[derive(Debug, SmartDefault, Clone, PartialEq)]
@@ -40,7 +42,7 @@ impl PartitionExt for PartitionCreate {
 
     fn get_sector_end(&self) -> u64 { self.end_sector }
 
-    fn get_sector_start(&self) -> u64 { self.start_sector}
+    fn get_sector_start(&self) -> u64 { self.start_sector }
 
     fn get_partition_flags(&self) -> &[PartitionFlag] { &self.flags }
 
@@ -52,44 +54,40 @@ impl PartitionExt for PartitionCreate {
 /// Creates a new partition on the device using the info in the `partition` parameter.
 /// The partition table should reflect the changes before this function exits.
 pub fn create_partition<P>(device: &mut Device, partition: &P) -> io::Result<()>
-    where P: PartitionExt
+where
+    P: PartitionExt,
 {
     // Create a new geometry from the start sector and length of the new partition.
     let length = partition.get_sector_end() - partition.get_sector_start();
     let geometry = Geometry::new(&device, partition.get_sector_start() as i64, length as i64)
-        .map_err(|why| io::Error::new(
-            why.kind(),
-            format!("failed to create geometry: {}", why)
-        ))?;
+        .map_err(|why| io::Error::new(why.kind(), format!("failed to create geometry: {}", why)))?;
 
     // Convert our internal partition type enum into libparted's variant.
     let part_type = match partition.get_partition_type() {
         PartitionType::Primary => PedPartitionType::PED_PARTITION_NORMAL,
         PartitionType::Logical => PedPartitionType::PED_PARTITION_LOGICAL,
-        PartitionType::Extended => PedPartitionType::PED_PARTITION_EXTENDED
+        PartitionType::Extended => PedPartitionType::PED_PARTITION_EXTENDED,
     };
 
     // Open the disk, create the new partition, and add it to the disk.
     let (start, end) = (geometry.start(), geometry.start() + geometry.length());
 
-    info!(
-        "creating new partition with {} sectors: {} - {}",
-        length, start, end
-    );
+    info!("creating new partition with {} sectors: {} - {}", length, start, end);
 
-    let fs_type = partition
-        .get_file_system()
-        .and_then(|fs| PedFileSystem::get(fs.into()));
+    let fs_type = partition.get_file_system().and_then(|fs| PedFileSystem::get(fs.into()));
 
     let mut disk = open_disk(device)?;
-    let mut part = PedPartition::new(&disk, part_type, fs_type.as_ref(), start, end)
-        .map_err(|why| io::Error::new(
-            why.kind(),
-            format!("failed to create new partition: {}: {}",
-                partition.get_device_path().display(),
-                why
+    let mut part =
+        PedPartition::new(&disk, part_type, fs_type.as_ref(), start, end).map_err(|why| {
+            io::Error::new(
+                why.kind(),
+                format!(
+                    "failed to create new partition: {}: {}",
+                    partition.get_device_path().display(),
+                    why
+                ),
             )
-        ))?;
+        })?;
 
     for &flag in partition.get_partition_flags() {
         if part.is_flag_available(flag) && part.set_flag(flag, true).is_err() {
@@ -105,14 +103,16 @@ pub fn create_partition<P>(device: &mut Device, partition: &P) -> io::Result<()>
 
     // Add the partition, and commit the changes to the disk.
     let constraint = geometry.exact().expect("exact constraint not found");
-    disk.add_partition(&mut part, &constraint)
-        .map_err(|why| io::Error::new(
+    disk.add_partition(&mut part, &constraint).map_err(|why| {
+        io::Error::new(
             why.kind(),
-            format!("failed to create new partition: {}: {}",
+            format!(
+                "failed to create new partition: {}: {}",
                 partition.get_device_path().display(),
                 why
-            )
-        ))?;
+            ),
+        )
+    })?;
 
     // Attempt to write the new partition to the disk.
     info!(

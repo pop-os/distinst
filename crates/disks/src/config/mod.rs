@@ -7,18 +7,21 @@ mod disks;
 mod lvm;
 mod partitions;
 
-pub use disk_types::PartitionTable;
-pub use self::disk::*;
-pub use self::disk_trait::{find_partition, find_partition_mut, DiskExt};
-pub use self::disks::*;
-pub use self::lvm::*;
-pub use self::partitions::*;
-pub use disk_types::Sector;
+pub use self::{
+    disk::*,
+    disk_trait::{find_partition, find_partition_mut, DiskExt},
+    disks::*,
+    lvm::*,
+    partitions::*,
+};
+pub use disk_types::{PartitionTable, Sector};
 
-use std::collections::BTreeMap;
-use std::io;
-use std::path::{Path, PathBuf};
-use sysfs_class::{SysClass, Block};
+use std::{
+    collections::BTreeMap,
+    io,
+    path::{Path, PathBuf},
+};
+use sysfs_class::{Block, SysClass};
 
 static mut PVS: Option<BTreeMap<PathBuf, Option<String>>> = None;
 
@@ -26,8 +29,12 @@ static mut PVS: Option<BTreeMap<PathBuf, Option<String>>> = None;
 /// Note: This is only to be used with getting partition sizes of logical volumes.
 pub fn get_size(path: &Path) -> io::Result<u64> {
     let name: String = match path.canonicalize() {
-        Ok(path) => path.file_name().expect("device does not have a file name").to_str().unwrap().into(),
-        Err(_) => path.file_name().expect("device does not have a file name").to_str().unwrap().into(),
+        Ok(path) => {
+            path.file_name().expect("device does not have a file name").to_str().unwrap().into()
+        }
+        Err(_) => {
+            path.file_name().expect("device does not have a file name").to_str().unwrap().into()
+        }
     };
 
     Block::new(&name).and_then(|ref block| block.size())
@@ -221,22 +228,14 @@ mod tests {
     fn partition_add() {
         // The default sample is maxed out, so any partition added should fail.
         let mut source = get_default().physical.into_iter().next().unwrap();
-        assert!(
-            source
-                .add_partition(PartitionBuilder::new(2048, 2_000_000, FileSystem::Ext4))
-                .is_err()
-        );
+        assert!(source
+            .add_partition(PartitionBuilder::new(2048, 2_000_000, FileSystem::Ext4))
+            .is_err());
 
         // Failures should also occur if the end sector exceeds the size of
-        assert!(
-            source
-                .add_partition(PartitionBuilder::new(
-                    2048,
-                    1953525169,
-                    FileSystem::Ext4
-                ))
-                .is_err()
-        );
+        assert!(source
+            .add_partition(PartitionBuilder::new(2048, 1953525169, FileSystem::Ext4))
+            .is_err());
 
         // An empty disk should succeed, on the other hand.
         let mut source = get_empty().physical.into_iter().next().unwrap();
@@ -269,11 +268,7 @@ mod tests {
         let mut duplicate = source.clone();
         assert!(source.validate_layout(&duplicate).is_ok());
         duplicate
-            .add_partition(PartitionBuilder::new(
-                2048,
-                1024_000 + 2048,
-                FileSystem::Fat16,
-            ))
+            .add_partition(PartitionBuilder::new(2048, 1024_000 + 2048, FileSystem::Fat16))
             .unwrap();
         assert!(source.validate_layout(&duplicate).is_ok());
     }

@@ -29,9 +29,7 @@ pub(crate) fn new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distin
                 } else if value.starts_with("keyid=") {
                     key = Some(String::from(&value[6..]));
                 } else {
-                    return Err(DistinstError::InvalidField {
-                        field: (*value).into(),
-                    });
+                    return Err(DistinstError::InvalidField { field: (*value).into() });
                 }
             }
 

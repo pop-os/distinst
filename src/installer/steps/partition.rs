@@ -1,20 +1,14 @@
-use external::{blockdev, pvs, vgactivate, vgdeactivate};
-use disks::Disks;
-use disks::operations::FormatPartitions;
+use disks::{operations::FormatPartitions, Disks};
 use errors::IoContext;
+use external::{blockdev, pvs, vgactivate, vgdeactivate};
 use itertools::Itertools;
-use rayon;
-use rayon::prelude::*;
-use std::collections::BTreeMap;
-use std::io;
-use std::path::PathBuf;
-use std::thread::sleep;
-use std::time::Duration;
+use rayon::{self, prelude::*};
+use std::{collections::BTreeMap, io, path::PathBuf, thread::sleep, time::Duration};
 
 pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Result<()> {
     let (pvs_result, commit_result): (
         io::Result<BTreeMap<PathBuf, Option<String>>>,
-        io::Result<()>
+        io::Result<()>,
     ) = rayon::join(
         || {
             // This collection of physical volumes and their optional volume groups
@@ -29,8 +23,8 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
             let mut partitions_to_format = FormatPartitions(Vec::new());
             for disk in disks.get_physical_devices_mut() {
                 info!("{}: Committing changes to disk", disk.path().display());
-                if let Some(partitions) = disk.commit()
-                    .with_context(|why| format!("disk commit error: {}", why))?
+                if let Some(partitions) =
+                    disk.commit().with_context(|why| format!("disk commit error: {}", why))?
                 {
                     partitions_to_format.0.extend_from_slice(&partitions.0);
                 }
@@ -38,10 +32,8 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
 
             partitions_to_format.format()?;
 
-            disks.physical.iter_mut()
-                .map(|disk| disk.reload().map_err(io::Error::from))
-                .collect()
-        }
+            disks.physical.iter_mut().map(|disk| disk.reload().map_err(io::Error::from)).collect()
+        },
     );
 
     let pvs = commit_result.and(pvs_result)?;
@@ -51,7 +43,8 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
     // Utilizes the physical volume collection to generate a vector of volume
     // groups which we will need to deactivate pre-`blockdev`, and will be
     // reactivated post-`blockdev`.
-    let vgs = disks.get_physical_partitions()
+    let vgs = disks
+        .get_physical_partitions()
         .filter_map(|part| match pvs.get(&part.device_path) {
             Some(&Some(ref vg)) => Some(vg.clone()),
             _ => None,

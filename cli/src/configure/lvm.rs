@@ -22,11 +22,9 @@ pub(crate) fn lvm(
             }
 
             let (group, volume) = (values[0], values[1]);
-            let device = disks.get_logical_device_mut(group).ok_or(
-                DistinstError::LogicalDeviceNotFound {
-                    group: group.into(),
-                },
-            )?;
+            let device = disks
+                .get_logical_device_mut(group)
+                .ok_or(DistinstError::LogicalDeviceNotFound { group: group.into() })?;
 
             device.remove_partition(volume)?;
         }
@@ -52,11 +50,9 @@ pub(crate) fn lvm(
                 }
             }
 
-            let device = disks.get_logical_device_mut(group).ok_or(
-                DistinstError::LogicalDeviceNotFound {
-                    group: group.into(),
-                },
-            )?;
+            let device = disks
+                .get_logical_device_mut(group)
+                .ok_or(DistinstError::LogicalDeviceNotFound { group: group.into() })?;
 
             let partition = device.get_partition_mut(volume).ok_or(
                 DistinstError::LogicalPartitionNotFound {
@@ -86,30 +82,26 @@ pub(crate) fn lvm(
     }
 
     if let Some(logical) = logical {
-        parse_logical(logical, |args| {
-            match disks.get_logical_device_mut(&args.group) {
-                Some(lvm_device) => {
-                    let start = lvm_device.get_last_sector();
-                    let end = start + lvm_device.get_sector(args.size);
-                    let mut builder =
-                        PartitionBuilder::new(start, end, args.fs).name(args.name.clone());
+        parse_logical(logical, |args| match disks.get_logical_device_mut(&args.group) {
+            Some(lvm_device) => {
+                let start = lvm_device.get_last_sector();
+                let end = start + lvm_device.get_sector(args.size);
+                let mut builder =
+                    PartitionBuilder::new(start, end, args.fs).name(args.name.clone());
 
-                    if let Some(mount) = args.mount.as_ref() {
-                        builder = builder.mount(mount.clone());
-                    }
-
-                    if let Some(flags) = args.flags.as_ref() {
-                        builder = builder.flags(flags.clone());
-                    }
-
-                    lvm_device
-                        .add_partition(builder)
-                        .map_err(|why| DistinstError::LvmPartitionAdd { why })
+                if let Some(mount) = args.mount.as_ref() {
+                    builder = builder.mount(mount.clone());
                 }
-                None => Err(DistinstError::NoVolumeGroupAssociated {
-                    group: args.group,
-                }),
+
+                if let Some(flags) = args.flags.as_ref() {
+                    builder = builder.flags(flags.clone());
+                }
+
+                lvm_device
+                    .add_partition(builder)
+                    .map_err(|why| DistinstError::LvmPartitionAdd { why })
             }
+            None => Err(DistinstError::NoVolumeGroupAssociated { group: args.group }),
         })?;
     }
 
@@ -160,9 +152,7 @@ fn parse_logical<F: FnMut(LogicalArgs) -> Result<(), DistinstError>>(
 
                 flags = Some(parse_flags(flagval));
             } else {
-                return Err(DistinstError::InvalidField {
-                    field: (*arg).into(),
-                });
+                return Err(DistinstError::InvalidField { field: (*arg).into() });
             }
         }
 

@@ -11,7 +11,10 @@ pub extern "C" fn distinst_session_inhibit_suspend() -> libc::c_int {
         }
     };
 
-    match manager.connect().inhibit_suspend("Distinst Installer", "prevent suspension while installing a distribution") {
+    match manager
+        .connect()
+        .inhibit_suspend("Distinst Installer", "prevent suspension while installing a distribution")
+    {
         Ok(pipe_fd) => pipe_fd.into_fd(),
         Err(why) => {
             error!("failed to suspend: {}", why);

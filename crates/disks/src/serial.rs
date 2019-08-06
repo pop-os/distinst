@@ -3,9 +3,7 @@
 //! unlikely, that a user could hot swap drives after obtaining device
 //! information, but before writing their changes to the disk.
 
-use std::io;
-use std::path::Path;
-use std::process::Command;
+use std::{io, path::Path, process::Command};
 
 const PATTERN: &str = "E: ID_SERIAL=";
 
@@ -13,10 +11,7 @@ const PATTERN: &str = "E: ID_SERIAL=";
 ///
 /// The `path` should be a value like `/dev/sda`.
 pub fn get_serial(path: &Path) -> io::Result<String> {
-    info!(
-        "obtaining serial model from {}",
-        path.display()
-    );
+    info!("obtaining serial model from {}", path.display());
     Command::new("udevadm")
         .args(&["info", "--query=all", &format!("--name={}", path.display())])
         .output()

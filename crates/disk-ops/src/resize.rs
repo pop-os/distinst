@@ -1,14 +1,14 @@
-use disk_types::{PartitionType, FileSystem};
 use self::FileSystem::*;
+use super::{move_partition, BlockCoordinates, OffsetCoordinates, MEBIBYTE, MEGABYTE};
+use disk_types::{FileSystem, PartitionType};
 use external::{blockdev, fsck};
 use libparted::PartitionFlag;
-use std::fs::{File, OpenOptions};
-use std::io::{self, Read, Write};
-use std::path::{Path, PathBuf};
-use super::{
-    move_partition, BlockCoordinates, OffsetCoordinates, MEBIBYTE, MEGABYTE
+use std::{
+    fs::{File, OpenOptions},
+    io::{self, Read, Write},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
 };
-use std::process::{Command, Stdio};
 use sys_mount::*;
 use tempdir::TempDir;
 
@@ -107,11 +107,7 @@ pub fn resize_partition<P: AsRef<Path>>(
     fs: &str,
     options: u8,
 ) -> io::Result<()> {
-    info!(
-        "resizing {} to {}",
-        path.as_ref().display(),
-        size
-    );
+    info!("resizing {} to {}", path.as_ref().display(), size);
 
     let mut resize_cmd = Command::new(cmd);
     if !args.is_empty() {
@@ -137,59 +133,48 @@ pub fn resize_partition<P: AsRef<Path>>(
         None
     };
 
-    fsck(path.as_ref(), fsck_options)
-        .and_then(|_| {
-            // Btrfs is a strange case that needs resize operations to be performed while
-            // it is mounted.
-            let (npath, _mount) = if options & (BTRFS | XFS) != 0 {
-                let temp = TempDir::new("distinst")?;
-                info!(
-                    "temporarily mounting {} to {}",
-                    path.as_ref().display(),
-                    temp.path().display()
-                );
-                let mount = Mount::new(path.as_ref(), temp.path(), fs, MountFlags::empty(), None)?;
-                let mount = mount.into_unmount_drop(UnmountFlags::DETACH);
-                (temp.path().to_path_buf(), Some((mount, temp)))
-            } else {
-                (path.as_ref().to_path_buf(), None)
-            };
+    fsck(path.as_ref(), fsck_options).and_then(|_| {
+        // Btrfs is a strange case that needs resize operations to be performed while
+        // it is mounted.
+        let (npath, _mount) = if options & (BTRFS | XFS) != 0 {
+            let temp = TempDir::new("distinst")?;
+            info!("temporarily mounting {} to {}", path.as_ref().display(), temp.path().display());
+            let mount = Mount::new(path.as_ref(), temp.path(), fs, MountFlags::empty(), None)?;
+            let mount = mount.into_unmount_drop(UnmountFlags::DETACH);
+            (temp.path().to_path_buf(), Some((mount, temp)))
+        } else {
+            (path.as_ref().to_path_buf(), None)
+        };
 
-            if options & NO_SIZE != 0 {
-                resize_cmd.arg(&npath);
-            } else if options & SIZE_BEFORE_PATH != 0 {
-                resize_cmd.arg(size).arg(&npath);
-            } else {
-                resize_cmd.arg(&npath).arg(size);
-            };
+        if options & NO_SIZE != 0 {
+            resize_cmd.arg(&npath);
+        } else if options & SIZE_BEFORE_PATH != 0 {
+            resize_cmd.arg(size).arg(&npath);
+        } else {
+            resize_cmd.arg(&npath).arg(size);
+        };
 
-            let status = if options & NTFS != 0 {
-                ntfs_dry_run(&npath, size)?;
+        let status = if options & NTFS != 0 {
+            ntfs_dry_run(&npath, size)?;
 
-                info!("executing {:?}", resize_cmd);
-                let mut child = resize_cmd.stdin(Stdio::piped()).spawn()?;
-                child.stdin.as_mut()
-                    .expect("failed to get stdin")
-                    .write_all(b"y\n")?;
-                child.wait()?
-            } else {
-                info!("executing {:?}", resize_cmd);
-                resize_cmd.status()?
-            };
+            info!("executing {:?}", resize_cmd);
+            let mut child = resize_cmd.stdin(Stdio::piped()).spawn()?;
+            child.stdin.as_mut().expect("failed to get stdin").write_all(b"y\n")?;
+            child.wait()?
+        } else {
+            info!("executing {:?}", resize_cmd);
+            resize_cmd.status()?
+        };
 
-            if status.success() {
-                Ok(())
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!(
-                        "resize for {:?} failed with status: {}",
-                        path.as_ref().display(),
-                        status
-                    ),
-                ))
-            }
-        })
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("resize for {:?} failed with status: {}", path.as_ref().display(), status),
+            ))
+        }
+    })
 }
 
 /// Defines the move and resize operations that the partition with this number
@@ -236,9 +221,14 @@ pub fn transform<DELETE, CREATE>(
 ) -> io::Result<()>
 where
     DELETE: FnMut(u32) -> io::Result<()>,
-    CREATE:
-        FnMut(u64, u64, Option<FileSystem>, Vec<PartitionFlag>, Option<String>, PartitionType)
-            -> io::Result<(i32, PathBuf)>
+    CREATE: FnMut(
+        u64,
+        u64,
+        Option<FileSystem>,
+        Vec<PartitionFlag>,
+        Option<String>,
+        PartitionType,
+    ) -> io::Result<(i32, PathBuf)>,
 {
     let mut moving = resize.is_moving();
     let shrinking = resize.is_shrinking();
@@ -258,15 +248,14 @@ where
             ResizeUnit::AbsoluteMebibyte,
             BTRFS | SIZE_BEFORE_PATH,
         ),
-        Some(Ext2) | Some(Ext3) | Some(Ext4) => ("resize2fs", &[], ResizeUnit::AbsoluteSectorsWithUnit, 0),
+        Some(Ext2) | Some(Ext3) | Some(Ext4) => {
+            ("resize2fs", &[], ResizeUnit::AbsoluteSectorsWithUnit, 0)
+        }
         // Some(Exfat) => (),
         // Some(F2fs) => ("resize.f2fs"),
-        Some(Fat16) | Some(Fat32) => (
-            "fatresize",
-            &["-s"],
-            ResizeUnit::AbsoluteKibis,
-            SIZE_BEFORE_PATH,
-        ),
+        Some(Fat16) | Some(Fat32) => {
+            ("fatresize", &["-s"], ResizeUnit::AbsoluteKibis, SIZE_BEFORE_PATH)
+        }
         Some(Ntfs) => (
             "ntfsresize",
             &["--force", "--force", "-s"],
@@ -278,16 +267,11 @@ where
             if shrinking {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
-                    "XFS partitions do not support shrinking"
+                    "XFS partitions do not support shrinking",
                 ));
             }
 
-            (
-                "xfs_growfs",
-                &["-d"],
-                ResizeUnit::AbsoluteMegabyte,
-                NO_SIZE | XFS,
-            )
+            ("xfs_growfs", &["-d"], ResizeUnit::AbsoluteMegabyte, NO_SIZE | XFS)
         }
         fs => unimplemented!("{:?} handling", fs),
     };
@@ -317,11 +301,12 @@ where
     // moving, and recreated with the new size before attempting to grow.
     if shrinking {
         info!("shrinking {}", change.path.display());
-        resize_partition(cmd, args, &size, &change.path, fs, opts)
-            .map_err(|why| io::Error::new(
+        resize_partition(cmd, args, &size, &change.path, fs, opts).map_err(|why| {
+            io::Error::new(
                 why.kind(),
-                format!("failed to shrink {}: {}", change.path.display(), why)
-            ))?;
+                format!("failed to shrink {}: {}", change.path.display(), why),
+            )
+        })?;
 
         delete(change.num as u32)?;
         let (num, path) = create(
@@ -338,18 +323,16 @@ where
     } else if growing {
         delete(change.num as u32)?;
         if resize.new.start != resize.old.start {
-            info!(
-                "moving before growing {}",
-                change.path.display()
-            );
+            info!("moving before growing {}", change.path.display());
             let abs_sectors = resize.absolute_sectors();
             resize.old.resize_to(abs_sectors); // TODO: NLL
 
-            move_partition(&change.device_path, resize.offset(), 512)
-                .map_err(|why| io::Error::new(
+            move_partition(&change.device_path, resize.offset(), 512).map_err(|why| {
+                io::Error::new(
                     why.kind(),
-                    format!("failed to move partition at {}: {}", change.path.display(), why)
-                ))?;
+                    format!("failed to move partition at {}: {}", change.path.display(), why),
+                )
+            })?;
 
             moving = false;
         }
@@ -367,11 +350,12 @@ where
         change.path = path;
 
         info!("growing {}", change.path.display());
-        resize_partition(cmd, args, &size, &change.path, fs, opts)
-            .map_err(|why| io::Error::new(
+        resize_partition(cmd, args, &size, &change.path, fs, opts).map_err(|why| {
+            io::Error::new(
                 why.kind(),
-                format!("failed to resize partition at {}: {}", change.path.display(), why)
-            ))?;
+                format!("failed to resize partition at {}: {}", change.path.display(), why),
+            )
+        })?;
     }
 
     // If the partition is to be moved, then we will ensure that it has been
@@ -383,11 +367,12 @@ where
         let abs_sectors = resize.absolute_sectors();
         resize.old.resize_to(abs_sectors); // TODO: NLL
 
-        move_partition(&change.device_path, resize.offset(), 512)
-            .map_err(|why| io::Error::new(
+        move_partition(&change.device_path, resize.offset(), 512).map_err(|why| {
+            io::Error::new(
                 why.kind(),
-                format!("failed to move partition at {}: {}", change.path.display(), why)
-            ))?;
+                format!("failed to move partition at {}: {}", change.path.display(), why),
+            )
+        })?;
 
         create(
             resize.new.start,
@@ -404,16 +389,11 @@ where
 
 fn ntfs_dry_run(path: &Path, size: &str) -> io::Result<()> {
     let mut consistency_check = Command::new("ntfsresize");
-    consistency_check
-        .args(&["-f", "-f", "--no-action", "-s"])
-        .arg(size)
-        .arg(path);
+    consistency_check.args(&["-f", "-f", "--no-action", "-s"]).arg(size).arg(path);
 
     info!("executing {:?}", consistency_check);
     let mut child = consistency_check.stdin(Stdio::piped()).spawn()?;
-    child.stdin.as_mut()
-        .expect("failed to get stdin")
-        .write_all(b"y\n")?;
+    child.stdin.as_mut().expect("failed to get stdin").write_all(b"y\n")?;
 
     let status = child.wait()?;
     if status.success() {
@@ -423,16 +403,13 @@ fn ntfs_dry_run(path: &Path, size: &str) -> io::Result<()> {
     }
 }
 
-
 fn ntfs_consistency_check(path: &Path) -> io::Result<()> {
     let mut consistency_check = Command::new("ntfsresize");
     consistency_check.args(&["-i", "-f"]).arg(path);
 
     info!("executing {:?}", consistency_check);
     let mut child = consistency_check.stdin(Stdio::piped()).spawn()?;
-    child.stdin.as_mut()
-        .expect("failed to get stdin")
-        .write_all(b"y\n")?;
+    child.stdin.as_mut().expect("failed to get stdin").write_all(b"y\n")?;
 
     let status = child.wait()?;
     if status.success() {

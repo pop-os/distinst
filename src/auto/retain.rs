@@ -1,24 +1,25 @@
 //! Retain users when reinstalling, keeping their home folder and user account.
 
 use bootloader::Bootloader;
-use disks::Disks;
 use disk_types::FileSystem;
+use disks::Disks;
 
 use super::{mount_and_then, AccountFiles, ReinstallError, UserData};
 
-use std::ffi::{OsStr, OsString};
-use std::fs::{self, File, OpenOptions, Permissions};
-use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{symlink, PermissionsExt};
-use std::path::{Path, PathBuf};
-use ::misc;
+use misc;
+use std::{
+    ffi::{OsStr, OsString},
+    fs::{self, File, OpenOptions, Permissions},
+    io::{self, Read, Seek, SeekFrom, Write},
+    os::unix::{
+        ffi::OsStrExt,
+        fs::{symlink, PermissionsExt},
+    },
+    path::{Path, PathBuf},
+};
 
 /// Removes all files in the chroot at `/`, except for `/home`.
-pub fn remove_root(
-    root_path: &Path,
-    root_fs: FileSystem,
-) -> Result<(), ReinstallError> {
+pub fn remove_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     info!("removing all files except /home. This may take a while...");
     mount_and_then(root_path, root_fs, |base| {
         read_and_exclude(base, &[OsStr::new("home")], |entry| {
@@ -34,15 +35,12 @@ pub fn remove_root(
 }
 
 /// Migrate the original system to the `/linux.old/` directory, excluding `/home`.
-pub fn move_root(
-    root_path: &Path,
-    root_fs: FileSystem,
-) -> Result<(), ReinstallError> {
+pub fn move_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     mount_and_then(root_path, root_fs, |base| {
         let old_root = base.join("linux.old");
 
         // Remove an old, old root if it already exists.
-        if old_root.exists () {
+        if old_root.exists() {
             info!("removing original /linux.old directory. This may take a while...");
             fs::remove_dir_all(&old_root)?;
         }
@@ -92,7 +90,7 @@ pub fn delete_old_install(root_path: &Path, root_fs: FileSystem) -> Result<(), R
         let old_root = base.join("linux.old");
 
         // Remove an old, old root if it already exists.
-        if old_root.exists () {
+        if old_root.exists() {
             fs::remove_dir_all(&old_root)?;
         }
 
@@ -101,14 +99,17 @@ pub fn delete_old_install(root_path: &Path, root_fs: FileSystem) -> Result<(), R
 }
 
 /// Checks to see if the backup install has a chance to succeed, before starting it.
-pub fn validate_backup_conditions<P: AsRef<Path>>(disks: &Disks, path: P) -> Result<(), ReinstallError> {
-    partition_configuration_is_valid(&disks)
-        .and_then(|_| install_media_exists(path.as_ref()))
+pub fn validate_backup_conditions<P: AsRef<Path>>(
+    disks: &Disks,
+    path: P,
+) -> Result<(), ReinstallError> {
+    partition_configuration_is_valid(&disks).and_then(|_| install_media_exists(path.as_ref()))
 }
 
 /// Validate that the configuration in the disks structure is valid for installation.
 fn partition_configuration_is_valid(disks: &Disks) -> Result<(), ReinstallError> {
-    disks.verify_partitions(Bootloader::detect())
+    disks
+        .verify_partitions(Bootloader::detect())
         .map_err(|why| ReinstallError::InvalidPartitionConfiguration { why })
 }
 
@@ -117,19 +118,16 @@ fn install_media_exists(path: &Path) -> Result<(), ReinstallError> {
     if path.exists() {
         Ok(())
     } else {
-        Err(ReinstallError::MissingSquashfs {
-            path: path.to_path_buf(),
-        })
+        Err(ReinstallError::MissingSquashfs { path: path.to_path_buf() })
     }
 }
-
 
 /// Read the given directory at `path`,and apply a `func` to each item that is not in the
 /// exclusion list.
 fn read_and_exclude<F: FnMut(&Path) -> Result<(), ReinstallError>>(
     path: &Path,
     exclude: &[&OsStr],
-    mut func: F
+    mut func: F,
 ) -> Result<(), ReinstallError> {
     for entry in path.read_dir()? {
         if let Ok(entry) = entry {
@@ -164,19 +162,13 @@ impl<'a> Backup<'a> {
     ) -> Result<Backup<'a>, ReinstallError> {
         mount_and_then(device, fs, |base| {
             info!("collecting list of user accounts");
-            let dir = if is_root {
-                base.join("home").read_dir()
-            } else {
-                base.read_dir()
-            };
+            let dir = if is_root { base.join("home").read_dir() } else { base.read_dir() };
 
-            let users = dir?.filter_map(|entry| entry.ok())
+            let users = dir?
+                .filter_map(|entry| entry.ok())
                 .map(|name| name.file_name())
                 .inspect(|name| {
-                    info!(
-                        "found user account: {}",
-                        name.clone().into_string().unwrap()
-                    )
+                    info!("found user account: {}", name.clone().into_string().unwrap())
                 })
                 .collect::<Vec<OsString>>();
 
@@ -186,37 +178,30 @@ impl<'a> Backup<'a> {
             });
 
             info!("retaining timezone information");
-            let timezone = exists_and_then(&base, "etc/timezone", |timezone| {
-                misc::read(&timezone).ok()
-            });
+            let timezone =
+                exists_and_then(&base, "etc/timezone", |timezone| misc::read(&timezone).ok());
 
             info!("retaining /etc/NetworkManager/system-connections/");
-            let networks = base
-                .join("etc/NetworkManager/system-connections/")
-                .read_dir()
-                .ok()
-                .map(|directory| {
+            let networks = base.join("etc/NetworkManager/system-connections/").read_dir().ok().map(
+                |directory| {
                     directory
                         .flat_map(|entry| entry.ok())
                         .filter(|entry| entry.path().is_file())
                         .filter_map(|conn| {
-                            misc::read(conn.path())
-                                .ok()
-                                .map(|data| (conn.file_name(), data))
+                            misc::read(conn.path()).ok().map(|data| (conn.file_name(), data))
                         })
                         .collect::<Vec<(OsString, Vec<u8>)>>()
-                });
+                },
+            );
 
-            let users = users
-                .iter()
-                .filter_map(|user| account_files.get(user))
-                .collect::<Vec<_>>();
+            let users = users.iter().filter_map(|user| account_files.get(user)).collect::<Vec<_>>();
 
             Ok(Backup { users, localtime, timezone, networks })
         })
     }
 
-    /// Restores the backup to the given device. The device will be opened using the specified file system.
+    /// Restores the backup to the given device. The device will be opened using the specified file
+    /// system.
     pub fn restore(&self, device: &Path, fs: FileSystem) -> Result<(), ReinstallError> {
         mount_and_then(device, fs, |base| {
             info!("appending user account data to new install");
@@ -231,10 +216,7 @@ impl<'a> Backup<'a> {
                 .and_then(|p| open(&group, false).map(|g| (p, g)))
                 .and_then(|(p, g)| open(&shadow, true).map(|s| (p, g, s)))
                 .and_then(|(p, g, s)| open(&gshadow, true).map(|gs| (p, g, s, gs)))
-                .map_err(|why| ReinstallError::AccountsObtain {
-                    why,
-                    step: "append",
-                })?;
+                .map_err(|why| ReinstallError::AccountsObtain { why, step: "append" })?;
 
             group.seek(SeekFrom::End(0))?;
 
@@ -250,15 +232,18 @@ impl<'a> Backup<'a> {
                 let _ = shadow.write_all(&append(user.shadow));
                 let _ = gshadow.write_all(&append(user.gshadow));
 
-                if ! user.secondary_groups.is_empty() {
+                if !user.secondary_groups.is_empty() {
                     group.seek(SeekFrom::Start(0))?;
                     let groups_data = {
-                        let mut buffer = Vec::with_capacity(group.metadata().ok().map_or(0, |x| x.len()) as usize);
+                        let mut buffer = Vec::with_capacity(
+                            group.metadata().ok().map_or(0, |x| x.len()) as usize,
+                        );
                         group.read_to_end(&mut buffer)?;
                         buffer
                     };
 
-                    let mut groups = super::accounts::lines::<Vec<(Vec<u8>, Vec<u8>)>>(&groups_data);
+                    let mut groups =
+                        super::accounts::lines::<Vec<(Vec<u8>, Vec<u8>)>>(&groups_data);
                     for &group in &user.secondary_groups {
                         for entry in &mut groups {
                             if entry.0.as_slice() == group {
@@ -270,13 +255,14 @@ impl<'a> Backup<'a> {
                         }
                     }
 
-                    let mut serialized = groups.into_iter()
-                        .map(|(_, entry)| entry)
-                        .fold(Vec::new(), |mut acc, entry| {
+                    let mut serialized = groups.into_iter().map(|(_, entry)| entry).fold(
+                        Vec::new(),
+                        |mut acc, entry| {
                             acc.extend_from_slice(&entry);
                             acc.push(b'\n');
                             acc
-                        });
+                        },
+                    );
 
                     // Remove the last newline from the buffer.
                     serialized.pop();
@@ -321,8 +307,7 @@ impl<'a> Backup<'a> {
 
 fn create_network_conf(base: &Path, conn: &OsStr, data: &[u8]) {
     let result = misc::create(base.join(conn)).and_then(|mut file| {
-        file.write_all(data)
-            .and_then(|_| file.set_permissions(Permissions::from_mode(0o600)))
+        file.write_all(data).and_then(|_| file.set_permissions(Permissions::from_mode(0o600)))
     });
 
     if let Err(why) = result {
@@ -355,13 +340,14 @@ fn get_timezone_path(tz: &Path) -> Option<PathBuf> {
 }
 
 /// If the given `join` path exists within the `base`, the `func` will be applied to it.
-fn exists_and_then<T, P, F>(base: &Path, join: P, mut func: F ) -> Option<T>
-where P: AsRef<Path>,
-      F: FnMut(&Path) -> Option<T>
+fn exists_and_then<T, P, F>(base: &Path, join: P, mut func: F) -> Option<T>
+where
+    P: AsRef<Path>,
+    F: FnMut(&Path) -> Option<T>,
 {
     match base.join(join) {
         ref location if location.exists() => func(location),
-        _ => None
+        _ => None,
     }
 }
 
@@ -373,9 +359,7 @@ mod tests {
     #[test]
     fn localtime() {
         assert_eq!(
-            get_timezone_path(Path::new(
-                "/tmp/prefix.id/usr/share/zoneinfo/America/Denver"
-            )),
+            get_timezone_path(Path::new("/tmp/prefix.id/usr/share/zoneinfo/America/Denver")),
             Some(PathBuf::from("../usr/share/zoneinfo/America/Denver"))
         )
     }

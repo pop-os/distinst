@@ -1,27 +1,29 @@
 mod encryption;
 
-pub use external::deactivate_devices;
 pub use self::encryption::LvmEncryption;
-use external::{
-    blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate,
+use super::{
+    super::{
+        DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable, PartitionType, FORMAT,
+        REMOVE, SOURCE,
+    },
+    get_size,
 };
+use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
+pub use external::deactivate_devices;
+use external::{blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate};
 use partition_identity::PartitionIdentifiers;
 use proc_mounts::MOUNTS;
-use super::super::{
-    DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable,
-    PartitionType, FORMAT, REMOVE, SOURCE,
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    thread,
+    time::Duration,
 };
-use super::get_size;
-use std::ffi::OsStr;
-use std::thread;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
-use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct VgData {
     /// Size of a PE, measured in sectors.
-    pe_size:  u64,
+    pe_size: u64,
     // Total amount of PEs in this VG.
     total_pe: u64,
     /// PEs which have been allocated / used.
@@ -62,13 +64,9 @@ impl SectorExt for LogicalDevice {
 }
 
 impl PartitionTableExt for LogicalDevice {
-    fn get_partition_table(&self) -> Option<PartitionTable> {
-        Some(PartitionTable::Gpt)
-    }
+    fn get_partition_table(&self) -> Option<PartitionTable> { Some(PartitionTable::Gpt) }
 
-    fn get_partition_type_count(&self) -> (usize, usize, bool) {
-        (0, 0, false)
-    }
+    fn get_partition_type_count(&self) -> (usize, usize, bool) { (0, 0, false) }
 }
 
 impl DiskExt for LogicalDevice {
@@ -118,7 +116,7 @@ impl LogicalDevice {
             encryption,
             is_source,
             remove: false,
-            .. Default::default()
+            ..Default::default()
         }
     }
 
@@ -145,25 +143,17 @@ impl LogicalDevice {
         vgcreate(&self.volume_group, blocks).map_err(|why| DiskError::VolumeGroupCreate {
             device: self.get_device_path().to_path_buf(),
             vg: self.volume_group.clone(),
-            why
+            why,
         })
     }
 
-    pub fn get_pe_free(&self) -> u64 {
-        self.vg_data.free_pe
-    }
+    pub fn get_pe_free(&self) -> u64 { self.vg_data.free_pe }
 
-    pub fn get_pe_size_in_sectors(&self) -> u64 {
-        self.vg_data.pe_size
-    }
+    pub fn get_pe_size_in_sectors(&self) -> u64 { self.vg_data.pe_size }
 
-    pub fn shrink_vg(&mut self, pes: u64) -> Result<(), DiskError> {
-        Ok(())
-    }
+    pub fn shrink_vg(&mut self, pes: u64) -> Result<(), DiskError> { Ok(()) }
 
-    pub fn shrink_pv(&mut self, sectors: u64) -> Result<(), DiskError> {
-        Ok(())
-    }
+    pub fn shrink_pv(&mut self, sectors: u64) -> Result<(), DiskError> { Ok(()) }
 
     pub fn get_last_sector(&self) -> u64 {
         self.get_partitions()
@@ -175,16 +165,16 @@ impl LogicalDevice {
 
     /// Obtains a partition by it's volume, with shared access.
     pub fn get_partition(&self, volume: &str) -> Option<&PartitionInfo> {
-        self.partitions
-            .iter()
-            .find(|p| p.name.as_ref().expect("logical partitions should have names").as_str() == volume)
+        self.partitions.iter().find(|p| {
+            p.name.as_ref().expect("logical partitions should have names").as_str() == volume
+        })
     }
 
     /// Obtains a partition by it's volume, with unique access.
     pub fn get_partition_mut(&mut self, volume: &str) -> Option<&mut PartitionInfo> {
-        self.partitions
-            .iter_mut()
-            .find(|p| p.name.as_ref().expect("logical partitions should have names").as_str() == volume)
+        self.partitions.iter_mut().find(|p| {
+            p.name.as_ref().expect("logical partitions should have names").as_str() == volume
+        })
     }
 
     pub fn add_partitions(&mut self) {
@@ -196,10 +186,7 @@ impl LogicalDevice {
                 // Wait for the device to be initialized, with a 5 second timeout.
                 let mut nth = 0;
                 while !path.exists() {
-                    info!(
-                        "waiting 1 second because {:?} does not exist yet",
-                        path
-                    );
+                    info!("waiting 1 second because {:?} does not exist yet", path);
                     if nth == 5 {
                         break;
                     }
@@ -227,7 +214,11 @@ impl LogicalDevice {
                     flags: vec![],
                     filesystem: blkid_partition(&path),
                     name: {
-                        let dev = path.file_name().expect("logical partitions should have names").to_str().unwrap();
+                        let dev = path
+                            .file_name()
+                            .expect("logical partitions should have names")
+                            .to_str()
+                            .unwrap();
                         let value = dev.find('-').map_or(0, |v| v + 1);
                         Some(dev.split_at(value).1.into())
                     },
@@ -246,9 +237,7 @@ impl LogicalDevice {
         }
     }
 
-    pub fn set_luks_parent(&mut self, device: PathBuf) {
-        self.luks_parent = Some(device);
-    }
+    pub fn set_luks_parent(&mut self, device: PathBuf) { self.luks_parent = Some(device); }
 
     pub fn clear_partitions(&mut self) {
         for partition in &mut self.partitions {
@@ -260,10 +249,9 @@ impl LogicalDevice {
         let partitions = &mut self.partitions;
         let vg = self.volume_group.as_str();
 
-        match partitions
-            .iter_mut()
-            .find(|p| p.name.as_ref().expect("logical partitions should have names").as_str() == volume)
-        {
+        match partitions.iter_mut().find(|p| {
+            p.name.as_ref().expect("logical partitions should have names").as_str() == volume
+        }) {
             Some(partition) => {
                 partition.remove();
                 Ok(())
@@ -287,12 +275,16 @@ impl LogicalDevice {
             self.partitions.len() - 1
         };
 
-        let partitions = self.file_system.as_ref().into_iter()
+        let partitions = self
+            .file_system
+            .as_ref()
+            .into_iter()
             .map(|part| (0, part))
             .chain(self.partitions.iter().enumerate());
 
         for (id, partition) in partitions {
-            let label = partition.name.as_ref().expect("logical partitions should have names").as_str();
+            let label =
+                partition.name.as_ref().expect("logical partitions should have names").as_str();
 
             // Don't create a partition if it already exists.
             if !partition.flag_is_enabled(SOURCE) {
@@ -304,7 +296,8 @@ impl LogicalDevice {
                     } else {
                         Some(partition.get_sectors() * self.sector_size)
                     },
-                ).map_err(|why| DiskError::LogicalVolumeCreate { why })?;
+                )
+                .map_err(|why| DiskError::LogicalVolumeCreate { why })?;
             }
 
             if partition.flag_is_enabled(REMOVE) {
@@ -312,11 +305,12 @@ impl LogicalDevice {
                     .map_err(|why| DiskError::PartitionRemove { partition: -1, why })?;
             } else if partition.flag_is_enabled(FORMAT) {
                 if let Some(fs) = partition.filesystem {
-                    mkfs(&partition.device_path, fs)
-                        .map_err(|why| DiskError::new_partition_error(
+                    mkfs(&partition.device_path, fs).map_err(|why| {
+                        DiskError::new_partition_error(
                             partition.device_path.clone(),
-                            PartitionError::PartitionFormat { why }
-                        ))?;
+                            PartitionError::PartitionFormat { why },
+                        )
+                    })?;
                 }
             }
         }

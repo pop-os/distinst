@@ -16,9 +16,7 @@ pub(crate) fn moved(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dist
                     .parse::<u32>()
                     .map(|x| x as i32)
                     .ok()
-                    .ok_or_else(|| DistinstError::ArgNaN {
-                        arg: values[1].into(),
-                    })?,
+                    .ok_or_else(|| DistinstError::ArgNaN { arg: values[1].into() })?,
                 match values[2] {
                     "none" => None,
                     value => Some(parse_sector(value)?),

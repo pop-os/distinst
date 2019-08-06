@@ -12,6 +12,4 @@ mod chroot;
 mod command;
 mod sd_nspawn;
 
-pub use self::chroot::Chroot;
-pub use self::command::Command;
-pub use self::sd_nspawn::SystemdNspawn;
+pub use self::{chroot::Chroot, command::Command, sd_nspawn::SystemdNspawn};

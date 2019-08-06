@@ -2,12 +2,13 @@
 //! this provides convenience methods for getting default locales and a list of countries
 //! associated with a language (if any exist at all).
 
-use misc;
-use std::io::{self, BufRead, BufReader};
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
-use std::path::Path;
 use super::get_main_country;
+use misc;
+use std::{
+    collections::{btree_map::Entry, BTreeMap},
+    io::{self, BufRead, BufReader},
+    path::Path,
+};
 
 lazy_static! {
     /// Stores the parsed supported locales from `/usr/share/i18n/SUPPORTED`.
@@ -27,49 +28,48 @@ pub type Codesets = Vec<Option<Codeset>>;
 
 /// Fetch the default country for a given language, if it exists.
 pub fn get_default(lang: &str) -> Option<String> {
-    LOCALES.get(lang)
-        .map(|value| {
-            if let Some(country) = get_main_country(lang) {
-                return match value.get(&Some(country.into())) {
-                    Some(codeset) => {
-                        if codeset.contains(&Some(Codeset::new("UTF-8".into(), true))) {
-                            format!("{}_{}.UTF-8", lang, country)
-                        } else {
-                            match codeset.first() {
-                                Some(&Some(ref codeset)) if codeset.dot => {
-                                    format!("{}_{}.{}", lang, country, codeset.variant)
-                                }
-                                _ => format!("{}_{}", lang, country)
+    LOCALES.get(lang).map(|value| {
+        if let Some(country) = get_main_country(lang) {
+            return match value.get(&Some(country.into())) {
+                Some(codeset) => {
+                    if codeset.contains(&Some(Codeset::new("UTF-8".into(), true))) {
+                        format!("{}_{}.UTF-8", lang, country)
+                    } else {
+                        match codeset.first() {
+                            Some(&Some(ref codeset)) if codeset.dot => {
+                                format!("{}_{}.{}", lang, country, codeset.variant)
                             }
+                            _ => format!("{}_{}", lang, country),
                         }
                     }
-                    None => format!("{}_{}", lang, country)
-                };
-            }
-
-            let (country, codeset) = match value.iter().next() {
-                Some(value) => value,
-                None => {
-                    return lang.into();
                 }
+                None => format!("{}_{}", lang, country),
             };
+        }
 
-            let prefix = match *country {
-                Some(ref country) => format!("{}_{}", lang, country),
-                None => lang.into()
-            };
-
-            if codeset.contains(&Some(Codeset::new("UTF-8".into(), true))) {
-                format!("{}.UTF-8", prefix)
-            } else {
-                match codeset.first() {
-                    Some(&Some(ref codeset)) if codeset.dot => {
-                        format!("{}.{}", prefix, codeset.variant)
-                    }
-                    _ => prefix
-                }
+        let (country, codeset) = match value.iter().next() {
+            Some(value) => value,
+            None => {
+                return lang.into();
             }
-        })
+        };
+
+        let prefix = match *country {
+            Some(ref country) => format!("{}_{}", lang, country),
+            None => lang.into(),
+        };
+
+        if codeset.contains(&Some(Codeset::new("UTF-8".into(), true))) {
+            format!("{}.UTF-8", prefix)
+        } else {
+            match codeset.first() {
+                Some(&Some(ref codeset)) if codeset.dot => {
+                    format!("{}.{}", prefix, codeset.variant)
+                }
+                _ => prefix,
+            }
+        }
+    })
 }
 
 /// Fetch a list of language codes.
@@ -79,19 +79,13 @@ pub fn get_default(lang: &str) -> Option<String> {
 /// ```rust,no_exec,no_run
 /// LOCALES.keys().map(|x| x.as_str()).collect()
 /// ```
-pub fn get_language_codes() -> Vec<&'static str> {
-    LOCALES.keys().map(|x| x.as_str()).collect()
-}
+pub fn get_language_codes() -> Vec<&'static str> { LOCALES.keys().map(|x| x.as_str()).collect() }
 
 /// Fetch a list of countries associated with a language code.
 pub fn get_countries(lang: &str) -> Vec<&'static str> {
     match LOCALES.get(lang) {
-        Some(value) => {
-            value.keys()
-                .map(|c| c.as_ref().map_or("None", |x| x.as_str()))
-                .collect()
-        }
-        None => Vec::new()
+        Some(value) => value.keys().map(|c| c.as_ref().map_or("None", |x| x.as_str())).collect(),
+        None => Vec::new(),
     }
 }
 
@@ -99,9 +93,11 @@ pub fn get_countries(lang: &str) -> Vec<&'static str> {
 /// languages and their possible country codes.
 pub fn parse_locales() -> io::Result<Locales> {
     let mut locales = BTreeMap::new();
-    for file in &[Path::new("/usr/share/i18n/SUPPORTED"), Path::new("/usr/local/share/i18n/SUPPORTED")] {
+    for file in
+        &[Path::new("/usr/share/i18n/SUPPORTED"), Path::new("/usr/local/share/i18n/SUPPORTED")]
+    {
         if !file.exists() {
-            continue
+            continue;
         }
         for line in BufReader::new(misc::open(file)?).lines() {
             let line = line?;
@@ -139,15 +135,19 @@ pub fn parse_locales() -> io::Result<Locales> {
 struct LocaleEntry {
     language: String,
     country:  Option<String>,
-    codeset:  Option<Codeset>
+    codeset:  Option<Codeset>,
 }
 
 impl LocaleEntry {
-    fn new(language: String, country: Option<String>, codeset: Option<(String, bool)>) -> LocaleEntry {
+    fn new(
+        language: String,
+        country: Option<String>,
+        codeset: Option<(String, bool)>,
+    ) -> LocaleEntry {
         LocaleEntry {
             language,
             country,
-            codeset: codeset.map(|c| Codeset { variant: c.0, dot: c.1 })
+            codeset: codeset.map(|c| Codeset { variant: c.0, dot: c.1 }),
         }
     }
 }
@@ -156,13 +156,11 @@ impl LocaleEntry {
 #[derive(Debug, PartialEq)]
 pub struct Codeset {
     pub variant: String,
-    pub dot: bool
+    pub dot:     bool,
 }
 
 impl Codeset {
-    fn new(variant: String, dot: bool) -> Codeset {
-        Codeset { variant, dot }
-    }
+    fn new(variant: String, dot: bool) -> Codeset { Codeset { variant, dot } }
 }
 
 fn parse_entry(line: &str) -> Option<LocaleEntry> {
@@ -174,26 +172,30 @@ fn parse_entry(line: &str) -> Option<LocaleEntry> {
             Some(match (codes.next(), codes.next()) {
                 (None, _) => {
                     return None;
-                },
-                (Some(lang), None) => {
-                    LocaleEntry::new(lang.into(), None, None)
-                },
+                }
+                (Some(lang), None) => LocaleEntry::new(lang.into(), None, None),
                 (Some(lang), Some(country)) => {
                     let mut codes = country.split('.');
                     match (codes.next(), codes.next()) {
-                        (None, _) => {
-                            LocaleEntry::new(lang.into(), None, None)
-                        },
+                        (None, _) => LocaleEntry::new(lang.into(), None, None),
                         (Some(country), None) => match words.next() {
-                            Some(code) => LocaleEntry::new(lang.into(), trim_into(country), Some((code.into(), false))),
+                            Some(code) => LocaleEntry::new(
+                                lang.into(),
+                                trim_into(country),
+                                Some((code.into(), false)),
+                            ),
                             None => LocaleEntry::new(lang.into(), trim_into(country), None),
                         },
-                        (Some(country), Some(code)) => LocaleEntry::new(lang.into(), trim_into(country), Some((code.into(), true)))
+                        (Some(country), Some(code)) => LocaleEntry::new(
+                            lang.into(),
+                            trim_into(country),
+                            Some((code.into(), true)),
+                        ),
                     }
                 }
             })
         }
-        None => None
+        None => None,
     }
 }
 
@@ -205,7 +207,6 @@ fn trim_into(input: &str) -> Option<String> {
         Some(input.into())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -232,7 +233,11 @@ hak_TW UTF-8
 
         assert_eq!(
             parse_entry(&lines.next().unwrap()),
-            Some(LocaleEntry::new("gv".into(), Some("GB".into()), Some(("ISO-8859-1".into(), false))))
+            Some(LocaleEntry::new(
+                "gv".into(),
+                Some("GB".into()),
+                Some(("ISO-8859-1".into(), false))
+            ))
         );
 
         assert_eq!(

@@ -1,15 +1,16 @@
 use libc;
 
-use std::ffi::CString;
-use std::os::unix::ffi::OsStrExt;
-use std::path::PathBuf;
-use std::{io, ptr};
+use std::{ffi::CString, io, os::unix::ffi::OsStrExt, path::PathBuf, ptr};
 
 use distinst::{
-    Bootloader, FileSystem, BlockDeviceExt, PartitionExt, LvmEncryption, PartitionTable, PartitionBuilder, PartitionFlag, PartitionInfo, PartitionType,
+    BlockDeviceExt, Bootloader, FileSystem, LvmEncryption, PartitionBuilder, PartitionExt,
+    PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
 };
 use filesystem::DISTINST_FILE_SYSTEM;
-use {gen_object_ptr, null_check, get_str, DistinstLvmEncryption};
+use gen_object_ptr;
+use get_str;
+use null_check;
+use DistinstLvmEncryption;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -24,7 +25,7 @@ impl From<Option<PartitionTable>> for DISTINST_PARTITION_TABLE {
         match table {
             Some(PartitionTable::Msdos) => DISTINST_PARTITION_TABLE::MSDOS,
             Some(PartitionTable::Gpt) => DISTINST_PARTITION_TABLE::GPT,
-            None => DISTINST_PARTITION_TABLE::NONE
+            None => DISTINST_PARTITION_TABLE::NONE,
         }
     }
 }
@@ -185,7 +186,8 @@ unsafe fn builder_action<F: FnOnce(PartitionBuilder) -> PartitionBuilder>(
     if null_check(builder).is_err() {
         builder
     } else {
-        gen_object_ptr(action(*Box::from_raw(builder as *mut PartitionBuilder))) as *mut DistinstPartitionBuilder
+        gen_object_ptr(action(*Box::from_raw(builder as *mut PartitionBuilder)))
+            as *mut DistinstPartitionBuilder
     }
 }
 
@@ -196,7 +198,7 @@ pub unsafe extern "C" fn distinst_partition_builder_name(
 ) -> *mut DistinstPartitionBuilder {
     match get_str(name) {
         Ok(string) => builder_action(builder, move |builder| builder.name(string.into())),
-        Err(_) => builder
+        Err(_) => builder,
     }
 }
 
@@ -206,7 +208,9 @@ pub unsafe extern "C" fn distinst_partition_builder_mount(
     target: *const libc::c_char,
 ) -> *mut DistinstPartitionBuilder {
     match get_str(target) {
-        Ok(string) => builder_action(builder, move |builder| builder.mount(PathBuf::from(string.to_string()))),
+        Ok(string) => {
+            builder_action(builder, move |builder| builder.mount(PathBuf::from(string.to_string())))
+        }
         Err(_) => builder,
     }
 }
@@ -217,7 +221,9 @@ pub unsafe extern "C" fn distinst_partition_builder_associate_keyfile(
     keyid: *const libc::c_char,
 ) -> *mut DistinstPartitionBuilder {
     match get_str(keyid) {
-        Ok(string) => builder_action(builder, move |builder| builder.associate_keyfile(string.into())),
+        Ok(string) => {
+            builder_action(builder, move |builder| builder.associate_keyfile(string.into()))
+        }
         Err(_) => builder,
     }
 }
@@ -506,9 +512,7 @@ pub unsafe extern "C" fn distinst_partition_format_with(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_partition_is_esp(
-    partition: *const DistinstPartition,
-) -> bool {
+pub unsafe extern "C" fn distinst_partition_is_esp(partition: *const DistinstPartition) -> bool {
     if null_check(partition).is_err() {
         return false;
     }
@@ -518,9 +522,7 @@ pub unsafe extern "C" fn distinst_partition_is_esp(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_partition_is_swap(
-    partition: *const DistinstPartition,
-) -> bool {
+pub unsafe extern "C" fn distinst_partition_is_swap(partition: *const DistinstPartition) -> bool {
     if null_check(partition).is_err() {
         return false;
     }
@@ -556,7 +558,10 @@ pub unsafe extern "C" fn distinst_partition_and_disk_path_destroy(
     } else {
         let object = Box::from_raw(object);
         if object.disk_path.is_null() {
-            error!("The disk path in DistinstPartitionAndDiskPath was to be destroyed even though it is null");
+            error!(
+                "The disk path in DistinstPartitionAndDiskPath was to be destroyed even though it \
+                 is null"
+            );
         } else {
             CString::from_raw(object.disk_path);
         }
@@ -577,19 +582,18 @@ pub unsafe extern "C" fn distinst_partition_sectors_used(
     _sector_size: libc::uint64_t,
 ) -> DistinstPartitionUsage {
     if null_check(partition).is_err() {
-        return DistinstPartitionUsage { tag:   2, value: 0 };
+        return DistinstPartitionUsage { tag: 2, value: 0 };
     }
 
     let part = &*(partition as *const PartitionInfo);
     match part.sectors_used() {
-        Ok(used) => DistinstPartitionUsage {
-            tag:   1,
-            value: used,
-        },
-        Err(ref why) if why.kind() == io::ErrorKind::NotFound => DistinstPartitionUsage { tag:   0, value: 0 },
+        Ok(used) => DistinstPartitionUsage { tag: 1, value: used },
+        Err(ref why) if why.kind() == io::ErrorKind::NotFound => {
+            DistinstPartitionUsage { tag: 0, value: 0 }
+        }
         Err(ref why) => {
             error!("unable to get partition sector usage: {}", why);
-            DistinstPartitionUsage { tag:   2, value: 0 }
+            DistinstPartitionUsage { tag: 2, value: 0 }
         }
     }
 }

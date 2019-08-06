@@ -1,9 +1,6 @@
 extern crate cbindgen;
 
-use std::env;
-use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
+use std::{env, fs, io::Write, path::PathBuf};
 
 fn main() {
     let target_dir = PathBuf::from("../target");

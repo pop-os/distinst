@@ -1,15 +1,17 @@
+use self::FileSystem::*;
+use super::bitflags::FileSystemSupport;
 use disk_types::{BlockDeviceExt, FileSystem, PartitionExt};
 use disks::{Disks, PartitionInfo};
-use external::generate_unique_id;
 use errors::IntoIoResult;
+use external::generate_unique_id;
 use fstab_generate::BlockInfo;
 use misc::hasher;
 use partition_identity::PartitionID;
-use self::FileSystem::*;
-use std::borrow::Cow;
-use std::ffi::{OsStr, OsString};
-use std::io;
-use super::bitflags::FileSystemSupport;
+use std::{
+    borrow::Cow,
+    ffi::{OsStr, OsString},
+    io,
+};
 
 pub trait InstallerDiskOps: Sync {
     /// Generates the crypttab and fstab files in memory.
@@ -34,14 +36,18 @@ impl InstallerDiskOps for Disks {
         let partitions = physical
             .iter()
             .flat_map(|x| {
-                x.file_system.as_ref().into_iter()
+                x.file_system
+                    .as_ref()
+                    .into_iter()
                     .chain(x.partitions.iter())
                     .map(|p| (true, &None, p))
             })
             .chain(logical.iter().flat_map(|x| {
                 let luks_parent = &x.luks_parent;
                 let is_unencrypted: bool = x.encryption.is_none();
-                x.file_system.as_ref().into_iter()
+                x.file_system
+                    .as_ref()
+                    .into_iter()
                     .chain(x.partitions.iter())
                     .map(move |p| (is_unencrypted, luks_parent, p))
             }));
@@ -57,7 +63,8 @@ impl InstallerDiskOps for Disks {
                         (false, None) => Cow::Borrowed(OsStr::new("/dev/urandom")),
                         (true, Some(_key)) => unimplemented!(),
                         (false, Some(&(_, ref key))) => {
-                            let path = key.clone()
+                            let path = key
+                                .clone()
                                 .expect("should have been populated")
                                 .1
                                 .join(&enc.physical_volume);
@@ -92,7 +99,7 @@ impl InstallerDiskOps for Disks {
                                     ),
                                 }
                             }
-                            break
+                            break;
                         }
                     }
                 }
@@ -115,11 +122,10 @@ impl InstallerDiskOps for Disks {
                                 " /dev/urandom swap,offset=1024,cipher=aes-xts-plain64,size=512\n",
                             );
 
-                            fstab.push(&[
-                                "/dev/mapper/",
-                                &unique_id,
-                                "  none  swap  defaults  0  0\n",
-                            ].concat());
+                            fstab.push(
+                                &["/dev/mapper/", &unique_id, "  none  swap  defaults  0  0\n"]
+                                    .concat(),
+                            );
                         }
                         None => warn!(
                             "unable to find UUID for {} -- skipping",
@@ -135,15 +141,9 @@ impl InstallerDiskOps for Disks {
             }
         }
 
-        info!(
-            "generated the following crypttab data:\n{}",
-            crypttab.to_string_lossy(),
-        );
+        info!("generated the following crypttab data:\n{}", crypttab.to_string_lossy(),);
 
-        info!(
-            "generated the following fstab data:\n{}",
-            fstab.to_string_lossy()
-        );
+        info!("generated the following fstab data:\n{}", fstab.to_string_lossy());
 
         crypttab.shrink_to_fit();
         fstab.shrink_to_fit();
@@ -170,7 +170,7 @@ impl InstallerDiskOps for Disks {
                 Some(Xfs) => flags |= FileSystemSupport::XFS,
                 Some(Luks) => flags |= FileSystemSupport::LUKS,
                 Some(Lvm) => flags |= FileSystemSupport::LVM,
-                _ => continue
+                _ => continue,
             };
         }
 

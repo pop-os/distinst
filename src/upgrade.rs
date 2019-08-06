@@ -6,9 +6,7 @@ use envfile::EnvFile;
 use errors::IoContext;
 use external::remount_rw;
 use installer::steps::mount_efivars;
-use std::io;
-use std::path::Path;
-use std::process::Stdio;
+use std::{io, path::Path, process::Stdio};
 use systemd_boot_conf::SystemdBootConf;
 use tempdir::TempDir;
 
@@ -56,7 +54,7 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
     disks: &mut Disks,
     option: &RecoveryOption,
     callback: F,
-    attempt_repair: R
+    attempt_repair: R,
 ) -> Result<(), UpgradeError> {
     if !option.upgrade_mode {
         return Err(UpgradeError::ModeNotSet);
@@ -64,12 +62,10 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
 
     InstallOption::Upgrade(option).apply(disks).map_err(UpgradeError::Configure)?;
 
-    let mount_dir = TempDir::new("/upgrade")
-        .map_err(UpgradeError::ChrootTempCreate)?;
+    let mount_dir = TempDir::new("/upgrade").map_err(UpgradeError::ChrootTempCreate)?;
     let mount_dir = mount_dir.path();
 
-    let _mounts = disks.mount_all_targets(mount_dir)
-        .map_err(UpgradeError::ChrootMount)?;
+    let _mounts = disks.mount_all_targets(mount_dir).map_err(UpgradeError::ChrootMount)?;
 
     let chroot = &mut SystemdNspawn::new(mount_dir).map_err(UpgradeError::ChrootMount)?;
     chroot.env("DEBIAN_FRONTEND", "noninteractive");
@@ -77,7 +73,7 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
 
     let _efivars_mount = mount_efivars(mount_dir).map_err(UpgradeError::EfiVars)?;
 
-    fn attempt<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()>{
+    fn attempt<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()> {
         info!("attempting release upgrade");
         if apt_upgrade(chroot, callback).is_err() {
             warn!("release upgrade failed: attempting to repair");
@@ -111,23 +107,22 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
 }
 
 fn disable_upgrade_flag() -> io::Result<()> {
-    let recovery_conf = &mut EnvFile::new("/cdrom/recovery.conf").with_context(|err| {
-        format!("error parsing envfile at /cdrom/recovery.conf: {}", err)
-    })?;
+    let recovery_conf = &mut EnvFile::new("/cdrom/recovery.conf")
+        .with_context(|err| format!("error parsing envfile at /cdrom/recovery.conf: {}", err))?;
 
     remount_rw("/cdrom")
         .with_context(|err| format!("could not remount /cdrom as rw: {}", err))
         .and_then(|_| {
             recovery_conf.store.remove("UPGRADE");
-            recovery_conf.write().with_context(|err| {
-                format!("error writing recovery conf: {}", err)
-            })
+            recovery_conf
+                .write()
+                .with_context(|err| format!("error writing recovery conf: {}", err))
         })
 }
 
 fn systemd_boot_entry_restore<P: AsRef<Path>>(base: P) -> Result<(), UpgradeError> {
-    let mut systemd_boot_conf =
-        SystemdBootConf::new(base.as_ref().join("boot/efi")).map_err(UpgradeError::SystemdBootConf)?;
+    let mut systemd_boot_conf = SystemdBootConf::new(base.as_ref().join("boot/efi"))
+        .map_err(UpgradeError::SystemdBootConf)?;
 
     {
         info!("found the systemd-boot config -- searching for the current entry");
@@ -144,7 +139,8 @@ fn systemd_boot_entry_restore<P: AsRef<Path>>(base: P) -> Result<(), UpgradeErro
 }
 
 fn apt_upgrade<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()> {
-    chroot.command("apt-get", &["-y", "--allow-downgrades", "--show-progress", "full-upgrade"])
+    chroot
+        .command("apt-get", &["-y", "--allow-downgrades", "--show-progress", "full-upgrade"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .run_with_callbacks(
@@ -152,17 +148,23 @@ fn apt_upgrade<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) ->
                 info!("apt-info: '{}'", info);
                 let result = info.parse::<AptUpgradeEvent>();
                 let event = match result.as_ref() {
-                    Ok(AptUpgradeEvent::Processing { ref package }) => UpgradeEvent::PackageProcessing(package.as_str()),
-                    Ok(AptUpgradeEvent::Progress { percent }) => UpgradeEvent::PackageProgress(*percent),
-                    Ok(AptUpgradeEvent::SettingUp { ref package }) => UpgradeEvent::PackageSettingUp(package.as_str()),
+                    Ok(AptUpgradeEvent::Processing { ref package }) => {
+                        UpgradeEvent::PackageProcessing(package.as_str())
+                    }
+                    Ok(AptUpgradeEvent::Progress { percent }) => {
+                        UpgradeEvent::PackageProgress(*percent)
+                    }
+                    Ok(AptUpgradeEvent::SettingUp { ref package }) => {
+                        UpgradeEvent::PackageSettingUp(package.as_str())
+                    }
                     Ok(AptUpgradeEvent::Unpacking { ref package, ref version, ref over }) => {
                         UpgradeEvent::PackageUnpacking {
                             package: package.as_str(),
                             version: version.as_str(),
-                            over: over.as_str()
+                            over:    over.as_str(),
                         }
-                    },
-                    _ => UpgradeEvent::UpgradeInfo(info)
+                    }
+                    _ => UpgradeEvent::UpgradeInfo(info),
                 };
 
                 callback(event);
@@ -170,12 +172,16 @@ fn apt_upgrade<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) ->
             |error| {
                 warn!("apt-err: '{}'", error);
                 callback(UpgradeEvent::UpgradeErr(error))
-            }
+            },
         )
 }
 
-fn dpkg_configure_all<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()> {
-    chroot.command("dpkg", &["--configure", "-a"])
+fn dpkg_configure_all<F: Fn(UpgradeEvent)>(
+    chroot: &mut SystemdNspawn,
+    callback: &F,
+) -> io::Result<()> {
+    chroot
+        .command("dpkg", &["--configure", "-a"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .run_with_callbacks(
@@ -183,16 +189,20 @@ fn dpkg_configure_all<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback:
                 info!("dpkg-info: '{}'", info);
                 let result = info.parse::<AptUpgradeEvent>();
                 let event = match result.as_ref() {
-                    Ok(AptUpgradeEvent::Processing { ref package }) => UpgradeEvent::PackageProcessing(package.as_str()),
-                    Ok(AptUpgradeEvent::SettingUp { ref package }) => UpgradeEvent::PackageSettingUp(package.as_str()),
+                    Ok(AptUpgradeEvent::Processing { ref package }) => {
+                        UpgradeEvent::PackageProcessing(package.as_str())
+                    }
+                    Ok(AptUpgradeEvent::SettingUp { ref package }) => {
+                        UpgradeEvent::PackageSettingUp(package.as_str())
+                    }
                     Ok(AptUpgradeEvent::Unpacking { ref package, ref version, ref over }) => {
                         UpgradeEvent::PackageUnpacking {
                             package: package.as_str(),
                             version: version.as_str(),
-                            over: over.as_str()
+                            over:    over.as_str(),
                         }
-                    },
-                    _ => UpgradeEvent::UpgradeInfo(info)
+                    }
+                    _ => UpgradeEvent::UpgradeInfo(info),
                 };
 
                 callback(event);
@@ -200,6 +210,6 @@ fn dpkg_configure_all<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback:
             |error| {
                 warn!("dpkg-err: '{}'", error);
                 callback(UpgradeEvent::DpkgErr(error));
-            }
+            },
         )
 }

@@ -2,31 +2,39 @@
 
 extern crate sedregex;
 
-use std::fs::File;
-use std::io::{self, Read, Write};
-use std::path::Path;
+use std::{
+    fs::File,
+    io::{self, Read, Write},
+    path::Path,
+};
 
 pub fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
-    File::open(&path).map_err(|why| io::Error::new(
-        io::ErrorKind::Other,
-        format!("unable to open file at {:?}: {}", path.as_ref(), why)
-    ))
+    File::open(&path).map_err(|why| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("unable to open file at {:?}: {}", path.as_ref(), why),
+        )
+    })
 }
 
 pub fn create<P: AsRef<Path>>(path: P) -> io::Result<File> {
-    File::create(&path).map_err(|why| io::Error::new(
-        io::ErrorKind::Other,
-        format!("unable to create file at {:?}: {}", path.as_ref(), why)
-    ))
+    File::create(&path).map_err(|why| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("unable to create file at {:?}: {}", path.as_ref(), why),
+        )
+    })
 }
 
 pub fn cp<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<u64> {
     let src = src.as_ref();
     let dst = dst.as_ref();
-    io::copy(&mut open(src)?, &mut create(dst)?).map_err(|why| io::Error::new(
-        io::ErrorKind::Other,
-        format!("failed to copy {:?} to {:?}: {}", src, dst, why)
-    ))
+    io::copy(&mut open(src)?, &mut create(dst)?).map_err(|why| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("failed to copy {:?} to {:?}: {}", src, dst, why),
+        )
+    })
 }
 
 pub fn read<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
@@ -40,19 +48,23 @@ pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::Result
     create(path).and_then(|mut file| file.write_all(contents.as_ref()))
 }
 
-use sedregex::find_and_replace;
 pub use self::layout::*;
-use std::borrow::Cow;
-use std::collections::hash_map::DefaultHasher;
-use std::ffi::{OsStr, OsString};
-use std::fs::{self, DirEntry};
-use std::hash::{Hash, Hasher};
-use std::path::{PathBuf};
+use sedregex::find_and_replace;
+use std::{
+    borrow::Cow,
+    collections::hash_map::DefaultHasher,
+    ffi::{OsStr, OsString},
+    fs::{self, DirEntry},
+    hash::{Hash, Hasher},
+    path::PathBuf,
+};
 
 mod layout {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    use std::path::Path;
+    use std::{
+        collections::hash_map::DefaultHasher,
+        hash::{Hash, Hasher},
+        path::Path,
+    };
 
     pub fn device_layout_hash() -> u64 {
         let hasher = &mut DefaultHasher::new();
@@ -84,7 +96,7 @@ pub fn canonicalize(path: &Path) -> Cow<Path> {
     if let Ok(mut new) = path.canonicalize() {
         while let Ok(tmp) = new.canonicalize() {
             if new == tmp {
-                break
+                break;
             }
             new = tmp;
         }
@@ -106,10 +118,7 @@ pub fn device_maps<F: FnMut(&Path)>(mut action: F) {
     read_dirs("/dev/mapper", |pv| action(&pv.path())).unwrap()
 }
 
-pub fn read_dirs<P: AsRef<Path>, F: FnMut(DirEntry)>(
-    path: P,
-    mut action: F,
-) -> io::Result<()> {
+pub fn read_dirs<P: AsRef<Path>, F: FnMut(DirEntry)>(path: P, mut action: F) -> io::Result<()> {
     for entry in path.as_ref().read_dir()? {
         match entry {
             Ok(entry) => action(entry),
@@ -148,15 +157,16 @@ pub fn resolve_to_physical(name: &str) -> Option<PathBuf> {
 
     loop {
         let physical_c = physical.clone();
-        let name = physical_c.as_ref()
+        let name = physical_c
+            .as_ref()
             .map_or(name, |physical| physical.file_name().unwrap().to_str().unwrap());
         if let Some(slave) = resolve_slave(name) {
             if physical.as_ref().map_or(true, |rec| rec != &slave) {
                 physical = Some(slave);
-                continue
+                continue;
             }
         }
-        break
+        break;
     }
 
     physical
@@ -179,20 +189,16 @@ pub fn resolve_parent(name: &str) -> Option<PathBuf> {
 /// Apply sed expressions on a file, and overwrite it if there was a change.
 pub fn sed<P: AsRef<Path>>(path: P, pattern: &str) -> io::Result<()> {
     let path = path.as_ref();
-    let sources = String::from_utf8(read(path)?)
-        .map_err(|_| io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{:?} contains non-UTF-8 data", path)
-        ))?;
+    let sources = String::from_utf8(read(path)?).map_err(|_| {
+        io::Error::new(io::ErrorKind::InvalidData, format!("{:?} contains non-UTF-8 data", path))
+    })?;
 
-    let replace = find_and_replace(pattern, &sources)
-        .map_err(|why| io::Error::new(
-            io::ErrorKind::Other,
-            format!("sedregex failure: {:?}", why)
-        ))?;
+    let replace = find_and_replace(pattern, &sources).map_err(|why| {
+        io::Error::new(io::ErrorKind::Other, format!("sedregex failure: {:?}", why))
+    })?;
 
     match replace {
         Cow::Borrowed(_) => Ok(()),
-        Cow::Owned(text) => write(&path, &text)
+        Cow::Owned(text) => write(&path, &text),
     }
 }

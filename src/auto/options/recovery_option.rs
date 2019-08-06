@@ -22,9 +22,7 @@ impl RecoveryOption {
         self.efi_uuid.as_ref().map(|uuid| Self::parse_id(uuid.clone()))
     }
 
-    pub fn parse_recovery_id(&self) -> PartitionID {
-        Self::parse_id(self.recovery_uuid.clone())
-    }
+    pub fn parse_recovery_id(&self) -> PartitionID { Self::parse_id(self.recovery_uuid.clone()) }
 
     fn parse_id(id: String) -> PartitionID {
         if id.starts_with("PARTUUID=") {
@@ -43,10 +41,7 @@ pub(crate) fn detect_recovery() -> Option<RecoveryOption> {
         let env = match EnvFile::new(recovery_path) {
             Ok(env) => env,
             Err(why) => {
-                warn!(
-                    "unable to read recovery configuration: {}",
-                    why
-                );
+                warn!("unable to read recovery configuration: {}", why);
                 return None;
             }
         };
@@ -62,7 +57,7 @@ pub(crate) fn detect_recovery() -> Option<RecoveryOption> {
             root_uuid:     env.get("ROOT_UUID")?.to_owned(),
             oem_mode:      env.get("OEM_MODE").map_or(false, |oem| oem == "1"),
             luks_uuid:     env.get("LUKS_UUID").map(|x| x.to_owned()),
-            upgrade_mode:  env.get("UPGRADE").map_or(false, |oem| oem == "1")
+            upgrade_mode:  env.get("UPGRADE").map_or(false, |oem| oem == "1"),
         });
     }
 

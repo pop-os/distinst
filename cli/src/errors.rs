@@ -39,7 +39,7 @@ pub(crate) enum DistinstError {
     #[fail(display = "no logical device named '{}' found", group)]
     LogicalDeviceNotFound { group: String },
     #[fail(display = "'{}' was not found on '{}'", volume, group)]
-    LogicalPartitionNotFound { group:  String, volume: String },
+    LogicalPartitionNotFound { group: String, volume: String },
     #[fail(display = "invalid number of arguments supplied to --logical-modify")]
     ModifyArgs,
     #[fail(display = "could not find volume group associated with '{}'", group)]

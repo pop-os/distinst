@@ -1,11 +1,8 @@
 //! User account information will be collected here.
 
-use disk_types::FileSystem;
 use super::{mount_and_then, ReinstallError};
-use std::collections::HashMap;
-use std::ffi::OsStr;
-use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
+use disk_types::FileSystem;
+use std::{collections::HashMap, ffi::OsStr, os::unix::ffi::OsStrExt, path::Path};
 
 use misc::read;
 
@@ -29,10 +26,7 @@ fn account(input: &[u8]) -> Vec<u8> {
 }
 
 pub(crate) fn lines<T: ::std::iter::FromIterator<(Vec<u8>, Vec<u8>)>>(input: &[u8]) -> T {
-    input
-        .split(|&b| b == b'\n')
-        .map(|x| (account(x), x.to_owned()))
-        .collect::<T>()
+    input.split(|&b| b == b'\n').map(|x| (account(x), x.to_owned())).collect::<T>()
 }
 
 impl AccountFiles {
@@ -43,14 +37,12 @@ impl AccountFiles {
                 .and_then(|p| read(base.join("etc/group")).map(|g| (p, g)))
                 .and_then(|(p, g)| read(base.join("etc/shadow")).map(|s| (p, g, s)))
                 .and_then(|(p, g, s)| read(base.join("etc/gshadow")).map(|gs| (p, g, s, gs)))
-                .map(
-                    |(ref passwd, ref group, ref shadow, ref gshadow)| AccountFiles {
-                        passwd:  lines(passwd),
-                        group:   lines(group),
-                        shadow:  lines(shadow),
-                        gshadow: lines(gshadow),
-                    },
-                )
+                .map(|(ref passwd, ref group, ref shadow, ref gshadow)| AccountFiles {
+                    passwd:  lines(passwd),
+                    group:   lines(group),
+                    shadow:  lines(shadow),
+                    gshadow: lines(gshadow),
+                })
                 .map_err(|why| ReinstallError::AccountsObtain { why, step: "get" })
         })
     }
@@ -79,43 +71,41 @@ impl AccountFiles {
             );
 
             let user: &[u8] = &user;
-            let group = self.group
-                .iter()
-                .find(|&(_, value)| group_has_id(&value, group_id))
-                .map(|(group, value)| {
+            let group = self.group.iter().find(|&(_, value)| group_has_id(&value, group_id)).map(
+                |(group, value)| {
                     info!(
                         "found group '{}' associated with '{}'",
                         user_string,
                         String::from_utf8_lossy(group)
                     );
                     value
-                })?;
+                },
+            )?;
 
-            let secondary_groups = self.group
+            let secondary_groups = self
+                .group
                 .iter()
                 .filter(|&(_, value)| group_has_user(&value, user))
-                .inspect(|&(group, _)| info!(
-                    "{} has a secondary group: '{}'",
-                    String::from_utf8_lossy(user),
-                    String::from_utf8_lossy(group)
-                ))
+                .inspect(|&(group, _)| {
+                    info!(
+                        "{} has a secondary group: '{}'",
+                        String::from_utf8_lossy(user),
+                        String::from_utf8_lossy(group)
+                    )
+                })
                 .map(|(group, _)| group.as_slice())
                 .collect::<Vec<&[u8]>>();
 
             let shadow = self.shadow.get(user)?;
             let gshadow = self.gshadow.get(user)?;
 
-            Some(UserData { user, passwd, group, shadow, gshadow, secondary_groups})
+            Some(UserData { user, passwd, group, shadow, gshadow, secondary_groups })
         })
     }
 }
 
-
 fn group_has_id(entry: &[u8], id: &[u8]) -> bool {
-    entry
-        .split(|&x| x == b':')
-        .nth(2)
-        .map_or(false, |field| field == id)
+    entry.split(|&x| x == b':').nth(2).map_or(false, |field| field == id)
 }
 
 fn group_has_user(entry: &[u8], user: &[u8]) -> bool {
@@ -130,18 +120,16 @@ fn get_passwd_home_and_group(entry: &[u8]) -> (&[u8], &[u8]) {
     let group = fields.nth(3);
     let home = fields.nth(1);
 
-    group
-        .and_then(|group| home.map(|home| (group, home)))
-        .unwrap_or((b"", b""))
+    group.and_then(|group| home.map(|home| (group, home))).unwrap_or((b"", b""))
 }
 
 /// Information about a user that should be carried over to the corresponding files.
 pub struct UserData<'a> {
-    pub user:    &'a [u8],
-    pub passwd:  &'a [u8],
-    pub shadow:  &'a [u8],
-    pub group:   &'a [u8],
-    pub gshadow: &'a [u8],
+    pub user:             &'a [u8],
+    pub passwd:           &'a [u8],
+    pub shadow:           &'a [u8],
+    pub group:            &'a [u8],
+    pub gshadow:          &'a [u8],
     pub secondary_groups: Vec<&'a [u8]>,
 }
 

@@ -1,18 +1,17 @@
-use distinst::{self, Disks, UpgradeError, UpgradeEvent};
-use distinst::auto::RecoveryOption;
 use super::{DistinstDisks, DistinstRecoveryOption};
+use distinst::{self, auto::RecoveryOption, Disks, UpgradeError, UpgradeEvent};
 use libc;
 use std::ptr;
 
 #[repr(C)]
 pub struct DistinstUpgradeEvent {
-    tag: DISTINST_UPGRADE_TAG,
-    percent: libc::uint8_t,
-    str1: *const libc::uint8_t,
+    tag:          DISTINST_UPGRADE_TAG,
+    percent:      libc::uint8_t,
+    str1:         *const libc::uint8_t,
     str1_length1: libc::size_t,
-    str2: *const libc::uint8_t,
+    str2:         *const libc::uint8_t,
     str2_length1: libc::size_t,
-    str3: *const libc::uint8_t,
+    str3:         *const libc::uint8_t,
     str3_length1: libc::size_t,
 }
 
@@ -28,19 +27,19 @@ pub enum DISTINST_UPGRADE_TAG {
     PACKAGE_PROGRESS,
     PACKAGE_SETTING_UP,
     PACKAGE_UNPACKING,
-    RESUMING_UPGRADE
+    RESUMING_UPGRADE,
 }
 
 impl From<UpgradeEvent<'_>> for DistinstUpgradeEvent {
     fn from(event: UpgradeEvent) -> Self {
         let mut c_event = DistinstUpgradeEvent {
-            tag: DISTINST_UPGRADE_TAG::ATTEMPTING_REPAIR,
-            percent: 0,
-            str1: ptr::null(),
+            tag:          DISTINST_UPGRADE_TAG::ATTEMPTING_REPAIR,
+            percent:      0,
+            str1:         ptr::null(),
             str1_length1: 0,
-            str2: ptr::null(),
+            str2:         ptr::null(),
             str2_length1: 0,
-            str3: ptr::null(),
+            str3:         ptr::null(),
             str3_length1: 0,
         };
 
@@ -129,7 +128,7 @@ pub unsafe extern "C" fn distinst_upgrade(
         &mut *(disks as *mut Disks),
         &*(option as *const RecoveryOption),
         move |event| event_cb(DistinstUpgradeEvent::from(event), user_data1),
-        move || repair_cb(user_data2) != 0
+        move || repair_cb(user_data2) != 0,
     );
 
     match result {

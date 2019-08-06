@@ -11,18 +11,19 @@ mod errors;
 
 use clap::{App, Arg, ArgMatches, Values};
 use configure::*;
-use distinst::*;
-use distinst::timezones::Timezones;
+use distinst::{timezones::Timezones, *};
 use errors::DistinstError;
 
 use pbr::ProgressBar;
 
-use std::cell::RefCell;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::process::exit;
-use std::rc::Rc;
-use std::sync::atomic::Ordering;
+use std::{
+    cell::RefCell,
+    io,
+    path::{Path, PathBuf},
+    process::exit,
+    rc::Rc,
+    sync::atomic::Ordering,
+};
 
 fn main() {
     let matches = App::new("distinst")
@@ -30,21 +31,21 @@ fn main() {
             Arg::with_name("username")
                 .long("username")
                 .help("specifies a default user account to create")
-                .takes_value(true)
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("password")
                 .long("password")
                 .help("set the password for the username")
                 .requires("username")
-                .takes_value(true)
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("realname")
                 .long("realname")
                 .help("the full name of user to create")
                 .requires("username")
-                .takes_value(true)
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("timezone")
@@ -52,7 +53,7 @@ fn main() {
                 .help("the timezone to set for the new install")
                 .value_delimiter("/")
                 .min_values(2)
-                .max_values(2)
+                .max_values(2),
         )
         .arg(
             Arg::with_name("squashfs")
@@ -140,27 +141,27 @@ fn main() {
         .arg(
             Arg::with_name("hardware-support")
                 .long("hardware-support")
-                .help("install hardware support packages based on detected hardware")
+                .help("install hardware support packages based on detected hardware"),
         )
         .arg(
             Arg::with_name("modify-boot")
                 .long("modify-boot")
-                .help("modify the boot order after installing")
+                .help("modify the boot order after installing"),
         )
         .arg(
             Arg::with_name("force-bios")
                 .long("force-bios")
-                .help("performs a BIOS installation even if the running system is EFI")
+                .help("performs a BIOS installation even if the running system is EFI"),
         )
         .arg(
             Arg::with_name("force-efi")
                 .long("force-efi")
-                .help("performs an EFI installation even if the running system is BIOS")
+                .help("performs an EFI installation even if the running system is BIOS"),
         )
         .arg(
             Arg::with_name("no-efi-vars")
                 .long("no-efi-vars")
-                .help("disables mounting of the efivars directory")
+                .help("disables mounting of the efivars directory"),
         )
         .arg(
             Arg::with_name("delete")
@@ -229,34 +230,34 @@ fn main() {
         Some(mut tz) => {
             let (zone, region) = (tz.next().unwrap(), tz.next().unwrap());
             tzs_ = Timezones::new().expect("failed to get timzones");
-            let zone = tzs_.zones()
+            let zone = tzs_
+                .zones()
                 .into_iter()
                 .find(|z| z.name() == zone)
                 .expect(&format!("failed to find zone: {}", zone));
-            let region = zone.regions()
+            let region = zone
+                .regions()
                 .into_iter()
                 .find(|r| r.name() == region)
                 .expect(&format!("failed to find region: {}", region));
             Some(region.clone())
-        },
-        None => None
+        }
+        None => None,
     };
 
     let user_account = matches.value_of("username").map(|username| {
         let username = username.to_owned();
         let realname = matches.value_of("realname").map(String::from);
-        let password = matches.value_of("password")
-            .map(String::from)
-            .or_else(|| {
-                if unsafe { libc::isatty(0) } == 0 {
-                    let mut pass = String::new();
-                    io::stdin().read_line(&mut pass).unwrap();
-                    pass.pop();
-                    Some(pass)
-                } else {
-                    None
-                }
-            });
+        let password = matches.value_of("password").map(String::from).or_else(|| {
+            if unsafe { libc::isatty(0) } == 0 {
+                let mut pass = String::new();
+                io::stdin().read_line(&mut pass).unwrap();
+                pass.pop();
+                Some(pass)
+            } else {
+                None
+            }
+        });
 
         UserAccountCreate { realname, username, password }
     });
@@ -341,20 +342,21 @@ fn main() {
         }
 
         fn take_optional_string(argument: Option<&str>) -> Option<String> {
-            argument
-                .map(String::from)
-                .and_then(|x| if x.is_empty() { None } else { Some(x) })
+            argument.map(String::from).and_then(|x| if x.is_empty() { None } else { Some(x) })
         }
 
         // The lock is an `OwnedFd`, which on drop will close / unlock the inhibitor.
         let _inhibit_suspend = match distinst::dbus_interfaces::LoginManager::new() {
-            Ok(manager) => match manager.connect().inhibit_suspend("Distinst Installer", "prevent suspension while installing a distribution") {
+            Ok(manager) => match manager.connect().inhibit_suspend(
+                "Distinst Installer",
+                "prevent suspension while installing a distribution",
+            ) {
                 Ok(lock) => Some(lock),
                 Err(why) => {
                     eprintln!("distinst: failed to inhibit suspend: {}", why);
                     None
                 }
-            }
+            },
             Err(why) => {
                 eprintln!("distinst: failed to get logind dbus connection: {}", why);
                 None
@@ -372,7 +374,7 @@ fn main() {
                 old_root:         None,
                 lang:             lang.into(),
                 remove:           remove.into(),
-                squashfs:         squashfs.into()
+                squashfs:         squashfs.into(),
             },
         )
     };
@@ -398,11 +400,8 @@ fn main() {
 fn install_flags(matches: &ArgMatches) -> u8 {
     let mut flags = 0;
 
-    flags += if matches.occurrences_of("modify-boot") != 0 {
-        distinst::MODIFY_BOOT_ORDER
-    } else {
-        0
-    };
+    flags +=
+        if matches.occurrences_of("modify-boot") != 0 { distinst::MODIFY_BOOT_ORDER } else { 0 };
 
     flags += if matches.occurrences_of("hardware-support") != 0 {
         distinst::INSTALL_HARDWARE_SUPPORT
@@ -422,10 +421,7 @@ fn configure_signal_handling() {
     }
 
     if unsafe { libc::signal(libc::SIGINT, handler as libc::sighandler_t) == libc::SIG_ERR } {
-        eprintln!(
-            "distinst: signal handling error: {}",
-            io::Error::last_os_error()
-        );
+        eprintln!("distinst: signal handling error: {}", io::Error::last_os_error());
         exit(1);
     }
 }
@@ -468,15 +464,10 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
         let (mut pass, mut keydata) = (None, None);
 
         let mut fields = fs[4..].split(',');
-        let physical_volume = fields
-            .next()
-            .map(|pv| pv.into())
-            .ok_or(DistinstError::NoPhysicalVolume)?;
+        let physical_volume =
+            fields.next().map(|pv| pv.into()).ok_or(DistinstError::NoPhysicalVolume)?;
 
-        let volume_group = fields
-            .next()
-            .map(|vg| vg.into())
-            .ok_or(DistinstError::NoVolumeGroup)?;
+        let volume_group = fields.next().map(|vg| vg.into()).ok_or(DistinstError::NoVolumeGroup)?;
 
         for field in fields {
             parse_key(field, &mut pass, &mut keydata)?;
@@ -493,10 +484,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
     } else if fs.starts_with("lvm=") {
         let mut fields = fs[4..].split(',');
         Ok(PartType::Lvm(
-            fields
-                .next()
-                .map(|vg| vg.into())
-                .ok_or(DistinstError::NoVolumeGroup)?,
+            fields.next().map(|vg| vg.into()).ok_or(DistinstError::NoVolumeGroup)?,
             None,
         ))
     } else {
@@ -506,21 +494,14 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
 
 fn parse_sector(sector: &str) -> Result<Sector, DistinstError> {
     let result = if sector.ends_with("MiB") {
-        sector[..sector.len() - 3]
-            .parse::<i64>()
-            .ok()
-            .and_then(|mebibytes| {
-                format!("{}M", (mebibytes * 1_048_576) / 1_000_000)
-                    .parse::<Sector>()
-                    .ok()
-            })
+        sector[..sector.len() - 3].parse::<i64>().ok().and_then(|mebibytes| {
+            format!("{}M", (mebibytes * 1_048_576) / 1_000_000).parse::<Sector>().ok()
+        })
     } else {
         sector.parse::<Sector>().ok()
     };
 
-    result.ok_or_else(|| DistinstError::InvalidSectorValue {
-        value: sector.into(),
-    })
+    result.ok_or_else(|| DistinstError::InvalidSectorValue { value: sector.into() })
 }
 
 fn parse_flags(flags: &str) -> Vec<PartitionFlag> {
@@ -551,15 +532,12 @@ fn parse_flags(flags: &str) -> Vec<PartitionFlag> {
 }
 
 fn find_disk_mut<'a>(disks: &'a mut Disks, block: &str) -> Result<&'a mut Disk, DistinstError> {
-    disks
-        .find_disk_mut(block)
-        .ok_or_else(|| DistinstError::DiskNotFound { disk: block.into() })
+    disks.find_disk_mut(block).ok_or_else(|| DistinstError::DiskNotFound { disk: block.into() })
 }
 
 fn find_partition_mut(
     disk: &mut Disk,
     partition: i32,
 ) -> Result<&mut PartitionInfo, DistinstError> {
-    disk.get_partition_mut(partition)
-        .ok_or_else(|| DistinstError::PartitionNotFound { partition })
+    disk.get_partition_mut(partition).ok_or_else(|| DistinstError::PartitionNotFound { partition })
 }

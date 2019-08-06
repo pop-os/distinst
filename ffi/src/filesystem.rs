@@ -67,44 +67,20 @@ impl From<FileSystem> for DISTINST_FILE_SYSTEM {
 impl DISTINST_FILE_SYSTEM {
     fn get_cstr(self) -> *const libc::c_char {
         match self {
-            DISTINST_FILE_SYSTEM::BTRFS => {
-                CStr::from_bytes_with_nul(b"btrfs\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::EXFAT => {
-                CStr::from_bytes_with_nul(b"exfat\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::EXT2 => {
-                CStr::from_bytes_with_nul(b"ext2\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::EXT3 => {
-                CStr::from_bytes_with_nul(b"ext3\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::EXT4 => {
-                CStr::from_bytes_with_nul(b"ext4\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::F2FS => {
-                CStr::from_bytes_with_nul(b"f2fs\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::FAT16 => {
-                CStr::from_bytes_with_nul(b"fat16\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::FAT32 => {
-                CStr::from_bytes_with_nul(b"fat32\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::NONE => {
-                CStr::from_bytes_with_nul(b"none\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::NTFS => {
-                CStr::from_bytes_with_nul(b"ntfs\0").unwrap().as_ptr()
-            }
-            DISTINST_FILE_SYSTEM::SWAP => {
-                CStr::from_bytes_with_nul(b"swap\0").unwrap().as_ptr()
-            }
+            DISTINST_FILE_SYSTEM::BTRFS => CStr::from_bytes_with_nul(b"btrfs\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::EXFAT => CStr::from_bytes_with_nul(b"exfat\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::EXT2 => CStr::from_bytes_with_nul(b"ext2\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::EXT3 => CStr::from_bytes_with_nul(b"ext3\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::EXT4 => CStr::from_bytes_with_nul(b"ext4\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::F2FS => CStr::from_bytes_with_nul(b"f2fs\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::FAT16 => CStr::from_bytes_with_nul(b"fat16\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::FAT32 => CStr::from_bytes_with_nul(b"fat32\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::NONE => CStr::from_bytes_with_nul(b"none\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::NTFS => CStr::from_bytes_with_nul(b"ntfs\0").unwrap().as_ptr(),
+            DISTINST_FILE_SYSTEM::SWAP => CStr::from_bytes_with_nul(b"swap\0").unwrap().as_ptr(),
             DISTINST_FILE_SYSTEM::XFS => CStr::from_bytes_with_nul(b"xfs\0").unwrap().as_ptr(),
             DISTINST_FILE_SYSTEM::LVM => CStr::from_bytes_with_nul(b"lvm\0").unwrap().as_ptr(),
-            DISTINST_FILE_SYSTEM::LUKS => {
-                CStr::from_bytes_with_nul(b"luks\0").unwrap().as_ptr()
-            }
+            DISTINST_FILE_SYSTEM::LUKS => CStr::from_bytes_with_nul(b"luks\0").unwrap().as_ptr(),
         }
     }
 }

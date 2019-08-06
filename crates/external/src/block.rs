@@ -1,11 +1,13 @@
+use self::FileSystem::*;
+use super::exec;
 use disk_types::FileSystem;
 use retry::Retry;
-use self::FileSystem::*;
-use std::io;
-use std::ffi::{OsStr, OsString};
-use std::path::Path;
-use std::process::{Command, Stdio};
-use super::exec;
+use std::{
+    ffi::{OsStr, OsString},
+    io,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 /// Erase all signatures on a disk
 pub fn wipefs<P: AsRef<Path>>(device: P) -> io::Result<()> {
@@ -20,9 +22,7 @@ pub fn blockdev<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
     args: I,
 ) -> io::Result<()> {
     exec("blockdev", None, None, &{
-        let mut args = args.into_iter()
-            .map(|x| x.as_ref().into())
-            .collect::<Vec<OsString>>();
+        let mut args = args.into_iter().map(|x| x.as_ref().into()).collect::<Vec<OsString>>();
         args.push(disk.as_ref().into());
         args
     })
@@ -38,18 +38,15 @@ pub fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystem> {
         .ok()?
         .stdout;
 
-    String::from_utf8_lossy(&output)
-        .split_whitespace()
-        .nth(2)
-        .and_then(|type_| {
-            info!("blkid found '{}'", type_);
-            let length = type_.len();
-            if length > 7 {
-                type_[6..length - 1].parse::<FileSystem>().ok()
-            } else {
-                None
-            }
-        })
+    String::from_utf8_lossy(&output).split_whitespace().nth(2).and_then(|type_| {
+        info!("blkid found '{}'", type_);
+        let length = type_.len();
+        if length > 7 {
+            type_[6..length - 1].parse::<FileSystem>().ok()
+        } else {
+            None
+        }
+    })
 }
 
 /// Checks & corrects errors with partitions that have been moved / resized.
@@ -81,7 +78,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystem) -> io::Result<()> {
             }
 
             ("mkswap", &["-f"])
-        },
+        }
         Xfs => ("mkfs.xfs", &["-f"]),
         Luks | Lvm => return Ok(()),
     };

@@ -4,8 +4,8 @@ extern crate bitflags;
 extern crate derive_new;
 extern crate disk_types;
 extern crate distinst_bootloader as bootloader;
-extern crate distinst_utils as misc;
 extern crate distinst_external_commands as external_;
+extern crate distinst_utils as misc;
 extern crate envfile;
 extern crate failure;
 #[macro_use]
@@ -16,6 +16,7 @@ extern crate libc;
 extern crate libparted;
 #[macro_use]
 extern crate log;
+pub extern crate distinst_disk_ops as operations;
 extern crate os_detect;
 extern crate partition_identity;
 extern crate proc_mounts;
@@ -24,14 +25,15 @@ extern crate rayon;
 extern crate sys_mount;
 extern crate sysfs_class;
 extern crate tempdir;
-pub extern crate distinst_disk_ops as operations;
 
 mod config;
 mod error;
-mod serial;
 pub mod external;
+mod serial;
 
+pub use self::{
+    config::*,
+    error::{DecryptionError, DiskError, PartitionError, PartitionSizeError},
+};
 pub use bootloader::{Bootloader, FORCE_BOOTLOADER};
-pub use self::config::*;
-pub use self::error::{DecryptionError, DiskError, PartitionError, PartitionSizeError};
 pub use libparted::PartitionFlag;

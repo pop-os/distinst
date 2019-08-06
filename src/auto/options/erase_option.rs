@@ -1,5 +1,4 @@
-use std::path::PathBuf;
-use std::fmt;
+use std::{fmt, path::PathBuf};
 
 pub const IS_ROTATIONAL: u8 = 1;
 pub const IS_REMOVABLE: u8 = 2;
@@ -15,12 +14,7 @@ pub struct EraseOption {
 
 impl fmt::Display for EraseOption {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Erase and Install to {} ({})",
-            self.model,
-            self.device.display()
-        )
+        write!(f, "Erase and Install to {} ({})", self.model, self.device.display())
     }
 }
 

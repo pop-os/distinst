@@ -3,21 +3,17 @@ mod configure;
 mod initialize;
 mod partition;
 
-pub use self::bootloader::*;
-pub use self::configure::*;
-pub use self::initialize::*;
-pub use self::partition::*;
+pub use self::{bootloader::*, configure::*, initialize::*, partition::*};
 
 use std::{
     borrow::Cow,
-    io,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
-    sync::atomic::Ordering
+    sync::atomic::Ordering,
 };
 
-use NO_EFI_VARIABLES;
 use sys_mount::*;
+use NO_EFI_VARIABLES;
 
 /// Installation step
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -33,8 +29,7 @@ pub enum Step {
 fn mount_cdrom(mount_dir: &Path) -> io::Result<Option<(UnmountDrop<Mount>, PathBuf)>> {
     let cdrom_source = Path::new("/cdrom");
     let cdrom_target = mount_dir.join("cdrom");
-    mount_bind_if_exists(&cdrom_source, &cdrom_target)
-        .map(|res| res.map(|m| (m, cdrom_target)))
+    mount_bind_if_exists(&cdrom_source, &cdrom_target).map(|res| res.map(|m| (m, cdrom_target)))
 }
 
 pub fn mount_efivars(mount_dir: &Path) -> io::Result<Option<UnmountDrop<Mount>>> {
@@ -51,7 +46,10 @@ pub fn mount_efivars(mount_dir: &Path) -> io::Result<Option<UnmountDrop<Mount>>>
 fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<UnmountDrop<Mount>>> {
     if source.exists() {
         let _ = fs::create_dir_all(&target);
-        Ok(Some(Mount::new(source, &target, "none", MountFlags::BIND, None)?.into_unmount_drop(UnmountFlags::empty())))
+        Ok(Some(
+            Mount::new(source, &target, "none", MountFlags::BIND, None)?
+                .into_unmount_drop(UnmountFlags::empty()),
+        ))
     } else {
         Ok(None)
     }

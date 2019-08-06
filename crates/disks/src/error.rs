@@ -1,7 +1,6 @@
 pub use disk_types::PartitionSizeError;
-use std::io;
-use std::path::PathBuf;
 use disk_types::{FileSystem, PartitionTableError};
+use std::{io, path::PathBuf};
 
 /// Defines a variety of errors that may arise from configuring and committing changes to disks.
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -99,9 +98,9 @@ pub enum PartitionError {
     #[fail(display = "unable to resize partition: {}", why)]
     PartitionResize { why: io::Error },
     #[fail(display = "partition was too large (size: {}, max: {}", size, max)]
-    PartitionTooLarge { size: u64, max:  u64 },
+    PartitionTooLarge { size: u64, max: u64 },
     #[fail(display = "partition was too small (size: {}, min: {})", size, min)]
-    PartitionTooSmall { size: u64, min:  u64 },
+    PartitionTooSmall { size: u64, min: u64 },
     #[fail(display = "unable to create partition: {}", why)]
     PartitionCreate { why: io::Error },
     #[fail(display = "partition resize value is too small")]
@@ -133,9 +132,7 @@ impl DiskError {
 }
 
 impl From<io::Error> for DiskError {
-    fn from(why: io::Error) -> DiskError {
-        DiskError::IO { why }
-    }
+    fn from(why: io::Error) -> DiskError { DiskError::IO { why } }
 }
 
 impl From<DiskError> for io::Error {
@@ -147,14 +144,16 @@ impl From<DiskError> for io::Error {
 impl From<PartitionSizeError> for PartitionError {
     fn from(err: PartitionSizeError) -> PartitionError {
         match err {
-            PartitionSizeError::TooSmall(size, min) => PartitionError::PartitionTooSmall { size, min },
-            PartitionSizeError::TooLarge(size, max) => PartitionError::PartitionTooLarge { size, max },
+            PartitionSizeError::TooSmall(size, min) => {
+                PartitionError::PartitionTooSmall { size, min }
+            }
+            PartitionSizeError::TooLarge(size, max) => {
+                PartitionError::PartitionTooLarge { size, max }
+            }
         }
     }
 }
 
 impl From<PartitionTableError> for DiskError {
-    fn from(why: PartitionTableError) -> DiskError {
-        DiskError::PartitionTable { why }
-    }
+    fn from(why: PartitionTableError) -> DiskError { DiskError::PartitionTable { why } }
 }

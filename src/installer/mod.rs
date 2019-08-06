@@ -4,21 +4,28 @@ pub mod traits;
 mod state;
 pub(crate) mod steps;
 
+use self::state::InstallerState;
 pub use self::steps::Step;
-use {PARTITIONING_TEST, hostname, squashfs};
-use auto::{delete_old_install, recover_root, remove_root, move_root, validate_backup_conditions, AccountFiles, Backup, ReinstallError};
+use auto::{
+    delete_old_install, move_root, recover_root, remove_root, validate_backup_conditions,
+    AccountFiles, Backup, ReinstallError,
+};
 use disk_types::BlockDeviceExt;
 use disks::{Bootloader, Disks};
+use errors::IoContext;
 use external::luks::deactivate_logical_devices;
+use hostname;
 use os_release::OsRelease;
 use partition_identity::PartitionID;
-use self::state::InstallerState;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use squashfs;
+use std::{
+    io,
+    path::{Path, PathBuf},
+    sync::atomic::Ordering,
+};
 use tempdir::TempDir;
 use timezones::Region;
-use errors::IoContext;
+use PARTITIONING_TEST;
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
@@ -31,7 +38,7 @@ macro_rules! percent {
             let status = $steps.status;
             $steps.emit_status(status);
         }
-    }
+    };
 }
 
 /// Installer configuration
@@ -80,10 +87,10 @@ pub struct Status {
 
 /// An installer object
 pub struct Installer {
-    error_cb:  Option<Box<FnMut(&Error)>>,
-    status_cb: Option<Box<FnMut(&Status)>>,
-    timezone_cb:  Option<Box<FnMut() -> Region>>,
-    user_creation_cb: Option<Box<FnMut() -> UserAccountCreate>>
+    error_cb:         Option<Box<FnMut(&Error)>>,
+    status_cb:        Option<Box<FnMut(&Status)>>,
+    timezone_cb:      Option<Box<FnMut() -> Region>>,
+    user_creation_cb: Option<Box<FnMut() -> UserAccountCreate>>,
 }
 
 impl Default for Installer {
@@ -95,9 +102,9 @@ impl Default for Installer {
     /// ```
     fn default() -> Self {
         Self {
-            error_cb: None,
-            status_cb: None,
-            timezone_cb: None,
+            error_cb:         None,
+            status_cb:        None,
+            timezone_cb:      None,
             user_creation_cb: None,
         }
     }
@@ -115,8 +122,7 @@ impl Installer {
     /// ```
     pub fn disks(&self) -> io::Result<Disks> {
         info!("probing disks on system");
-        Disks::probe_devices()
-            .with_context(|err| format!("disk probing error: {}", err))
+        Disks::probe_devices().with_context(|err| format!("disk probing error: {}", err))
     }
 
     /// The user will use this method to hand off installation tasks to distinst.
@@ -132,14 +138,12 @@ impl Installer {
 
         Self::backup(disks, config, steps, |mut disks, config, steps| {
             if !hostname::is_valid(&config.hostname) {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "hostname is not valid",
-                ));
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "hostname is not valid"));
             }
 
             let bootloader = Bootloader::detect();
-            disks.verify_partitions(bootloader)
+            disks
+                .verify_partitions(bootloader)
                 .with_context(|err| format!("partition validation: {}", err))?;
 
             let (squashfs, remove_pkgs) = steps.apply(Step::Init, "initializing", |steps| {
@@ -158,7 +162,8 @@ impl Installer {
 
             info!("mounting all targets to the temporary chroot");
 
-            let mut mounts = disks.mount_all_targets(mount_dir.path())
+            let mut mounts = disks
+                .mount_all_targets(mount_dir.path())
                 .with_context(|err| format!("mounting all targets: {}", err))?;
 
             if PARTITIONING_TEST.load(Ordering::SeqCst) {
@@ -193,7 +198,7 @@ impl Installer {
                     bootloader,
                     &config,
                     &iso_os_release,
-                    percent!(steps)
+                    percent!(steps),
                 )
             })?;
 
@@ -213,7 +218,7 @@ impl Installer {
         disks: Disks,
         config: &Config,
         steps: &mut InstallerState,
-        mut func: F
+        mut func: F,
     ) -> io::Result<()> {
         let account_files;
         let mut old_backup = None;
@@ -239,13 +244,9 @@ impl Installer {
 
             let home_path = home.get_device_path();
             let root_path = new_root.get_device_path().to_path_buf();
-            let root_fs = new_root
-                .filesystem
-                .ok_or_else(|| ReinstallError::NoFilesystem)?;
+            let root_fs = new_root.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
             let old_root_path = old_root.get_device_path();
-            let old_root_fs = old_root
-                .filesystem
-                .ok_or_else(|| ReinstallError::NoFilesystem)?;
+            let old_root_fs = old_root.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
             let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
 
             account_files = AccountFiles::new(old_root_path, old_root_fs)?;
@@ -286,7 +287,6 @@ impl Installer {
 
             return Err(why);
         }
-
 
         // Then restore the backup, if it exists.
         if let Some((backup, root_path, root_fs)) = backup {
@@ -333,7 +333,6 @@ impl Installer {
         self.error_cb = Some(Box::new(callback));
     }
 
-
     /// Send a status message
     ///
     /// ```ignore,rust
@@ -370,9 +369,11 @@ impl Installer {
         self.user_creation_cb = Some(Box::new(callback));
     }
 
-    fn initialize<F: FnMut(i32)>(disks: &mut Disks, config: &Config, callback: F)
-        -> io::Result<(PathBuf, Vec<String>)>
-    {
+    fn initialize<F: FnMut(i32)>(
+        disks: &mut Disks,
+        config: &Config,
+        callback: F,
+    ) -> io::Result<(PathBuf, Vec<String>)> {
         steps::initialize(disks, config, callback)
     }
 
@@ -394,8 +395,9 @@ impl Installer {
         info!("Extracting {}", squashfs.as_ref().display());
         let mount_dir = mount_dir.as_ref();
         squashfs::extract(squashfs, mount_dir, callback)?;
-        OsRelease::new_from(&mount_dir.join("etc/os-release"))
-            .with_context(|why| format!("failed to parse /etc/os-release from extracted image: {}", why))
+        OsRelease::new_from(&mount_dir.join("etc/os-release")).with_context(|why| {
+            format!("failed to parse /etc/os-release from extracted image: {}", why)
+        })
     }
 
     /// Configures the new install after it has been extracted.
@@ -409,7 +411,16 @@ impl Installer {
         remove_pkgs: &[S],
         callback: F,
     ) -> io::Result<()> {
-        steps::configure(disks, mount_dir, config, iso_os_release, region, user, remove_pkgs, callback)
+        steps::configure(
+            disks,
+            mount_dir,
+            config,
+            iso_os_release,
+            region,
+            user,
+            remove_pkgs,
+            callback,
+        )
     }
 
     /// Installs and configures the boot loader after it has been configured.
@@ -427,10 +438,6 @@ impl Installer {
 
 impl From<ReinstallError> for io::Error {
     fn from(why: ReinstallError) -> io::Error {
-        io::Error::new(
-            io::ErrorKind::Other,
-            format!("{}", why)
-        )
+        io::Error::new(io::ErrorKind::Other, format!("{}", why))
     }
 }
-

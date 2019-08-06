@@ -1,26 +1,30 @@
 mod chroot_conf;
-use {INSTALL_HARDWARE_SUPPORT, misc, hardware_support, UserAccountCreate};
+use self::chroot_conf::ChrootConfigurator;
+use super::{mount_cdrom, mount_efivars};
+use crate::installer::steps::normalize_os_release_name;
 use chroot::Chroot;
-use Config;
 use distribution;
 use envfile::EnvFile;
 use errors::*;
 use external::remount_rw;
+use hardware_support;
+use installer::traits::InstallerDiskOps;
 use libc;
+use misc;
 use os_release::OsRelease;
 use partition_identity::PartitionID;
 use rayon;
-use self::chroot_conf::ChrootConfigurator;
-use std::fs::{self, Permissions};
-use std::io::{self, Write};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
-use super::{mount_efivars, mount_cdrom};
+use std::{
+    fs::{self, Permissions},
+    io::{self, Write},
+    os::unix::{ffi::OsStrExt, fs::PermissionsExt},
+    path::Path,
+};
 use tempdir::TempDir;
 use timezones::Region;
-use installer::traits::InstallerDiskOps;
-use crate::installer::steps::normalize_os_release_name;
+use Config;
+use UserAccountCreate;
+use INSTALL_HARDWARE_SUPPORT;
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
@@ -87,11 +91,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         info!("applying LVM initramfs autodetect workaround");
         fs::create_dir_all(mount_dir.join("etc/initramfs-tools/scripts/local-top/"))?;
         let lvm_fix = mount_dir.join("etc/initramfs-tools/scripts/local-top/lvm-workaround");
-        file_create!(
-            lvm_fix,
-            0o1755,
-            [include_bytes!("../../../scripts/lvm-workaround.sh")]
-        );
+        file_create!(lvm_fix, 0o1755, [include_bytes!("../../../scripts/lvm-workaround.sh")]);
         Ok(())
     };
 
@@ -106,12 +106,9 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             },
             || {
                 info!("writing /etc/fstab");
-                file_create!(
-                    &mount_dir.join("etc/fstab"),
-                    [FSTAB_HEADER, fstab.as_bytes()]
-                );
+                file_create!(&mount_dir.join("etc/fstab"), [FSTAB_HEADER, fstab.as_bytes()]);
                 Ok(())
-            }
+            },
         );
 
         a.and(b)
@@ -132,7 +129,6 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
                 disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir);
             });
-
         });
 
         callback(10);
@@ -145,10 +141,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
     };
 
     {
-        info!(
-            "chrooting into target on {}",
-            mount_dir.display()
-        );
+        info!("chrooting into target on {}", mount_dir.display());
 
         let chroot = cascade! {
             Chroot::new(&mount_dir)?;
@@ -169,15 +162,23 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(20);
 
-        let luks_uuid = root_entry.uid.get_device_path()
-            .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
+        let luks_uuid = root_entry
+            .uid
+            .get_device_path()
+            .and_then(|ref path| {
+                misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap())
+            })
             .and_then(PartitionID::get_uuid)
-            .and_then(|uuid| if uuid == root_entry.uid { None } else { Some(uuid)});
+            .and_then(|uuid| if uuid == root_entry.uid { None } else { Some(uuid) });
 
         callback(25);
 
         let root_uuid = &root_entry.uid;
-        update_recovery_config(&mount_dir, &root_uuid.id, luks_uuid.as_ref().map(|x| x.id.as_str()))?;
+        update_recovery_config(
+            &mount_dir,
+            &root_uuid.id,
+            luks_uuid.as_ref().map(|x| x.id.as_str()),
+        )?;
 
         callback(30);
 
@@ -185,7 +186,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             // Get packages required by this disk configuration.
             || distribution::debian::get_required_packages(disks, iso_os_release),
             // Attempt to run the check-language-support external command.
-            || distribution::debian::check_language_support(&config.lang, &chroot)
+            || distribution::debian::check_language_support(&config.lang, &chroot),
         );
 
         let lang_output = lang_output?;
@@ -206,18 +207,20 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
                         lang_output_ = dependencies;
                         &lang_output_[..]
                     }
-                    None => &[]
+                    None => &[],
                 }
             }
-            None => &[]
+            None => &[],
         };
 
         // Add the retained packages to the list of packages to be installed.
-        // There are some packages that Ubuntu will still remove even if they've been removed from the removal list.
+        // There are some packages that Ubuntu will still remove even if they've been removed from
+        // the removal list.
         install_pkgs.extend_from_slice(&retain);
 
         // Filter the discovered language packs and retained packages from the remove list.
-        let remove = remove_pkgs.iter()
+        let remove = remove_pkgs
+            .iter()
             .map(AsRef::as_ref)
             .filter(|pkg| !lang_packs.iter().any(|x| pkg == x) && !retain.contains(&pkg))
             .collect::<Vec<&str>>();
@@ -256,14 +259,15 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
                     useradd = chroot.create_user(
                         &user.username,
                         user.password.as_ref().map(|x| x.as_str()),
-                        user.realname.as_ref().map(|x| x.as_str())
+                        user.realname.as_ref().map(|x| x.as_str()),
                     );
                 }
             });
 
             // Apt takes so long that it needs to run by itself.
             s.spawn(|_| {
-                apt_install = chroot.cdrom_add()
+                apt_install = chroot
+                    .cdrom_add()
                     .and_then(|_| chroot.apt_install(&install_pkgs))
                     .and_then(|_| chroot.cdrom_disable());
             });
@@ -289,7 +293,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             config,
             &normalize_os_release_name(&iso_os_release.name),
             &root_uuid.id,
-            luks_uuid.as_ref().map_or("", |ref uuid| uuid.id.as_str())
+            luks_uuid.as_ref().map_or("", |ref uuid| uuid.id.as_str()),
         );
 
         map_errors! {
@@ -307,14 +311,20 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             chroot.disable_nvidia();
         }
 
-        chroot.keyboard_layout(config).with_context(|why| format!("error setting keyboard layout: {}", why))?;
+        chroot
+            .keyboard_layout(config)
+            .with_context(|why| format!("error setting keyboard layout: {}", why))?;
         callback(85);
 
-        chroot.update_initramfs().with_context(|why| format!("error updating initramfs: {}", why))?;
+        chroot
+            .update_initramfs()
+            .with_context(|why| format!("error updating initramfs: {}", why))?;
         callback(90);
 
         // Sync to the disk before unmounting
-        unsafe { libc::sync(); }
+        unsafe {
+            libc::sync();
+        }
 
         // Ensure that the cdrom binding is unmounted before the chroot.
         if let Some((cdrom_mount, cdrom_target)) = cdrom_mount {
@@ -332,15 +342,20 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
     Ok(())
 }
 
-
-fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>) -> io::Result<()> {
+fn update_recovery_config(
+    mount: &Path,
+    root_uuid: &str,
+    luks_uuid: Option<&str>,
+) -> io::Result<()> {
     fn remove_boot(mount: &Path, uuid: &str) -> io::Result<()> {
         let efi_path = mount.join("boot/efi/EFI");
-        let readdir = efi_path.read_dir()
+        let readdir = efi_path
+            .read_dir()
             .with_context(|err| format!("error reading dir at {:?}: {}", efi_path, err))?;
 
         for directory in readdir {
-            let entry = directory.with_context(|err| format!("bad entry in {:?}: {}", efi_path, err))?;
+            let entry =
+                directory.with_context(|err| format!("bad entry in {:?}: {}", efi_path, err))?;
             let full_path = entry.path();
             if let Some(path) = entry.file_name().to_str() {
                 if path.ends_with(uuid) {
@@ -355,19 +370,19 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
     }
 
     let recovery_path = Path::new("/cdrom/recovery.conf");
-    if recovery_path.exists()  {
-        let recovery_conf = &mut EnvFile::new(recovery_path).with_context(|err| {
-            format!("error parsing envfile at {:?}: {}", recovery_path, err)
-        })?;
+    if recovery_path.exists() {
+        let recovery_conf = &mut EnvFile::new(recovery_path)
+            .with_context(|err| format!("error parsing envfile at {:?}: {}", recovery_path, err))?;
 
-        let luks_value = luks_uuid.map_or("", |uuid| if root_uuid == uuid { "" } else { uuid});
+        let luks_value = luks_uuid.map_or("", |uuid| if root_uuid == uuid { "" } else { uuid });
         recovery_conf.update("LUKS_UUID", luks_value);
 
         remount_rw("/cdrom")
             .with_context(|err| format!("could not remount /cdrom as rw: {}", err))
             .and_then(|_| {
                 recovery_conf.update("OEM_MODE", "0");
-                recovery_conf.get("ROOT_UUID")
+                recovery_conf
+                    .get("ROOT_UUID")
                     .into_io_result(|| "no ROOT_UUID found in /cdrom/recovery.conf")
             })
             .map(|old_uuid| {
@@ -381,9 +396,9 @@ fn update_recovery_config(mount: &Path, root_uuid: &str, luks_uuid: Option<&str>
             })
             .and_then(|_| {
                 recovery_conf.update("ROOT_UUID", root_uuid);
-                recovery_conf.write().with_context(|err| {
-                    format!("error writing recovery conf: {}", err)
-                })
+                recovery_conf
+                    .write()
+                    .with_context(|err| format!("error writing recovery conf: {}", err))
             })?;
     }
 

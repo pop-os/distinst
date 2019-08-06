@@ -1,16 +1,18 @@
 //! A collection of external commands used throughout the program.
 
+pub use config::deactivate_devices;
 pub use external_::*;
-pub use config::{deactivate_devices};
+use misc;
 use proc_mounts::{MountList, SwapList};
-use LvmEncryption;
-use std::fs::Permissions;
-use std::io::{self, Read, Write};
-use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::{
+    fs::Permissions,
+    io::{self, Read, Write},
+    os::unix::fs::PermissionsExt,
+    path::Path,
+};
 use sys_mount::*;
 use tempdir::TempDir;
-use misc;
+use LvmEncryption;
 
 fn remove_encrypted_device(device: &Path) -> io::Result<()> {
     let mounts = MountList::new().expect("failed to get mounts in deactivate_device_maps");
@@ -18,10 +20,7 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
     let umount = move |vg: &str| -> io::Result<()> {
         for lv in lvs(vg)? {
             if let Some(mount) = mounts.get_mount_by_source(&lv) {
-                info!(
-                    "libdistinst: unmounting logical volume mounted at {}",
-                    mount.dest.display()
-                );
+                info!("libdistinst: unmounting logical volume mounted at {}", mount.dest.display());
                 unmount(&mount.dest, UnmountFlags::empty())?;
             } else if let Ok(lv) = lv.canonicalize() {
                 if swaps.get_swapped(&lv) {
@@ -46,17 +45,14 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
                     .and_then(|_| pvremove(pv))
                     .and_then(|_| cryptsetup_close(dev))
             })?,
-            Some(&None) => {
-                cryptsetup_close(dev)?
-            }
+            Some(&None) => cryptsetup_close(dev)?,
             None => (),
         }
     }
 
     if let Some(ref vg) = volume_map.get(device).and_then(|x| x.as_ref()) {
         info!("removing pre-existing LVM volumes on {:?}", device);
-        umount(vg)
-            .and_then(|_| vgremove(vg))?
+        umount(vg).and_then(|_| vgremove(vg))?
     }
 
     Ok(())
@@ -67,11 +63,7 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
 pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
     remove_encrypted_device(device)?;
 
-    info!(
-        "cryptsetup is encrypting {} with {:?}",
-        device.display(),
-        enc
-    );
+    info!("cryptsetup is encrypting {} with {:?}", device.display(), enc);
 
     match (enc.password.as_ref(), enc.keydata.as_ref()) {
         (Some(_password), Some(_keydata)) => unimplemented!(),
@@ -122,12 +114,7 @@ pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> 
 pub fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
     deactivate_devices(&[device])?;
     let pv = &enc.physical_volume;
-    info!(
-        "cryptsetup is opening {} with pv {} and {:?}",
-        device.display(),
-        pv,
-        enc
-    );
+    info!("cryptsetup is opening {} with pv {} and {:?}", device.display(), pv, enc);
     match (enc.password.as_ref(), enc.keydata.as_ref()) {
         (Some(_password), Some(_keydata)) => unimplemented!(),
         (Some(password), None) => exec(
@@ -149,13 +136,7 @@ pub fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
                 "cryptsetup",
                 None,
                 None,
-                &[
-                    "open".into(),
-                    device.into(),
-                    pv.into(),
-                    "--key-file".into(),
-                    keypath.into(),
-                ],
+                &["open".into(), device.into(), pv.into(), "--key-file".into(), keypath.into()],
             )
         }
         (None, None) => unimplemented!(),

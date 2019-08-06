@@ -1,13 +1,16 @@
 use libc;
 
-use std::ffi::{CStr, CString, OsStr};
-use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
-use std::ptr;
+use std::{
+    ffi::{CStr, CString, OsStr},
+    os::unix::ffi::OsStrExt,
+    path::Path,
+    ptr,
+};
 
 use distinst::{
-    DecryptionError, Disk, DiskExt, Disks, FileSystem, BlockDeviceExt, LogicalDevice, LvmEncryption,
-    PartitionBuilder, PartitionInfo, PartitionTable, PartitionTableExt, Sector, SectorExt
+    BlockDeviceExt, DecryptionError, Disk, DiskExt, Disks, FileSystem, LogicalDevice,
+    LvmEncryption, PartitionBuilder, PartitionInfo, PartitionTable, PartitionTableExt, Sector,
+    SectorExt,
 };
 
 use super::{get_str, null_check};
@@ -39,11 +42,7 @@ pub unsafe extern "C" fn distinst_disk_new(path: *const libc::c_char) -> *mut Di
     match Disk::from_name(ostring) {
         Ok(disk) => gen_object_ptr(disk) as *mut DistinstDisk,
         Err(why) => {
-            info!(
-                "unable to open device at {}: {}",
-                ostring.to_string_lossy(),
-                why
-            );
+            info!("unable to open device at {}: {}", ostring.to_string_lossy(), why);
             ptr::null_mut()
         }
     }
@@ -131,9 +130,7 @@ pub unsafe extern "C" fn distinst_disk_get_partition_by_path(
         .and_then(|path| {
             let path = Path::new(&path);
             let disk = &mut *(disk as *mut Disk);
-            disk.get_partitions_mut()
-                .iter_mut()
-                .find(|d| d.get_device_path() == path)
+            disk.get_partitions_mut().iter_mut().find(|d| d.get_device_path() == path)
         })
         .as_mut_ptr() as *mut DistinstPartition
 }
@@ -256,7 +253,7 @@ pub unsafe extern "C" fn distinst_disk_get_sector(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_partition_table(
-    disk: *const DistinstDisk
+    disk: *const DistinstDisk,
 ) -> DISTINST_PARTITION_TABLE {
     if null_check(disk).is_err() {
         return DISTINST_PARTITION_TABLE::NONE;
@@ -284,11 +281,7 @@ pub unsafe extern "C" fn distinst_disk_mklabel(
     };
 
     if let Err(why) = disk.mklabel(table) {
-        info!(
-            "unable to write partition table on {}: {}",
-            disk.path().display(),
-            why
-        );
+        info!("unable to write partition table on {}: {}", disk.path().display(), why);
         -1
     } else {
         0
@@ -463,9 +456,7 @@ pub unsafe extern "C" fn distinst_disks_probe() -> *mut DistinstDisks {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disks_contains_luks(
-    disks: *const DistinstDisks
-) -> bool {
+pub unsafe extern "C" fn distinst_disks_contains_luks(disks: *const DistinstDisks) -> bool {
     if null_check(disks).is_err() {
         return false;
     }
@@ -477,7 +468,7 @@ pub unsafe extern "C" fn distinst_disks_contains_luks(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_get_disk_with_mount(
     disks: *mut DistinstDisks,
-    target: *const libc::c_char
+    target: *const libc::c_char,
 ) -> *mut DistinstDisk {
     if disks.is_null() || target.is_null() {
         return ptr::null_mut();
@@ -492,14 +483,13 @@ pub unsafe extern "C" fn distinst_disks_get_disk_with_mount(
         }
     };
 
-    disks.get_disk_with_mount_mut(&target)
-        .as_mut_ptr() as *mut DistinstDisk
+    disks.get_disk_with_mount_mut(&target).as_mut_ptr() as *mut DistinstDisk
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_get_disk_with_partition(
     disks: *mut DistinstDisks,
-    partition: *const DistinstPartition
+    partition: *const DistinstPartition,
 ) -> *mut DistinstDisk {
     if disks.is_null() || partition.is_null() {
         return ptr::null_mut();
@@ -520,8 +510,7 @@ pub unsafe extern "C" fn distinst_disks_get_disk_with_partition(
         return ptr::null_mut();
     };
 
-    disks.get_disk_with_partition_mut(&id)
-        .as_mut_ptr() as *mut DistinstDisk
+    disks.get_disk_with_partition_mut(&id).as_mut_ptr() as *mut DistinstDisk
 }
 
 #[no_mangle]
@@ -649,16 +638,11 @@ pub unsafe extern "C" fn distinst_disks_find_partition(
     disks
         .find_partition_mut(Path::new(&path))
         .and_then(|(device_path, partition)| {
-            CString::new(device_path.as_os_str().as_bytes())
-                .ok()
-                .map(|disk_path| {
-                    let disk_path = disk_path.into_raw();
-                    let partition = &mut *partition as *mut PartitionInfo as *mut DistinstPartition;
-                    gen_object_ptr(DistinstPartitionAndDiskPath {
-                        disk_path,
-                        partition,
-                    })
-                })
+            CString::new(device_path.as_os_str().as_bytes()).ok().map(|disk_path| {
+                let disk_path = disk_path.into_raw();
+                let partition = &mut *partition as *mut PartitionInfo as *mut DistinstPartition;
+                gen_object_ptr(DistinstPartitionAndDiskPath { disk_path, partition })
+            })
         })
         .unwrap_or(ptr::null_mut())
 }

@@ -8,27 +8,19 @@ extern crate libc;
 extern crate log;
 extern crate partition_identity;
 
-use std::ffi::{CStr, CString};
-use std::ptr;
+use std::{
+    ffi::{CStr, CString},
+    ptr,
+};
 
-pub use self::auto::*;
-pub use self::config::*;
-pub use self::dbus::*;
-pub use self::disk::*;
-pub use self::filesystem::*;
-pub use self::installer::*;
-pub use self::keyboard_layout::*;
-pub use self::locale::*;
-pub use self::lvm::*;
-pub use self::os::*;
-pub use self::partition::*;
-pub use self::sector::*;
-pub use self::timezones::*;
-pub use self::upgrade::*;
+pub use self::{
+    auto::*, config::*, dbus::*, disk::*, filesystem::*, installer::*, keyboard_layout::*,
+    locale::*, lvm::*, os::*, partition::*, sector::*, timezones::*, upgrade::*,
+};
 
-pub const DISTINST_MODIFY_BOOT_ORDER:        u8 = 0b1;
+pub const DISTINST_MODIFY_BOOT_ORDER: u8 = 0b1;
 pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
-pub const DISTINST_KEEP_OLD_ROOT:            u8 = 0b100;
+pub const DISTINST_KEEP_OLD_ROOT: u8 = 0b100;
 
 use std::io;
 
@@ -70,15 +62,11 @@ pub fn get_str<'a>(ptr: *const libc::c_char) -> io::Result<&'a str> {
 }
 
 pub fn to_cstr(string: String) -> *mut libc::c_char {
-    CString::new(string)
-        .map(|string| string.into_raw())
-        .unwrap_or(ptr::null_mut())
+    CString::new(string).map(|string| string.into_raw()).unwrap_or(ptr::null_mut())
 }
 
 #[no_mangle]
-pub extern "C" fn distinst_device_layout_hash() -> libc::uint64_t {
-    distinst::device_layout_hash()
-}
+pub extern "C" fn distinst_device_layout_hash() -> libc::uint64_t { distinst::device_layout_hash() }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_device_map_exists(name: *const libc::c_char) -> bool {
@@ -103,9 +91,7 @@ pub unsafe extern "C" fn distinst_generate_unique_id(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_validate_hostname(hostname: *const libc::c_char) -> bool {
-    get_str(hostname)
-        .ok()
-        .map_or(false, |hostname| distinst::hostname::is_valid(hostname))
+    get_str(hostname).ok().map_or(false, |hostname| distinst::hostname::is_valid(hostname))
 }
 
 #[no_mangle]
@@ -152,11 +138,7 @@ pub unsafe extern "C" fn distinst_log(
             Level::Error => ERROR,
         };
         let c_message = CString::new(message).unwrap();
-        callback(
-            c_level,
-            c_message.as_ptr(),
-            user_data_sync as *mut libc::c_void,
-        );
+        callback(c_level, c_message.as_ptr(), user_data_sync as *mut libc::c_void);
     }) {
         Ok(()) => 0,
         Err(_err) => libc::EINVAL,

@@ -1,9 +1,7 @@
-use distinst::os_release::{OS_RELEASE, OsRelease};
-use libc;
-use std::ffi::CString;
-use std::mem::forget;
-use std::ptr;
 use super::null_check;
+use distinst::os_release::{OsRelease, OS_RELEASE};
+use libc;
+use std::{ffi::CString, mem::forget, ptr};
 
 macro_rules! get_os_release {
     () => {
@@ -14,44 +12,44 @@ macro_rules! get_os_release {
                 return ptr::null_mut();
             }
         }
-    }
+    };
 }
 
 #[repr(C)]
 pub struct DistinstOsRelease {
-    bug_report_url: *mut libc::c_char,
-    home_url: *mut libc::c_char,
-    id_like: *mut libc::c_char,
-    id: *mut libc::c_char,
-    name: *mut libc::c_char,
-    pretty_name: *mut libc::c_char,
+    bug_report_url:     *mut libc::c_char,
+    home_url:           *mut libc::c_char,
+    id_like:            *mut libc::c_char,
+    id:                 *mut libc::c_char,
+    name:               *mut libc::c_char,
+    pretty_name:        *mut libc::c_char,
     privacy_policy_url: *mut libc::c_char,
-    support_url: *mut libc::c_char,
-    version_codename: *mut libc::c_char,
-    version_id: *mut libc::c_char,
+    support_url:        *mut libc::c_char,
+    version_codename:   *mut libc::c_char,
+    version_id:         *mut libc::c_char,
 }
 
 impl DistinstOsRelease {
     pub unsafe fn from_os_release(release: &OsRelease) -> DistinstOsRelease {
         DistinstOsRelease {
-            bug_report_url: CString::new(release.bug_report_url.clone()).unwrap().into_raw(),
-            home_url: CString::new(release.home_url.clone()).unwrap().into_raw(),
-            id_like: CString::new(release.id_like.clone()).unwrap().into_raw(),
-            id: CString::new(release.id.clone()).unwrap().into_raw(),
-            name: CString::new(release.name.clone()).unwrap().into_raw(),
-            pretty_name: CString::new(release.pretty_name.clone()).unwrap().into_raw(),
-            privacy_policy_url: CString::new(release.privacy_policy_url.clone()).unwrap().into_raw(),
-            support_url: CString::new(release.support_url.clone()).unwrap().into_raw(),
-            version_codename: CString::new(release.version_codename.clone()).unwrap().into_raw(),
-            version_id: CString::new(release.version_id.clone()).unwrap().into_raw(),
+            bug_report_url:     CString::new(release.bug_report_url.clone()).unwrap().into_raw(),
+            home_url:           CString::new(release.home_url.clone()).unwrap().into_raw(),
+            id_like:            CString::new(release.id_like.clone()).unwrap().into_raw(),
+            id:                 CString::new(release.id.clone()).unwrap().into_raw(),
+            name:               CString::new(release.name.clone()).unwrap().into_raw(),
+            pretty_name:        CString::new(release.pretty_name.clone()).unwrap().into_raw(),
+            privacy_policy_url: CString::new(release.privacy_policy_url.clone())
+                .unwrap()
+                .into_raw(),
+            support_url:        CString::new(release.support_url.clone()).unwrap().into_raw(),
+            version_codename:   CString::new(release.version_codename.clone()).unwrap().into_raw(),
+            version_id:         CString::new(release.version_id.clone()).unwrap().into_raw(),
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_os_release_destroy(
-    release: *mut DistinstOsRelease
-) {
+pub unsafe extern "C" fn distinst_os_release_destroy(release: *mut DistinstOsRelease) {
     unsafe fn free_field(field: *mut libc::c_char) {
         if field.is_null() {
             error!("DistinstOsRelease field was to be destroyed even though it is null");
@@ -77,9 +75,7 @@ pub unsafe extern "C" fn distinst_os_release_destroy(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_bug_report_url(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_bug_report_url(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -93,9 +89,7 @@ pub unsafe extern "C" fn distinst_get_os_bug_report_url(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_home_url(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_home_url(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -109,9 +103,7 @@ pub unsafe extern "C" fn distinst_get_os_home_url(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_id_like(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_id_like(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -125,9 +117,7 @@ pub unsafe extern "C" fn distinst_get_os_id_like(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_id(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_id(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -141,9 +131,7 @@ pub unsafe extern "C" fn distinst_get_os_id(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_name(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_name(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -157,9 +145,7 @@ pub unsafe extern "C" fn distinst_get_os_name(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_pretty_name(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_pretty_name(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -173,9 +159,7 @@ pub unsafe extern "C" fn distinst_get_os_pretty_name(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_privacy_policy_url(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_privacy_policy_url(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -189,9 +173,7 @@ pub unsafe extern "C" fn distinst_get_os_privacy_policy_url(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_support_url(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_support_url(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -205,9 +187,7 @@ pub unsafe extern "C" fn distinst_get_os_support_url(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_version_codename(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_version_codename(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -221,9 +201,7 @@ pub unsafe extern "C" fn distinst_get_os_version_codename(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_version_id(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_version_id(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }
@@ -237,9 +215,7 @@ pub unsafe extern "C" fn distinst_get_os_version_id(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_get_os_version(
-    len: *mut libc::c_int,
-) -> *mut u8 {
+pub unsafe extern "C" fn distinst_get_os_version(len: *mut libc::c_int) -> *mut u8 {
     if null_check(len).is_err() {
         return ptr::null_mut();
     }

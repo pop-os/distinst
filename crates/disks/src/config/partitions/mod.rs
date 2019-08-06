@@ -1,19 +1,23 @@
 mod builder;
 
 pub use self::builder::PartitionBuilder;
-pub use disk_types::{FileSystem, PartitionType, BlockDeviceExt, PartitionExt};
-pub use os_detect::OS;
-use libparted::{Partition, PartitionFlag};
-use proc_mounts::{MountList, SwapList};
+use super::{
+    super::{LvmEncryption, PartitionError},
+    PVS,
+};
+pub use disk_types::{BlockDeviceExt, FileSystem, PartitionExt, PartitionType};
 use external::{get_label, is_encrypted};
 use fstab_generate::BlockInfo;
+use libparted::{Partition, PartitionFlag};
+pub use os_detect::OS;
 use partition_identity::PartitionIdentifiers;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use proc_mounts::{MountList, SwapList};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 use sys_mount::swapoff;
-use super::PVS;
-use super::super::{LvmEncryption, PartitionError};
 
 pub fn get_preferred_options(fs: FileSystem) -> &'static str {
     match fs {
@@ -25,15 +29,15 @@ pub fn get_preferred_options(fs: FileSystem) -> &'static str {
 }
 
 // Defines that this partition exists in the source.
-pub const SOURCE:  u8 = 0b00_0001;
+pub const SOURCE: u8 = 0b00_0001;
 // Defines that this partition will be removed.
-pub const REMOVE:  u8 = 0b00_0010;
+pub const REMOVE: u8 = 0b00_0010;
 // Defines that this partition will be formatted.
-pub const FORMAT:  u8 = 0b00_0100;
+pub const FORMAT: u8 = 0b00_0100;
 // Defines that this partition is currently active.
-pub const ACTIVE:  u8 = 0b00_1000;
+pub const ACTIVE: u8 = 0b00_1000;
 // Defines that this partition is currently busy.
-pub const BUSY:    u8 = 0b01_0000;
+pub const BUSY: u8 = 0b01_0000;
 // Defines that this partition is currently swapped.
 pub const SWAPPED: u8 = 0b10_0000;
 
@@ -103,22 +107,17 @@ impl PartitionExt for PartitionInfo {
 
 impl PartitionInfo {
     pub fn new_from_ped(partition: &Partition) -> io::Result<Option<PartitionInfo>> {
-        let device_path = partition.get_path()
-            .expect("unable to get path from ped partition")
-            .to_path_buf();
-        info!(
-            "obtaining partition information from {}",
-            device_path.display()
-        );
+        let device_path =
+            partition.get_path().expect("unable to get path from ped partition").to_path_buf();
+        info!("obtaining partition information from {}", device_path.display());
 
         let identifiers = PartitionIdentifiers::from_path(&device_path);
 
-        let filesystem = partition
-            .fs_type_name()
-            .and_then(|name| FileSystem::from_str(name).ok());
+        let filesystem = partition.fs_type_name().and_then(|name| FileSystem::from_str(name).ok());
 
         Ok(Some(PartitionInfo {
-            bitflags: SOURCE | if partition.is_active() { ACTIVE } else { 0 }
+            bitflags: SOURCE
+                | if partition.is_active() { ACTIVE } else { 0 }
                 | if partition.is_busy() { BUSY } else { 0 },
             part_type: match partition.type_get_name() {
                 "primary" => PartitionType::Primary,
@@ -144,12 +143,8 @@ impl PartitionInfo {
 
     pub fn collect_extended_information(&mut self, mounts: &MountList, swaps: &SwapList) {
         let device_path = &self.device_path;
-        let original_vg = unsafe {
-            PVS.as_ref()
-                .unwrap()
-                .get(device_path)
-                .and_then(|vg| vg.as_ref().cloned())
-        };
+        let original_vg =
+            unsafe { PVS.as_ref().unwrap().get(device_path).and_then(|vg| vg.as_ref().cloned()) };
 
         if let Some(ref vg) = original_vg.as_ref() {
             info!("partition belongs to volume group '{}'", vg);
@@ -174,7 +169,7 @@ impl PartitionInfo {
         {
             let path = &self.get_device_path();
             if swaps.get_swapped(path) {
-                swapoff(path).map_err(|why| { (path.to_path_buf(), why) })?;
+                swapoff(path).map_err(|why| (path.to_path_buf(), why))?;
             }
         }
         self.mount_point = None;
@@ -201,8 +196,10 @@ impl PartitionInfo {
 
     /// True if the compared partition has differing parameters from the source.
     pub fn requires_changes(&self, other: &PartitionInfo) -> bool {
-        self.sectors_differ_from(other) || self.filesystem != other.filesystem
-            || self.flags != other.flags || other.flag_is_enabled(FORMAT)
+        self.sectors_differ_from(other)
+            || self.filesystem != other.filesystem
+            || self.flags != other.flags
+            || other.flag_is_enabled(FORMAT)
     }
 
     /// True if the compared partition is the same as the source.
@@ -232,7 +229,7 @@ impl PartitionInfo {
         } else {
             self.end_sector = self.start_sector + sectors;
             eprintln!("shrinking to {} sectors", sectors);
-            assert_eq!(0, (self.end_sector - self.start_sector) % ( 2 * 1024));
+            assert_eq!(0, (self.end_sector - self.start_sector) % (2 * 1024));
             Ok(sectors)
         }
     }
@@ -253,9 +250,7 @@ impl PartitionInfo {
     }
 
     /// Returns true if this partition will be formatted.
-    pub fn will_format(&self) -> bool {
-        self.bitflags & FORMAT != 0
-    }
+    pub fn will_format(&self) -> bool { self.bitflags & FORMAT != 0 }
 
     /// Specifies to delete this partition from the partition table.
     pub fn remove(&mut self) { self.bitflags |= REMOVE; }
@@ -272,7 +267,7 @@ impl PartitionInfo {
             BlockInfo::get_partition_id(&self.device_path, fs)?,
             fs,
             self.target.as_ref().map(|p| p.as_path()),
-            get_preferred_options(fs)
+            get_preferred_options(fs),
         ))
     }
 }
@@ -376,7 +371,7 @@ mod tests {
                     physical_volume: "LUKS_PV".into(),
                     password:        Some("password".into()),
                     keydata:         None,
-                })
+                }),
             )),
         }
     }

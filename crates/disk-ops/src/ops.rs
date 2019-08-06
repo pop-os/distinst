@@ -1,27 +1,28 @@
 //! Contains source code for applying physical disk operations to disks.
 
 use super::*;
-use parted::*;
 use disk_types::{FileSystem, PartitionTable, PartitionType};
 use external::{blockdev, mkfs};
 use libparted::{Device, Disk as PedDisk, Partition as PedPartition};
 use mkpart::PartitionCreate;
+use parted::*;
 use rayon::prelude::*;
 use resize::PartitionChange;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 /// Obtains a partition from the disk by its ID.
 pub fn get_partition<'a>(disk: &'a mut PedDisk, part: u32) -> io::Result<PedPartition<'a>> {
-    disk.get_partition(part)
-        .ok_or_else(|| io::Error::new(
+    disk.get_partition(part).ok_or_else(|| {
+        io::Error::new(
             io::ErrorKind::NotFound,
-            format!(
-                "partition {} was not found on {}",
-                part,
-                unsafe { disk.get_device().path().display() }
-            )
-        ))
+            format!("partition {} was not found on {}", part, unsafe {
+                disk.get_device().path().display()
+            }),
+        )
+    })
 }
 
 /// The first state of disk operations, which provides a method for removing
@@ -46,10 +47,7 @@ impl<'a> DiskOps<'a> {
     /// The first stage of disk operations, where a new partition table may be
     /// generated
     pub fn remove(self) -> io::Result<ChangePartitions<'a>> {
-        info!(
-            "{}: executing remove operations",
-            self.device_path.display(),
-        );
+        info!("{}: executing remove operations", self.device_path.display(),);
 
         if let Some(table) = self.mklabel {
             mklabel(self.device_path, table)?;
@@ -66,15 +64,9 @@ impl<'a> DiskOps<'a> {
             }
 
             if changes_required {
-                info!(
-                    "attempting to remove partitions from {}",
-                    self.device_path.display()
-                );
+                info!("attempting to remove partitions from {}", self.device_path.display());
                 commit(&mut disk)?;
-                info!(
-                    "successfully removed partitions from {}",
-                    self.device_path.display()
-                );
+                info!("successfully removed partitions from {}", self.device_path.display());
             }
         }
 
@@ -99,10 +91,7 @@ impl<'a> ChangePartitions<'a> {
     /// The second stage of disk operations, where existing partitions will be
     /// modified.
     pub fn change(self) -> io::Result<CreatePartitions<'a>> {
-        info!(
-            "{}: executing change operations",
-            self.device_path.display(),
-        );
+        info!("{}: executing change operations", self.device_path.display(),);
 
         let mut device = open_device(self.device_path)?;
         let mut resize_partitions = Vec::new();
@@ -226,17 +215,10 @@ pub struct CreatePartitions<'a> {
 impl<'a> CreatePartitions<'a> {
     /// If any new partitions were specified, they will be created here.
     pub fn create(mut self) -> io::Result<FormatPartitions> {
-        info!(
-            "{}: executing creation operations",
-            self.device_path.display(),
-        );
+        info!("{}: executing creation operations", self.device_path.display(),);
 
         for partition in &self.create_partitions {
-            info!(
-                "creating partition ({:?}) on {}",
-                partition,
-                self.device_path.display()
-            );
+            info!("creating partition ({:?}) on {}", partition, self.device_path.display());
 
             {
                 let mut device = open_device(self.device_path)?;
@@ -247,9 +229,12 @@ impl<'a> CreatePartitions<'a> {
             if partition.kind != PartitionType::Extended {
                 // Open a second instance of the disk which we need to get the new partition ID.
                 let path = get_partition_id(self.device_path, partition.start_sector as i64)?;
-                self.format_partitions
-                    .push((path, partition.file_system
-                        .expect("file system does not exist when creating partition")));
+                self.format_partitions.push((
+                    path,
+                    partition
+                        .file_system
+                        .expect("file system does not exist when creating partition"),
+                ));
             }
         }
 
@@ -258,10 +243,9 @@ impl<'a> CreatePartitions<'a> {
             ::std::thread::sleep(::std::time::Duration::from_secs(1));
             let result = blockdev(self.device_path, &["--flushbufs", "--rereadpt"]);
             if result.is_err() && attempt == 2 {
-                result.map_err(|why| io::Error::new(
-                    why.kind(),
-                    format!("failed to synchronize disk: {}", why)
-                ))?
+                result.map_err(|why| {
+                    io::Error::new(why.kind(), format!("failed to synchronize disk: {}", why))
+                })?
             } else {
                 break;
             }
@@ -278,12 +262,10 @@ pub fn get_partition_and<T, F: FnOnce(PedPartition) -> T>(
 ) -> io::Result<T> {
     let mut device = get_device(path)?;
     let disk = open_disk(&mut device)?;
-    let result = disk.get_partition_by_sector(start_sector)
+    let result = disk
+        .get_partition_by_sector(start_sector)
         .map(action)
-        .ok_or_else(|| io::Error::new(
-            io::ErrorKind::NotFound,
-            "partition not found"
-        ))?;
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "partition not found"))?;
 
     Ok(result)
 }
@@ -308,12 +290,17 @@ impl FormatPartitions {
     /// Finally, format all of the modified and created partitions.
     pub fn format(self) -> io::Result<()> {
         info!("executing format operations");
-        self.0.par_iter().map(|&(ref part, fs)| {
-            info!("formatting {} with {:?}", part.display(), fs);
-            mkfs(part, fs).map_err(|why| io::Error::new(
-                why.kind(),
-                format!("failed to format {} with {}: {}", part.display(), fs, why)
-            ))
-        }).collect::<io::Result<()>>()
+        self.0
+            .par_iter()
+            .map(|&(ref part, fs)| {
+                info!("formatting {} with {:?}", part.display(), fs);
+                mkfs(part, fs).map_err(|why| {
+                    io::Error::new(
+                        why.kind(),
+                        format!("failed to format {} with {}: {}", part.display(), fs, why),
+                    )
+                })
+            })
+            .collect::<io::Result<()>>()
     }
 }

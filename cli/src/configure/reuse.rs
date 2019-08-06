@@ -15,9 +15,7 @@ pub(crate) fn reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dis
                 values[1]
                     .parse::<u32>()
                     .map(|id| id as i32)
-                    .map_err(|_| DistinstError::ArgNaN {
-                        arg: values[1].into(),
-                    })?,
+                    .map_err(|_| DistinstError::ArgNaN { arg: values[1].into() })?,
                 match values[2] {
                     "reuse" => None,
                     fs => Some(parse_fs(fs)?),
@@ -34,9 +32,7 @@ pub(crate) fn reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dis
                 } else if value.starts_with("keyid=") {
                     key = Some(String::from(&value[6..]));
                 } else {
-                    return Err(DistinstError::InvalidField {
-                        field: (*value).into(),
-                    });
+                    return Err(DistinstError::InvalidField { field: (*value).into() });
                 }
             }
 

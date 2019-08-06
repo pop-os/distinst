@@ -1,7 +1,9 @@
 use external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
 use DiskError;
-use std::fmt;
-use std::path::{Path, PathBuf};
 
 /// A structure which contains the encryption settings for a physical volume.
 #[derive(Clone, PartialEq)]
@@ -36,19 +38,15 @@ impl LvmEncryption {
 
     /// Encrypts a new partition with the settings stored in the structure.
     pub fn encrypt(&self, device: &Path) -> Result<(), DiskError> {
-        cryptsetup_encrypt(device, self).map_err(|why| DiskError::Encryption {
-            volume: device.into(),
-            why,
-        })
+        cryptsetup_encrypt(device, self)
+            .map_err(|why| DiskError::Encryption { volume: device.into(), why })
     }
 
     /// Opens the previously-encrypted partition with the same settings used to
     /// encrypt it.
     pub fn open(&self, device: &Path) -> Result<(), DiskError> {
-        cryptsetup_open(device, self).map_err(|why| DiskError::EncryptionOpen {
-            volume: device.into(),
-            why,
-        })
+        cryptsetup_open(device, self)
+            .map_err(|why| DiskError::EncryptionOpen { volume: device.into(), why })
     }
 
     /// Creates a physical volume

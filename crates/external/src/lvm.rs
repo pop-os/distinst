@@ -1,15 +1,16 @@
-use rand::{self, Rng};
-use rand::distributions::Alphanumeric;
-use std::collections::BTreeMap;
-use std::ffi::OsStr;
-use std::fs::read_link;
-use std::io::{self, BufRead, BufReader};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use super::*;
 use misc::{concat_osstr, device_maps, read_dirs};
 use proc_mounts::{MOUNTS, SWAPS};
-use sys_mount::{unmount, swapoff, UnmountFlags};
-use super::*;
+use rand::{self, distributions::Alphanumeric, Rng};
+use std::{
+    collections::BTreeMap,
+    ffi::OsStr,
+    fs::read_link,
+    io::{self, BufRead, BufReader},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
+use sys_mount::{swapoff, unmount, UnmountFlags};
 
 pub fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
     let mounts = MOUNTS.read().expect("failed to get mounts in deactivate_devices");
@@ -17,10 +18,7 @@ pub fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
     let umount = move |vg: &str| -> io::Result<()> {
         for lv in lvs(vg)? {
             if let Some(mount) = mounts.get_mount_by_source(&lv) {
-                info!(
-                    "unmounting logical volume mounted at {}",
-                    mount.dest.display()
-                );
+                info!("unmounting logical volume mounted at {}", mount.dest.display());
                 unmount(&mount.dest, UnmountFlags::empty())?;
             } else if let Ok(lv) = lv.canonicalize() {
                 if swaps.get_swapped(&lv) {
@@ -36,9 +34,9 @@ pub fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
         let mut pvs = pvs()?;
         let device = CloseBy::Path(&pv);
         match pvs.remove(pv) {
-            Some(Some(ref vg)) => umount(vg)
-                .and_then(|_| vgdeactivate(vg))
-                .and_then(|_| cryptsetup_close(device))?,
+            Some(Some(ref vg)) => {
+                umount(vg).and_then(|_| vgdeactivate(vg)).and_then(|_| cryptsetup_close(device))?
+            }
             _ => cryptsetup_close(device)?,
         }
     }
@@ -63,11 +61,12 @@ pub fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec<PathBu
 
             let _ = read_dirs(&slave_path, |slave| {
                 let slave_path = slave.path();
-                let slave_path = slave_path.file_name().expect("slave path does not have file name");
-                if paths
-                    .iter()
-                    .any(|p| p.as_ref().file_name().expect("slave path does not have file name") == slave_path)
-                {
+                let slave_path =
+                    slave_path.file_name().expect("slave path does not have file name");
+                if paths.iter().any(|p| {
+                    p.as_ref().file_name().expect("slave path does not have file name")
+                        == slave_path
+                }) {
                     discovered.push(pv.to_path_buf());
                 }
             });
@@ -76,7 +75,6 @@ pub fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec<PathBu
 
     discovered
 }
-
 
 /// Get a vector of logical devices.
 pub fn dmlist() -> io::Result<Vec<String>> {
@@ -112,7 +110,7 @@ pub fn dmlist() -> io::Result<Vec<String>> {
 pub fn generate_unique_id(prefix: &str, exclude_hashes: &[u64]) -> io::Result<String> {
     let dmlist = dmlist()?;
     let check_uniqueness = |id: &str, exclude: &[u64]| -> bool {
-        ! dmlist.iter().any(|x| x.as_str() == id) && ! exclude.contains(&::misc::hasher(&id))
+        !dmlist.iter().any(|x| x.as_str() == id) && !exclude.contains(&::misc::hasher(&id))
     };
 
     if check_uniqueness(prefix, exclude_hashes) {
@@ -122,7 +120,7 @@ pub fn generate_unique_id(prefix: &str, exclude_hashes: &[u64]) -> io::Result<St
     loop {
         let id: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).collect();
         let id = [prefix, "_", &id].concat();
-        if ! check_uniqueness(&id, exclude_hashes) {
+        if !check_uniqueness(&id, exclude_hashes) {
             continue;
         }
         return Ok(id);
@@ -136,14 +134,7 @@ pub fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result<()> {
         None,
         None,
         &size.map_or(
-            [
-                "-y".into(),
-                "-l".into(),
-                "100%FREE".into(),
-                group.into(),
-                "-n".into(),
-                name.into(),
-            ],
+            ["-y".into(), "-l".into(), "100%FREE".into(), group.into(), "-n".into(), name.into()],
             |size| {
                 [
                     "-y".into(),
@@ -160,15 +151,7 @@ pub fn lvcreate(group: &str, name: &str, size: Option<u64>) -> io::Result<()> {
 
 /// Remove the logical volume, `name`, from the volume group, `group`.
 pub fn lvremove(group: &str, name: &str) -> io::Result<()> {
-    exec(
-        "lvremove",
-        None,
-        None,
-        &[
-            "-y".into(),
-            ["/dev/mapper/", group, "-", name].concat().into(),
-        ],
-    )
+    exec("lvremove", None, None, &["-y".into(), ["/dev/mapper/", group, "-", name].concat().into()])
 }
 
 /// Obtains a list of logical volumes associated with the given volume group.
@@ -200,8 +183,9 @@ pub fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
                         "/dev/mapper/",
                         &vg.replace("-", "--"),
                         "-",
-                        &(&line[..pos].replace("-", "--"))
-                    ].concat(),
+                        &(&line[..pos].replace("-", "--")),
+                    ]
+                    .concat(),
                 ));
             }
         }
@@ -214,12 +198,7 @@ pub fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
 
 /// Used to create a physical volume on a LUKS partition.
 pub fn pvcreate<P: AsRef<Path>>(device: P) -> io::Result<()> {
-    exec(
-        "pvcreate",
-        None,
-        None,
-        &["-ffy".into(), device.as_ref().into()],
-    )
+    exec("pvcreate", None, None, &["-ffy".into(), device.as_ref().into()])
 }
 
 /// Obtains a map of physical volume paths and their optionally-assigned volume
@@ -249,11 +228,7 @@ pub fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
                 fields.next().map(|vg| {
                     output.insert(
                         PathBuf::from(pv),
-                        if vg.is_empty() || vg == "lvm2" {
-                            None
-                        } else {
-                            Some(vg.into())
-                        },
+                        if vg.is_empty() || vg == "lvm2" { None } else { Some(vg.into()) },
                     )
                 })
             });
@@ -273,10 +248,7 @@ pub fn vgactivate(volume_group: &str) -> io::Result<()> {
 }
 
 /// Used to create a volume group from one or more physical volumes.
-pub fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(
-    group: &str,
-    devices: I,
-) -> io::Result<()> {
+pub fn vgcreate<I: Iterator<Item = S>, S: AsRef<OsStr>>(group: &str, devices: I) -> io::Result<()> {
     exec("vgcreate", None, None, &{
         let mut args = Vec::with_capacity(16);
         args.push("-ffy".into());
@@ -310,7 +282,7 @@ fn vgdisplay() -> io::Result<Vec<String>> {
 
     while reader.read_line(&mut current_line)? != 0 {
         if let Some(dm) = current_line.split_whitespace().next() {
-            output.push(dm[1..dm.len()-1].into());
+            output.push(dm[1..dm.len() - 1].into());
         }
 
         current_line.clear();

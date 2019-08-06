@@ -6,18 +6,16 @@ mod erase_option;
 mod recovery_option;
 mod refresh_option;
 
-pub use self::alongside_option::*;
-pub use self::apply::*;
-pub use self::erase_option::*;
-pub use self::recovery_option::*;
-pub use self::refresh_option::*;
+pub use self::{
+    alongside_option::*, apply::*, erase_option::*, recovery_option::*, refresh_option::*,
+};
 
+use super::super::*;
 use disk_types::{PartitionExt, SectorExt};
 use disks::*;
 use os_release::OS_RELEASE;
-use std::path::PathBuf;
-use super::super::*;
 use partition_identity::PartitionID;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct InstallOptions {
@@ -47,15 +45,20 @@ impl InstallOptions {
             let mut check_partition = |part: &PartitionInfo| -> Option<OS> {
                 // We're only going to find Linux on a Linux-compatible file system.
                 if let Some(os) = part.probe_os() {
-                    info!("found OS on {:?}: {}", part.get_device_path(), match os {
-                        OS::Windows(ref version) => format!("Windows ({})", version),
-                        OS::Linux { ref info, .. } => format!("Linux ({})", info.pretty_name),
-                        OS::MacOs(ref version) => format!("Mac OS ({})", version)
-                    });
+                    info!(
+                        "found OS on {:?}: {}",
+                        part.get_device_path(),
+                        match os {
+                            OS::Windows(ref version) => format!("Windows ({})", version),
+                            OS::Linux { ref info, .. } => format!("Linux ({})", info.pretty_name),
+                            OS::MacOs(ref version) => format!("Mac OS ({})", version),
+                        }
+                    );
 
                     // Only consider Linux installs for refreshing.
                     if let OS::Linux { ref info, ref partitions, ref targets } = os {
-                        // Only consider versions of Linux that are the same as the installer's version.
+                        // Only consider versions of Linux that are the same as the installer's
+                        // version.
                         if info.version_id == os_release.version_id {
                             let home = targets.iter().position(|t| t == Path::new("/home"));
                             let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
@@ -70,7 +73,8 @@ impl InstallOptions {
                             refresh_options.push(RefreshOption {
                                 os_release:     info.clone(),
                                 root_part:      PartitionID::get_uuid(part.get_device_path())
-                                    .expect("root device did not have uuid").id,
+                                    .expect("root device did not have uuid")
+                                    .id,
                                 home_part:      home.map(|pos| partitions[pos].clone()),
                                 efi_part:       efi.map(|pos| partitions[pos].clone()),
                                 recovery_part:  recovery.map(|pos| partitions[pos].clone()),
@@ -91,7 +95,7 @@ impl InstallOptions {
 
             for device in disks.get_physical_devices() {
                 if device.is_read_only() || device.contains_mount("/", &disks) {
-                    continue
+                    continue;
                 }
 
                 let mut last_end_sector = 1024;
@@ -102,50 +106,72 @@ impl InstallOptions {
                         let free = sectors - used;
                         let os = check_partition(part);
                         if required_space + shrink_overhead < free {
-                            info!("found shrinkable partition on {:?}: {} free of {}", part.get_device_path(), free, sectors);
+                            info!(
+                                "found shrinkable partition on {:?}: {} free of {}",
+                                part.get_device_path(),
+                                free,
+                                sectors
+                            );
                             alongside_options.push(AlongsideOption {
-                                device: device.get_device_path().to_path_buf(),
+                                device:    device.get_device_path().to_path_buf(),
                                 alongside: os,
-                                method: AlongsideMethod::Shrink {
-                                    path: part.get_device_path().to_path_buf(),
-                                    partition: part.number,
-                                    sectors_free: free,
-                                    sectors_total: sectors
-                                }
+                                method:    AlongsideMethod::Shrink {
+                                    path:          part.get_device_path().to_path_buf(),
+                                    partition:     part.number,
+                                    sectors_free:  free,
+                                    sectors_total: sectors,
+                                },
                             });
                         }
                     }
 
-                    if last_end_sector < part.start_sector && required_space < part.start_sector - last_end_sector {
-                        info!("found free sectors on {:?}: {} - {}", device.get_device_path(), last_end_sector + 1, part.start_sector - 1);
+                    if last_end_sector < part.start_sector
+                        && required_space < part.start_sector - last_end_sector
+                    {
+                        info!(
+                            "found free sectors on {:?}: {} - {}",
+                            device.get_device_path(),
+                            last_end_sector + 1,
+                            part.start_sector - 1
+                        );
                         alongside_options.push(AlongsideOption {
-                            device: device.get_device_path().to_path_buf(),
+                            device:    device.get_device_path().to_path_buf(),
                             alongside: None,
-                            method: AlongsideMethod::Free(Region::new(last_end_sector + 1, part.start_sector - 1))
+                            method:    AlongsideMethod::Free(Region::new(
+                                last_end_sector + 1,
+                                part.start_sector - 1,
+                            )),
                         })
                     }
 
                     last_end_sector = part.end_sector;
                 }
 
-                let last_sector = device.get_sectors () - 2048;
+                let last_sector = device.get_sectors() - 2048;
                 if last_sector > last_end_sector && required_space < last_sector - last_end_sector {
-                    info!("found free sectors at the end on {:?}: {} - {}", device.get_device_path(), last_end_sector + 1, last_sector);
+                    info!(
+                        "found free sectors at the end on {:?}: {} - {}",
+                        device.get_device_path(),
+                        last_end_sector + 1,
+                        last_sector
+                    );
                     alongside_options.push(AlongsideOption {
-                        device: device.get_device_path().to_path_buf(),
+                        device:    device.get_device_path().to_path_buf(),
                         alongside: None,
-                        method: AlongsideMethod::Free(Region::new(last_end_sector + 1, last_sector))
+                        method:    AlongsideMethod::Free(Region::new(
+                            last_end_sector + 1,
+                            last_sector,
+                        )),
                     })
                 }
 
-                let skip = ! Path::new("/cdrom/recovery.conf").exists() && (
-                    device.contains_mount("/", &disks)
-                    || device.contains_mount("/cdrom", &disks)
-                );
+                let skip = !Path::new("/cdrom/recovery.conf").exists()
+                    && (device.contains_mount("/", &disks)
+                        || device.contains_mount("/cdrom", &disks));
 
                 if skip {
                     info!("install options: skipping options on {:?}", device.get_device_path());
-                    continue
+                    continue;
                 }
 
                 let sectors = device.get_sectors();
@@ -162,16 +188,8 @@ impl InstallOptions {
                     },
                     sectors,
                     flags: {
-                        let mut flags = if device.is_removable() {
-                            IS_REMOVABLE
-                        } else {
-                            0
-                        };
-                        flags |= if device.is_rotational() {
-                            IS_ROTATIONAL
-                        } else {
-                            0
-                        };
+                        let mut flags = if device.is_removable() { IS_REMOVABLE } else { 0 };
+                        flags |= if device.is_rotational() { IS_ROTATIONAL } else { 0 };
 
                         flags |= if sectors >= required_space || required_space == 0 {
                             MEETS_REQUIREMENTS
@@ -190,12 +208,7 @@ impl InstallOptions {
             }
         }
 
-        InstallOptions {
-            alongside_options,
-            erase_options,
-            refresh_options,
-            recovery_option,
-        }
+        InstallOptions { alongside_options, erase_options, refresh_options, recovery_option }
     }
 }
 
@@ -224,7 +237,7 @@ pub enum InstallOptionError {
     #[fail(display = "failed to retrieve list of mounts from /proc/mounts: {}", why)]
     ProcMounts { why: io::Error },
     #[fail(display = "could not remount /cdrom as rewriteable: {}", _0)]
-    RemountCdrom(io::Error)
+    RemountCdrom(io::Error),
 }
 
 impl From<DiskError> for InstallOptionError {
@@ -232,5 +245,7 @@ impl From<DiskError> for InstallOptionError {
 }
 
 impl From<PartitionError> for InstallOptionError {
-    fn from(why: PartitionError) -> InstallOptionError { InstallOptionError::PartitionError { why } }
+    fn from(why: PartitionError) -> InstallOptionError {
+        InstallOptionError::PartitionError { why }
+    }
 }

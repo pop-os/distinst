@@ -1,11 +1,12 @@
 use bootloader::Bootloader;
 use chroot::Chroot;
-use installer::bitflags::FileSystemSupport;
-use installer::traits::InstallerDiskOps;
+use installer::{bitflags::FileSystemSupport, traits::InstallerDiskOps};
 use os_release::OsRelease;
-use std::collections::HashSet;
-use std::io::{self, BufRead};
-use std::process::Command;
+use std::{
+    collections::HashSet,
+    io::{self, BufRead},
+    process::Command,
+};
 
 pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<String>> {
     // Takes the locale, such as `en_US.UTF-8`, and changes it into `en`.
@@ -13,14 +14,14 @@ pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<
         Some(pos) => &lang[..pos],
         None => match lang.find('.') {
             Some(pos) => &lang[..pos],
-            None => &lang
-        }
+            None => &lang,
+        },
     };
 
     // Attempt to run the check-language-support external command.
-    let check_language_support = chroot.command("check_language_support", &[
-        "-l", locale, "--show-installed"
-    ]).run_with_stdout();
+    let check_language_support = chroot
+        .command("check_language_support", &["-l", locale, "--show-installed"])
+        .run_with_stdout();
 
     // If the command executed, get the standard output.
     let output = match check_language_support {
@@ -29,7 +30,7 @@ pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<
         Err(why) => {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("failed to spawn check-language-support: {}", why)
+                format!("failed to spawn check-language-support: {}", why),
             ));
         }
     };
@@ -66,22 +67,16 @@ pub fn get_dependencies_from_list<P: AsRef<str>>(deps: &[P]) -> Option<Vec<Strin
 }
 
 fn get_dependencies_from_package<A: FnMut(&str), P: AsRef<str>>(dep: P, mut action: A) {
-    let output = Command::new("apt-cache")
-        .args(&["show", dep.as_ref()])
-        .output()
-        .ok();
+    let output = Command::new("apt-cache").args(&["show", dep.as_ref()]).output().ok();
 
     if let Some(output) = output {
         for line in io::Cursor::new(output.stdout).lines() {
             if let Ok(line) = line {
-                if ! line.starts_with("Depends:") {
-                    continue
+                if !line.starts_with("Depends:") {
+                    continue;
                 }
 
-                parse_dependency_line(
-                    line[8..].trim(),
-                    |dep| action(dep)
-                );
+                parse_dependency_line(line[8..].trim(), |dep| action(dep));
             }
         }
     }
@@ -101,18 +96,31 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
     match Bootloader::detect() {
         Bootloader::Bios => &["grub-pc"],
         Bootloader::Efi if os_release.name == "Pop!_OS" => &["kernelstub"],
-        Bootloader::Efi if os_release.name == "Ubuntu" && os_release.version_id == "18.04" => {
-            &["grub-efi", "grub-efi-amd64", "grub-efi-amd64-signed",
-              "shim-signed", "mokutil", "fwupdate-signed", "linux-signed-generic-hwe-18.04"]
-        },
-        Bootloader::Efi => {
-            &["grub-efi", "grub-efi-amd64", "grub-efi-amd64-signed",
-              "shim-signed", "mokutil", "fwupdate-signed", "linux-signed-generic"]
-        }
+        Bootloader::Efi if os_release.name == "Ubuntu" && os_release.version_id == "18.04" => &[
+            "grub-efi",
+            "grub-efi-amd64",
+            "grub-efi-amd64-signed",
+            "shim-signed",
+            "mokutil",
+            "fwupdate-signed",
+            "linux-signed-generic-hwe-18.04",
+        ],
+        Bootloader::Efi => &[
+            "grub-efi",
+            "grub-efi-amd64",
+            "grub-efi-amd64-signed",
+            "shim-signed",
+            "mokutil",
+            "fwupdate-signed",
+            "linux-signed-generic",
+        ],
     }
 }
 
-pub fn get_required_packages<D: InstallerDiskOps>(disks: &D, release: &OsRelease) -> Vec<&'static str> {
+pub fn get_required_packages<D: InstallerDiskOps>(
+    disks: &D,
+    release: &OsRelease,
+) -> Vec<&'static str> {
     let flags = disks.get_support_flags();
 
     let mut retain = Vec::new();
@@ -144,8 +152,10 @@ pub fn get_required_packages<D: InstallerDiskOps>(disks: &D, release: &OsRelease
     if flags.contains(FileSystemSupport::LUKS) {
         retain.extend_from_slice(&["cryptsetup", "cryptsetup-bin"]);
         match (release.id.as_str(), release.version.as_str()) {
-            ("ubuntu", "18.10") => retain.extend_from_slice(&["cryptsetup-initramfs", "cryptsetup-run"]),
-            _ => ()
+            ("ubuntu", "18.10") => {
+                retain.extend_from_slice(&["cryptsetup-initramfs", "cryptsetup-run"])
+            }
+            _ => (),
         }
     }
 

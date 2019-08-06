@@ -1,10 +1,12 @@
-use std::path::{Path, PathBuf};
-use std::{io, fs};
-use std::os::unix::fs::symlink;
+use std::{
+    fs, io,
+    os::unix::fs::symlink,
+    path::{Path, PathBuf},
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct Timezones {
-    zones: Vec<Zone>
+    zones: Vec<Zone>,
 }
 
 impl Timezones {
@@ -25,7 +27,7 @@ impl Timezones {
                 }
 
                 regions.sort_unstable();
-                output.zones.push(Zone { name: zone_name, regions})
+                output.zones.push(Zone { name: zone_name, regions })
             }
         }
 
@@ -33,25 +35,19 @@ impl Timezones {
         Ok(output)
     }
 
-    pub fn zones(&self) -> &[Zone] {
-        &self.zones
-    }
+    pub fn zones(&self) -> &[Zone] { &self.zones }
 }
 
 #[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
 pub struct Zone {
-    name: String,
-    regions: Vec<Region>
+    name:    String,
+    regions: Vec<Region>,
 }
 
 impl Zone {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
+    pub fn name(&self) -> &str { &self.name }
 
-    pub fn regions(&self) -> &[Region] {
-        &self.regions
-    }
+    pub fn regions(&self) -> &[Region] { &self.regions }
 }
 
 #[derive(Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
@@ -61,13 +57,9 @@ pub struct Region {
 }
 
 impl Region {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
+    pub fn name(&self) -> &str { &self.name }
 
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
+    pub fn path(&self) -> &Path { &self.path }
 
     pub fn install(&self, dest: &Path) -> io::Result<()> {
         let timezone = dest.join("etc/timezone");

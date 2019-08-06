@@ -1,7 +1,6 @@
 extern crate distinst;
 
-use distinst::auto::InstallOptions;
-use distinst::disks::Disks;
+use distinst::{auto::InstallOptions, disks::Disks};
 
 fn main() {
     let mut disks = Disks::probe_devices().unwrap();

@@ -20,14 +20,15 @@ impl Retry {
     }
 
     pub fn retry_until_ok<F, T, E>(&self, mut func: F) -> Result<T, E>
-        where F: FnMut() -> Result<T, E>
+    where
+        F: FnMut() -> Result<T, E>,
     {
         let duration = ::std::time::Duration::from_millis(self.interval);
         let mut attempt = 0;
         loop {
             match func() {
                 Ok(value) => return Ok(value),
-                Err(why)  => {
+                Err(why) => {
                     if attempt == self.attempts {
                         return Err(why);
                     } else {

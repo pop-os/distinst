@@ -1,8 +1,10 @@
 extern crate distinst;
 
-use distinst::{DiskExt, Disks, BlockDeviceExt, PartitionExt, SectorExt};
-use std::io::{self, Result};
-use std::process;
+use distinst::{BlockDeviceExt, DiskExt, Disks, PartitionExt, SectorExt};
+use std::{
+    io::{self, Result},
+    process,
+};
 
 fn list() -> Result<()> {
     let mut disks = Disks::probe_devices()?;
@@ -25,10 +27,7 @@ fn list() -> Result<()> {
             println!("    mount:   {:?}", part.mount_point);
             println!("    label:   {:?}", part.name);
             println!("    fs:      {:?}", part.filesystem);
-            println!(
-                "    sectors: (start: {}, end: {})",
-                part.start_sector, part.end_sector
-            );
+            println!("    sectors: (start: {}, end: {})", part.start_sector, part.end_sector);
             println!(
                 "    size:    {} MB ({} MiB)",
                 (part.get_sectors() * sector_size) / 1_000_000,
@@ -81,10 +80,7 @@ fn list() -> Result<()> {
             println!("    mount:   {:?}", part.mount_point);
             println!("    label:   {:?}", part.name);
             println!("    fs:      {:?}", part.filesystem);
-            println!(
-                "    sectors: (start: {}, end: {})",
-                part.start_sector, part.end_sector
-            );
+            println!("    sectors: (start: {}, end: {})", part.start_sector, part.end_sector);
             println!(
                 "    size:    {} MB ({} MiB)",
                 (part.get_sectors() * sector_size) / 1_000_000,

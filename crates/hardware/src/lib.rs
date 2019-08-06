@@ -51,11 +51,10 @@ fn nvidia_driver(os_release: &OsRelease) -> Option<&'static str> {
     None
 }
 pub fn append_packages(install_pkgs: &mut Vec<&'static str>, os_release: &OsRelease) {
-    append_packages!(os_release, install_pkgs {
-        processor_support,
-        vendor_support,
-        graphics_support
-    });
+    append_packages!(
+        os_release,
+        install_pkgs { processor_support, vendor_support, graphics_support }
+    );
 }
 
 fn graphics_support(os_release: &OsRelease) -> Option<&'static str> {
@@ -74,7 +73,7 @@ fn processor_support(os_release: &OsRelease) -> Option<&'static str> {
         return match vf.as_string() {
             "AuthenticAMD" => amd_microcode(os_release),
             "GenuineIntel" => intel_microcode(os_release),
-            _ => None
+            _ => None,
         };
     }
 
@@ -97,5 +96,6 @@ fn vendor() -> Option<String> {
     let mut vendor = String::new();
     misc::open("/sys/class/dmi/id/sys_vendor")
         .and_then(|mut file| file.read_to_string(&mut vendor))
-        .ok().map(|_| vendor)
+        .ok()
+        .map(|_| vendor)
 }

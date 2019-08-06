@@ -3,8 +3,8 @@
 #[macro_use]
 extern crate derive_new;
 extern crate disk_types;
-extern crate distinst_external_commands as external;
 extern crate distinst_bootloader as bootloader;
+extern crate distinst_external_commands as external;
 extern crate libparted;
 #[macro_use]
 extern crate log;
@@ -18,16 +18,11 @@ mod mklabel;
 mod mkpart;
 mod mvpart;
 mod ops;
+pub mod parted;
 mod resize;
 mod rmpart;
-pub mod parted;
 
-pub use self::mklabel::*;
-pub use self::mkpart::*;
-pub use self::mvpart::*;
-pub use self::ops::*;
-pub use self::resize::*;
-pub use self::rmpart::*;
+pub use self::{mklabel::*, mkpart::*, mvpart::*, ops::*, resize::*, rmpart::*};
 
 const MEBIBYTE: u64 = 1_048_576;
 const MEGABYTE: u64 = 1_000_000;

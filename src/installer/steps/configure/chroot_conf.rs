@@ -1,20 +1,25 @@
 use chroot::{Chroot, Command};
 use errors::IoContext;
-use Config;
 use misc;
-use proc_mounts::MountList;
 use partition_identity::PartitionID;
-use std::fs;
-use std::io::{self, Write};
-use std::path::Path;
+use proc_mounts::MountList;
+use std::{
+    fs,
+    io::{self, Write},
+    path::Path,
+    process::Stdio,
+};
 use sys_mount::*;
 use timezones::Region;
-use std::process::Stdio;
+use Config;
 
 const APT_OPTIONS: &[&str] = &[
-    "-o", "Acquire::cdrom::AutoDetect=0",
-    "-o", "Acquire::cdrom::mount=/cdrom",
-    "-o", "APT::CDROM::NoMount=1"
+    "-o",
+    "Acquire::cdrom::AutoDetect=0",
+    "-o",
+    "Acquire::cdrom::mount=/cdrom",
+    "-o",
+    "APT::CDROM::NoMount=1",
 ];
 
 // For a clean boot by default, we hide all output and use plymouth
@@ -24,21 +29,24 @@ const BOOT_OPTIONS: &str = "quiet loglevel=0 systemd.show_status=false splash";
 const RECOVERY_BOOT_OPTIONS: &str = "";
 
 pub struct ChrootConfigurator<'a> {
-    chroot: Chroot<'a>
+    chroot: Chroot<'a>,
 }
 
 impl<'a> ChrootConfigurator<'a> {
-    pub fn new(chroot: Chroot<'a>) -> Self { Self { chroot }}
+    pub fn new(chroot: Chroot<'a>) -> Self { Self { chroot } }
 
     /// Install the given packages if they are not already installed.
     pub fn apt_install(&self, packages: &[&str]) -> io::Result<()> {
         info!("installing packages: {:?}", packages);
-        let mut command = self.chroot.command("apt-get", &cascade! {
-            Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
-            ..extend_from_slice(&["install", "-q", "-y"]);
-            ..extend_from_slice(APT_OPTIONS);
-            ..extend_from_slice(&packages);
-        });
+        let mut command = self.chroot.command(
+            "apt-get",
+            &cascade! {
+                Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
+                ..extend_from_slice(&["install", "-q", "-y"]);
+                ..extend_from_slice(APT_OPTIONS);
+                ..extend_from_slice(&packages);
+            },
+        );
 
         command.stdout(Stdio::null());
         command.run()
@@ -47,27 +55,42 @@ impl<'a> ChrootConfigurator<'a> {
     /// Remove the given packages from the system, if they are installed.
     pub fn apt_remove(&self, packages: &[&str]) -> io::Result<()> {
         info!("removing packages: {:?}", packages);
-        self.chroot.command("apt-get", &cascade! {
-            Vec::with_capacity(packages.len() + 2);
-            ..extend_from_slice(&["purge", "-y"]);
-            ..extend_from_slice(packages);
-        }).run()?;
+        self.chroot
+            .command(
+                "apt-get",
+                &cascade! {
+                    Vec::with_capacity(packages.len() + 2);
+                    ..extend_from_slice(&["purge", "-y"]);
+                    ..extend_from_slice(packages);
+                },
+            )
+            .run()?;
         self.chroot.command("apt-get", &["autoremove", "-y", "--purge"]).run()
     }
 
     /// Configure the bootloader on the system.
     pub fn bootloader(&self) -> io::Result<()> {
         info!("configuring bootloader");
-        let result = self.chroot.command("kernelstub", &[
-            "--esp-path", "/boot/efi",
-            "--kernel-path", "/vmlinuz",
-            "--initrd-path", "/initrd.img",
-            "--add-options", BOOT_OPTIONS,
-            "--loader",
-            "--manage-only",
-            "--force-update",
-            "--verbose"
-        ]).run();
+        let result = self
+            .chroot
+            .command(
+                "kernelstub",
+                &[
+                    "--esp-path",
+                    "/boot/efi",
+                    "--kernel-path",
+                    "/vmlinuz",
+                    "--initrd-path",
+                    "/initrd.img",
+                    "--add-options",
+                    BOOT_OPTIONS,
+                    "--loader",
+                    "--manage-only",
+                    "--force-update",
+                    "--verbose",
+                ],
+            )
+            .run();
 
         match result {
             Ok(()) => Ok(()),
@@ -84,11 +107,16 @@ impl<'a> ChrootConfigurator<'a> {
     pub fn cdrom_add(&self) -> io::Result<()> {
         if Path::new("/cdrom").exists() {
             info!("adding apt-cdrom to /etc/apt/sources.list");
-            self.chroot.command("apt-cdrom", &cascade! {
-                Vec::with_capacity(APT_OPTIONS.len() + 1);
-                ..extend_from_slice(APT_OPTIONS);
-                ..push("add");
-            }).run()
+            self.chroot
+                .command(
+                    "apt-cdrom",
+                    &cascade! {
+                        Vec::with_capacity(APT_OPTIONS.len() + 1);
+                        ..extend_from_slice(APT_OPTIONS);
+                        ..push("add");
+                    },
+                )
+                .run()
         } else {
             Ok(())
         }
@@ -106,7 +134,12 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     /// Create a new user account.
-    pub fn create_user(&self, user: &str, pass: Option<&str>, fullname: Option<&str>) -> io::Result<()> {
+    pub fn create_user(
+        &self,
+        user: &str,
+        pass: Option<&str>,
+        fullname: Option<&str>,
+    ) -> io::Result<()> {
         let mut command = self.chroot.command("useradd", &["-m", "-G", "adm,sudo"]);
         if let Some(name) = fullname {
             command.args(&["-c", name, user]);
@@ -172,42 +205,67 @@ impl<'a> ChrootConfigurator<'a> {
         info!("setting hosts file");
         let hosts = self.chroot.path.join("etc/hosts");
         let mut file = misc::create(&hosts)?;
-        writeln!(&mut file, r#"127.0.0.1	localhost
+        writeln!(
+            &mut file,
+            r#"127.0.0.1	localhost
 ::1		localhost
-127.0.1.1	{0}.localdomain	{0}"#, hostname)
-            .with_context(|err| format!("failed to write hosts to {:?}: {}", hosts, err))
+127.0.1.1	{0}.localdomain	{0}"#,
+            hostname
+        )
+        .with_context(|err| format!("failed to write hosts to {:?}: {}", hosts, err))
     }
 
     /// Set the keyboard layout so that the layout will function, even within the decryption screen.
     pub fn keyboard_layout(&self, config: &Config) -> io::Result<()> {
         info!("configuring keyboard layout");
         // Ensure that localectl writes to the chroot, instead.
-        let _etc_mount = Mount::new(&self.chroot.path.join("etc"), "/etc", "none", MountFlags::BIND, None)?
-            .into_unmount_drop(UnmountFlags::DETACH);
+        let _etc_mount =
+            Mount::new(&self.chroot.path.join("etc"), "/etc", "none", MountFlags::BIND, None)?
+                .into_unmount_drop(UnmountFlags::DETACH);
 
-        self.chroot.command("localectl", &[
-            "set-x11-keymap",
-            &config.keyboard_layout,
-            config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
-            config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
-        ]).run()?;
+        self.chroot
+            .command(
+                "localectl",
+                &[
+                    "set-x11-keymap",
+                    &config.keyboard_layout,
+                    config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
+                    config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
+                ],
+            )
+            .run()?;
 
-        self.chroot.command("/usr/bin/env", &[
-            "-i", "SYSTEMCTL_SKIP_REDIRECT=_",
-            "openvt", "--", "sh", "/etc/init.d/console-setup.sh", "reload"
-        ]).run()?;
+        self.chroot
+            .command(
+                "/usr/bin/env",
+                &[
+                    "-i",
+                    "SYSTEMCTL_SKIP_REDIRECT=_",
+                    "openvt",
+                    "--",
+                    "sh",
+                    "/etc/init.d/console-setup.sh",
+                    "reload",
+                ],
+            )
+            .run()?;
 
         let cached_file = self.chroot.path.join("etc/console-setup/cached.kmap.gz");
-        if cached_file.exists () {
+        if cached_file.exists() {
             fs::remove_file(cached_file)
                 .with_context(|err| format!("failed to remove console-setup cache: {}", err))?;
         }
 
-        self.chroot.command("ln", &[
-            "-s",
-            "/etc/console-setup/cached_UTF-8_del.kmap.gz",
-            "/etc/console-setup/cached.kmap.gz"
-        ]).run()
+        self.chroot
+            .command(
+                "ln",
+                &[
+                    "-s",
+                    "/etc/console-setup/cached_UTF-8_del.kmap.gz",
+                    "/etc/console-setup/cached.kmap.gz",
+                ],
+            )
+            .run()
     }
 
     /// In case the kernel is located outside of the squashfs image, find it.
@@ -215,12 +273,11 @@ impl<'a> ChrootConfigurator<'a> {
         let cdrom_kernel = Path::new("/cdrom/casper/vmlinuz");
         let chroot_kernel = self.chroot.path.join("vmlinuz");
 
-        if cdrom_kernel.exists() && ! chroot_kernel.exists() {
+        if cdrom_kernel.exists() && !chroot_kernel.exists() {
             info!("copying kernel from /cdrom");
-            self.chroot.command(
-                "sh",
-                &["-c", "cp /cdrom/casper/vmlinuz \"$(realpath /vmlinuz)\""]
-            ).run()
+            self.chroot
+                .command("sh", &["-c", "cp /cdrom/casper/vmlinuz \"$(realpath /vmlinuz)\""])
+                .run()
         } else {
             Ok(())
         }
@@ -238,7 +295,7 @@ impl<'a> ChrootConfigurator<'a> {
         config: &Config,
         name: &str,
         root_uuid: &str,
-        luks_uuid: &str
+        luks_uuid: &str,
     ) -> io::Result<()> {
         info!("creating recovery partition");
         let recovery_path = self.chroot.path.join("recovery");
@@ -249,21 +306,26 @@ impl<'a> ChrootConfigurator<'a> {
             | if Path::new("/cdrom").is_dir() { 0 } else { 4 };
 
         if result != 0 {
-            warn!("{}, therefore no recovery partition will be created", if result & 1 != 0 {
-                format!("recovery at {} was not found", recovery_path.display())
-            } else if result & 2 != 0 {
-                format!("no EFI partition found at {}", efi_path.display())
-            } else {
-                "/cdrom was not found".into()
-            });
+            warn!(
+                "{}, therefore no recovery partition will be created",
+                if result & 1 != 0 {
+                    format!("recovery at {} was not found", recovery_path.display())
+                } else if result & 2 != 0 {
+                    format!("no EFI partition found at {}", efi_path.display())
+                } else {
+                    "/cdrom was not found".into()
+                }
+            );
             return Ok(());
         }
 
         let mounts = MountList::new()?;
-        let recovery_mount = mounts.get_mount_by_dest(&recovery_path)
+        let recovery_mount = mounts
+            .get_mount_by_dest(&recovery_path)
             .expect("/recovery is mount not associated with block device");
 
-        let efi_mount = mounts.get_mount_by_dest(&efi_path)
+        let efi_mount = mounts
+            .get_mount_by_dest(&efi_path)
             .expect("efi is mount not associated with block device");
 
         let efi_partuuid = PartitionID::get_partuuid(&efi_mount.source)
@@ -276,9 +338,8 @@ impl<'a> ChrootConfigurator<'a> {
             .or_else(|| PartitionID::get_uuid(&efi_mount.source))
             .expect("/recovery does not have a UUID");
 
-        let cdrom_uuid = Command::new("findmnt")
-            .args(&["-n", "-o", "UUID", "/cdrom"])
-            .run_with_stdout()?;
+        let cdrom_uuid =
+            Command::new("findmnt").args(&["-n", "-o", "UUID", "/cdrom"]).run_with_stdout()?;
         let cdrom_uuid = cdrom_uuid.trim();
 
         // If we are installing from the recovery partition, then we can skip this step.
@@ -297,17 +358,21 @@ impl<'a> ChrootConfigurator<'a> {
         let casper = ["casper-", &recovery_uuid.id].concat();
         let recovery = ["Recovery-", &recovery_uuid.id].concat();
         if recovery_uuid.id != cdrom_uuid {
-            self.chroot.command("rsync", &[
-                "-KLavc", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"
-            ]).run()?;
+            self.chroot
+                .command(
+                    "rsync",
+                    &["-KLavc", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"],
+                )
+                .run()?;
 
-            self.chroot.command("rsync", &[
-                "-KLavc", casper_data, &["/recovery/", &casper].concat()
-            ]).run()?;
+            self.chroot
+                .command("rsync", &["-KLavc", casper_data, &["/recovery/", &casper].concat()])
+                .run()?;
         }
 
         // Create recovery file.
-        let recovery_data = format!(r#"HOSTNAME={}
+        let recovery_data = format!(
+            r#"HOSTNAME={}
 LANG={}
 KBD_LAYOUT={}
 KBD_MODEL={}
@@ -332,7 +397,8 @@ OEM_MODE=0
         // Copy initrd and vmlinuz to EFI partition
         let recovery_path = self.chroot.path.join("recovery/recovery.conf");
         let mut recovery_file = misc::create(&recovery_path)?;
-        recovery_file.write_all(recovery_data.as_bytes())
+        recovery_file
+            .write_all(recovery_data.as_bytes())
             .with_context(|err| format!("failed to write recovery file: {}", err))?;
 
         let efi_recovery = ["boot/efi/EFI/", recovery.as_str()].concat();
@@ -357,14 +423,15 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
             recovery_partuuid.id
         );
         let loader_entries = self.chroot.path.join("boot/efi/loader/entries/");
-        if ! loader_entries.exists() {
+        if !loader_entries.exists() {
             fs::create_dir_all(&loader_entries)
                 .with_context(|err| format!("failed to create EFI loader directories: {}", err))?;
         }
 
         let rec_entry_path = loader_entries.join([recovery.as_str(), ".conf"].concat());
         let mut rec_entry_file = misc::create(&rec_entry_path)?;
-        rec_entry_file.write_all(rec_entry_data.as_bytes())
+        rec_entry_file
+            .write_all(rec_entry_data.as_bytes())
             .with_context(|err| format!("failed to write recovery EFI entry: {}", err))?;
         Ok(())
     }
@@ -373,10 +440,7 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
         self.chroot.command("rm", &["/etc/timezone"]).run()?;
 
         let args: &[&str] = &[];
-        self.chroot.command("ln", args)
-            .arg(region.path())
-            .arg("/etc/timezone")
-            .run()
+        self.chroot.command("ln", args).arg(region.path()).arg("/etc/timezone").run()
     }
 
     pub fn update_initramfs(&self) -> io::Result<()> {

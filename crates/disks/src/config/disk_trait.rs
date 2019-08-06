@@ -1,8 +1,8 @@
-use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableError, PartitionTableExt, SectorExt};
-use super::super::{
-    DiskError, Disks, PartitionBuilder, PartitionInfo, PartitionType, Sector,
+use super::{
+    super::{DiskError, Disks, PartitionBuilder, PartitionInfo, PartitionType, Sector},
+    partitions::REMOVE,
 };
-use super::partitions::REMOVE;
+use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableError, PartitionTableExt, SectorExt};
 use std::path::{Path, PathBuf};
 
 /// Contains methods that are shared between physical and logical disk devices.
@@ -45,18 +45,13 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
                     return true;
                 }
 
-                partition
-                    .volume_group
-                    .as_ref()
-                    .map_or(false, |&(ref vg, _)| {
-                        parent.get_logical_device(vg)
-                            .map_or(false, |d| d.contains_mount(mount, parent))
-                    })
+                partition.volume_group.as_ref().map_or(false, |&(ref vg, _)| {
+                    parent.get_logical_device(vg).map_or(false, |d| d.contains_mount(mount, parent))
+                })
             })
         };
 
-        self.get_mount_point()
-            .map_or_else(check_partitions, |m| m == Path::new(mount))
+        self.get_mount_point().map_or_else(check_partitions, |m| m == Path::new(mount))
     }
 
     fn is_logical(&self) -> bool { Self::LOGICAL }
@@ -64,7 +59,8 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
     /// If a given start and end range overlaps a pre-existing partition, that
     /// partition's number will be returned to indicate a potential conflict.
     fn overlaps_region(&self, start: u64, end: u64) -> Option<i32> {
-        self.get_partitions().iter()
+        self.get_partitions()
+            .iter()
             // Only consider partitions which are not set to be removed.
             .filter(|part| !part.flag_is_enabled(REMOVE))
             // And which aren't extended
@@ -92,10 +88,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
     fn add_partition(&mut self, mut builder: PartitionBuilder) -> Result<(), DiskError> {
         // Ensure that the values aren't already contained within an existing partition.
         if !Self::LOGICAL && builder.part_type != PartitionType::Extended {
-            info!(
-                "checking if {}:{} overlaps",
-                builder.start_sector, builder.end_sector
-            );
+            info!("checking if {}:{} overlaps", builder.start_sector, builder.end_sector);
 
             if let Some(id) = self.overlaps_region(builder.start_sector, builder.end_sector) {
                 return Err(DiskError::SectorOverlaps { id });
@@ -128,12 +121,10 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
             let part = PartitionBuilder::new(
                 builder.start_sector,
                 self.get_partition_after(builder.start_sector)
-                    .map_or_else(
-                        || self.get_sector(Sector::End),
-                        |part| part.start_sector - 1
-                    ),
-                None
-            ).partition_type(PartitionType::Extended);
+                    .map_or_else(|| self.get_sector(Sector::End), |part| part.start_sector - 1),
+                None,
+            )
+            .partition_type(PartitionType::Extended);
 
             self.push_partition(part.build());
             builder.start_sector += 1_024_000 / 512 + 1;
@@ -142,8 +133,9 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
         let fs = builder.filesystem;
         let partition = builder.build();
         if let Some(fs) = fs {
-            fs.validate_size(partition.get_sectors() * self.get_sector_size())
-                .map_err(|why| DiskError::new_partition_error(partition.device_path.clone(), why))?;
+            fs.validate_size(partition.get_sectors() * self.get_sector_size()).map_err(|why| {
+                DiskError::new_partition_error(partition.device_path.clone(), why)
+            })?;
         }
 
         self.push_partition(partition);

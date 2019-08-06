@@ -27,14 +27,14 @@ extern crate cascade;
 #[macro_use]
 extern crate err_derive;
 extern crate dirs;
-extern crate distinst_utils as misc;
 pub extern crate distinst_timezones as timezones;
+extern crate distinst_utils as misc;
 extern crate envfile;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
-extern crate fstab_generate;
 extern crate fern;
+extern crate fstab_generate;
 extern crate itertools;
 extern crate libc;
 extern crate libparted;
@@ -45,9 +45,9 @@ extern crate rayon;
 extern crate systemd_boot_conf;
 extern crate tempdir;
 
-pub use disks::*;
-pub use disk_types::*;
 pub use bootloader::*;
+pub use disk_types::*;
+pub use disks::*;
 pub use misc::device_layout_hash;
 pub use upgrade::*;
 
@@ -65,12 +65,13 @@ pub mod dbus_interfaces {
 }
 
 use external::dmlist;
-use std::io::{self, Read};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT};
+use std::{
+    io::{self, Read},
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT},
+};
 
-pub use self::installer::*;
-pub use self::logging::log;
+pub use self::{installer::*, logging::log};
 
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;

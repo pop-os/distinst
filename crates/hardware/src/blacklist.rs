@@ -1,8 +1,10 @@
-use std::fs::{self, OpenOptions};
-use std::io::{self, Read, Write};
-use std::path::Path;
-use misc;
 use super::Module;
+use misc;
+use std::{
+    fs::{self, OpenOptions},
+    io::{self, Read, Write},
+    path::Path,
+};
 
 const POWER: &str = "etc/modprobe.d/system76-power.conf";
 
@@ -43,18 +45,9 @@ pub fn disable_external_graphics(mount_dir: &Path) -> io::Result<bool> {
 }
 
 /// Products which support switchable graphics.
-static SWITCHABLE_GRAPHICS: &[&str] = &[
-    "addw1",
-    "gaze14",
-    "oryp4",
-    "oryp4-b",
-    "oryp5"
-];
+static SWITCHABLE_GRAPHICS: &[&str] = &["addw1", "gaze14", "oryp4", "oryp4-b", "oryp5"];
 
-
-fn has_switchable_graphics(product: &str) -> bool {
-    SWITCHABLE_GRAPHICS.contains(&product)
-}
+fn has_switchable_graphics(product: &str) -> bool { SWITCHABLE_GRAPHICS.contains(&product) }
 
 /// Path where the product version can be obtained from the DMI.
 const DMI_PATH_PRODUCT_VERSION: &str = "/sys/class/dmi/id/product_version";

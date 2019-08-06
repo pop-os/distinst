@@ -3,14 +3,15 @@ extern crate pbr;
 
 use pbr::ProgressBar;
 
-use distinst::auto::*;
-use distinst::*;
+use distinst::{auto::*, *};
 
-use std::cell::RefCell;
-use std::env;
-use std::io::{self, BufRead, Write};
-use std::path::Path;
-use std::rc::Rc;
+use std::{
+    cell::RefCell,
+    env,
+    io::{self, BufRead, Write},
+    path::Path,
+    rc::Rc,
+};
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -64,10 +65,15 @@ fn main() {
                     let option = InstallOption::Alongside {
                         option,
                         password: args.next(),
-                        sectors: if let AlongsideMethod::Shrink { sectors_free, ..} = option.method {
+                        sectors: if let AlongsideMethod::Shrink { sectors_free, .. } = option.method
+                        {
                             loop {
-                                let _ = write!(io::stdout(), "new install size ({} free): ", sectors_free)
-                                    .and_then(|_| io::stdout().flush());
+                                let _ = write!(
+                                    io::stdout(),
+                                    "new install size ({} free): ",
+                                    sectors_free
+                                )
+                                .and_then(|_| io::stdout().flush());
                                 let stdin = io::stdin();
                                 let _ = stdin.lock().read_line(&mut buff);
                                 if let Ok(number) = buff[..buff.len() - 1].parse::<u64>() {
@@ -101,10 +107,7 @@ fn main() {
 
             match options.erase_options.iter().find(|opt| opt.device == disk) {
                 Some(option) => {
-                    let option = InstallOption::Erase {
-                        option,
-                        password: args.next(),
-                    };
+                    let option = InstallOption::Erase { option, password: args.next() };
 
                     match option.apply(&mut disks) {
                         Ok(()) => (),

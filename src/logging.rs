@@ -4,9 +4,7 @@ use log::{Level, LevelFilter};
 use std::io;
 
 /// Initialize logging with the fern logger
-pub fn log<F: Fn(Level, &str) + Send + Sync + 'static>(
-    callback: F,
-) -> Result<(), fern::InitError> {
+pub fn log<F: Fn(Level, &str) + Send + Sync + 'static>(callback: F) -> Result<(), fern::InitError> {
     fern::Dispatch::new()
         // Include logs for crates that we use.
         .level(LevelFilter::Debug)
@@ -25,7 +23,7 @@ pub fn log<F: Fn(Level, &str) + Send + Sync + 'static>(
                         record.level(),
                         match (record.file(), record.line()) {
                             (Some(file), Some(line)) => format!(":{}:{}", file, line),
-                            _ => "".into()
+                            _ => "".into(),
                         },
                         message
                     ))
@@ -58,7 +56,8 @@ pub fn log<F: Fn(Level, &str) + Send + Sync + 'static>(
             }
 
             logger
-        }).apply()?;
+        })
+        .apply()?;
 
     Ok(())
 }

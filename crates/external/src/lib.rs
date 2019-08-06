@@ -1,7 +1,7 @@
 //! A collection of external commands used throughout the program.
 
-extern crate distinst_utils as misc;
 extern crate disk_types;
+extern crate distinst_utils as misc;
 #[macro_use]
 extern crate log;
 extern crate proc_mounts;
@@ -16,13 +16,13 @@ pub mod luks;
 pub mod lvm;
 pub(crate) mod retry;
 
-pub use self::block::*;
-pub use self::luks::*;
-pub use self::lvm::*;
+pub use self::{block::*, luks::*, lvm::*};
 
-use std::ffi::OsString;
-use std::io::{self, Write};
-use std::process::{Command, Stdio};
+use std::{
+    ffi::OsString,
+    io::{self, Write},
+    process::{Command, Stdio},
+};
 
 /// A generic function for executing a variety external commands.
 pub fn exec(
@@ -35,26 +35,18 @@ pub fn exec(
 
     let mut child = Command::new(cmd)
         .args(args)
-        .stdin(if stdin.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
+        .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::null())
         .spawn()?;
 
     if let Some(stdin) = stdin {
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin not obtained")
-            .write_all(stdin)?;
+        child.stdin.as_mut().expect("stdin not obtained").write_all(stdin)?;
     }
 
     let status = child.wait()?;
-    let success = status.success() || valid_codes.map_or(false, |codes| {
-        status.code().map_or(false, |code| codes.contains(&code))
-    });
+    let success = status.success()
+        || valid_codes
+            .map_or(false, |codes| status.code().map_or(false, |code| codes.contains(&code)));
 
     if success {
         Ok(())

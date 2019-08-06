@@ -44,11 +44,7 @@ pub unsafe extern "C" fn distinst_locale_get_language_codes(
         return ptr::null_mut();
     }
 
-    let codes = locale::LOCALES
-        .keys()
-        .cloned()
-        .map(to_cstr)
-        .collect::<Vec<*mut libc::c_char>>();
+    let codes = locale::LOCALES.keys().cloned().map(to_cstr).collect::<Vec<*mut libc::c_char>>();
 
     *len = codes.len() as libc::c_int;
     Box::into_raw(codes.into_boxed_slice()) as *mut *mut libc::c_char
@@ -68,7 +64,7 @@ pub unsafe extern "C" fn distinst_locale_get_language_name(
             *len = code.len() as libc::c_int;
             code.as_bytes().as_ptr()
         }
-        None => ptr::null()
+        None => ptr::null(),
     }
 }
 
@@ -97,7 +93,7 @@ pub unsafe extern "C" fn distinst_locale_get_country_name(
             *len = code.len() as libc::c_int;
             code.as_bytes().as_ptr()
         }
-        None => ptr::null()
+        None => ptr::null(),
     }
 }
 
@@ -128,6 +124,6 @@ pub unsafe extern "C" fn distinst_locale_get_main_country(
             *len = code.len() as libc::c_int;
             code.as_bytes().as_ptr()
         }
-        None => ptr::null()
+        None => ptr::null(),
     }
 }

@@ -1,9 +1,11 @@
-use std::io::{self, BufRead, BufReader};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::thread;
-use std::time::Duration;
 use super::*;
+use std::{
+    io::{self, BufRead, BufReader},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    thread,
+    time::Duration,
+};
 
 /// Get a vector of encrypted devices
 pub fn encrypted_devices() -> io::Result<Vec<String>> {
@@ -68,8 +70,8 @@ pub fn is_encrypted(device: &Path) -> bool {
                     return false;
                 }
                 attempts += 1;
-                continue
-            },
+                continue;
+            }
             _ => return false,
         }
     }
@@ -82,10 +84,13 @@ pub enum CloseBy<'a> {
 
 /// Closes an encrypted partition.
 pub fn cryptsetup_close(device: CloseBy) -> io::Result<()> {
-    let args = &["close".into(), match device {
-        CloseBy::Path(path) => path.into(),
-        CloseBy::Name(name) => name.into(),
-    }];
+    let args = &[
+        "close".into(),
+        match device {
+            CloseBy::Path(path) => path.into(),
+            CloseBy::Name(name) => name.into(),
+        },
+    ];
     exec("cryptsetup", None, Some(&[4]), args)
 }
 
@@ -97,15 +102,17 @@ pub fn deactivate_logical_devices() -> io::Result<()> {
         if let Some(vg) = pvs()?.get(&PathBuf::from(["/dev/mapper/", &luks_pv].concat())) {
             match *vg {
                 Some(ref vg) => {
-                    if let Err(why) = vgdeactivate(vg).and_then(|_| cryptsetup_close(CloseBy::Name(&luks_pv))) {
+                    if let Err(why) =
+                        vgdeactivate(vg).and_then(|_| cryptsetup_close(CloseBy::Name(&luks_pv)))
+                    {
                         res = Err(why);
                     }
-                },
+                }
                 None => {
                     if let Err(why) = cryptsetup_close(CloseBy::Name(&luks_pv)) {
                         res = Err(why);
                     }
-                },
+                }
             }
         }
     }

@@ -1,12 +1,15 @@
-use distinst::{DiskExt, Disks, BlockDeviceExt, LogicalDevice, PartitionBuilder, PartitionInfo, Sector, SectorExt};
+use distinst::{
+    BlockDeviceExt, DiskExt, Disks, LogicalDevice, PartitionBuilder, PartitionInfo, Sector,
+    SectorExt,
+};
 use external::luks::deactivate_logical_devices;
 use ffi::AsMutPtr;
 use libc;
 
-use super::{get_str, null_check, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector};
-use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
-use std::ptr;
+use super::{
+    get_str, null_check, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector,
+};
+use std::{os::unix::ffi::OsStrExt, path::Path, ptr};
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_deactivate_logical_devices() -> libc::c_int {
@@ -110,7 +113,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_encrypted_file_system(
     let device = &*(device as *const LogicalDevice);
     match device.get_file_system() {
         Some(fs) => fs as *const PartitionInfo as *const DistinstPartition,
-        None => ptr::null()
+        None => ptr::null(),
     }
 }
 
@@ -137,11 +140,7 @@ pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
         return 0;
     }
 
-    (&*(device as *const LogicalDevice))
-        .get_partitions()
-        .iter()
-        .last()
-        .map_or(0, |p| p.end_sector)
+    (&*(device as *const LogicalDevice)).get_partitions().iter().last().map_or(0, |p| p.end_sector)
 }
 
 #[no_mangle]
@@ -189,12 +188,10 @@ pub unsafe extern "C" fn distinst_lvm_device_get_volume(
         return ptr::null_mut();
     }
 
-    get_str(volume)
-        .ok()
-        .map_or(ptr::null_mut(), |volume| {
-            let disk = &mut *(device as *mut LogicalDevice);
-            disk.get_partition_mut(volume).as_mut_ptr() as *mut DistinstPartition
-        })
+    get_str(volume).ok().map_or(ptr::null_mut(), |volume| {
+        let disk = &mut *(device as *mut LogicalDevice);
+        disk.get_partition_mut(volume).as_mut_ptr() as *mut DistinstPartition
+    })
 }
 
 #[no_mangle]
@@ -211,9 +208,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_partition_by_path(
         .and_then(|path| {
             let path = Path::new(&path);
             let device = &mut *(device as *mut LogicalDevice);
-            device.get_partitions_mut()
-                .iter_mut()
-                .find(|d| d.get_device_path() == path)
+            device.get_partitions_mut().iter_mut().find(|d| d.get_device_path() == path)
         })
         .as_mut_ptr() as *mut DistinstPartition
 }
@@ -246,12 +241,10 @@ pub unsafe extern "C" fn distinst_lvm_device_remove_partition(
         return -1;
     }
 
-    get_str(volume)
-        .ok()
-        .map_or(1, |volume| {
-            let device = &mut *(device as *mut LogicalDevice);
-            device.remove_partition(volume).ok().map_or(2, |_| 0)
-        })
+    get_str(volume).ok().map_or(1, |volume| {
+        let device = &mut *(device as *mut LogicalDevice);
+        device.remove_partition(volume).ok().map_or(2, |_| 0)
+    })
 }
 
 #[no_mangle]

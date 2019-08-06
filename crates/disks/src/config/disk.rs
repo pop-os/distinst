@@ -1,22 +1,27 @@
-use proc_mounts::{MOUNTS, SWAPS};
-use super::super::serial::get_serial;
-use external::{is_encrypted, pvs};
-use super::super::{
-    DiskError, DiskExt, Disks, FileSystem, BlockDeviceExt, PartitionError, PartitionFlag,
-    PartitionInfo, PartitionTable, PartitionType,
+use super::{
+    super::{
+        serial::get_serial, BlockDeviceExt, DiskError, DiskExt, Disks, FileSystem, PartitionError,
+        PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
+    },
+    partitions::{FORMAT, REMOVE, SOURCE, SWAPPED},
+    PVS,
 };
 use disk_types::{PartitionExt, PartitionTableExt, SectorExt};
+use external::{is_encrypted, pvs};
 use libparted::{Device, DeviceType, Disk as PedDisk};
-use operations::*;
-use operations::parted::{get_device, open_disk};
+use operations::{
+    parted::{get_device, open_disk},
+    *,
+};
 use partition_identity::PartitionID;
+use proc_mounts::{MOUNTS, SWAPS};
 use rayon::prelude::*;
-use std::collections::BTreeSet;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::str;
-use super::partitions::{FORMAT, REMOVE, SOURCE, SWAPPED};
-use super::PVS;
+use std::{
+    collections::BTreeSet,
+    io,
+    path::{Path, PathBuf},
+    str,
+};
 use sys_mount::{unmount, UnmountFlags};
 
 /// Detects a partition on the device, if it exists.
@@ -59,8 +64,10 @@ pub fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
                                 };
                             }
 
-                            part.mount_point = mounts.get_mount_by_source(device_path).map(|m| m.dest.clone());
-                            part.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
+                            part.mount_point =
+                                mounts.get_mount_by_source(device_path).map(|m| m.dest.clone());
+                            part.bitflags |=
+                                if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
                             part.original_vg = original_vg;
                         }
                         return part;
@@ -113,9 +120,7 @@ impl BlockDeviceExt for Disk {
 
     fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
 
-    fn is_read_only(&self) -> bool {
-        self.read_only
-    }
+    fn is_read_only(&self) -> bool { self.read_only }
 }
 
 impl SectorExt for Disk {
@@ -125,18 +130,14 @@ impl SectorExt for Disk {
 }
 
 impl PartitionTableExt for Disk {
-    fn get_partition_table(&self) -> Option<PartitionTable> {
-        self.table_type
-    }
+    fn get_partition_table(&self) -> Option<PartitionTable> { self.table_type }
 
     fn get_partition_type_count(&self) -> (usize, usize, bool) {
-        self.partitions
-            .iter()
-            .fold((0, 0, false), |sum, part| match part.get_partition_type() {
-                PartitionType::Logical => (sum.0, sum.1 + 1, sum.2),
-                PartitionType::Primary => (sum.0 + 1, sum.1, sum.2),
-                PartitionType::Extended => (sum.0, sum.1, true)
-            })
+        self.partitions.iter().fold((0, 0, false), |sum, part| match part.get_partition_type() {
+            PartitionType::Logical => (sum.0, sum.1 + 1, sum.2),
+            PartitionType::Primary => (sum.0 + 1, sum.1, sum.2),
+            PartitionType::Extended => (sum.0, sum.1, true),
+        })
     }
 }
 
@@ -160,10 +161,7 @@ impl DiskExt for Disk {
 
 impl Disk {
     pub fn new(device: &mut Device, extended_partition_info: bool) -> Result<Disk, DiskError> {
-        info!(
-            "obtaining disk information from {}",
-            device.path().display()
-        );
+        info!("obtaining disk information from {}", device.path().display());
         let model_name = device.model().into();
         let device_path = device.path().to_owned();
         let serial = match device.type_() {
@@ -246,10 +244,7 @@ impl Disk {
     /// serial number, in the event that the user swapped hard drive positions.
     ///
     /// If no match is found, then `Err(DiskError::DeviceGet)` is returned.
-    pub fn from_name_with_serial<P: AsRef<Path>>(
-        name: P,
-        serial: &str,
-    ) -> Result<Disk, DiskError> {
+    pub fn from_name_with_serial<P: AsRef<Path>>(name: P, serial: &str) -> Result<Disk, DiskError> {
         Disk::from_name(name).and_then(|source| {
             if source.serial == serial {
                 Ok(source)
@@ -280,16 +275,13 @@ impl Disk {
 
     /// Unmounts all partitions on the device
     pub fn unmount_all_partitions(&mut self) -> Result<(), (PathBuf, io::Error)> {
-        info!(
-            "unmount all partitions on {}",
-            self.path().display()
-        );
+        info!("unmount all partitions on {}", self.path().display());
 
         let swaps = SWAPS.read().expect("failed to get swaps in unmount_all_partitions");
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
                 if mount == Path::new("/cdrom") || mount == Path::new("/") {
-                    continue
+                    continue;
                 }
 
                 info!(
@@ -298,9 +290,8 @@ impl Disk {
                     mount.display()
                 );
 
-                unmount(mount, UnmountFlags::empty()).map_err(|why| {
-                    (partition.get_device_path().to_path_buf(), why)
-                })?;
+                unmount(mount, UnmountFlags::empty())
+                    .map_err(|why| (partition.get_device_path().to_path_buf(), why))?;
             }
 
             partition.deactivate_if_swap(&swaps)?;
@@ -311,15 +302,12 @@ impl Disk {
 
     /// Unmounts all partitions on the device with a target
     pub fn unmount_all_partitions_with_target(&mut self) -> Result<(), (PathBuf, io::Error)> {
-        info!(
-            "unmount all partitions with a target on {}",
-            self.path().display()
-        );
+        info!("unmount all partitions with a target on {}", self.path().display());
 
-        let swaps = SWAPS.read()
-            .expect("failed to get swaps in unmount_all_partitions_with_target");
-        let mountstab = MOUNTS.read()
-            .expect("failed to get mounts in unmount_all_partitions_with_target");
+        let swaps =
+            SWAPS.read().expect("failed to get swaps in unmount_all_partitions_with_target");
+        let mountstab =
+            MOUNTS.read().expect("failed to get mounts in unmount_all_partitions_with_target");
 
         for partition in &mut self.partitions {
             partition.deactivate_if_swap(&swaps)?;
@@ -331,7 +319,7 @@ impl Disk {
                 || mount.dest == Path::new("/")
                 || mount.dest == Path::new("/boot/efi")
             {
-                continue
+                continue;
             }
 
             info!(
@@ -348,8 +336,7 @@ impl Disk {
 
         for mount in mounts.into_iter().rev() {
             info!("unmounting {}", mount.display());
-            unmount(&mount, UnmountFlags::empty())
-                .map_err(|why| (mount.to_path_buf(), why))?;
+            unmount(&mount, UnmountFlags::empty()).map_err(|why| (mount.to_path_buf(), why))?;
         }
 
         Ok(())
@@ -358,10 +345,7 @@ impl Disk {
     /// Drops all partitions in the in-memory disk representation, and marks that a new
     /// partition table should be written to the disk during the disk operations phase.
     pub fn mklabel(&mut self, kind: PartitionTable) -> Result<(), DiskError> {
-        info!(
-            "specifying to write new table on {}",
-            self.path().display()
-        );
+        info!("specifying to write new table on {}", self.path().display());
         self.unmount_all_partitions()
             .map_err(|(device, why)| DiskError::Unmount { device, why })?;
 
@@ -377,12 +361,9 @@ impl Disk {
     /// field set to `true`, whereas all other theoretical partitions will simply be removed
     /// from the partition vector.
     pub fn remove_partition(&mut self, partition: i32) -> Result<(), DiskError> {
-        info!(
-            "specifying to remove partition {} on {}",
-            partition,
-            self.path().display()
-        );
-        let id = self.partitions
+        info!("specifying to remove partition {} on {}", partition, self.path().display());
+        let id = self
+            .partitions
             .iter_mut()
             .enumerate()
             .find(|&(_, ref p)| p.number == partition)
@@ -418,9 +399,7 @@ impl Disk {
 
     /// Obtains a mutable reference to a partition within the partition scheme.
     pub fn get_partition_mut(&mut self, partition: i32) -> Option<&mut PartitionInfo> {
-        self.partitions
-            .iter_mut()
-            .find(|part| part.number == partition)
+        self.partitions.iter_mut().find(|part| part.number == partition)
     }
 
     /// Find a partition by an identifier.
@@ -428,7 +407,10 @@ impl Disk {
         self.partitions.iter().find(|part| part.identifiers.matches(id))
     }
 
-    pub fn get_partition_by_identity_mut(&mut self, id: &PartitionID) -> Option<&mut PartitionInfo> {
+    pub fn get_partition_by_identity_mut(
+        &mut self,
+        id: &PartitionID,
+    ) -> Option<&mut PartitionInfo> {
         self.partitions.iter_mut().find(|part| part.identifiers.matches(id))
     }
 
@@ -438,13 +420,14 @@ impl Disk {
     pub fn resize_partition(&mut self, partition: i32, mut end: u64) -> Result<u64, DiskError> {
         let (backup, num, start);
         {
-            let partition = self.get_partition_mut(partition)
+            let partition = self
+                .get_partition_mut(partition)
                 .ok_or(DiskError::PartitionNotFound { partition })?;
 
             if end < partition.start_sector {
                 return Err(DiskError::new_partition_error(
                     partition.device_path.clone(),
-                    PartitionError::ResizeTooSmall
+                    PartitionError::ResizeTooSmall,
                 ));
             }
 
@@ -466,7 +449,7 @@ impl Disk {
             {
                 return Err(DiskError::new_partition_error(
                     partition.device_path.clone(),
-                    PartitionError::ResizeTooSmall
+                    PartitionError::ResizeTooSmall,
                 ));
             }
 
@@ -478,7 +461,8 @@ impl Disk {
 
         // Ensure that the new dimensions are not overlapping.
         if let Some(id) = self.overlaps_region_excluding(start, end, num) {
-            let partition = self.get_partition_mut(partition)
+            let partition = self
+                .get_partition_mut(partition)
                 .expect("unable to find partition that should exist");
             partition.end_sector = backup;
             return Err(DiskError::SectorOverlaps { id });
@@ -497,7 +481,8 @@ impl Disk {
             start
         );
         let end = {
-            let partition = self.get_partition_mut(partition)
+            let partition = self
+                .get_partition_mut(partition)
                 .ok_or(DiskError::PartitionNotFound { partition })?;
 
             if start == partition.start_sector {
@@ -515,8 +500,8 @@ impl Disk {
             return Err(DiskError::SectorOverlaps { id });
         }
 
-        let partition = self.get_partition_mut(partition)
-            .expect("unable to find partition that should exist");
+        let partition =
+            self.get_partition_mut(partition).expect("unable to find partition that should exist");
 
         partition.start_sector = start;
         partition.end_sector = end;
@@ -529,11 +514,7 @@ impl Disk {
     /// # Note
     ///
     /// The partition name will cleared after calling this function.
-    pub fn format_partition(
-        &mut self,
-        partition: i32,
-        fs: FileSystem,
-    ) -> Result<(), DiskError> {
+    pub fn format_partition(&mut self, partition: i32, fs: FileSystem) -> Result<(), DiskError> {
         info!(
             "specifying to format partition {} on {} with {:?}",
             partition,
@@ -545,7 +526,9 @@ impl Disk {
             .ok_or(DiskError::PartitionNotFound { partition })
             .and_then(|partition| {
                 fs.validate_size(partition.get_sectors() * sector_size)
-                    .map_err(|why| DiskError::new_partition_error(partition.device_path.clone(), why))
+                    .map_err(|why| {
+                        DiskError::new_partition_error(partition.device_path.clone(), why)
+                    })
                     .map(|_| {
                         partition.format_with(fs);
                         ()
@@ -560,27 +543,28 @@ impl Disk {
         partition: i32,
         flags: Vec<PartitionFlag>,
     ) -> Result<(), DiskError> {
-        self.get_partition_mut(partition)
-            .ok_or(DiskError::PartitionNotFound { partition })
-            .map(|partition| {
+        self.get_partition_mut(partition).ok_or(DiskError::PartitionNotFound { partition }).map(
+            |partition| {
                 partition.flags = flags;
                 ()
-            })
+            },
+        )
     }
 
     /// Specifies to set a new label on the partition.
     pub fn set_name(&mut self, partition: i32, name: String) -> Result<(), DiskError> {
-        self.get_partition_mut(partition)
-            .ok_or(DiskError::PartitionNotFound { partition })
-            .map(|partition| {
+        self.get_partition_mut(partition).ok_or(DiskError::PartitionNotFound { partition }).map(
+            |partition| {
                 partition.name = Some(name);
                 ()
-            })
+            },
+        )
     }
 
     /// Returns a partition ID if the given sector is within that partition.
     fn get_partition_at(&self, sector: u64) -> Option<i32> {
-        self.partitions.iter()
+        self.partitions
+            .iter()
             // Only consider partitions which are not set to be removed.
             .filter(|part| !part.flag_is_enabled(REMOVE))
             // Return upon the first partition where the sector is within the partition.
@@ -594,7 +578,8 @@ impl Disk {
     ///
     /// Allows for a partition to be excluded from the search.
     fn overlaps_region_excluding(&self, start: u64, end: u64, exclude: i32) -> Option<i32> {
-        self.partitions.iter()
+        self.partitions
+            .iter()
             // Only consider partitions which are not set to be removed,
             // and are not to be excluded.
             .filter(|part| !part.flag_is_enabled(REMOVE) && part.number != exclude)
@@ -611,9 +596,11 @@ impl Disk {
             let mut new_parts = new.partitions.iter();
             for source in &self.partitions {
                 match new_parts.next() {
-                    Some(new) => if !source.is_same_partition_as(new) {
-                        return Err(DiskError::LayoutChanged);
-                    },
+                    Some(new) => {
+                        if !source.is_same_partition_as(new) {
+                            return Err(DiskError::LayoutChanged);
+                        }
+                    }
                     None => return Err(DiskError::LayoutChanged),
                 }
             }
@@ -626,10 +613,7 @@ impl Disk {
     ///
     /// An error can occur if the layout of the new disk conflicts with the source.
     pub fn diff<'a>(&'a self, new: &Disk) -> Result<DiskOps<'a>, DiskError> {
-        info!(
-            "generating diff of disk at {}",
-            self.path().display()
-        );
+        info!("generating diff of disk at {}", self.path().display());
         self.validate_layout(new)?;
 
         /// This function is only safe to use within the diff method. The purpose of
@@ -648,9 +632,8 @@ impl Disk {
             while let Some(partition) = partition_iter.next() {
                 if let Some(old_part) = old_iter.next() {
                     if partition.ordering != -1 {
-                        if let Some(old_part) = source
-                            .iter()
-                            .find(|part| part.ordering == partition.ordering + 1)
+                        if let Some(old_part) =
+                            source.iter().find(|part| part.ordering == partition.ordering + 1)
                         {
                             if old_part.ordering != -1
                                 && partition.end_sector > old_part.start_sector
@@ -736,8 +719,9 @@ impl Disk {
                                         start_sector: new.start_sector,
                                         end_sector:   new.end_sector,
                                         format:       true,
-                                        file_system:  Some(new.filesystem
-                                            .expect("no file system in partition that requires changes")),
+                                        file_system:  Some(new.filesystem.expect(
+                                            "no file system in partition that requires changes",
+                                        )),
                                         kind:         new.part_type,
                                         flags:        new.flags.clone(),
                                         label:        new.name.clone(),
@@ -745,18 +729,18 @@ impl Disk {
                                 } else {
                                     change_partitions.push(PartitionChange {
                                         device_path: device_path.clone(),
-                                        path: new.device_path.clone(),
-                                        num: source.number,
-                                        kind: new.part_type,
-                                        start: new.start_sector,
-                                        end: new.end_sector,
-                                        filesystem: source.filesystem,
-                                        flags: flags_diff(
+                                        path:        new.device_path.clone(),
+                                        num:         source.number,
+                                        kind:        new.part_type,
+                                        start:       new.start_sector,
+                                        end:         new.end_sector,
+                                        filesystem:  source.filesystem,
+                                        flags:       flags_diff(
                                             &source.flags,
                                             new.flags.clone().into_iter(),
                                         ),
-                                        new_flags: new.flags.clone(),
-                                        label: new.name.clone(),
+                                        new_flags:   new.flags.clone(),
+                                        label:       new.name.clone(),
                                     });
                                 }
                             }
@@ -802,17 +786,14 @@ impl Disk {
 
     /// Attempts to commit all changes that have been made to the disk.
     pub fn commit(&mut self) -> Result<Option<FormatPartitions>, DiskError> {
-        info!(
-            "committing changes to {}: {:#?}",
-            self.path().display(),
-            self
-        );
+        info!("committing changes to {}: {:#?}", self.path().display(), self);
         Disk::from_name_with_serial(&self.device_path, &self.serial).and_then(|source| {
             source.diff(self).and_then(|ops| {
                 if ops.is_empty() {
                     Ok(None)
                 } else {
-                    let partitions_to_format = ops.remove()
+                    let partitions_to_format = ops
+                        .remove()
                         .and_then(|ops| ops.change())
                         .and_then(|ops| ops.create())
                         .map(Some)?;
@@ -826,13 +807,11 @@ impl Disk {
     /// Reloads the disk information from the disk into our in-memory
     /// representation.
     pub fn reload(&mut self) -> Result<(), DiskError> {
-        info!(
-            "reloading disk information for {}",
-            self.path().display()
-        );
+        info!("reloading disk information for {}", self.path().display());
 
         // Back up any fields that need to be carried over after reloading disk data.
-        let collected = self.partitions
+        let collected = self
+            .partitions
             .iter()
             .filter_map(|partition| {
                 let start = partition.start_sector;
@@ -853,7 +832,8 @@ impl Disk {
         // Then re-add the critical information which was lost.
         for (sector, mount, vg, keyid) in collected {
             info!("checking for mount target at {}", sector);
-            let part = self.get_partition_at(sector)
+            let part = self
+                .get_partition_at(sector)
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
 

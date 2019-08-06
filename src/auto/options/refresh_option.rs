@@ -14,10 +14,11 @@ pub struct RefreshOption {
 
 impl fmt::Display for RefreshOption {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let root_part: String = match PartitionID::new_uuid(self.root_part.clone()).get_device_path() {
-            Some(uuid) => uuid.to_string_lossy().into(),
-            None => "None".into(),
-        };
+        let root_part: String =
+            match PartitionID::new_uuid(self.root_part.clone()).get_device_path() {
+                Some(uuid) => uuid.to_string_lossy().into(),
+                None => "None".into(),
+            };
 
         write!(f, "Refresh {} on {}", self.os_release.name, root_part)
     }

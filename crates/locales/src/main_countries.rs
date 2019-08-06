@@ -1,6 +1,8 @@
-use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader};
 use misc;
+use std::{
+    collections::BTreeMap,
+    io::{BufRead, BufReader},
+};
 
 lazy_static! {
     /// A list of countries considered as "main countries" for a given language code.
@@ -27,8 +29,7 @@ pub fn get_main_countries() -> BTreeMap<String, String> {
         Err(why) => {
             eprintln!(
                 "{:?} could not be opened: {}. returning empty collection.",
-                MAIN_COUNTRIES_PATH,
-                why
+                MAIN_COUNTRIES_PATH, why
             );
             return BTreeMap::new();
         }
@@ -64,15 +65,12 @@ bn	bn_BD
 
     #[test]
     fn main_countries() {
-        assert_eq!(
-            get_main_countries_iter(EXAMPLE.lines().map(|x| x.into())),
-            {
-                let mut map = BTreeMap::new();
-                map.insert("aa".into(), "ET".into());
-                map.insert("ar".into(), "EG".into());
-                map.insert("bn".into(), "BD".into());
-                map
-            }
-        );
+        assert_eq!(get_main_countries_iter(EXAMPLE.lines().map(|x| x.into())), {
+            let mut map = BTreeMap::new();
+            map.insert("aa".into(), "ET".into());
+            map.insert("ar".into(), "EG".into());
+            map.insert("bn".into(), "BD".into());
+            map
+        });
     }
 }

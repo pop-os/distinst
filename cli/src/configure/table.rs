@@ -15,9 +15,7 @@ pub(crate) fn tables(disks: &mut Disks, tables: Option<Values>) -> Result<(), Di
                 "gpt" => disk.mklabel(PartitionTable::Gpt)?,
                 "msdos" => disk.mklabel(PartitionTable::Msdos)?,
                 _ => {
-                    return Err(DistinstError::InvalidTable {
-                        table: values[1].into(),
-                    });
+                    return Err(DistinstError::InvalidTable { table: values[1].into() });
                 }
             }
         }

@@ -1,8 +1,11 @@
 use disks::*;
-use {Config, misc};
+use misc;
 use rayon;
-use std::io::{self, BufRead};
-use std::path::{Path, PathBuf};
+use std::{
+    io::{self, BufRead},
+    path::{Path, PathBuf},
+};
+use Config;
 
 pub fn initialize<F: FnMut(i32)>(
     disks: &mut Disks,
@@ -12,16 +15,15 @@ pub fn initialize<F: FnMut(i32)>(
     info!("Initializing");
 
     let fetch_squashfs = || match Path::new(&config.squashfs).canonicalize() {
-        Ok(squashfs) => if squashfs.exists() {
-            info!("config.squashfs: found at {}", squashfs.display());
-            Ok(squashfs)
-        } else {
-            error!("config.squashfs: supplied file does not exist");
-            Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "invalid squashfs path",
-            ))
-        },
+        Ok(squashfs) => {
+            if squashfs.exists() {
+                info!("config.squashfs: found at {}", squashfs.display());
+                Ok(squashfs)
+            } else {
+                error!("config.squashfs: supplied file does not exist");
+                Err(io::Error::new(io::ErrorKind::NotFound, "invalid squashfs path"))
+            }
+        }
         Err(err) => {
             error!("config.squashfs: {}", err);
             Err(err)
@@ -72,9 +74,9 @@ pub fn initialize<F: FnMut(i32)>(
                 error!("device map deactivation error: {}", why);
                 res_a = Err(io::Error::new(
                     io::ErrorKind::Other,
-                    format!("device map deactivation error: {}", why)
+                    format!("device map deactivation error: {}", why),
                 ));
-                return
+                return;
             }
 
             // Unmount any mounted devices.
@@ -82,9 +84,9 @@ pub fn initialize<F: FnMut(i32)>(
                 error!("device unmount error: {}", why);
                 res_a = Err(io::Error::new(
                     io::ErrorKind::Other,
-                    format!("device unmount error: {}", why)
+                    format!("device unmount error: {}", why),
                 ));
-                return
+                return;
             }
 
             res_a = Ok(());
@@ -95,25 +97,29 @@ pub fn initialize<F: FnMut(i32)>(
         s.spawn(|_| res_d = fetch_squashfs());
     });
 
-    let (remove_pkgs, squashfs) = res_a
-        .and(res_c)
-        .and(res_b)
-        .and_then(|pkgs| res_d.map(|squashfs| (pkgs, squashfs)))?;
+    let (remove_pkgs, squashfs) =
+        res_a.and(res_c).and(res_b).and_then(|pkgs| res_d.map(|squashfs| (pkgs, squashfs)))?;
 
-    let unmount = disks.physical.iter()
-        .map(|disk| !disk.contains_mount("/", disks))
-        .collect::<Vec<bool>>();
+    let unmount =
+        disks.physical.iter().map(|disk| !disk.contains_mount("/", disks)).collect::<Vec<bool>>();
 
-    disks.physical.iter_mut().zip(unmount.into_iter())
+    disks
+        .physical
+        .iter_mut()
+        .zip(unmount.into_iter())
         .filter(|&(_, unmount)| unmount)
         .map(|(disk, _)| {
             if let Err(why) = disk.unmount_all_partitions_with_target() {
                 error!("unable to unmount partitions");
-                return Err(io::Error::new(io::ErrorKind::Other, format!("{:?}: {}", why.0, why.1)));
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("{:?}: {}", why.0, why.1),
+                ));
             }
 
             Ok(())
-        }).collect::<io::Result<()>>()?;
+        })
+        .collect::<io::Result<()>>()?;
 
     callback(100);
 

@@ -1,4 +1,3 @@
-use {Config, MODIFY_BOOT_ORDER};
 use chroot::Chroot;
 use disks::{Bootloader, Disks};
 use errors::IoContext;
@@ -6,12 +5,12 @@ use libc;
 use os_release::OsRelease;
 use std::{
     ffi::{OsStr, OsString},
-    fs,
-    io,
-    os::unix::ffi::OsStrExt,
-    os::unix::ffi::OsStringExt,
+    fs, io,
+    os::unix::ffi::{OsStrExt, OsStringExt},
     path::{Path, PathBuf},
 };
+use Config;
+use MODIFY_BOOT_ORDER;
 
 use super::mount_efivars;
 
@@ -33,11 +32,7 @@ pub fn bootloader<F: FnMut(i32)>(
         dev
     });
 
-    info!(
-        "{}: installing bootloader for {:?}",
-        bootloader_dev.display(),
-        bootloader
-    );
+    info!("{}: installing bootloader for {:?}", bootloader_dev.display(), bootloader);
 
     {
         let efi_path = {
@@ -66,64 +61,71 @@ pub fn bootloader<F: FnMut(i32)>(
 
             match bootloader {
                 Bootloader::Bios => {
-                    chroot.command(
-                        "grub-install",
-                        &[
-                            // Recreate device map
-                            "--recheck".into(),
-                            // Install for BIOS
-                            "--target=i386-pc".into(),
-                            // Install to the bootloader_dev device
-                            bootloader_dev.to_str().unwrap().to_owned(),
-                        ],
-                    ).run()?;
+                    chroot
+                        .command(
+                            "grub-install",
+                            &[
+                                // Recreate device map
+                                "--recheck".into(),
+                                // Install for BIOS
+                                "--target=i386-pc".into(),
+                                // Install to the bootloader_dev device
+                                bootloader_dev.to_str().unwrap().to_owned(),
+                            ],
+                        )
+                        .run()?;
                 }
                 Bootloader::Efi => {
                     // Grub disallows whitespaces in the name.
                     let name = super::normalize_os_release_name(&iso_os_release.name);
                     if &name == "Pop!_OS" {
-                        chroot.command(
-                            "bootctl",
-                            &[
-                                // Install systemd-boot
-                                "install",
-                                // Provide path to ESP
-                                "--path=/boot/efi",
-                                // Do not set EFI variables
-                                "--no-variables",
-                            ][..],
-                        ).run()?;
+                        chroot
+                            .command(
+                                "bootctl",
+                                &[
+                                    // Install systemd-boot
+                                    "install",
+                                    // Provide path to ESP
+                                    "--path=/boot/efi",
+                                    // Do not set EFI variables
+                                    "--no-variables",
+                                ][..],
+                            )
+                            .run()?;
                     } else {
-                        chroot.command(
-                            "/usr/bin/env",
-                            &[
-                                "bash",
-                                "-c",
-                                "echo GRUB_ENABLE_CRYPTODISK=y >> /etc/default/grub"
-                            ]
-                        ).run()?;
+                        chroot
+                            .command(
+                                "/usr/bin/env",
+                                &[
+                                    "bash",
+                                    "-c",
+                                    "echo GRUB_ENABLE_CRYPTODISK=y >> /etc/default/grub",
+                                ],
+                            )
+                            .run()?;
 
-                        chroot.command(
-                            "grub-install",
-                            &[
-                                "--target=x86_64-efi",
-                                "--efi-directory=/boot/efi",
-                                &format!("--boot-directory=/boot/efi/EFI/{}", name),
-                                &format!("--bootloader={}", name),
-                                "--no-nvram",
-                                "--recheck",
-                            ]
-                        ).run()?;
+                        chroot
+                            .command(
+                                "grub-install",
+                                &[
+                                    "--target=x86_64-efi",
+                                    "--efi-directory=/boot/efi",
+                                    &format!("--boot-directory=/boot/efi/EFI/{}", name),
+                                    &format!("--bootloader={}", name),
+                                    "--no-nvram",
+                                    "--recheck",
+                                ],
+                            )
+                            .run()?;
 
-                        chroot.command(
-                            "grub-mkconfig",
-                            &[ "-o", &format!("/boot/efi/EFI/{}/grub/grub.cfg", name)]
-                        ).run()?;
+                        chroot
+                            .command(
+                                "grub-mkconfig",
+                                &["-o", &format!("/boot/efi/EFI/{}/grub/grub.cfg", name)],
+                            )
+                            .run()?;
 
-                        chroot.command(
-                            "update-initramfs",
-                            &["-c", "-k", "all"]
-                        ).run()?;
+                        chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
                     }
 
                     if config.flags & MODIFY_BOOT_ORDER != 0 {
@@ -144,7 +146,7 @@ pub fn bootloader<F: FnMut(i32)>(
                             "--label".as_ref(),
                             iso_os_release.pretty_name.as_ref(),
                             "--loader".as_ref(),
-                            loader.as_ref()
+                            loader.as_ref(),
                         ][..];
 
                         chroot.command("efibootmgr", args).run()?;
@@ -153,7 +155,9 @@ pub fn bootloader<F: FnMut(i32)>(
             }
 
             // Sync to the disk before unmounting
-            unsafe { libc::sync(); }
+            unsafe {
+                libc::sync();
+            }
 
             drop(efivars_mount);
             chroot.unmount(false)?;

@@ -9,8 +9,10 @@
 //! }
 //! ```
 
-use std::path::Path;
-use std::sync::atomic::{ATOMIC_USIZE_INIT, AtomicUsize, Ordering};
+use std::{
+    path::Path,
+    sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT},
+};
 
 /// Force the installation to perform either a BIOS or EFI installation.
 pub static FORCE_BOOTLOADER: AtomicUsize = ATOMIC_USIZE_INIT;
@@ -32,7 +34,7 @@ impl Bootloader {
             2 => {
                 return Bootloader::Efi;
             }
-            _ => ()
+            _ => (),
         }
 
         if Path::new("/sys/firmware/efi").is_dir() {

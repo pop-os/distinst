@@ -1,32 +1,22 @@
-use std::fmt;
-use std::mem;
+use std::{fmt, mem};
 
+use super::{
+    super::super::*, AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError,
+    RecoveryOption, RefreshOption,
+};
+use disk_types::{FileSystem::*, SectorExt};
 use disks::*;
-use disk_types::{SectorExt};
-use disk_types::FileSystem::*;
+use external::{generate_unique_id, remount_rw};
 use misc;
 use partition_identity::PartitionID;
 use proc_mounts::MountIter;
-use super::{AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError, RecoveryOption, RefreshOption};
-use super::super::super::*;
-use external::{generate_unique_id, remount_rw};
 
 pub enum InstallOption<'a> {
-    Alongside {
-        option: &'a AlongsideOption,
-        password: Option<String>,
-        sectors: u64,
-    },
+    Alongside { option: &'a AlongsideOption, password: Option<String>, sectors: u64 },
     Refresh(&'a RefreshOption),
-    Erase {
-        option:   &'a EraseOption,
-        password: Option<String>,
-    },
-    Recovery {
-        option:   &'a RecoveryOption,
-        password: Option<String>,
-    },
-    Upgrade(&'a RecoveryOption)
+    Erase { option: &'a EraseOption, password: Option<String> },
+    Recovery { option: &'a RecoveryOption, password: Option<String> },
+    Upgrade(&'a RecoveryOption),
 }
 
 impl<'a> fmt::Debug for InstallOption<'a> {
@@ -42,16 +32,18 @@ impl<'a> fmt::Debug for InstallOption<'a> {
                 write!(f, "InstallOption::UpgradeOption({:?})", option)
             }
             InstallOption::Recovery { .. } => write!(f, "InstallOption::RecoveryOption"),
-            InstallOption::Erase { ref option, .. } => write!(
-                f,
-                "InstallOption::EraseOption {{ option: {:?}, .. }}",
-                option
-            ),
+            InstallOption::Erase { ref option, .. } => {
+                write!(f, "InstallOption::EraseOption {{ option: {:?}, .. }}", option)
+            }
         }
     }
 }
 
-fn set_mount_by_identity(disks: &mut Disks, id: &PartitionID, mount: &str) -> Result<(), InstallOptionError> {
+fn set_mount_by_identity(
+    disks: &mut Disks,
+    id: &PartitionID,
+    mount: &str,
+) -> Result<(), InstallOptionError> {
     disks
         .get_partition_by_id_mut(id)
         .ok_or_else(|| InstallOptionError::PartitionIDNotFound { id: id.clone() })
@@ -90,20 +82,14 @@ impl<'a> InstallOption<'a> {
                 alongside_config(disks, option, password, sectors)
             }
             // Reuse existing partitions, without making any modifications.
-            InstallOption::Refresh(option) => {
-                refresh_config(disks, option)
-            }
+            InstallOption::Refresh(option) => refresh_config(disks, option),
             // Perform a recovery install
             InstallOption::Recovery { option, password } => {
                 recovery_config(disks, option, password)
             }
             // Reset the `disks` object and designate a disk to be wiped and installed.
-            InstallOption::Erase { option, password } => {
-                erase_config(disks, option, password)
-            }
-            InstallOption::Upgrade(option) => {
-                upgrade_config(disks, option)
-            }
+            InstallOption::Erase { option, password } => erase_config(disks, option, password),
+            InstallOption::Upgrade(option) => upgrade_config(disks, option),
         }
     }
 }
@@ -112,32 +98,29 @@ fn alongside_config(
     disks: &mut Disks,
     option: &AlongsideOption,
     password: Option<String>,
-    sectors: u64
+    sectors: u64,
 ) -> Result<(), InstallOptionError> {
     let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
 
     let mut device = Disk::from_name(&option.device)
         .ok()
-        .ok_or_else(|| InstallOptionError::DeviceNotFound {
-            path: option.device.clone(),
-        })?;
+        .ok_or_else(|| InstallOptionError::DeviceNotFound { path: option.device.clone() })?;
 
     let (mut start, end) = match option.method {
         AlongsideMethod::Shrink { partition, .. } => {
-            let resize = device.get_partition_mut(partition)
-                .ok_or_else(|| InstallOptionError::PartitionNotFoundByID {
+            let resize = device.get_partition_mut(partition).ok_or_else(|| {
+                InstallOptionError::PartitionNotFoundByID {
                     number: partition,
-                    device: option.device.clone()
-                })?;
+                    device: option.device.clone(),
+                }
+            })?;
 
             let end = resize.end_sector;
             resize.shrink_to(sectors)?;
             (resize.end_sector + 1, end)
         }
-        AlongsideMethod::Free(ref region) => {
-            (region.start + 1, region.end - 1)
-        }
+        AlongsideMethod::Free(ref region) => (region.start + 1, region.end - 1),
     };
 
     let (lvm, root_vg) = match generate_encryption(password)? {
@@ -162,7 +145,7 @@ fn alongside_config(
         device.add_partition(
             PartitionBuilder::new(start, esp_end, Fat32)
                 .flag(PartitionFlag::PED_PARTITION_ESP)
-                .mount("/boot/efi".into())
+                .mount("/boot/efi".into()),
         )?;
 
         start = esp_end;
@@ -171,7 +154,7 @@ fn alongside_config(
         device.add_partition(
             PartitionBuilder::new(start, recovery_end, Fat32)
                 .mount("/recovery".into())
-                .name("recovery".into())
+                .name("recovery".into()),
         )?;
 
         start = recovery_end;
@@ -183,7 +166,7 @@ fn alongside_config(
             PartitionBuilder::new(start, boot_end, Ext4)
                 .partition_type(PartitionType::Primary)
                 .flag(PartitionFlag::PED_PARTITION_BOOT)
-                .mount("/boot".into())
+                .mount("/boot".into()),
         )?;
 
         start = boot_end;
@@ -194,7 +177,7 @@ fn alongside_config(
         device.add_partition(
             PartitionBuilder::new(start, end, Lvm)
                 .partition_type(PartitionType::Primary)
-                .logical_volume(root_vg, Some(enc))
+                .logical_volume(root_vg, Some(enc)),
         )?;
     } else {
         let swap = end - DEFAULT_SWAP_SECTORS;
@@ -207,10 +190,7 @@ fn alongside_config(
             end
         };
 
-        device.add_partition(
-            PartitionBuilder::new(start, end, Ext4)
-                .mount("/".into())
-        )?;
+        device.add_partition(PartitionBuilder::new(start, end, Ext4).mount("/".into()))?;
     }
 
     disks.add(device);
@@ -225,16 +205,13 @@ fn alongside_config(
         let swap = lvm_device.get_sector(Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS));
         let end = lvm_device.get_sector(Sector::End);
 
-        lvm_device.add_partition(
-            PartitionBuilder::new(start, swap, Ext4)
-                .name("root".into())
-                .mount("/".into()),
-        ).and_then(|_| {
-            lvm_device.add_partition(
-                PartitionBuilder::new(swap, end, Swap)
-                    .name("swap".into()),
+        lvm_device
+            .add_partition(
+                PartitionBuilder::new(start, swap, Ext4).name("root".into()).mount("/".into()),
             )
-        })?;
+            .and_then(|_| {
+                lvm_device.add_partition(PartitionBuilder::new(swap, end, Swap).name("swap".into()))
+            })?;
     }
 
     Ok(())
@@ -277,7 +254,10 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
     Ok(())
 }
 
-fn mount_recovery_partid(disks: &mut Disks, recovery: &PartitionID) -> Result<(), InstallOptionError> {
+fn mount_recovery_partid(
+    disks: &mut Disks,
+    recovery: &PartitionID,
+) -> Result<(), InstallOptionError> {
     if let Some(path) = recovery.get_device_path() {
         let recovery_is_cdrom = MountIter::source_mounted_at(path, "/cdrom")
             .map_err(|why| InstallOptionError::ProcMounts { why })?;
@@ -297,7 +277,7 @@ fn mount_recovery_partid(disks: &mut Disks, recovery: &PartitionID) -> Result<()
 fn recovery_config(
     disks: &mut Disks,
     option: &RecoveryOption,
-    password: Option<String>
+    password: Option<String>,
 ) -> Result<(), InstallOptionError> {
     let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
@@ -308,35 +288,36 @@ fn recovery_config(
     };
 
     let mut recovery_device: Disk = {
-        let mut recovery_path = option.parse_recovery_id()
-            .get_device_path()
-            .ok_or_else(|| InstallOptionError::PartitionNotFound {
-                uuid: option.recovery_uuid.clone()
-            })?;
+        let mut recovery_path = option.parse_recovery_id().get_device_path().ok_or_else(|| {
+            InstallOptionError::PartitionNotFound { uuid: option.recovery_uuid.clone() }
+        })?;
 
-        if let Some(physical) = misc::resolve_to_physical(recovery_path.file_name().unwrap().to_str().unwrap()) {
+        if let Some(physical) =
+            misc::resolve_to_physical(recovery_path.file_name().unwrap().to_str().unwrap())
+        {
             recovery_path = physical;
         }
 
-        if let Some(parent) = misc::resolve_parent(recovery_path.file_name().unwrap().to_str().unwrap()) {
+        if let Some(parent) =
+            misc::resolve_parent(recovery_path.file_name().unwrap().to_str().unwrap())
+        {
             recovery_path = parent;
         }
 
         info!("recovery disk found at {:?}", recovery_path);
         Disk::from_name(&recovery_path)
             .ok()
-            .ok_or(InstallOptionError::DeviceNotFound {
-                path: recovery_path.to_path_buf(),
-            })?
+            .ok_or(InstallOptionError::DeviceNotFound { path: recovery_path.to_path_buf() })?
     };
 
     {
         let recovery_device = &mut recovery_device;
-        let lvm_part: Option<PathBuf> = option.luks_uuid.clone()
-            .and_then(|uuid| PartitionID::new_uuid(uuid).get_device_path());
+        let lvm_part: Option<PathBuf> =
+            option.luks_uuid.clone().and_then(|uuid| PartitionID::new_uuid(uuid).get_device_path());
 
         if let Some(ref uuid) = option.efi_uuid {
-            let path = option.parse_efi_id().unwrap().get_device_path().expect("no uuid for efi part");
+            let path =
+                option.parse_efi_id().unwrap().get_device_path().expect("no uuid for efi part");
             recovery_device
                 .get_partitions_mut()
                 .iter_mut()
@@ -347,7 +328,8 @@ fn recovery_config(
 
         {
             let uuid = &option.recovery_uuid;
-            let path = &option.parse_recovery_id().get_device_path().expect("no uuid for recovery part");
+            let path =
+                &option.parse_recovery_id().get_device_path().expect("no uuid for recovery part");
             recovery_device
                 .get_partitions_mut()
                 .iter_mut()
@@ -359,17 +341,17 @@ fn recovery_config(
         let (start, end);
 
         let root_path = if let Some(mut part) = lvm_part {
-            if let Some(physical) = misc::resolve_to_physical(part.file_name().unwrap().to_str().unwrap()) {
+            if let Some(physical) =
+                misc::resolve_to_physical(part.file_name().unwrap().to_str().unwrap())
+            {
                 part = physical;
             }
 
             part
         } else {
-            PartitionID::new_uuid(option.root_uuid.clone())
-                .get_device_path()
-                .ok_or_else(|| InstallOptionError::PartitionNotFound {
-                    uuid: option.root_uuid.clone()
-                })?
+            PartitionID::new_uuid(option.root_uuid.clone()).get_device_path().ok_or_else(|| {
+                InstallOptionError::PartitionNotFound { uuid: option.root_uuid.clone() }
+            })?
         };
 
         let id = {
@@ -390,14 +372,11 @@ fn recovery_config(
 
         if let Some((enc, root)) = lvm {
             recovery_device.add_partition(
-                PartitionBuilder::new(start, end, Luks)
-                    .logical_volume(root, Some(enc)),
+                PartitionBuilder::new(start, end, Luks).logical_volume(root, Some(enc)),
             )?;
         } else {
-            recovery_device.add_partition(
-                PartitionBuilder::new(start, end, Ext4)
-                    .mount("/".into()),
-            )?;
+            recovery_device
+                .add_partition(PartitionBuilder::new(start, end, Ext4).mount("/".into()))?;
         }
     }
 
@@ -413,9 +392,7 @@ fn recovery_config(
         let end = lvm_device.get_sector(Sector::End);
 
         lvm_device.add_partition(
-            PartitionBuilder::new(start, end, Ext4)
-                .name("root".into())
-                .mount("/".into()),
+            PartitionBuilder::new(start, end, Ext4).name("root".into()).mount("/".into()),
         )?;
     }
 
@@ -426,7 +403,7 @@ fn recovery_config(
 fn erase_config(
     disks: &mut Disks,
     option: &EraseOption,
-    password: Option<String>
+    password: Option<String>,
 ) -> Result<(), InstallOptionError> {
     let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
@@ -445,15 +422,14 @@ fn erase_config(
     };
 
     {
-        let mut device = Disk::from_name(&option.device).ok().ok_or(
-            InstallOptionError::DeviceNotFound {
-                path: option.device.clone(),
-            },
-        )?;
+        let mut device = Disk::from_name(&option.device)
+            .ok()
+            .ok_or(InstallOptionError::DeviceNotFound { path: option.device.clone() })?;
 
         let result = match bootloader {
             Bootloader::Efi => {
-                device.mklabel(PartitionTable::Gpt)
+                device
+                    .mklabel(PartitionTable::Gpt)
                     // Configure ESP partition
                     .and_then(|_| {
                         let start = device.get_sector(start_sector);
@@ -462,7 +438,7 @@ fn erase_config(
                             PartitionBuilder::new(start, end, Fat32)
                                 .partition_type(PartitionType::Primary)
                                 .flag(PartitionFlag::PED_PARTITION_ESP)
-                                .mount("/boot/efi".into())
+                                .mount("/boot/efi".into()),
                         )
                     })
                     // Configure recovery partition
@@ -472,55 +448,52 @@ fn erase_config(
                         device.add_partition(
                             PartitionBuilder::new(start, end, Fat32)
                                 .name("recovery".into())
-                                .mount("/recovery".into())
+                                .mount("/recovery".into()),
                         )
                     })
-                    .map(|_| (
-                        device.get_sector(recovery_sector),
-                        device.get_sector(swap_sector)
-                    ))
+                    .map(|_| (device.get_sector(recovery_sector), device.get_sector(swap_sector)))
             }
             Bootloader::Bios => {
-                device.mklabel(PartitionTable::Msdos)
+                device
+                    .mklabel(PartitionTable::Msdos)
                     // This is used to ensure LVM installs will work with BIOS
-                    .and_then(|_| if lvm.is_some() {
-                        let start = device.get_sector(start_sector);
-                        let end = device.get_sector(boot_sector);
-                        device.add_partition(
-                            PartitionBuilder::new(start, end, Ext4)
-                                .partition_type(PartitionType::Primary)
-                                .flag(PartitionFlag::PED_PARTITION_BOOT)
-                                .mount("/boot".into())
-                        ).map(|_| (boot_sector, swap_sector))
-                    } else {
-                        Ok((start_sector, swap_sector))
+                    .and_then(|_| {
+                        if lvm.is_some() {
+                            let start = device.get_sector(start_sector);
+                            let end = device.get_sector(boot_sector);
+                            device
+                                .add_partition(
+                                    PartitionBuilder::new(start, end, Ext4)
+                                        .partition_type(PartitionType::Primary)
+                                        .flag(PartitionFlag::PED_PARTITION_BOOT)
+                                        .mount("/boot".into()),
+                                )
+                                .map(|_| (boot_sector, swap_sector))
+                        } else {
+                            Ok((start_sector, swap_sector))
+                        }
                     })
-                    .map(|(start, end)| (
-                        device.get_sector(start),
-                        device.get_sector(end)
-                    ))
+                    .map(|(start, end)| (device.get_sector(start), device.get_sector(end)))
             }
         };
 
         // Configure optionally-encrypted root volume
-        result.and_then(|(start, end)| {
-            device.add_partition(if let Some((enc, root_vg)) = lvm {
-                PartitionBuilder::new(start, end, Lvm)
-                    .partition_type(PartitionType::Primary)
-                    .logical_volume(root_vg, Some(enc))
-            } else {
-                PartitionBuilder::new(start, end, Ext4)
-                    .mount("/".into())
+        result
+            .and_then(|(start, end)| {
+                device.add_partition(if let Some((enc, root_vg)) = lvm {
+                    PartitionBuilder::new(start, end, Lvm)
+                        .partition_type(PartitionType::Primary)
+                        .logical_volume(root_vg, Some(enc))
+                } else {
+                    PartitionBuilder::new(start, end, Ext4).mount("/".into())
+                })
             })
-        })
-        // Configure swap partition
-        .and_then(|_| {
-            let start = device.get_sector(swap_sector);
-            let end = device.get_sector(end_sector);
-            device.add_partition(
-                PartitionBuilder::new(start, end, Swap)
-            )
-        })?;
+            // Configure swap partition
+            .and_then(|_| {
+                let start = device.get_sector(swap_sector);
+                let end = device.get_sector(end_sector);
+                device.add_partition(PartitionBuilder::new(start, end, Swap))
+            })?;
 
         disks.add(device);
     }
@@ -536,9 +509,7 @@ fn erase_config(
         let end = lvm_device.get_sector(end_sector);
 
         lvm_device.add_partition(
-            PartitionBuilder::new(start, end, Ext4)
-                .name("root".into())
-                .mount("/".into()),
+            PartitionBuilder::new(start, end, Ext4).name("root".into()).mount("/".into()),
         )?;
     }
 
