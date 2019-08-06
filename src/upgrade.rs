@@ -149,19 +149,19 @@ fn apt_upgrade<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) ->
                 let result = info.parse::<AptUpgradeEvent>();
                 let event = match result.as_ref() {
                     Ok(AptUpgradeEvent::Processing { ref package }) => {
-                        UpgradeEvent::PackageProcessing(package.as_str())
+                        UpgradeEvent::PackageProcessing(package.as_ref())
                     }
                     Ok(AptUpgradeEvent::Progress { percent }) => {
                         UpgradeEvent::PackageProgress(*percent)
                     }
                     Ok(AptUpgradeEvent::SettingUp { ref package }) => {
-                        UpgradeEvent::PackageSettingUp(package.as_str())
+                        UpgradeEvent::PackageSettingUp(package.as_ref())
                     }
                     Ok(AptUpgradeEvent::Unpacking { ref package, ref version, ref over }) => {
                         UpgradeEvent::PackageUnpacking {
-                            package: package.as_str(),
-                            version: version.as_str(),
-                            over:    over.as_str(),
+                            package: package.as_ref(),
+                            version: version.as_ref(),
+                            over:    over.as_ref(),
                         }
                     }
                     _ => UpgradeEvent::UpgradeInfo(info),
@@ -190,16 +190,16 @@ fn dpkg_configure_all<F: Fn(UpgradeEvent)>(
                 let result = info.parse::<AptUpgradeEvent>();
                 let event = match result.as_ref() {
                     Ok(AptUpgradeEvent::Processing { ref package }) => {
-                        UpgradeEvent::PackageProcessing(package.as_str())
+                        UpgradeEvent::PackageProcessing(package.as_ref())
                     }
                     Ok(AptUpgradeEvent::SettingUp { ref package }) => {
-                        UpgradeEvent::PackageSettingUp(package.as_str())
+                        UpgradeEvent::PackageSettingUp(package.as_ref())
                     }
                     Ok(AptUpgradeEvent::Unpacking { ref package, ref version, ref over }) => {
                         UpgradeEvent::PackageUnpacking {
-                            package: package.as_str(),
-                            version: version.as_str(),
-                            over:    over.as_str(),
+                            package: package.as_ref(),
+                            version: version.as_ref(),
+                            over:    over.as_ref(),
                         }
                     }
                     _ => UpgradeEvent::UpgradeInfo(info),

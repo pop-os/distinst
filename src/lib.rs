@@ -68,21 +68,21 @@ use external::dmlist;
 use std::{
     io::{self, Read},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT},
+    sync::atomic::AtomicBool,
 };
 
 pub use self::{installer::*, logging::log};
 
 /// When set to true, this will stop the installation process.
-pub static KILL_SWITCH: AtomicBool = ATOMIC_BOOL_INIT;
+pub static KILL_SWITCH: AtomicBool = AtomicBool::new(false);
 
 pub use bootloader::FORCE_BOOTLOADER;
 
 /// Exits before the unsquashfs step
-pub static PARTITIONING_TEST: AtomicBool = ATOMIC_BOOL_INIT;
+pub static PARTITIONING_TEST: AtomicBool = AtomicBool::new(false);
 
 /// Even if the system is EFI, the efivars directory will not be mounted in the chroot.
-pub static NO_EFI_VARIABLES: AtomicBool = ATOMIC_BOOL_INIT;
+pub static NO_EFI_VARIABLES: AtomicBool = AtomicBool::new(false);
 
 pub const DEFAULT_ESP_SECTORS: u64 = 1_024_000;
 pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
