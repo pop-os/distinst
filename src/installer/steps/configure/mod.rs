@@ -20,6 +20,7 @@ use super::{mount_efivars, mount_cdrom};
 use tempdir::TempDir;
 use timezones::Region;
 use installer::traits::InstallerDiskOps;
+use crate::installer::steps::normalize_os_release_name;
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
@@ -286,7 +287,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         let apt_remove = chroot.apt_remove(&remove);
         let recovery = chroot.recovery(
             config,
-            &iso_os_release.name,
+            &normalize_os_release_name(&iso_os_release.name),
             &root_uuid.id,
             luks_uuid.as_ref().map_or("", |ref uuid| uuid.id.as_str())
         );

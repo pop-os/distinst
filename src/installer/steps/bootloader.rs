@@ -4,12 +4,15 @@ use disks::{Bootloader, Disks};
 use errors::IoContext;
 use libc;
 use os_release::OsRelease;
-use std::ffi::{OsStr, OsString};
-use std::fs;
-use std::io;
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::ffi::OsStringExt;
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::{OsStr, OsString},
+    fs,
+    io,
+    os::unix::ffi::OsStrExt,
+    os::unix::ffi::OsStringExt,
+    path::{Path, PathBuf},
+};
+
 use super::mount_efivars;
 
 pub fn bootloader<F: FnMut(i32)>(
@@ -77,7 +80,7 @@ pub fn bootloader<F: FnMut(i32)>(
                 }
                 Bootloader::Efi => {
                     // Grub disallows whitespaces in the name.
-                    let name = iso_os_release.name.replace(" ", "_");
+                    let name = super::normalize_os_release_name(&iso_os_release.name);
                     if &name == "Pop!_OS" {
                         chroot.command(
                             "bootctl",

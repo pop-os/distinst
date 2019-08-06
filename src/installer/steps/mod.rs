@@ -8,11 +8,15 @@ pub use self::configure::*;
 pub use self::initialize::*;
 pub use self::partition::*;
 
-use std::io;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    borrow::Cow,
+    io,
+    fs,
+    path::{Path, PathBuf},
+    sync::atomic::Ordering
+};
+
 use NO_EFI_VARIABLES;
-use std::sync::atomic::Ordering;
 use sys_mount::*;
 
 /// Installation step
@@ -50,5 +54,19 @@ fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<Unmou
         Ok(Some(Mount::new(source, &target, "none", MountFlags::BIND, None)?.into_unmount_drop(UnmountFlags::empty())))
     } else {
         Ok(None)
+    }
+}
+
+/// Replace spaces in OS names as necessary, and rename elementary OS to ubuntu.
+fn normalize_os_release_name(name: &str) -> Cow<str> {
+    if name.contains(' ') {
+        let name = name.replace(' ', "_");
+        if &*name == "elementary_OS" {
+            Cow::Borrowed("ubuntu")
+        } else {
+            Cow::Owned(name)
+        }
+    } else {
+        Cow::Borrowed(name)
     }
 }
