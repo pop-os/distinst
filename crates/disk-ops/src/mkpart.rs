@@ -23,7 +23,7 @@ pub struct PartitionCreate {
     /// The format that the file system should be formatted to.
     pub file_system: Option<FileSystem>,
     /// Whether the partition should be primary or logical.
-    #[default = "PartitionType::Primary"]
+    #[default(PartitionType::Primary)]
     pub kind: PartitionType,
     /// Flags which should be set on the partition.
     pub flags: Vec<PartitionFlag>,
@@ -46,7 +46,7 @@ impl PartitionExt for PartitionCreate {
 
     fn get_partition_flags(&self) -> &[PartitionFlag] { &self.flags }
 
-    fn get_partition_label(&self) -> Option<&str> { self.label.as_ref().map(|s| s.as_str()) }
+    fn get_partition_label(&self) -> Option<&str> { self.label.as_ref().map(String::as_str) }
 
     fn get_partition_type(&self) -> PartitionType { self.kind }
 }

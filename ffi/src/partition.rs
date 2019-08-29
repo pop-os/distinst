@@ -2,15 +2,13 @@ use libc;
 
 use std::{ffi::CString, io, os::unix::ffi::OsStrExt, path::PathBuf, ptr};
 
+use crate::{
+    filesystem::DISTINST_FILE_SYSTEM, gen_object_ptr, get_str, null_check, DistinstLvmEncryption,
+};
 use distinst::{
     BlockDeviceExt, Bootloader, FileSystem, LvmEncryption, PartitionBuilder, PartitionExt,
     PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
 };
-use filesystem::DISTINST_FILE_SYSTEM;
-use gen_object_ptr;
-use get_str;
-use null_check;
-use DistinstLvmEncryption;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]

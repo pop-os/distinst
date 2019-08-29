@@ -118,7 +118,7 @@ pub struct Disk {
 impl BlockDeviceExt for Disk {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
-    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
+    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(PathBuf::as_path) }
 
     fn is_read_only(&self) -> bool { self.read_only }
 }
@@ -531,7 +531,6 @@ impl Disk {
                     })
                     .map(|_| {
                         partition.format_with(fs);
-                        ()
                     })
             })
     }
@@ -546,7 +545,6 @@ impl Disk {
         self.get_partition_mut(partition).ok_or(DiskError::PartitionNotFound { partition }).map(
             |partition| {
                 partition.flags = flags;
-                ()
             },
         )
     }
@@ -556,7 +554,6 @@ impl Disk {
         self.get_partition_mut(partition).ok_or(DiskError::PartitionNotFound { partition }).map(
             |partition| {
                 partition.name = Some(name);
-                ()
             },
         )
     }
@@ -794,8 +791,8 @@ impl Disk {
                 } else {
                     let partitions_to_format = ops
                         .remove()
-                        .and_then(|ops| ops.change())
-                        .and_then(|ops| ops.create())
+                        .and_then(ChangePartitions::change)
+                        .and_then(CreatePartitions::create)
                         .map(Some)?;
 
                     Ok(partitions_to_format)

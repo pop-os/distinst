@@ -1,4 +1,4 @@
-use super::*;
+use proc_mounts::MountIter;
 use std::{
     io::{self, BufRead, BufReader},
     path::{Path, PathBuf},
@@ -6,6 +6,9 @@ use std::{
     thread,
     time::Duration,
 };
+use sys_mount::*;
+
+use super::*;
 
 /// Get a vector of encrypted devices
 pub fn encrypted_devices() -> io::Result<Vec<String>> {
@@ -97,6 +100,17 @@ pub fn cryptsetup_close(device: CloseBy) -> io::Result<()> {
 /// Deactivate all logical devies found on the system.
 pub fn deactivate_logical_devices() -> io::Result<()> {
     let mut res = Ok(());
+
+    // Unmount all mounted logical devices.
+    if let Ok(mount_iterator) = MountIter::new() {
+        for mount in mount_iterator.filter_map(Result::ok) {
+            if mount.source.starts_with("/dev/mapper") {
+                debug!("unmounting {:?}", mount.dest);
+                let _ = unmount(&mount.dest, UnmountFlags::DETACH);
+            }
+        }
+    }
+
     for luks_pv in encrypted_devices()? {
         info!("deactivating encrypted device named {}", luks_pv);
         if let Some(vg) = pvs()?.get(&PathBuf::from(["/dev/mapper/", &luks_pv].concat())) {

@@ -165,7 +165,7 @@ impl<'a> Backup<'a> {
             let dir = if is_root { base.join("home").read_dir() } else { base.read_dir() };
 
             let users = dir?
-                .filter_map(|entry| entry.ok())
+                .filter_map(Result::ok)
                 .map(|name| name.file_name())
                 .inspect(|name| {
                     info!("found user account: {}", name.clone().into_string().unwrap())
@@ -185,7 +185,7 @@ impl<'a> Backup<'a> {
             let networks = base.join("etc/NetworkManager/system-connections/").read_dir().ok().map(
                 |directory| {
                     directory
-                        .flat_map(|entry| entry.ok())
+                        .flat_map(Result::ok)
                         .filter(|entry| entry.path().is_file())
                         .filter_map(|conn| {
                             misc::read(conn.path()).ok().map(|data| (conn.file_name(), data))

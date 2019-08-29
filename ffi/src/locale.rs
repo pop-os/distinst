@@ -1,4 +1,4 @@
-use super::{get_str, null_check, to_cstr};
+use crate::{get_str, null_check, to_cstr};
 use distinst::locale;
 use libc;
 use std::ptr;

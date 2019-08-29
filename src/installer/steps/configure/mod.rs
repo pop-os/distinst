@@ -158,7 +158,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         callback(15);
 
         let root_entry = disks.get_block_info_of("/")?;
-        let recovery_entry = disks.get_block_info_of("/recovery");
+        let _recovery_entry = disks.get_block_info_of("/recovery");
 
         callback(20);
 
@@ -258,8 +258,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
                 if let Some(ref user) = user {
                     useradd = chroot.create_user(
                         &user.username,
-                        user.password.as_ref().map(|x| x.as_str()),
-                        user.realname.as_ref().map(|x| x.as_str()),
+                        user.password.as_ref().map(String::as_str),
+                        user.realname.as_ref().map(String::as_str),
                     );
                 }
             });
@@ -381,6 +381,8 @@ fn update_recovery_config(
             .with_context(|err| format!("could not remount /cdrom as rw: {}", err))
             .and_then(|_| {
                 recovery_conf.update("OEM_MODE", "0");
+                recovery_conf.store.remove("UPGRADE");
+                recovery_conf.store.remove("REFRESH");
                 recovery_conf
                     .get("ROOT_UUID")
                     .into_io_result(|| "no ROOT_UUID found in /cdrom/recovery.conf")

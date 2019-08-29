@@ -97,6 +97,7 @@ namespace Distinst {
     public enum UpgradeTag {
         ATTEMPTING_REPAIR,
         ATTEMPTING_UPGRADE,
+        AUTOREMOVING,
         DPKG_INFO,
         DPKG_ERR,
         UPGRADE_INFO,
@@ -129,10 +130,12 @@ namespace Distinst {
 
     public delegate void UpgradeEventCallback (UpgradeEvent event);
 
-    public delegate bool UpgradeRepairCallback ();
+    public delegate void UpgradeRepairCallback (uint8[] target);
 
-    public int upgrade (Disks disks, RecoveryOption option, UpgradeEventCallback event_cb,
-                        UpgradeRepairCallback repair_cb);
+    public int upgrade (Disks disks, RecoveryOption option, UpgradeEventCallback event_cb);
+
+    public int resume_upgrade (Disks disks, UpgradeEventCallback event_cb,
+                               UpgradeRepairCallback repair_cb);
 
     [CCode (has_type_id = false, unref_function = "", ref_function = "")]
     public class AlongsideOption {
@@ -233,6 +236,7 @@ namespace Distinst {
         public unowned uint8[] get_language ();
         public bool get_oem_mode ();
         public bool get_upgrade_mode ();
+        public bool get_refresh_mode ();
     }
 
     /**

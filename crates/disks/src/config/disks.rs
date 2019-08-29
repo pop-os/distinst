@@ -265,8 +265,8 @@ impl Disks {
         Box::new(
             self.physical
                 .iter_mut()
-                .flat_map(|dev| dev.get_partitions_mut())
-                .chain(self.logical.iter_mut().flat_map(|dev| dev.get_partitions_mut())),
+                .flat_map(DiskExt::get_partitions_mut)
+                .chain(self.logical.iter_mut().flat_map(DiskExt::get_partitions_mut)),
         )
     }
 
@@ -280,7 +280,7 @@ impl Disks {
                 // TODO: Maybe have a backup field with the old partitions?
                 let disk = Disk::from_name_with_serial(&dev.device_path, &dev.serial)
                     .expect("no serial physical device");
-                for part in disk.get_partitions().iter().map(|part| part.get_device_path()) {
+                for part in disk.get_partitions().iter().map(BlockDeviceExt::get_device_path) {
                     output.push(part.to_path_buf());
                 }
             } else {
@@ -290,7 +290,7 @@ impl Disks {
                     .filter(|part| {
                         part.flag_is_enabled(SOURCE) && part.flag_is_enabled(REMOVE | FORMAT)
                     })
-                    .map(|part| part.get_device_path())
+                    .map(BlockDeviceExt::get_device_path)
                 {
                     output.push(part.to_path_buf());
                 }
@@ -590,11 +590,9 @@ impl Disks {
             }
         }
 
-        disks.physical.par_iter_mut().flat_map(|device| device.get_partitions_mut()).for_each(
-            |part| {
-                part.collect_extended_information(&mounts, &swaps);
-            },
-        );
+        disks.physical.par_iter_mut().flat_map(DiskExt::get_partitions_mut).for_each(|part| {
+            part.collect_extended_information(&mounts, &swaps);
+        });
 
         Ok(disks)
     }
@@ -729,7 +727,7 @@ impl Disks {
         volumes
     }
 
-    #[cfg_attr(rustfmt, rustfmt_skip)]
+    #[rustfmt::skip]
     pub fn get_encrypted_partitions(&self) -> Vec<&PartitionInfo> {
         // Get an iterator on physical partitions
         self.get_physical_devices().iter().flat_map(|d| d.get_partitions().iter())
@@ -741,7 +739,7 @@ impl Disks {
             .collect()
     }
 
-    #[cfg_attr(rustfmt, rustfmt_skip)]
+    #[rustfmt::skip]
     pub fn get_encrypted_partitions_mut(&mut self) -> Vec<&mut PartitionInfo> {
         let mut partitions = Vec::new();
 
@@ -1179,7 +1177,7 @@ fn find_device_path_of_mount<P: AsRef<Path>>(path: P) -> io::Result<PathBuf> {
     let path = path.as_ref();
     for mount in MountIter::new()? {
         let mount = mount?;
-        if &mount.dest == path {
+        if mount.dest == path {
             return Ok(mount.source);
         }
     }

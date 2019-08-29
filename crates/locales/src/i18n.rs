@@ -77,7 +77,7 @@ pub fn get_default(lang: &str) -> Option<String> {
 /// Equivalent to:
 ///
 /// ```rust,no_exec,no_run
-/// LOCALES.keys().map(|x| x.as_str()).collect()
+/// LOCALES.keys().map(String::as_str).collect()
 /// ```
 pub fn get_language_codes() -> Vec<&'static str> { LOCALES.keys().map(|x| x.as_str()).collect() }
 

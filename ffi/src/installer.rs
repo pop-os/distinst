@@ -2,12 +2,11 @@ use libc;
 
 use std::io;
 
-use config::DistinstConfig;
-use disk::DistinstDisks;
+use crate::{
+    config::DistinstConfig, disk::DistinstDisks, gen_object_ptr, DistinstRegion,
+    DistinstUserAccountCreate,
+};
 use distinst::{timezones::Region, Disks, Error, Installer, Status, Step};
-use gen_object_ptr;
-use DistinstRegion;
-use DistinstUserAccountCreate;
 
 /// Bootloader steps
 #[repr(C)]
@@ -23,7 +22,7 @@ pub enum DISTINST_STEP {
 
 impl From<DISTINST_STEP> for Step {
     fn from(step: DISTINST_STEP) -> Self {
-        use DISTINST_STEP::*;
+        use self::DISTINST_STEP::*;
         match step {
             BACKUP => Step::Backup,
             INIT => Step::Init,
@@ -37,7 +36,7 @@ impl From<DISTINST_STEP> for Step {
 
 impl From<Step> for DISTINST_STEP {
     fn from(step: Step) -> Self {
-        use DISTINST_STEP::*;
+        use self::DISTINST_STEP::*;
         match step {
             Step::Backup => BACKUP,
             Step::Init => INIT,

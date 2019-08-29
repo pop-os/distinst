@@ -1,9 +1,9 @@
+use crate::ffi::AsMutPtr;
 use distinst::{
     BlockDeviceExt, DiskExt, Disks, LogicalDevice, PartitionBuilder, PartitionInfo, Sector,
     SectorExt,
 };
 use external::luks::deactivate_logical_devices;
-use ffi::AsMutPtr;
 use libc;
 
 use super::{

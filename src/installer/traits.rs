@@ -152,7 +152,7 @@ impl InstallerDiskOps for Disks {
 
     fn get_block_info_of(&self, path: &str) -> io::Result<BlockInfo> {
         self.get_partitions()
-            .filter_map(|part| part.get_block_info())
+            .filter_map(PartitionInfo::get_block_info)
             .find(|entry| entry.mount() == path)
             .into_io_result(|| "root partition not found")
     }

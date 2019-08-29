@@ -1,12 +1,9 @@
 #![allow(unknown_lints)]
 #![allow(cast_ptr_alignment)]
 
-extern crate distinst;
 extern crate distinst_external_commands as external;
-extern crate libc;
 #[macro_use]
 extern crate log;
-extern crate partition_identity;
 
 use std::{
     ffi::{CStr, CString},
@@ -39,6 +36,16 @@ mod partition;
 mod sector;
 mod timezones;
 mod upgrade;
+
+/// Assert that the given pointer(s) should not be null.
+#[macro_export]
+macro_rules! assert_ptr {
+    ($($expr:ident),+) => (
+        $(
+            assert!(!$expr.is_null(), "$expr parameter should not be null");
+        )+
+    )
+}
 
 /// In comes a stack-allocated struct, and out goes a heap-allocated object.
 pub fn gen_object_ptr<T>(obj: T) -> *mut T { Box::into_raw(Box::new(obj)) as *mut T }
@@ -121,8 +128,8 @@ pub unsafe extern "C" fn distinst_log(
     callback: DistinstLogCallback,
     user_data: *mut libc::c_void,
 ) -> libc::c_int {
+    use self::DISTINST_LOG_LEVEL::*;
     use log::Level;
-    use DISTINST_LOG_LEVEL::*;
 
     if let Err(why) = null_check(user_data) {
         return why.raw_os_error().unwrap_or(-1);

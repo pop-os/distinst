@@ -48,34 +48,34 @@ distinst-locale-support = { path = "crates/locales" }
 distinst-squashfs = { path = "crates/squashfs" }
 distinst-timezones = { path = "crates/timezones" }
 distinst-utils = { path = "crates/utils" }
-envfile = "0.2.0"
-fern = "0.5.6"
+envfile = "0.2"
+fern = "0.5"
 fstab-generate = "0.1.2"
 hostname-validator = "1.0.0"
-itertools = "0.7.8"
-libc = "0.2.43"
+itertools = "0.8"
+libc = "0.2"
 libparted = "0.1.3"
-log = "0.4.5"
+log = "0.4"
 logind-dbus = "0.1.1"
-os-detect = "0.2.2"
-os-release = "0.1.0"
-partition-identity = "0.2.2"
-proc-mounts = "0.1.2"
-rayon = "1.0.2"
-sys-mount = "1.1.0"
-tempdir = "0.3.7"
-bitflags = "1.0.4"
+os-detect = "0.2"
+os-release = "0.1"
+partition-identity = "0.2"
+proc-mounts = "0.2"
+rayon = "1.0"
+sys-mount = "1.2"
+tempdir = "0.3"
+bitflags = "1.0"
 err-derive = "0.1.5"
 apt-cli-wrappers = { git = "https://github.com/pop-os/apt-cli-wrappers" }
-systemd-boot-conf = "0.1.0"
+systemd-boot-conf = "0.1"
 
 [dependencies.failure]
-version = "0.1.2"
+version = "0.1.5"
 default-features = false
 features = ["derive"]
 
 [dependencies.failure_derive]
-version = "0.1.2"
+version = "0.1.5"
 
 [profile.release]
 debug = true
