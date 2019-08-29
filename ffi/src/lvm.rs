@@ -135,7 +135,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_model(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
     device: *const DistinstLvmDevice,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(device).is_err() {
         return 0;
     }
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_sectors(
     device: *const DistinstLvmDevice,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(device).is_err() {
         return 0;
     }
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_sectors(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_get_sector_size(
     device: *const DistinstLvmDevice,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(device).is_err() {
         return 0;
     }
@@ -171,7 +171,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_sector_size(
 pub unsafe extern "C" fn distinst_lvm_device_get_sector(
     device: *const DistinstLvmDevice,
     sector: *const DistinstSector,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(device).or_else(|_| null_check(sector)).is_err() {
         return 0;
     }
