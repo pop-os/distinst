@@ -27,7 +27,7 @@ override_dh_auto_build:
 ifeq ($(VENDORED),1)
 	tar pxf vendor.tar.xz
 endif
-	make all
+	env CARGO_HOME="$$(pwd)/target/cargo" make all
 
 override_dh_auto_install:
 	dh_auto_install -- prefix=/usr
