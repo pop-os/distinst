@@ -25,7 +25,6 @@ Architecture: amd64
 Depends:
   apt,
   btrfs-progs,
-  btrfs-tools,
   coreutils,
   cryptsetup,
   dmsetup,
