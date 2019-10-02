@@ -466,48 +466,54 @@ impl Disks {
                 thread::sleep(Duration::from_millis(1000));
             }
 
-            match pvs().expect("pvs() failed in decrypt_partition").remove(pv) {
-                Some(Some(vg)) => {
-                    // Set values in the device's partition.
-                    partition.volume_group = Some((vg.clone(), Some(enc.clone())));
-                    let mut luks = LogicalDevice::new(
-                        vg,
-                        Some(enc.clone()),
-                        partition.get_sectors(),
-                        512,
-                        true,
-                    );
-                    info!("settings luks_parent to {:?}", path);
-                    luks.set_luks_parent(path.to_path_buf());
-
-                    Ok(luks)
-                }
-                _ => {
-                    // Detect a file system on the device
-                    if let Some(fs) = detect_fs_on_device(&pv) {
-                        let pv = enc.physical_volume.clone();
+            let mut tries = 0;
+            while tries != 3 {
+                match pvs().expect("pvs() failed in decrypt_partition").remove(pv) {
+                    Some(Some(vg)) => {
+                        // Set values in the device's partition.
+                        partition.volume_group = Some((vg.clone(), Some(enc.clone())));
                         let mut luks = LogicalDevice::new(
-                            pv,
+                            vg,
                             Some(enc.clone()),
                             partition.get_sectors(),
                             512,
                             true,
                         );
-
-                        luks.set_file_system(fs);
                         info!("settings luks_parent to {:?}", path);
                         luks.set_luks_parent(path.to_path_buf());
 
                         return Ok(luks);
                     }
+                    _ => {
+                        // Detect a file system on the device
+                        if let Some(fs) = detect_fs_on_device(&pv) {
+                            let pv = enc.physical_volume.clone();
+                            let mut luks = LogicalDevice::new(
+                                pv,
+                                Some(enc.clone()),
+                                partition.get_sectors(),
+                                512,
+                                true,
+                            );
 
-                    // Attempt to close the device as we've failed to find a VG.
-                    let _ = cryptsetup_close(CloseBy::Path(&pv));
+                            luks.set_file_system(fs);
+                            info!("settings luks_parent to {:?}", path);
+                            luks.set_luks_parent(path.to_path_buf());
 
-                    // NOTE: Should we handle this in some way?
-                    Err(DecryptionError::DecryptedLacksVG { device: path.to_path_buf() })
+                            return Ok(luks);
+                        }
+
+                        // The device may not have been ready yet.
+                        tries += 1;
+                        thread::sleep(Duration::from_millis(1000));
+                    }
                 }
             }
+
+            // Attempt to close the device as we've failed to find a VG.
+            let _ = cryptsetup_close(CloseBy::Path(&pv));
+
+            Err(DecryptionError::DecryptedLacksVG { device: path.to_path_buf() })
         }
 
         // Attempt to find the device in the configuration.
