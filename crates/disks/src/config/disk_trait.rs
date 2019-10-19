@@ -3,7 +3,9 @@ use super::{
     partitions::REMOVE,
 };
 use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableError, PartitionTableExt, SectorExt};
+use proc_mounts::MOUNTS;
 use std::path::{Path, PathBuf};
+use sysfs_class::{Block, SysClass};
 
 /// Contains methods that are shared between physical and logical disk devices.
 pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
@@ -39,6 +41,29 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
 
     /// Returns true if this partition is mounted at root.
     fn contains_mount(&self, mount: &str, parent: &Disks) -> bool {
+        let check_sysfs = || {
+            // check for partitions that linux found, but parted may not have
+            let mounts = MOUNTS.read().expect("failed to get mounts in DiskExt::contains_mount");
+
+            let name: String = self.get_device_path()
+                .file_name()
+                .expect("device does not have a file name in DiskExt::contains_mount")
+                .to_str()
+                .expect("device file name is not UTF-8 in DiskExt::contains_mount")
+                .into();
+
+            let block = Block::new(&name).expect("failed to get block device in DiskExt::contains_mount");
+            for child in block.children().expect("failed to get children in DiskExt::contains_mount") {
+                let child_dev = Path::new("/dev").join(child.id());
+                let mount_opt = mounts.get_mount_by_source(&child_dev);
+                info!("child_dev {:?} has mount_opt {:?}", child_dev mount_opt);
+                if mount_opt.map_or(false, |m| m.dest == Path::new(mount)) {
+                    return true;
+                }
+            }
+            false
+        };
+
         let check_partitions = || {
             self.get_partitions().iter().any(|partition| {
                 if partition.mount_point == Some(mount.into()) {
@@ -48,7 +73,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
                 partition.volume_group.as_ref().map_or(false, |&(ref vg, _)| {
                     parent.get_logical_device(vg).map_or(false, |d| d.contains_mount(mount, parent))
                 })
-            })
+            }) || check_sysfs()
         };
 
         self.get_mount_point().map_or_else(check_partitions, |m| m == Path::new(mount))
