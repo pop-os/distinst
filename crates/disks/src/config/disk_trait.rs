@@ -56,7 +56,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
             for child in block.children().expect("failed to get children in DiskExt::contains_mount") {
                 let child_dev = Path::new("/dev").join(child.id());
                 let mount_opt = mounts.get_mount_by_source(&child_dev);
-                info!("child_dev {:?} has mount_opt {:?}", child_dev mount_opt);
+                info!("child_dev {:?} has mount_opt {:?}", child_dev, mount_opt);
                 if mount_opt.map_or(false, |m| m.dest == Path::new(mount)) {
                     return true;
                 }
