@@ -12,6 +12,8 @@ use std::{
 use Config;
 use MODIFY_BOOT_ORDER;
 
+const DEFAULT_ID: &str = "Pop_OS-current";
+
 use super::mount_efivars;
 
 pub fn bootloader<F: FnMut(i32)>(
@@ -92,6 +94,18 @@ pub fn bootloader<F: FnMut(i32)>(
                                 ][..],
                             )
                             .run()?;
+
+                        if &name == "Pop!_OS" {
+                            // Create a default loader/loader.conf pointing to our DEFAULT_ID.
+                            fs::create_dir_all(efi_path.join("loader"))?;
+                            fs::write(
+                                &*efi_path.join("loader/loader.conf"),
+                                format!("default {}\n", DEFAULT_ID).as_bytes(),
+                            )?;
+
+                            // Instruct systemd-boot to set it as the default boot.
+                            chroot.command("bootctl", &["set-default", DEFAULT_ID]).run()?
+                        }
                     } else {
                         chroot
                             .command(
