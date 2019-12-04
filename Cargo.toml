@@ -68,6 +68,7 @@ bitflags = "1"
 err-derive = "0.1"
 apt-cli-wrappers = { git = "https://github.com/pop-os/apt-cli-wrappers" }
 systemd-boot-conf = "0.1"
+sysfs-class = "0.1.2"
 
 [dependencies.failure]
 version = "0.1"

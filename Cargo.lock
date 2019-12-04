@@ -392,6 +392,7 @@ dependencies = [
  "proc-mounts 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "sys-mount 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sysfs-class 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "systemd-boot-conf 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

@@ -20,6 +20,7 @@ pub fn bootloader<F: FnMut(i32)>(
     bootloader: Bootloader,
     config: &Config,
     iso_os_release: &OsRelease,
+    recovery: bool,
     mut callback: F,
 ) -> io::Result<()> {
     // Obtain the root device & partition, with an optional EFI device & partition.
@@ -58,6 +59,7 @@ pub fn bootloader<F: FnMut(i32)>(
         {
             let mut chroot = Chroot::new(mount_dir)?;
             let efivars_mount = mount_efivars(&mount_dir)?;
+            let needs_boot_fix = needs_boot_fix(recovery);
 
             match bootloader {
                 Bootloader::Bios => {
@@ -79,19 +81,21 @@ pub fn bootloader<F: FnMut(i32)>(
                     // Grub disallows whitespaces in the name.
                     let name = super::normalize_os_release_name(&iso_os_release.name);
                     if &name == "Pop!_OS" {
-                        chroot
-                            .command(
-                                "bootctl",
-                                &[
-                                    // Install systemd-boot
-                                    "install",
-                                    // Provide path to ESP
-                                    "--path=/boot/efi",
-                                    // Do not set EFI variables
-                                    "--no-variables",
-                                ][..],
-                            )
-                            .run()?;
+                        if !needs_boot_fix {
+                            chroot
+                                .command(
+                                    "bootctl",
+                                    &[
+                                        // Install systemd-boot
+                                        "install",
+                                        // Provide path to ESP
+                                        "--path=/boot/efi",
+                                        // Do not set EFI variables
+                                        "--no-variables",
+                                    ][..],
+                                )
+                                .run()?;
+                        }
                     } else {
                         chroot
                             .command(
@@ -128,7 +132,7 @@ pub fn bootloader<F: FnMut(i32)>(
                         chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
                     }
 
-                    if config.flags & MODIFY_BOOT_ORDER != 0 {
+                    if config.flags & MODIFY_BOOT_ORDER != 0 && !needs_boot_fix {
                         let efi_part_num = efi_part_num.to_string();
                         let loader = if &name == "Pop!_OS" {
                             "\\EFI\\systemd\\systemd-bootx64.efi".into()
@@ -167,4 +171,41 @@ pub fn bootloader<F: FnMut(i32)>(
     callback(99);
 
     Ok(())
+}
+
+use envfile::EnvFile;
+use sysfs_class::DmiId;
+
+/// Signifies that a restart workaround is required
+fn needs_boot_fix(recovery: bool) -> bool {
+    (recovery || oem_mode()) && open_model()
+}
+
+/// True if the model is the darp6 or galp4
+fn open_model() -> bool {
+    DmiId::default()
+        .product_version()
+        .map(|name| {
+            let name = name.trim();
+            name == "darp6" || name == "galp4"
+        })
+        .unwrap_or(false)
+}
+
+/// True if the installer is in OEM mode.
+fn oem_mode() -> bool {
+    let recovery_path = Path::new("/cdrom/recovery.conf");
+    if recovery_path.exists() {
+        match EnvFile::new(recovery_path) {
+            Ok(env) => {
+                return env.get("OEM_MODE") == Some("1");
+            }
+            Err(why) => {
+                error!("failed to read recovery config: {}", why);
+            }
+        }
+
+    }
+
+    false
 }

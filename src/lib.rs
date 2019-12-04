@@ -42,6 +42,7 @@ extern crate libparted;
 extern crate log;
 extern crate logind_dbus;
 extern crate rayon;
+extern crate sysfs_class;
 extern crate systemd_boot_conf;
 extern crate tempdir;
 

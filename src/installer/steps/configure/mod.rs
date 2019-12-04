@@ -53,9 +53,9 @@ macro_rules! file_create {
 
 #[macro_export]
 macro_rules! map_errors {
-    ( $( $var:expr => $value:expr );+ ) => {
+    ( $( $var:ident => $value:expr );+ ) => {
         $(
-            $var.map_err(|why| io::Error::new(
+            let $var = $var.map_err(|why| io::Error::new(
                 io::ErrorKind::Other,
                 format!("{}: {}", $value, why)
             ))?;
@@ -72,7 +72,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
     user: Option<&UserAccountCreate>,
     remove_pkgs: &[S],
     mut callback: F,
-) -> io::Result<()> {
+) -> io::Result<bool> {
     let mount_dir = mount_dir.as_ref().canonicalize().unwrap();
     info!("Configuring on {}", mount_dir.display());
     let tpath = mount_dir.join("tmp");
@@ -83,6 +83,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         Vec::with_capacity(32);
         ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release));
     };
+
+    let has_recovery_partition;
 
     callback(5);
 
@@ -301,6 +303,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             recovery => "error creating recovery partition"
         }
 
+        has_recovery_partition = recovery;
+
         callback(75);
 
         chroot.bootloader().with_context(|why| format!("error installing bootloader: {}", why))?;
@@ -339,7 +343,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
     configure_dir.close()?;
     callback(100);
 
-    Ok(())
+    Ok(has_recovery_partition)
 }
 
 fn update_recovery_config(

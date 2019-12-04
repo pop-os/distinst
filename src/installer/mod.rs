@@ -178,7 +178,7 @@ impl Installer {
             let timezone = steps.installer.timezone_cb.as_mut().map(|func| func());
             let user = steps.installer.user_creation_cb.as_mut().map(|func| func());
 
-            steps.apply(Step::Configure, "configuring chroot", |steps| {
+            let recovery = steps.apply(Step::Configure, "configuring chroot", |steps| {
                 Installer::configure(
                     &disks,
                     mount_dir.path(),
@@ -198,6 +198,7 @@ impl Installer {
                     bootloader,
                     &config,
                     &iso_os_release,
+                    recovery,
                     percent!(steps),
                 )
             })?;
@@ -410,7 +411,7 @@ impl Installer {
         user: Option<&UserAccountCreate>,
         remove_pkgs: &[S],
         callback: F,
-    ) -> io::Result<()> {
+    ) -> io::Result<bool> {
         steps::configure(
             disks,
             mount_dir,
@@ -430,9 +431,10 @@ impl Installer {
         bootloader: Bootloader,
         config: &Config,
         iso_os_release: &OsRelease,
+        recovery: bool,
         callback: F,
     ) -> io::Result<()> {
-        steps::bootloader(disks, mount_dir, bootloader, config, iso_os_release, callback)
+        steps::bootloader(disks, mount_dir, bootloader, config, iso_os_release, recovery, callback)
     }
 }
 

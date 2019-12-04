@@ -292,7 +292,7 @@ impl<'a> ChrootConfigurator<'a> {
         name: &str,
         root_uuid: &str,
         luks_uuid: &str,
-    ) -> io::Result<()> {
+    ) -> io::Result<bool> {
         info!("creating recovery partition");
         let recovery_path = self.chroot.path.join("recovery");
         let efi_path = self.chroot.path.join("boot/efi");
@@ -312,7 +312,7 @@ impl<'a> ChrootConfigurator<'a> {
                     "/cdrom was not found".into()
                 }
             );
-            return Ok(());
+            return Ok(false);
         }
 
         let mounts = MountList::new()?;
@@ -340,7 +340,7 @@ impl<'a> ChrootConfigurator<'a> {
 
         // If we are installing from the recovery partition, then we can skip this step.
         if recovery_uuid.id == cdrom_uuid {
-            return Ok(());
+            return Ok(true);
         }
 
         let casper_data_: String;
@@ -429,7 +429,7 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
         rec_entry_file
             .write_all(rec_entry_data.as_bytes())
             .with_context(|err| format!("failed to write recovery EFI entry: {}", err))?;
-        Ok(())
+        Ok(false)
     }
 
     pub fn timezone(&self, region: &Region) -> io::Result<()> {
