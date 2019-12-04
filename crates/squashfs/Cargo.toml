@@ -9,5 +9,5 @@ license = "MIT"
 keywords = ["squashfs"]
 
 [dependencies]
-libc = "0.2.43"
-log = "0.4.5"
+libc = "0.2"
+log = "0.4"

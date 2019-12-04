@@ -11,7 +11,7 @@ keywords = ["linux", "hardware", "support"]
 
 [dependencies]
 distinst-utils = { path = "../utils" }
-os-release = "0.1.0"
-proc-modules = "0.1.0"
-raw-cpuid = "6.1.0"
-log = "0.4.6"
+os-release = "0.1"
+proc-modules = "0.1"
+raw-cpuid = "7"
+log = "0.4"
