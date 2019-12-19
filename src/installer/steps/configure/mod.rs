@@ -1,3 +1,4 @@
+use bootloader::Bootloader;
 mod chroot_conf;
 use self::chroot_conf::ChrootConfigurator;
 use super::{mount_cdrom, mount_efivars};
@@ -218,12 +219,18 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         // the removal list.
         install_pkgs.extend_from_slice(&retain);
 
-        // Filter the discovered language packs and retained packages from the remove list.
-        let remove = remove_pkgs
+        // Filter the discovered language packs and installed packages from the remove list.
+        let mut remove = remove_pkgs
             .iter()
             .map(AsRef::as_ref)
-            .filter(|pkg| !lang_packs.iter().any(|x| pkg == x) && !retain.contains(&pkg))
+            .filter(|pkg| !lang_packs.iter().any(|x| pkg == x) && !install_pkgs.contains(&pkg))
             .collect::<Vec<&str>>();
+
+        // Remove incompatible bootloader packages
+        match Bootloader::detect() {
+            Bootloader::Bios => remove.push("kernelstub"),
+            Bootloader::Efi => (),
+        }
 
         callback(35);
 
