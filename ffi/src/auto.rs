@@ -496,15 +496,21 @@ pub unsafe extern "C" fn distinst_recovery_option_get_oem_mode(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_recovery_option_get_upgrade_mode(
+pub unsafe extern "C" fn distinst_recovery_option_mode (
     option: *const DistinstRecoveryOption,
-) -> bool {
-    if null_check(option).is_err() {
-        return false;
+    len: *mut libc::c_int,
+) -> *const u8 {
+    if option.is_null() {
+        return ptr::null();
     }
 
-    let option = &*(option as *const RecoveryOption);
-    option.upgrade_mode
+    (&*(option as *const RecoveryOption))
+        .mode
+        .as_ref()
+        .map_or(ptr::null(), |mode| {
+            *len = mode.len() as libc::c_int;
+            mode.as_bytes().as_ptr()
+        })
 }
 
 #[repr(C)]

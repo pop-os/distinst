@@ -14,7 +14,7 @@ pub struct RecoveryOption {
     pub oem_mode:      bool,
     pub recovery_uuid: String,
     pub root_uuid:     String,
-    pub upgrade_mode:  bool,
+    pub mode:          Option<String>,
 }
 
 impl RecoveryOption {
@@ -57,7 +57,7 @@ pub(crate) fn detect_recovery() -> Option<RecoveryOption> {
             root_uuid:     env.get("ROOT_UUID")?.to_owned(),
             oem_mode:      env.get("OEM_MODE").map_or(false, |oem| oem == "1"),
             luks_uuid:     env.get("LUKS_UUID").map(|x| x.to_owned()),
-            upgrade_mode:  env.get("UPGRADE").map_or(false, |oem| oem == "1"),
+            mode:          env.get("MODE").map(|x| x.to_owned()),
         });
     }
 
