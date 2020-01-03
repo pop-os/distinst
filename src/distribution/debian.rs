@@ -130,7 +130,7 @@ pub fn get_required_packages<D: InstallerDiskOps>(
     let mut retain = Vec::new();
 
     if flags.contains(FileSystemSupport::BTRFS) {
-        retain.extend_from_slice(&["btrfs-progs", "btrfs-tools"]);
+        retain.extend_from_slice(&["btrfs-progs"]);
     }
 
     if flags.contains(FileSystemSupport::EXT4) {
