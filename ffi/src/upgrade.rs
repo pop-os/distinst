@@ -1,5 +1,5 @@
 use super::{DistinstDisks, DistinstRecoveryOption};
-use distinst::{self, auto::RecoveryOption, Disks, UpgradeError, UpgradeEvent};
+use distinst::{self, auto::RecoveryOption, Disks, RecoveryEnv, UpgradeError, UpgradeEvent};
 use libc;
 use std::ptr;
 
@@ -124,7 +124,16 @@ pub unsafe extern "C" fn distinst_upgrade(
     repair_cb: DistinstUpgradeRepairCallback,
     user_data2: *mut libc::c_void,
 ) -> libc::c_int {
+    let mut env = match RecoveryEnv::new() {
+        Ok(env) => env,
+        Err(why) => {
+            error!("{}", why);
+            return -1;
+        }
+    };
+
     let result = distinst::upgrade(
+        &mut env,
         &mut *(disks as *mut Disks),
         &*(option as *const RecoveryOption),
         move |event| event_cb(DistinstUpgradeEvent::from(event), user_data1),
