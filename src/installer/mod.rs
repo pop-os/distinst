@@ -1,11 +1,15 @@
 pub mod bitflags;
 pub mod traits;
 
+mod conf;
 mod state;
+
 pub(crate) mod steps;
 
+pub use self::{conf::RecoveryEnv, steps::Step};
+
 use self::state::InstallerState;
-pub use self::steps::Step;
+
 use auto::{
     delete_old_install, move_root, recover_root, remove_root, validate_backup_conditions,
     AccountFiles, Backup, ReinstallError,
@@ -133,6 +137,8 @@ impl Installer {
     ///
     /// If `config.old_root` is set, then home at that location will be retained.
     pub fn install(&mut self, mut disks: Disks, config: &Config) -> io::Result<()> {
+        let mut recovery_conf = RecoveryEnv::new()?;
+
         disks.remove_untouched_disks();
         let steps = &mut InstallerState::new(self);
 
@@ -180,6 +186,7 @@ impl Installer {
 
             steps.apply(Step::Configure, "configuring chroot", |steps| {
                 Installer::configure(
+                    &mut recovery_conf,
                     &disks,
                     mount_dir.path(),
                     &config,
@@ -207,6 +214,9 @@ impl Installer {
         })?;
 
         let _ = deactivate_logical_devices();
+
+        recovery_conf.remove("MODE");
+        recovery_conf.write()?;
 
         Ok(())
     }
@@ -402,6 +412,7 @@ impl Installer {
 
     /// Configures the new install after it has been extracted.
     fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
+        recovery_conf: &mut RecoveryEnv,
         disks: &Disks,
         mount_dir: P,
         config: &Config,
@@ -412,6 +423,7 @@ impl Installer {
         callback: F,
     ) -> io::Result<()> {
         steps::configure(
+            recovery_conf,
             disks,
             mount_dir,
             config,

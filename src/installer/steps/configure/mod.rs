@@ -2,10 +2,9 @@ use bootloader::Bootloader;
 mod chroot_conf;
 use self::chroot_conf::ChrootConfigurator;
 use super::{mount_cdrom, mount_efivars};
-use crate::installer::steps::normalize_os_release_name;
+use crate::installer::{conf::RecoveryEnv, steps::normalize_os_release_name};
 use chroot::Chroot;
 use distribution;
-use envfile::EnvFile;
 use errors::*;
 use external::remount_rw;
 use hardware_support;
@@ -65,6 +64,7 @@ macro_rules! map_errors {
 }
 
 pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
+    recovery_conf: &mut RecoveryEnv,
     disks: &D,
     mount_dir: P,
     config: &Config,
@@ -176,6 +176,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         let root_uuid = &root_entry.uid;
         update_recovery_config(
+            recovery_conf,
             &mount_dir,
             &root_uuid.id,
             luks_uuid.as_ref().map(|x| x.id.as_str()),
@@ -350,6 +351,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 }
 
 fn update_recovery_config(
+    recovery_conf: &mut RecoveryEnv,
     mount: &Path,
     root_uuid: &str,
     luks_uuid: Option<&str>,
@@ -378,9 +380,6 @@ fn update_recovery_config(
 
     let recovery_path = Path::new("/cdrom/recovery.conf");
     if recovery_path.exists() {
-        let recovery_conf = &mut EnvFile::new(recovery_path)
-            .with_context(|err| format!("error parsing envfile at {:?}: {}", recovery_path, err))?;
-
         let luks_value = luks_uuid.map_or("", |uuid| if root_uuid == uuid { "" } else { uuid });
         recovery_conf.update("LUKS_UUID", luks_value);
 

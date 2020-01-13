@@ -2,10 +2,9 @@ use apt_cli_wrappers::AptUpgradeEvent;
 use auto::{InstallOption, InstallOptionError, RecoveryOption};
 use chroot::SystemdNspawn;
 use disks::Disks;
-use envfile::EnvFile;
 use errors::IoContext;
 use external::remount_rw;
-use installer::steps::mount_efivars;
+use installer::{RecoveryEnv, steps::mount_efivars};
 use std::{io, path::Path, process::Stdio};
 use systemd_boot_conf::SystemdBootConf;
 use tempdir::TempDir;
@@ -51,6 +50,7 @@ pub enum UpgradeEvent<'a> {
 
 /// Chroot into an existing install, and upgrade it to the next release.
 pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
+    recovery_conf: &mut RecoveryEnv,
     disks: &mut Disks,
     option: &RecoveryOption,
     callback: F,
@@ -100,24 +100,17 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
         }
     }
 
-    disable_upgrade_flag().map_err(UpgradeError::UpgradeFlag)?;
-    systemd_boot_entry_restore(mount_dir)?;
-
-    Ok(())
-}
-
-fn disable_upgrade_flag() -> io::Result<()> {
-    let recovery_conf = &mut EnvFile::new("/cdrom/recovery.conf")
-        .with_context(|err| format!("error parsing envfile at /cdrom/recovery.conf: {}", err))?;
-
     remount_rw("/cdrom")
         .with_context(|err| format!("could not remount /cdrom as rw: {}", err))
         .and_then(|_| {
-            recovery_conf.store.remove("UPGRADE");
-            recovery_conf
-                .write()
-                .with_context(|err| format!("error writing recovery conf: {}", err))
+            recovery_conf.remove("MODE");
+            recovery_conf.write()
         })
+        .map_err(UpgradeError::UpgradeFlag)?;
+
+    systemd_boot_entry_restore(mount_dir)?;
+
+    Ok(())
 }
 
 fn systemd_boot_entry_restore<P: AsRef<Path>>(base: P) -> Result<(), UpgradeError> {

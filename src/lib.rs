@@ -26,6 +26,8 @@ extern crate bitflags;
 extern crate cascade;
 #[macro_use]
 extern crate err_derive;
+#[macro_use]
+extern crate derive_more;
 extern crate dirs;
 pub extern crate distinst_timezones as timezones;
 extern crate distinst_utils as misc;
@@ -50,6 +52,8 @@ pub use disk_types::*;
 pub use disks::*;
 pub use misc::device_layout_hash;
 pub use upgrade::*;
+
+pub use self::installer::RecoveryEnv;
 
 mod distribution;
 mod installer;
