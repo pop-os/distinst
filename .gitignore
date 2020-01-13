@@ -9,3 +9,10 @@
 /tests/filesystem.squashfs
 /tests/filesystem.manifest-remove
 /tests/loopback.bin
+debian/
+!debian/source
+!debian/changelog
+!debian/compat
+!debian/control
+!debian/copyright
+!debian/*.install
