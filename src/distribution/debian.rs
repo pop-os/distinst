@@ -94,11 +94,7 @@ fn parse_dependency_line<F: FnMut(&str)>(line: &str, mut func: F) {
 
 pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str] {
     match Bootloader::detect() {
-        Bootloader::Bios => &[
-            "grub-common",
-            "grub2-common",
-            "grub-pc",
-        ],
+        Bootloader::Bios => &["grub-common", "grub2-common", "grub-pc"],
         Bootloader::Efi if os_release.name == "Pop!_OS" => &["kernelstub"],
         Bootloader::Efi if os_release.name == "Ubuntu" && os_release.version_id == "18.04" => &[
             "grub-efi",

@@ -496,7 +496,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_oem_mode(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_recovery_option_mode (
+pub unsafe extern "C" fn distinst_recovery_option_mode(
     option: *const DistinstRecoveryOption,
     len: *mut libc::c_int,
 ) -> *const u8 {
@@ -504,13 +504,10 @@ pub unsafe extern "C" fn distinst_recovery_option_mode (
         return ptr::null();
     }
 
-    (&*(option as *const RecoveryOption))
-        .mode
-        .as_ref()
-        .map_or(ptr::null(), |mode| {
-            *len = mode.len() as libc::c_int;
-            mode.as_bytes().as_ptr()
-        })
+    (&*(option as *const RecoveryOption)).mode.as_ref().map_or(ptr::null(), |mode| {
+        *len = mode.len() as libc::c_int;
+        mode.as_bytes().as_ptr()
+    })
 }
 
 #[repr(C)]

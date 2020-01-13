@@ -44,12 +44,12 @@ pub const SWAPPED: u8 = 0b10_0000;
 /// Contains relevant information about a certain partition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PartitionInfo {
-    pub bitflags: u8,
+    pub bitflags:     u8,
     /// The partition number is the numeric value that follows the disk's device path.
     /// IE: _/dev/sda1_
-    pub number: i32,
+    pub number:       i32,
     /// The physical order of the partition on the disk, as partition numbers may not be in order.
-    pub ordering: i32,
+    pub ordering:     i32,
     /// The initial sector where the partition currently, or will, reside.
     pub start_sector: u64,
     /// The final sector where the partition currently, or will, reside.
@@ -57,32 +57,32 @@ pub struct PartitionInfo {
     /// The length of the partion can be calculated by substracting the `end_sector`
     /// from the `start_sector`, and multiplying that by the value of the disk's
     /// sector size.
-    pub end_sector: u64,
+    pub end_sector:   u64,
     /// Whether this partition is a primary or logical partition.
-    pub part_type: PartitionType,
+    pub part_type:    PartitionType,
     /// Whether there is a file system currently, or will be, on this partition.
-    pub filesystem: Option<FileSystem>,
+    pub filesystem:   Option<FileSystem>,
     /// Specifies optional flags that should be applied to the partition, if
     /// not already set.
-    pub flags: Vec<PartitionFlag>,
+    pub flags:        Vec<PartitionFlag>,
     /// Specifies the name of the partition.
-    pub name: Option<String>,
+    pub name:         Option<String>,
     /// Contains the device path of the partition, which is the disk's device path plus
     /// the partition number.
-    pub device_path: PathBuf,
+    pub device_path:  PathBuf,
     /// Where this partition is mounted in the file system, if at all.
-    pub mount_point: Option<PathBuf>,
+    pub mount_point:  Option<PathBuf>,
     /// Where this partition will be mounted in the future
-    pub target: Option<PathBuf>,
+    pub target:       Option<PathBuf>,
     /// The pre-existing volume group assigned to this partition.
-    pub original_vg: Option<String>,
+    pub original_vg:  Option<String>,
     /// The volume group & LUKS configuration to associate with this device.
     // TODO: Separate the tuple?
     pub volume_group: Option<(String, Option<LvmEncryption>)>,
     /// If the partition is associated with a keyfile, this will name the key.
-    pub key_id: Option<String>,
+    pub key_id:       Option<String>,
     /// Possible identifiers for this partition.
-    pub identifiers: PartitionIdentifiers,
+    pub identifiers:  PartitionIdentifiers,
 }
 
 impl BlockDeviceExt for PartitionInfo {

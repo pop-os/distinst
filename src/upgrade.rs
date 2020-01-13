@@ -4,7 +4,7 @@ use chroot::SystemdNspawn;
 use disks::Disks;
 use errors::IoContext;
 use external::remount_rw;
-use installer::{RecoveryEnv, steps::mount_efivars};
+use installer::{steps::mount_efivars, RecoveryEnv};
 use std::{io, path::Path, process::Stdio};
 use systemd_boot_conf::SystemdBootConf;
 use tempdir::TempDir;

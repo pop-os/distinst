@@ -113,11 +113,11 @@ struct LogicalArgs {
     // The group to create a partition on
     group: String,
     // The name of the partition
-    name: String,
+    name:  String,
     // The length of the partition
-    size: Sector,
+    size:  Sector,
     // The filesystem to assign to this partition
-    fs: Option<FileSystem>,
+    fs:    Option<FileSystem>,
     // Where to mount this partition
     mount: Option<PathBuf>,
     // The partition flags to assign

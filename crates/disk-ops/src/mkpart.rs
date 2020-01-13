@@ -13,22 +13,22 @@ use std::{
 #[derive(Debug, SmartDefault, Clone, PartialEq)]
 pub struct PartitionCreate {
     /// The location of the disk in the system.
-    pub path: PathBuf,
+    pub path:         PathBuf,
     /// The start sector that the partition will have.
     pub start_sector: u64,
     /// The end sector that the partition will have.
-    pub end_sector: u64,
+    pub end_sector:   u64,
     /// Whether the filesystem should be formatted.
-    pub format: bool,
+    pub format:       bool,
     /// The format that the file system should be formatted to.
-    pub file_system: Option<FileSystem>,
+    pub file_system:  Option<FileSystem>,
     /// Whether the partition should be primary or logical.
     #[default = "PartitionType::Primary"]
-    pub kind: PartitionType,
+    pub kind:         PartitionType,
     /// Flags which should be set on the partition.
-    pub flags: Vec<PartitionFlag>,
+    pub flags:        Vec<PartitionFlag>,
     /// Defines the label to apply
-    pub label: Option<String>,
+    pub label:        Option<String>,
 }
 
 impl BlockDeviceExt for PartitionCreate {

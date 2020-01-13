@@ -45,7 +45,8 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
             // check for partitions that linux found, but parted may not have
             let mounts = MOUNTS.read().expect("failed to get mounts in DiskExt::contains_mount");
 
-            let name: String = self.get_device_path()
+            let name: String = self
+                .get_device_path()
                 .file_name()
                 .expect("device does not have a file name in DiskExt::contains_mount")
                 .to_str()

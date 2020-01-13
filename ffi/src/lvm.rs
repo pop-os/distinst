@@ -299,9 +299,9 @@ pub struct DistinstLvmEncryption {
     /// The PV field is not optional
     pub physical_volume: *mut libc::c_char,
     /// The password field is optional
-    pub password: *mut libc::c_char,
+    pub password:        *mut libc::c_char,
     /// The keydata field is optional
-    pub keydata: *mut libc::c_char,
+    pub keydata:         *mut libc::c_char,
 }
 
 #[no_mangle]
