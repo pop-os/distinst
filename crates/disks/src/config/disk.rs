@@ -91,9 +91,9 @@ pub fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Disk {
     /// The model name of the device, assigned by the manufacturer.
-    pub model_name: String,
+    pub model_name:  String,
     /// A unique identifier to this disk.
-    pub serial: String,
+    pub serial:      String,
     /// The location in the file system where the block device is located.
     pub device_path: PathBuf,
     /// Account for the possibility that the entire disk is a file system.
@@ -101,18 +101,18 @@ pub struct Disk {
     /// Where the device is mounted, if mounted at all.
     pub mount_point: Option<PathBuf>,
     /// The size of the disk in sectors.
-    pub size: u64,
+    pub size:        u64,
     /// The type of the device, such as SCSI.
     pub device_type: String,
     /// The partition table may be either **MSDOS** or **GPT**.
-    pub table_type: Option<PartitionTable>,
+    pub table_type:  Option<PartitionTable>,
     /// Whether the device is currently in a read-only state.
-    pub read_only: bool,
+    pub read_only:   bool,
     /// Defines whether the device should be wiped or not. The `table_type`
     /// field will be used to determine which table to write to the disk.
-    pub mklabel: bool,
+    pub mklabel:     bool,
     /// The partitions that are stored on the device.
-    pub partitions: Vec<PartitionInfo>,
+    pub partitions:  Vec<PartitionInfo>,
 }
 
 impl BlockDeviceExt for Disk {

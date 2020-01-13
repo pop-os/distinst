@@ -27,7 +27,7 @@ pub struct LayoutList {
 #[derive(Debug, Deserialize)]
 pub struct KeyboardLayout {
     #[serde(rename = "configItem")]
-    pub config_item: ConfigItem,
+    pub config_item:  ConfigItem,
     #[serde(rename = "variantList")]
     pub variant_list: Option<VariantList>,
 }
@@ -48,10 +48,10 @@ impl KeyboardLayout {
 /// Contains the name and description of a keyboard layout.
 #[derive(Debug, Deserialize)]
 pub struct ConfigItem {
-    pub name: String,
+    pub name:              String,
     #[serde(rename = "shortDescription")]
     pub short_description: Option<String>,
-    pub description: String,
+    pub description:       String,
 }
 
 /// A list of possible variants of a keyboard layout.

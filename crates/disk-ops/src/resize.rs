@@ -193,23 +193,23 @@ pub struct PartitionChange {
     /// The location of the device where the partition resides.
     pub device_path: PathBuf,
     /// The location of the partition in the system.
-    pub path: PathBuf,
+    pub path:        PathBuf,
     /// The partition ID that will be changed.
-    pub num: i32,
+    pub num:         i32,
     /// Defines whether this is a Primary or Logical partition.
-    pub kind: PartitionType,
+    pub kind:        PartitionType,
     /// The start sector that the partition will have.
-    pub start: u64,
+    pub start:       u64,
     /// The end sector that the partition will have.
-    pub end: u64,
+    pub end:         u64,
     /// The file system that is currently on the partition.
-    pub filesystem: Option<FileSystem>,
+    pub filesystem:  Option<FileSystem>,
     /// A diff of flags which should be set on the partition.
-    pub flags: Vec<PartitionFlag>,
+    pub flags:       Vec<PartitionFlag>,
     /// All of the flags that are set on the new disk.
-    pub new_flags: Vec<PartitionFlag>,
+    pub new_flags:   Vec<PartitionFlag>,
     /// Defines the label to apply
-    pub label: Option<String>,
+    pub label:       Option<String>,
 }
 
 /// Performs all move & resize operations for a given partition.

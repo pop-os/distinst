@@ -574,7 +574,7 @@ pub unsafe extern "C" fn distinst_partition_and_disk_path_destroy(
 #[repr(C)]
 pub struct DistinstPartitionUsage {
     // 0 = None, 1 = Some(Ok(T)), 2 = Some(Err(T))
-    tag: libc::uint8_t,
+    tag:   libc::uint8_t,
     // Some(Ok(sectors)) | Some(Err(errno))
     value: libc::uint64_t,
 }

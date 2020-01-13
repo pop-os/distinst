@@ -23,13 +23,13 @@ use std::{
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct VgData {
     /// Size of a PE, measured in sectors.
-    pe_size: u64,
+    pe_size:  u64,
     // Total amount of PEs in this VG.
     total_pe: u64,
     /// PEs which have been allocated / used.
     alloc_pe: u64,
     /// PEs which are free.
-    free_pe: u64,
+    free_pe:  u64,
 }
 
 /// An LVM device acts similar to a Disk, but consists of one more block devices

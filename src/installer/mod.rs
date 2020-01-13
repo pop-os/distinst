@@ -48,23 +48,23 @@ macro_rules! percent {
 /// Installer configuration
 pub struct Config {
     /// Hostname to assign to the installed system.
-    pub hostname: String,
+    pub hostname:         String,
     /// The keyboard layout to use with the installed system (such as "us").
-    pub keyboard_layout: String,
+    pub keyboard_layout:  String,
     /// An optional keyboard model (such as "pc105") to define the keyboard's model.
-    pub keyboard_model: Option<String>,
+    pub keyboard_model:   Option<String>,
     /// An optional variant of the keyboard (such as "dvorak").
     pub keyboard_variant: Option<String>,
     /// The UUID of the old root partition, for retaining user accounts.
-    pub old_root: Option<String>,
+    pub old_root:         Option<String>,
     /// The locale to use for the installed system.
-    pub lang: String,
+    pub lang:             String,
     /// The file that contains a list of packages to remove.
-    pub remove: String,
+    pub remove:           String,
     /// The archive (`tar` or `squashfs`) which contains the base system.
-    pub squashfs: String,
+    pub squashfs:         String,
     /// Some flags to control the behavior of the installation.
-    pub flags: u8,
+    pub flags:            u8,
 }
 
 /// Credentials for creating a new user account.

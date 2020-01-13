@@ -407,16 +407,13 @@ OEM_MODE=0
         misc::cp(&[casper_data, "initrd.gz"].concat(), &efi_initrd)?;
         misc::cp(&[casper_data, "vmlinuz.efi"].concat(), &efi_vmlinuz)?;
 
-        let rec_entry_data = format!(r#"title {0} recovery
+        let rec_entry_data = format!(
+            r#"title {0} recovery
 linux /EFI/{1}/vmlinuz.efi
 initrd /EFI/{1}/initrd.gz
 options {2} boot=casper hostname=recovery userfullname=Recovery username=recovery live-media-path=/{3} live-media=/dev/disk/by-partuuid/{4} noprompt
 "#,
-            name,
-            recovery,
-            RECOVERY_BOOT_OPTIONS,
-            casper,
-            recovery_partuuid.id
+            name, recovery, RECOVERY_BOOT_OPTIONS, casper, recovery_partuuid.id
         );
         let loader_entries = self.chroot.path.join("boot/efi/loader/entries/");
         if !loader_entries.exists() {
