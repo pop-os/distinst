@@ -64,7 +64,7 @@ macro_rules! map_errors {
 }
 
 pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
-    recovery_conf: &mut RecoveryEnv,
+    recovery_conf: Option<&mut RecoveryEnv>,
     disks: &D,
     mount_dir: P,
     config: &Config,
@@ -175,12 +175,14 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         callback(25);
 
         let root_uuid = &root_entry.uid;
-        update_recovery_config(
-            recovery_conf,
-            &mount_dir,
-            &root_uuid.id,
-            luks_uuid.as_ref().map(|x| x.id.as_str()),
-        )?;
+        if let Some(conf) = recovery_conf {
+            update_recovery_config(
+                conf,
+                &mount_dir,
+                &root_uuid.id,
+                luks_uuid.as_ref().map(|x| x.id.as_str()),
+            )?;
+        }
 
         callback(30);
 
