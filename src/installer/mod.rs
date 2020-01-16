@@ -137,7 +137,11 @@ impl Installer {
     ///
     /// If `config.old_root` is set, then home at that location will be retained.
     pub fn install(&mut self, mut disks: Disks, config: &Config) -> io::Result<()> {
-        let mut recovery_conf = RecoveryEnv::new()?;
+        let mut recovery_conf = if Path::new("/cdrom/recovery.conf").exists() {
+            Some(RecoveryEnv::new()?)
+        } else {
+            None
+        };
 
         disks.remove_untouched_disks();
         let steps = &mut InstallerState::new(self);
@@ -186,7 +190,7 @@ impl Installer {
 
             steps.apply(Step::Configure, "configuring chroot", |steps| {
                 Installer::configure(
-                    &mut recovery_conf,
+                    recovery_conf.as_mut(),
                     &disks,
                     mount_dir.path(),
                     &config,
@@ -215,8 +219,10 @@ impl Installer {
 
         let _ = deactivate_logical_devices();
 
-        recovery_conf.remove("MODE");
-        recovery_conf.write()?;
+        if let Some(conf) = recovery_conf.as_mut() {
+            conf.remove("MODE");
+            conf.write()?;
+        }
 
         Ok(())
     }
@@ -412,7 +418,7 @@ impl Installer {
 
     /// Configures the new install after it has been extracted.
     fn configure<P: AsRef<Path>, S: AsRef<str>, F: FnMut(i32)>(
-        recovery_conf: &mut RecoveryEnv,
+        recovery_conf: Option<&mut RecoveryEnv>,
         disks: &Disks,
         mount_dir: P,
         config: &Config,
