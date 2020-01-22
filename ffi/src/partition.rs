@@ -113,6 +113,9 @@ impl From<PartitionFlag> for DISTINST_PARTITION_FLAG {
             PartitionFlag::PED_PARTITION_MSFT_DATA => DISTINST_PARTITION_FLAG::MSFT_DATA,
             PartitionFlag::PED_PARTITION_IRST => DISTINST_PARTITION_FLAG::IRST,
             PartitionFlag::PED_PARTITION_ESP => DISTINST_PARTITION_FLAG::ESP,
+            // PED_PARTITION_CHROMEOS_KERNEL added for 20.04
+            // To account for this, match any unknown flags as HIDDEN
+            _ => DISTINST_PARTITION_FLAG::HIDDEN,
         }
     }
 }
