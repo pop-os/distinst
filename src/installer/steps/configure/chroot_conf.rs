@@ -57,10 +57,10 @@ impl<'a> ChrootConfigurator<'a> {
         info!("removing packages: {:?}", packages);
         self.chroot
             .command(
-                "apt-get",
+                "dpkg",
                 &cascade! {
-                    Vec::with_capacity(packages.len() + 2);
-                    ..extend_from_slice(&["purge", "-y"]);
+                    Vec::with_capacity(packages.len() + 1);
+                    ..push("--purge");
                     ..extend_from_slice(packages);
                 },
             )
