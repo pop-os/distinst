@@ -19,6 +19,7 @@ pub extern crate partition_identity;
 pub extern crate proc_mounts;
 pub extern crate sys_mount;
 
+extern crate anyhow;
 extern crate apt_cli_wrappers;
 #[macro_use]
 extern crate bitflags;
@@ -68,12 +69,17 @@ pub mod dbus_interfaces {
     pub use logind_dbus::*;
 }
 
-use external::dmlist;
 use std::{
     io::{self, Read},
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
 };
+
+use anyhow::Context;
+use external::dmlist;
+use partition_identity::PartitionID;
+use sys_mount::*;
+use systemd_boot_conf::SystemdBootConf;
 
 pub use self::{installer::*, logging::log};
 
@@ -122,4 +128,38 @@ pub fn minimum_disk_size(default: u64) -> u64 {
         .map_or(default, |size| size.max(default));
 
     casper_size + DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS + DEFAULT_SWAP_SECTORS
+}
+
+pub fn unset_mode() -> anyhow::Result<()> {
+    let mut conf = RecoveryEnv::new().context("failed to read recovery.conf")?;
+
+    if conf.get("MODE") == Some("refresh") {
+        let efi_id = conf.get("EFI_UUID").context("EFI_UUID is not set")?;
+        let prev_boot = conf.get("PREV_BOOT").context("PREV_BOOT is not set")?;
+
+        let efi_pid = if efi_id.starts_with("PARTUUID=") {
+            PartitionID::new_partuuid(efi_id[9..].to_owned())
+        } else {
+            PartitionID::new_uuid(efi_id.to_owned())
+        };
+
+        let efi_path =
+            efi_pid.get_device_path().context("failed to get device path from EFI partition")?;
+
+        let _mount = Mount::new(&efi_path, "target", "vfat", MountFlags::empty(), None)
+            .context("failed to mount EFI partition")?
+            .into_unmount_drop(UnmountFlags::DETACH);
+
+        let mut boot_loader =
+            SystemdBootConf::new("target").context("failed to open boot loader conf")?;
+
+        boot_loader.loader_conf.default = Some(prev_boot.into());
+        boot_loader.overwrite_loader_conf().context("failed to overwrite boot loader conf")?;
+
+        conf.remove("MODE");
+        conf.remove("PREV_BOOT");
+        conf.write().context("failed to write updated boot loader conf")?;
+    }
+
+    Ok(())
 }
