@@ -231,7 +231,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         // Remove incompatible bootloader packages
         match Bootloader::detect() {
-            Bootloader::Bios => remove.push("kernelstub"),
+            Bootloader::Bios if iso_os_release.name == "Pop!_OS" => remove.push("kernelstub"),
             Bootloader::Efi => (),
         }
 
