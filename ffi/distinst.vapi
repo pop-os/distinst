@@ -1075,6 +1075,13 @@ namespace Distinst {
 
     public delegate UserAccountCreate UserAccountCallback ();
 
+    /**
+     * Attempts to unset the active mode
+     *
+     * Returns `false` on an error. See distinst logs for details on the cause of the error.
+     */
+    bool unset_mode ();
+
     int log (Distinst.LogCallback callback);
 
     [Compact]
