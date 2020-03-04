@@ -25,7 +25,7 @@ Implementors of the library should note that distinst utilizes in-memory partiti
 
 #### Rust Example
 
-See the source code for the [distinst](https://github.com/pop-os/distinst/blob/master_bionic/cli/src/main.rs) CLI application.
+See the source code for the [distinst](https://github.com/pop-os/distinst/blob/master/cli/src/main.rs) CLI application.
 
 #### Vala Example
 
