@@ -244,48 +244,34 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         // TODO: use a macro to make this more manageable.
         let chroot = ChrootConfigurator::new(chroot);
 
-        let mut hostname = Ok(());
-        let mut hosts = Ok(());
-        let mut machine_id = Ok(());
-        let mut netresolv = Ok(());
-        let mut locale = Ok(());
-        let mut apt_install = Ok(());
-        let mut etc_cleanup = Ok(());
-        let mut kernel_copy = Ok(());
-        let mut timezone = Ok(());
-        let mut useradd = Ok(());
+        let hostname = chroot.hostname(&config.hostname);
+        let hosts = chroot.hosts(&config.hostname);
+        let machine_id = chroot.generate_machine_id();
+        let netresolv = chroot.netresolve();
+        let locale = chroot.generate_locale(&config.lang);
+        let etc_cleanup = chroot.etc_cleanup();
+        let kernel_copy = chroot.kernel_copy();
 
-        rayon::scope(|s| {
-            s.spawn(|_| {
-                hostname = chroot.hostname(&config.hostname);
-                hosts = chroot.hosts(&config.hostname);
-                machine_id = chroot.generate_machine_id();
-                netresolv = chroot.netresolve();
-                locale = chroot.generate_locale(&config.lang);
-                etc_cleanup = chroot.etc_cleanup();
-                kernel_copy = chroot.kernel_copy();
+        let timezone = if let Some(tz) = region {
+            chroot.timezone(tz)
+        } else {
+            Ok(())
+        };
 
-                if let Some(tz) = region {
-                    timezone = chroot.timezone(tz);
-                }
+        let useradd = if let Some(ref user) = user {
+            chroot.create_user(
+                &user.username,
+                user.password.as_ref().map(|x| x.as_str()),
+                user.realname.as_ref().map(|x| x.as_str()),
+            )
+        } else {
+            Ok(())
+        };
 
-                if let Some(ref user) = user {
-                    useradd = chroot.create_user(
-                        &user.username,
-                        user.password.as_ref().map(|x| x.as_str()),
-                        user.realname.as_ref().map(|x| x.as_str()),
-                    );
-                }
-            });
-
-            // Apt takes so long that it needs to run by itself.
-            s.spawn(|_| {
-                apt_install = chroot
-                    .cdrom_add()
-                    .and_then(|_| chroot.apt_install(&install_pkgs))
-                    .and_then(|_| chroot.cdrom_disable());
-            });
-        });
+        let apt_install = chroot
+            .cdrom_add()
+            .and_then(|_| chroot.apt_install(&install_pkgs))
+            .and_then(|_| chroot.cdrom_disable());
 
         map_errors! {
             hostname => "error writing hostname";
