@@ -1,11 +1,11 @@
-use std::{fmt, mem};
+use std::{fmt, fs::File, io::BufReader, mem};
 
 use super::{
     super::super::*, AlongsideMethod, AlongsideOption, EraseOption, InstallOptionError,
     RecoveryOption, RefreshOption,
 };
 use disk_types::{FileSystem::*, SectorExt};
-use disks::*;
+
 use external::{generate_unique_id, remount_rw};
 use misc;
 use partition_identity::PartitionID;
@@ -259,7 +259,7 @@ fn mount_recovery_partid(
     recovery: &PartitionID,
 ) -> Result<(), InstallOptionError> {
     if let Some(path) = recovery.get_device_path() {
-        let recovery_is_cdrom = MountIter::source_mounted_at(path, "/cdrom")
+        let recovery_is_cdrom = MountIter::<BufReader<File>>::source_mounted_at(path, "/cdrom")
             .map_err(|why| InstallOptionError::ProcMounts { why })?;
 
         if recovery_is_cdrom {

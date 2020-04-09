@@ -151,9 +151,9 @@ impl LogicalDevice {
 
     pub fn get_pe_size_in_sectors(&self) -> u64 { self.vg_data.pe_size }
 
-    pub fn shrink_vg(&mut self, pes: u64) -> Result<(), DiskError> { Ok(()) }
+    pub fn shrink_vg(&mut self, _pes: u64) -> Result<(), DiskError> { Ok(()) }
 
-    pub fn shrink_pv(&mut self, sectors: u64) -> Result<(), DiskError> { Ok(()) }
+    pub fn shrink_pv(&mut self, _sectors: u64) -> Result<(), DiskError> { Ok(()) }
 
     pub fn get_last_sector(&self) -> u64 {
         self.get_partitions()

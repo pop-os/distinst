@@ -11,12 +11,12 @@ categories = ["filesystem", "os"]
 
 [dependencies]
 distinst-bootloader = { path = "../bootloader" }
-derive-new = "0.5.5"
-disk-types = "0.1.2"
+derive-new = "0.5.8"
+disk-types = "=0.1.2"
 distinst-external-commands = { path = "../external" }
-log = "0.4.6"
+log = "0.4.8"
 tempdir = "0.3.7"
-sys-mount = "1.1.0"
-libparted = "0.1.3"
-rayon = "1.0.2"
-smart-default = "0.2.0"
+sys-mount = "1.2.1"
+libparted = "0.1.4"
+rayon = "1.3.0"
+smart-default = "0.6.0"

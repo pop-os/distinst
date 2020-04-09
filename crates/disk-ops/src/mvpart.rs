@@ -33,7 +33,7 @@ pub fn move_partition<P: AsRef<Path>>(
 
     // Some dynamic dispatching, based on whether we need to move forward or
     // backwards.
-    let range: Box<Iterator<Item = u64>> = if coords.offset > 0 {
+    let range: Box<dyn Iterator<Item = u64>> = if coords.offset > 0 {
         Box::new((0..coords.length).rev())
     } else {
         Box::new(0..coords.length)

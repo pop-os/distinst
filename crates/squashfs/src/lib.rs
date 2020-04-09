@@ -15,11 +15,10 @@ use std::{
 };
 
 fn getpty(columns: u32, lines: u32) -> (RawFd, String) {
-    use libc;
     use std::{
         ffi::CStr,
         fs::OpenOptions,
-        io::{self, Error},
+        io,
         os::unix::{fs::OpenOptionsExt, io::IntoRawFd},
     };
 
@@ -62,7 +61,7 @@ fn getpty(columns: u32, lines: u32) -> (RawFd, String) {
 }
 
 fn slave_stdio(tty_path: &str) -> Result<(File, File, File)> {
-    use libc::{self, O_CLOEXEC, O_RDONLY, O_WRONLY};
+    use libc::{O_CLOEXEC, O_RDONLY, O_WRONLY};
     use std::ffi::CString;
 
     let cvt = |res: i32| -> Result<i32> {
@@ -85,8 +84,6 @@ fn slave_stdio(tty_path: &str) -> Result<(File, File, File)> {
 }
 
 fn before_exec() -> Result<()> {
-    use libc;
-
     unsafe {
         if libc::setsid() < 0 {
             panic!("setsid: {:?}", Error::last_os_error());

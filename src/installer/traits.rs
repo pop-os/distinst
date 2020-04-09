@@ -1,7 +1,7 @@
 use self::FileSystem::*;
 use super::bitflags::FileSystemSupport;
 use disk_types::{BlockDeviceExt, FileSystem, PartitionExt};
-use disks::{Disks, PartitionInfo};
+use disks::{Disks};
 use errors::IntoIoResult;
 use external::generate_unique_id;
 use fstab_generate::BlockInfo;

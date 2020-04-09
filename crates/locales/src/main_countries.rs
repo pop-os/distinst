@@ -25,7 +25,7 @@ pub fn get_main_country(code: &str) -> Option<&'static str> {
 /// Fetch a list of main countries, according to `/usr/share/language-tools/main-countries`.
 pub fn get_main_countries() -> BTreeMap<String, String> {
     let file = match misc::open(MAIN_COUNTRIES_PATH) {
-        Ok(mut file) => file,
+        Ok(file) => file,
         Err(why) => {
             eprintln!(
                 "{:?} could not be opened: {}. returning empty collection.",

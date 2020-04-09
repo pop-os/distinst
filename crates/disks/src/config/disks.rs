@@ -104,9 +104,9 @@ impl Disks {
     }
 
     /// Uses a boxed iterator to get an iterator over all physical partitions.
-    pub fn get_physical_partitions<'a>(&'a self) -> Box<Iterator<Item = &'a PartitionInfo> + 'a> {
+    pub fn get_physical_partitions<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PartitionInfo> + 'a> {
         let iterator = self.get_physical_devices().iter().flat_map(|disk| {
-            let iterator: Box<Iterator<Item = &PartitionInfo>> =
+            let iterator: Box<dyn Iterator<Item = &PartitionInfo>> =
                 if let Some(ref fs) = disk.file_system {
                     Box::new(iter::once(fs).chain(disk.partitions.iter()))
                 } else {
@@ -150,9 +150,9 @@ impl Disks {
     pub fn get_logical_devices_mut(&mut self) -> &mut [LogicalDevice] { &mut self.logical }
 
     /// Uses a boxed iterator to get an iterator over all logical partitions.
-    pub fn get_logical_partitions<'a>(&'a self) -> Box<Iterator<Item = &'a PartitionInfo> + 'a> {
+    pub fn get_logical_partitions<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PartitionInfo> + 'a> {
         let iterator = self.get_logical_devices().iter().flat_map(|disk| {
-            let iterator: Box<Iterator<Item = &PartitionInfo>> =
+            let iterator: Box<dyn Iterator<Item = &PartitionInfo>> =
                 if let Some(ref fs) = disk.file_system {
                     Box::new(iter::once(fs).chain(disk.partitions.iter()))
                 } else {
@@ -255,13 +255,13 @@ impl Disks {
     }
 
     /// Get all partitions across all physical and logical devices.
-    pub fn get_partitions<'a>(&'a self) -> Box<Iterator<Item = &'a PartitionInfo> + 'a> {
+    pub fn get_partitions<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PartitionInfo> + 'a> {
         Box::new(self.get_physical_partitions().chain(self.get_logical_partitions()))
     }
 
     pub fn get_partitions_mut<'a>(
         &'a mut self,
-    ) -> Box<Iterator<Item = &'a mut PartitionInfo> + 'a> {
+    ) -> Box<dyn Iterator<Item = &'a mut PartitionInfo> + 'a> {
         Box::new(
             self.physical
                 .iter_mut()
@@ -1138,7 +1138,7 @@ impl Disks {
                 }
 
                 // Obtains an iterator which may produce one or more device paths.
-                let volumes: Box<Iterator<Item = &Path>> = match device_path.as_ref() {
+                let volumes: Box<dyn Iterator<Item = &Path>> = match device_path.as_ref() {
                     // There will be only one volume, which we obtained from encryption.
                     Some(path) => Box::new(iter::once(path.as_path())),
                     // There may be more than one volume within a unencrypted LVM config.
