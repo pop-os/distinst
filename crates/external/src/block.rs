@@ -112,7 +112,7 @@ pub fn get_label<P: AsRef<Path>>(part: P, kind: FileSystem) -> Option<String> {
             return None;
         }
     } else if !output.is_empty() {
-        output.trim_right().into()
+        output.trim_end().into()
     } else {
         return None;
     };

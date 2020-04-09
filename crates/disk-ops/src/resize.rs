@@ -4,8 +4,7 @@ use disk_types::{FileSystem, PartitionType};
 use external::{blockdev, fsck};
 use libparted::PartitionFlag;
 use std::{
-    fs::{File, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };

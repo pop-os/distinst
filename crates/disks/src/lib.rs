@@ -1,6 +1,4 @@
-#[macro_use]
 extern crate bitflags;
-#[macro_use]
 extern crate derive_new;
 extern crate disk_types;
 extern crate distinst_bootloader as bootloader;

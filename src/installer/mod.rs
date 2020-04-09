@@ -91,10 +91,10 @@ pub struct Status {
 
 /// An installer object
 pub struct Installer {
-    error_cb:         Option<Box<FnMut(&Error)>>,
-    status_cb:        Option<Box<FnMut(&Status)>>,
-    timezone_cb:      Option<Box<FnMut() -> Region>>,
-    user_creation_cb: Option<Box<FnMut() -> UserAccountCreate>>,
+    error_cb:         Option<Box<dyn FnMut(&Error)>>,
+    status_cb:        Option<Box<dyn FnMut(&Status)>>,
+    timezone_cb:      Option<Box<dyn FnMut() -> Region>>,
+    user_creation_cb: Option<Box<dyn FnMut() -> UserAccountCreate>>,
 }
 
 impl Default for Installer {

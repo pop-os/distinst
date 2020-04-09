@@ -2,9 +2,9 @@
 
 #[derive(SmartDefault)]
 pub struct Retry {
-    #[default = "3"]
+    #[default = 3]
     attempts: u64,
-    #[default = "1000"]
+    #[default = 1000]
     interval: u64,
 }
 

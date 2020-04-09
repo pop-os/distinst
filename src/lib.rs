@@ -25,7 +25,6 @@ extern crate apt_cli_wrappers;
 extern crate bitflags;
 #[macro_use]
 extern crate cascade;
-#[macro_use]
 extern crate err_derive;
 #[macro_use]
 extern crate derive_more;

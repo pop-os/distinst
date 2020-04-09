@@ -10,7 +10,7 @@ keywords =  ["chroot", "command", "process", "distinst"]
 categories = ["os", "os::unix-apis"]
 
 [dependencies]
-sys-mount = "1.1.0"
-cascade = "0.1.2"
-log = "0.4.5"
-libc = "0.2.49"
+sys-mount = "1.2.1"
+cascade = "0.1.4"
+log = "0.4.8"
+libc = "0.2.68"

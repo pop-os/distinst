@@ -16,13 +16,13 @@ name = "distinst"
 crate-type = ["cdylib"]
 
 [build-dependencies]
-cbindgen = "=0.6.1"
+cbindgen = "0.14.0"
 
 [dependencies]
-dbus = "=0.6.2"
+dbus = "0.8.2"
 distinst-external-commands = { path = "../crates/external" }
 distinst = { path = ".." }
-libc = "0.2.43"
-log = "0.4.3"
-partition-identity = "=0.2.2"
-proc-mounts = "=0.1.2"
+libc = "0.2.68"
+log = "0.4.8"
+partition-identity = "0.2.8"
+proc-mounts = "0.2.4"

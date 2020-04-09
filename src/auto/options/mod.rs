@@ -12,7 +12,7 @@ pub use self::{
 
 use super::super::*;
 use disk_types::{PartitionExt, SectorExt};
-use disks::*;
+
 use os_release::OS_RELEASE;
 use partition_identity::PartitionID;
 use std::path::PathBuf;

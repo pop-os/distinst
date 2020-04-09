@@ -15,18 +15,16 @@ name = "distinst"
 path = "src/main.rs"
 
 [dependencies]
-clap = "=2.32.0"
-dbus = "=0.6.2"
+clap = "2.33.0"
+dbus = "0.8.2"
 distinst = { path = ".." }
-libc = "0.2.43"
-pbr = "1.0.1"
-partition-identity = "=0.2.2"
-proc-mounts = "=0.1.2"
+libc = "0.2.68"
+pbr = "1.0.2"
+partition-identity = "0.2.8"
+proc-mounts = "0.2.4"
+failure_derive = "0.1.7"
 
 [dependencies.failure]
-version = "0.1.2"
+version = "0.1.7"
 default-features = false
 features = ["derive"]
-
-[dependencies.failure_derive]
-version = "0.1.2"

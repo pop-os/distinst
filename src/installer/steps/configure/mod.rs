@@ -159,7 +159,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         callback(15);
 
         let root_entry = disks.get_block_info_of("/")?;
-        let recovery_entry = disks.get_block_info_of("/recovery");
+        let _recovery_entry = disks.get_block_info_of("/recovery");
 
         callback(20);
 

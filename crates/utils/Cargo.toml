@@ -9,4 +9,4 @@ license = "MIT"
 keywords = ["distinst", "utils"]
 
 [dependencies]
-sedregex = "<0.2.0"
+sedregex = "0.2.4"

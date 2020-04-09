@@ -1,6 +1,7 @@
 use apt_cli_wrappers::AptUpgradeEvent;
 use auto::{InstallOption, InstallOptionError, RecoveryOption};
 use chroot::SystemdNspawn;
+use err_derive::Error;
 use disks::Disks;
 use errors::IoContext;
 use external::remount_rw;
@@ -122,10 +123,10 @@ fn systemd_boot_entry_restore<P: AsRef<Path>>(base: P) -> Result<(), UpgradeErro
         let SystemdBootConf { ref entries, ref mut loader_conf, .. } = systemd_boot_conf;
         let current_entry = entries
             .iter()
-            .find(|e| e.filename.to_lowercase() == "pop_os-current")
+            .find(|e| e.id.to_lowercase() == "pop_os-current")
             .ok_or(UpgradeError::MissingCurrentEntry)?;
 
-        loader_conf.default = Some(current_entry.filename.to_owned());
+        loader_conf.default = Some(current_entry.id.to_owned());
     }
 
     Ok(())
