@@ -162,17 +162,6 @@ impl<'a> ChrootConfigurator<'a> {
         }
     }
 
-    /// Remove files from /etc/ that may interfere with a reinstall.
-    pub fn etc_cleanup(&self) -> io::Result<()> {
-        let initramfs_post_update = self.chroot.path.join("etc/initramfs/post-update.d/");
-        if initramfs_post_update.is_dir() {
-            fs::remove_dir_all(&initramfs_post_update)
-                .with_context(|err| format!("removing initramfs post-update.d: {}", err))
-        } else {
-            Ok(())
-        }
-    }
-
     /// Use locale-gen and update-locale to set the locale of the machine.
     pub fn generate_locale(&self, locale: &str) -> io::Result<()> {
         info!("generating locales via `locale-gen` and `update-locale`");
