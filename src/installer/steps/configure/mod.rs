@@ -249,7 +249,6 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         let machine_id = chroot.generate_machine_id();
         let netresolv = chroot.netresolve();
         let locale = chroot.generate_locale(&config.lang);
-        let etc_cleanup = chroot.etc_cleanup();
         let kernel_copy = chroot.kernel_copy();
 
         let timezone = if let Some(tz) = region {
@@ -280,7 +279,6 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             netresolv => "error linking netresolve";
             locale => "error generating locales";
             apt_install => "error installing packages";
-            etc_cleanup => "error removing pre-existing files in /etc";
             kernel_copy => "error copying kernel from casper to chroot";
             timezone => "error setting timezone";
             useradd => "error creating user account"
