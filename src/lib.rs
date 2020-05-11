@@ -93,8 +93,12 @@ pub static PARTITIONING_TEST: AtomicBool = AtomicBool::new(false);
 /// Even if the system is EFI, the efivars directory will not be mounted in the chroot.
 pub static NO_EFI_VARIABLES: AtomicBool = AtomicBool::new(false);
 
+/// 500 MiB EFI partition
 pub const DEFAULT_ESP_SECTORS: u64 = 1_024_000;
+
+/// 4096 MiB recovery partition
 pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
+
 pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
 
 /// Checks if the given name already exists as a device in the device map list.
@@ -113,20 +117,21 @@ pub fn device_map_exists(name: &str) -> bool {
 ///
 /// The input parameter will undergo a max comparison to the estimated minimum requirement.
 pub fn minimum_disk_size(default: u64) -> u64 {
-    let casper_size = misc::open("/cdrom/casper/filesystem.size")
+    let casper = std::fs::read_to_string("/cdrom/casper/filesystem.size")
         .ok()
-        .and_then(|mut file| {
-            let capacity = file.metadata().ok().map_or(0, |m| m.len());
-            let mut buffer = String::with_capacity(capacity as usize);
-            file.read_to_string(&mut buffer)
-                .ok()
-                .and_then(|_| buffer[..buffer.len() - 1].parse::<u64>().ok())
-        })
-        // Convert the number of bytes read into sectors required + 1
-        .map(|bytes| (bytes / 512) + 1)
-        .map_or(default, |size| size.max(default));
+        // File contains a number in bytes
+        .and_then(|size| size.trim().parse::<u64>().ok())
+        // Convert bytes read into sectors required + 1
+        .map_or(default, |size| ((size / 512) + 1).max(default));
 
-    casper_size + DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS + DEFAULT_SWAP_SECTORS
+    // EFI installs will contain an EFI partition with a recovery partition.
+    let bootloader = if Bootloader::detect() == Bootloader::Efi {
+        DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS
+    } else {
+        0
+    };
+
+    casper + bootloader + DEFAULT_SWAP_SECTORS
 }
 
 pub fn unset_mode() -> anyhow::Result<()> {
