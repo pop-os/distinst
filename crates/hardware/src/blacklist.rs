@@ -52,7 +52,8 @@ static SWITCHABLE_GRAPHICS: &[&str] = &[
     "gaze15",
     "oryp4",
     "oryp4-b",
-    "oryp5"
+    "oryp5",
+    "oryp6",
 ];
 
 fn has_switchable_graphics(product: &str) -> bool { SWITCHABLE_GRAPHICS.contains(&product) }
