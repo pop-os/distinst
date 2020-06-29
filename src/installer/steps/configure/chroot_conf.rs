@@ -154,7 +154,7 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     /// Disable the nvidia fallback service.
-    pub fn disable_nvidia(&self) {
+    pub fn disable_nvidia_fallback(&self) {
         info!("attempting to disable nvidia-fallback.service");
         let args = &["disable", "nvidia-fallback.service"];
         if let Err(why) = self.chroot.command("systemctl", args).run() {

@@ -115,10 +115,10 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         a.and(b)
     };
 
-    let disable_nvidia = {
+    let configure_graphics = {
         let mut b: io::Result<()> = Ok(());
         let mut c: io::Result<()> = Ok(());
-        let mut disable_nvidia = Ok(false);
+        let mut configure_graphics = Ok(false);
 
         rayon::scope(|s| {
             s.spawn(|_| b = lvm_autodetection());
@@ -128,7 +128,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
                     hardware_support::append_packages(install_pkgs, &iso_os_release);
                 }
 
-                disable_nvidia = hardware_support::switchable_graphics::disable_external_graphics(&mount_dir);
+                configure_graphics = hardware_support::switchable_graphics::configure_graphics(&mount_dir);
             });
         });
 
@@ -138,7 +138,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             c => "failed to generate fstab / crypttab"
         }
 
-        disable_nvidia?
+        configure_graphics?
     };
 
     {
@@ -305,8 +305,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(80);
 
-        if disable_nvidia {
-            chroot.disable_nvidia();
+        if configure_graphics {
+            chroot.disable_nvidia_fallback();
         }
 
         chroot
