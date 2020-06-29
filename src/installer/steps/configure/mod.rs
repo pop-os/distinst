@@ -128,7 +128,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
                     hardware_support::append_packages(install_pkgs, &iso_os_release);
                 }
 
-                disable_nvidia = hardware_support::blacklist::disable_external_graphics(&mount_dir);
+                disable_nvidia = hardware_support::switchable_graphics::disable_external_graphics(&mount_dir);
             });
         });
 

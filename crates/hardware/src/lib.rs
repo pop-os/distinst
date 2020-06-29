@@ -9,7 +9,7 @@ use os_release::OsRelease;
 use raw_cpuid::CpuId;
 use std::io::Read;
 
-pub mod blacklist;
+pub mod switchable_graphics;
 #[macro_use]
 mod macros;
 
