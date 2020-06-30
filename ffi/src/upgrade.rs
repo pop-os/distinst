@@ -15,6 +15,7 @@ pub struct DistinstUpgradeEvent {
     str3_length1: libc::size_t,
 }
 
+#[allow(non_camel_case_types)]
 #[repr(C)]
 pub enum DISTINST_UPGRADE_TAG {
     ATTEMPTING_REPAIR,
