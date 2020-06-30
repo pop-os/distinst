@@ -1,8 +1,7 @@
-use super::Module;
 use misc;
 use std::{
-    fs::{self, OpenOptions},
-    io::{self, Read, Write},
+    fs,
+    io::{self, Read},
     path::Path,
 };
 

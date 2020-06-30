@@ -69,7 +69,7 @@ pub mod dbus_interfaces {
 }
 
 use std::{
-    io::{self, Read},
+    io,
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
 };

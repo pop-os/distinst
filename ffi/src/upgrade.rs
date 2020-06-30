@@ -1,5 +1,5 @@
 use super::{DistinstDisks, DistinstRecoveryOption};
-use distinst::{self, auto::RecoveryOption, Disks, RecoveryEnv, UpgradeError, UpgradeEvent};
+use distinst::{self, auto::RecoveryOption, Disks, RecoveryEnv, UpgradeEvent};
 use libc;
 use std::ptr;
 
