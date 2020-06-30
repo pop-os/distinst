@@ -59,7 +59,7 @@ macro_rules! map_errors {
                 io::ErrorKind::Other,
                 format!("{}: {}", $value, why)
             ))?;
-        );+
+        )+
     }
 }
 
