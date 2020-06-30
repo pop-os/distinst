@@ -6,12 +6,12 @@ use std::ptr;
 #[repr(C)]
 pub struct DistinstUpgradeEvent {
     tag:          DISTINST_UPGRADE_TAG,
-    percent:      libc::uint8_t,
-    str1:         *const libc::uint8_t,
+    percent:      u8,
+    str1:         *const u8,
     str1_length1: libc::size_t,
-    str2:         *const libc::uint8_t,
+    str2:         *const u8,
     str2_length1: libc::size_t,
-    str3:         *const libc::uint8_t,
+    str3:         *const u8,
     str3_length1: libc::size_t,
 }
 
@@ -43,7 +43,7 @@ impl From<UpgradeEvent<'_>> for DistinstUpgradeEvent {
             str3_length1: 0,
         };
 
-        fn set_str(data: &mut *const libc::uint8_t, len: &mut libc::size_t, message: &str) {
+        fn set_str(data: &mut *const u8, len: &mut libc::size_t, message: &str) {
             let message = message.as_bytes();
             *data = message.as_ptr();
             *len = message.len();
@@ -113,7 +113,7 @@ pub type DistinstUpgradeEventCallback =
     extern "C" fn(event: DistinstUpgradeEvent, user_data: *mut libc::c_void);
 
 pub type DistinstUpgradeRepairCallback =
-    extern "C" fn(user_data: *mut libc::c_void) -> libc::uint8_t;
+    extern "C" fn(user_data: *mut libc::c_void) -> u8;
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_upgrade(

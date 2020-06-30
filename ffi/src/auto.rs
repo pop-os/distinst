@@ -119,7 +119,7 @@ pub unsafe extern "C" fn distinst_alongside_option_get_path(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_alongside_option_get_sectors_free(
     option: *const DistinstAlongsideOption,
-) -> libc::uint64_t {
+) -> u64 {
     let option = &*(option as *const AlongsideOption);
     match option.method {
         AlongsideMethod::Shrink { sectors_free, .. } => sectors_free,
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn distinst_alongside_option_get_sectors_free(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_alongside_option_get_sectors_total(
     option: *const DistinstAlongsideOption,
-) -> libc::uint64_t {
+) -> u64 {
     let option = &*(option as *const AlongsideOption);
     match option.method {
         AlongsideMethod::Shrink { sectors_total, .. } => sectors_total,
@@ -277,7 +277,7 @@ pub unsafe extern "C" fn distinst_erase_option_get_linux_icon(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_erase_option_get_sectors(
     option: *const DistinstEraseOption,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(option).is_err() {
         return 0;
     }
@@ -524,7 +524,7 @@ pub struct DistinstInstallOption {
     tag:          DISTINST_INSTALL_OPTION_VARIANT,
     option:       *const libc::c_void,
     encrypt_pass: *const libc::c_char,
-    sectors:      libc::uint64_t,
+    sectors:      u64,
 }
 
 impl<'a> From<&'a DistinstInstallOption> for InstallOption<'a> {
@@ -606,8 +606,8 @@ pub struct DistinstInstallOptions;
 #[no_mangle]
 pub unsafe extern "C" fn distinst_install_options_new(
     disks: *const DistinstDisks,
-    required: libc::uint64_t,
-    shrink_overhead: libc::uint64_t,
+    required: u64,
+    shrink_overhead: u64,
 ) -> *mut DistinstInstallOptions {
     if null_check(disks).is_err() {
         return ptr::null_mut();

@@ -169,15 +169,17 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
     let mut child = {
         let (slave_stdin, slave_stdout, slave_stderr) = slave_stdio(&tty_path)?;
 
-        command
-            .stdin(unsafe { Stdio::from_raw_fd(slave_stdin.as_raw_fd()) })
-            .stdout(unsafe { Stdio::from_raw_fd(slave_stdout.as_raw_fd()) })
-            .stderr(unsafe { Stdio::from_raw_fd(slave_stderr.as_raw_fd()) })
-            .env("COLUMNS", "")
-            .env("LINES", "")
-            .env("TERM", "xterm-256color")
-            .before_exec(before_exec)
-            .spawn()?
+        unsafe {
+            command
+                .stdin(Stdio::from_raw_fd(slave_stdin.as_raw_fd()))
+                .stdout(Stdio::from_raw_fd(slave_stdout.as_raw_fd()))
+                .stderr(Stdio::from_raw_fd(slave_stderr.as_raw_fd()))
+                .env("COLUMNS", "")
+                .env("LINES", "")
+                .env("TERM", "xterm-256color")
+                .pre_exec(before_exec)
+                .spawn()?
+        }
     };
 
     let master = unsafe { File::from_raw_fd(master_fd) };

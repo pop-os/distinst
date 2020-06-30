@@ -8,7 +8,7 @@ use to_cstr;
 #[derive(Copy, Clone)]
 pub struct DistinstSector {
     flag:  DISTINST_SECTOR_KIND,
-    value: libc::uint64_t,
+    value: u64,
 }
 
 #[repr(C)]
@@ -54,7 +54,7 @@ impl From<Sector> for DistinstSector {
 
 #[repr(C)]
 pub struct DistinstSectorResult {
-    tag:    libc::uint8_t,
+    tag:    u8,
     error:  *mut libc::c_char,
     sector: DistinstSector,
 }
@@ -101,27 +101,27 @@ pub extern "C" fn distinst_sector_end() -> DistinstSector {
 }
 
 #[no_mangle]
-pub extern "C" fn distinst_sector_unit(value: libc::uint64_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_unit(value: u64) -> DistinstSector {
     DistinstSector { flag: DISTINST_SECTOR_KIND::UNIT, value }
 }
 
 #[no_mangle]
-pub extern "C" fn distinst_sector_unit_from_end(value: libc::uint64_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_unit_from_end(value: u64) -> DistinstSector {
     DistinstSector { flag: DISTINST_SECTOR_KIND::UNIT_FROM_END, value }
 }
 
 #[no_mangle]
-pub extern "C" fn distinst_sector_megabyte(value: libc::uint64_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_megabyte(value: u64) -> DistinstSector {
     DistinstSector { flag: DISTINST_SECTOR_KIND::MEGABYTE, value }
 }
 
 #[no_mangle]
-pub extern "C" fn distinst_sector_megabyte_from_end(value: libc::uint64_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_megabyte_from_end(value: u64) -> DistinstSector {
     DistinstSector { flag: DISTINST_SECTOR_KIND::MEGABYTE_FROM_END, value }
 }
 
 #[no_mangle]
-pub extern "C" fn distinst_sector_percent(value: libc::uint16_t) -> DistinstSector {
+pub extern "C" fn distinst_sector_percent(value: u16) -> DistinstSector {
     debug_assert!(value <= 100);
     DistinstSector { flag: DISTINST_SECTOR_KIND::PERCENT, value: u64::from(value) }
 }

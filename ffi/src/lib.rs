@@ -66,7 +66,7 @@ pub fn to_cstr(string: String) -> *mut libc::c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn distinst_device_layout_hash() -> libc::uint64_t { distinst::device_layout_hash() }
+pub extern "C" fn distinst_device_layout_hash() -> u64 { distinst::device_layout_hash() }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_device_map_exists(name: *const libc::c_char) -> bool {
