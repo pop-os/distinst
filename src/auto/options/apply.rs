@@ -61,7 +61,7 @@ fn generate_encryption(
                 .and_then(|r| generate_unique_id("cryptdata", &[]).map(|e| (r, e)))
                 .map_err(|why| InstallOptionError::GenerateID { why })?;
 
-            let root_vg = root.clone();
+            let root_vg = root;
             let enc = LvmEncryption::new(encrypted_vg, Some(pass), None);
             Some((enc, root_vg))
         }
@@ -307,7 +307,7 @@ fn recovery_config(
         info!("recovery disk found at {:?}", recovery_path);
         Disk::from_name(&recovery_path)
             .ok()
-            .ok_or(InstallOptionError::DeviceNotFound { path: recovery_path.to_path_buf() })?
+            .ok_or(InstallOptionError::DeviceNotFound { path: recovery_path })?
     };
 
     {
