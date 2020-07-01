@@ -24,7 +24,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-/// A generic function for executing a variety external commands.
+/// A generic function for executing a variety of external commands.
 pub fn exec(
     cmd: &str,
     stdin: Option<&[u8]>,
