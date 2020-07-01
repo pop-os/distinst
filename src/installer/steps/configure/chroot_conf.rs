@@ -214,8 +214,8 @@ impl<'a> ChrootConfigurator<'a> {
                 &[
                     "set-x11-keymap",
                     &config.keyboard_layout,
-                    config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
-                    config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
+                    config.keyboard_model.as_deref().unwrap_or(""),
+                    config.keyboard_variant.as_deref().unwrap_or(""),
                 ],
             )
             .run()?;
@@ -371,8 +371,8 @@ OEM_MODE=0
             config.hostname,
             config.lang,
             config.keyboard_layout,
-            config.keyboard_model.as_ref().map(|x| x.as_str()).unwrap_or(""),
-            config.keyboard_variant.as_ref().map(|x| x.as_str()).unwrap_or(""),
+            config.keyboard_model.as_deref().unwrap_or(""),
+            config.keyboard_variant.as_deref().unwrap_or(""),
             efi_partuuid.id,
             recovery_partuuid.id,
             root_uuid,

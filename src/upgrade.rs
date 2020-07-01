@@ -57,7 +57,7 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
     callback: F,
     attempt_repair: R,
 ) -> Result<(), UpgradeError> {
-    if option.mode.as_ref().map(String::as_str) != Some("upgrade") {
+    if option.mode.as_deref() != Some("upgrade") {
         return Err(UpgradeError::ModeNotSet);
     }
 

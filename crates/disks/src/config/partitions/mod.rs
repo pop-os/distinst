@@ -88,7 +88,7 @@ pub struct PartitionInfo {
 impl BlockDeviceExt for PartitionInfo {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
-    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
+    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_deref() }
 }
 
 impl PartitionExt for PartitionInfo {
@@ -96,7 +96,7 @@ impl PartitionExt for PartitionInfo {
 
     fn get_partition_flags(&self) -> &[PartitionFlag] { &self.flags }
 
-    fn get_partition_label(&self) -> Option<&str> { self.name.as_ref().map(|s| s.as_str()) }
+    fn get_partition_label(&self) -> Option<&str> { self.name.as_deref() }
 
     fn get_partition_type(&self) -> PartitionType { self.part_type }
 
@@ -191,7 +191,7 @@ impl PartitionInfo {
     pub fn is_encrypted(&self) -> bool { is_encrypted(self.get_device_path()) }
 
     pub fn get_current_lvm_volume_group(&self) -> Option<&str> {
-        self.original_vg.as_ref().map(|x| x.as_str())
+        self.original_vg.as_deref()
     }
 
     /// True if the compared partition has differing parameters from the source.
@@ -266,7 +266,7 @@ impl PartitionInfo {
         Some(BlockInfo::new(
             BlockInfo::get_partition_id(&self.device_path, fs)?,
             fs,
-            self.target.as_ref().map(|p| p.as_path()),
+            self.target.as_deref(),
             get_preferred_options(fs),
         ))
     }

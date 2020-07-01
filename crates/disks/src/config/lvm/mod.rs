@@ -54,7 +54,7 @@ pub struct LogicalDevice {
 impl BlockDeviceExt for LogicalDevice {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
-    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_ref().map(|x| x.as_path()) }
+    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_deref() }
 }
 
 impl SectorExt for LogicalDevice {
@@ -122,7 +122,7 @@ impl LogicalDevice {
 
     pub fn add_sectors(&mut self, sectors: u64) { self.sectors += sectors; }
 
-    #[cfg_attr(rustfmt, rustfmt_skip)]
+    #[rustfmt::skip]
     pub fn validate(&self) -> Result<(), DiskError> {
         if self.get_partitions().iter().any(|p| p.name.is_none()) {
             return Err(DiskError::VolumePartitionLacksLabel {

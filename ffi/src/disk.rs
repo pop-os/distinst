@@ -106,7 +106,7 @@ pub unsafe extern "C" fn distinst_disk_get_serial(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_partition(
     disk: *mut DistinstDisk,
-    partition: libc::int32_t,
+    partition: i32,
 ) -> *mut DistinstPartition {
     if null_check(disk).is_err() {
         return ptr::null_mut();
@@ -217,7 +217,7 @@ pub unsafe extern "C" fn distinst_disk_list_partitions_destroy(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_get_sectors(disk: *const DistinstDisk) -> libc::uint64_t {
+pub unsafe extern "C" fn distinst_disk_get_sectors(disk: *const DistinstDisk) -> u64 {
     if null_check(disk).is_err() {
         return 0;
     }
@@ -229,7 +229,7 @@ pub unsafe extern "C" fn distinst_disk_get_sectors(disk: *const DistinstDisk) ->
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disk_get_sector_size(
     disk: *const DistinstDisk,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(disk).is_err() {
         return 0;
     }
@@ -242,7 +242,7 @@ pub unsafe extern "C" fn distinst_disk_get_sector_size(
 pub unsafe extern "C" fn distinst_disk_get_sector(
     disk: *const DistinstDisk,
     sector: *const DistinstSector,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(disk).or_else(|_| null_check(sector)).is_err() {
         return 0;
     }
@@ -330,7 +330,7 @@ pub unsafe extern "C" fn distinst_disk_remove_partition(
 pub unsafe extern "C" fn distinst_disk_resize_partition(
     disk: *mut DistinstDisk,
     partition: libc::c_int,
-    end: libc::uint64_t,
+    end: u64,
 ) -> libc::c_int {
     if null_check(disk).is_err() {
         return 0;
@@ -350,7 +350,7 @@ pub unsafe extern "C" fn distinst_disk_resize_partition(
 pub unsafe extern "C" fn distinst_disk_move_partition(
     disk: *mut DistinstDisk,
     partition: libc::c_int,
-    start: libc::uint64_t,
+    start: u64,
 ) -> libc::c_int {
     if null_check(disk).is_err() {
         return -1;

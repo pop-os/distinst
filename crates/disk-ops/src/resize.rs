@@ -71,7 +71,7 @@ impl ResizeOperation {
 
     pub fn is_moving(&self) -> bool { self.old.start != self.new.start }
 
-    pub fn absolute_sectors(&self) -> u64 { (self.new.end - self.new.start) }
+    pub fn absolute_sectors(&self) -> u64 { self.new.end - self.new.start }
 
     pub fn relative_sectors(&self) -> i64 {
         // Obtain the differences between the start and end sectors.

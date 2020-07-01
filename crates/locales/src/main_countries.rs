@@ -35,7 +35,7 @@ pub fn get_main_countries() -> BTreeMap<String, String> {
         }
     };
 
-    get_main_countries_iter(BufReader::new(file).lines().flat_map(|x| x))
+    get_main_countries_iter(BufReader::new(file).lines().flatten())
 }
 
 fn get_main_countries_iter<I: Iterator<Item = String>>(iter: I) -> BTreeMap<String, String> {

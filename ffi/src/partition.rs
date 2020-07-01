@@ -152,8 +152,8 @@ pub struct DistinstPartitionBuilder;
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_builder_new(
-    start_sector: libc::uint64_t,
-    end_sector: libc::uint64_t,
+    start_sector: u64,
+    end_sector: u64,
     filesystem: DISTINST_FILE_SYSTEM,
 ) -> *mut DistinstPartitionBuilder {
     let filesystem: FileSystem = match filesystem.into() {
@@ -314,7 +314,7 @@ pub unsafe extern "C" fn distinst_partition_get_current_lvm_volume_group(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_number(
     partition: *const DistinstPartition,
-) -> libc::int32_t {
+) -> i32 {
     if null_check(partition).is_err() {
         return -1;
     }
@@ -392,7 +392,7 @@ pub unsafe extern "C" fn distinst_partition_get_mount_point(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_start_sector(
     partition: *const DistinstPartition,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(partition).is_err() {
         return 0;
     }
@@ -404,7 +404,7 @@ pub unsafe extern "C" fn distinst_partition_get_start_sector(
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_get_end_sector(
     partition: *const DistinstPartition,
-) -> libc::uint64_t {
+) -> u64 {
     if null_check(partition).is_err() {
         return 0;
     }
@@ -574,15 +574,15 @@ pub unsafe extern "C" fn distinst_partition_and_disk_path_destroy(
 #[repr(C)]
 pub struct DistinstPartitionUsage {
     // 0 = None, 1 = Some(Ok(T)), 2 = Some(Err(T))
-    tag:   libc::uint8_t,
+    tag:   u8,
     // Some(Ok(sectors)) | Some(Err(errno))
-    value: libc::uint64_t,
+    value: u64,
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_partition_sectors_used(
     partition: *const DistinstPartition,
-    _sector_size: libc::uint64_t,
+    _sector_size: u64,
 ) -> DistinstPartitionUsage {
     if null_check(partition).is_err() {
         return DistinstPartitionUsage { tag: 2, value: 0 };
