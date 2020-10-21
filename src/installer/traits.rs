@@ -119,7 +119,7 @@ impl InstallerDiskOps for Disks {
                             crypttab.push(" UUID=");
                             crypttab.push(&uuid.id);
                             crypttab.push(
-                                " /dev/urandom swap,offset=1024,cipher=aes-xts-plain64,size=512\n",
+                                " /dev/urandom swap,plain,offset=1024,cipher=aes-xts-plain64,size=512\n",
                             );
 
                             fstab.push(
