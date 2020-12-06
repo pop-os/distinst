@@ -112,7 +112,7 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
             "shim-signed",
             "mokutil",
             "fwupd-signed",
-            "linux-image-generic",
+            "linux-image-generic-hwe-20.04",
         ],
         Bootloader::Efi if os_release.name == "elementary OS" && os_release.version_id == "6.0" => &[
             "grub-efi",
