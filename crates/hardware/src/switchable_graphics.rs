@@ -56,6 +56,7 @@ pub fn configure_graphics(mount_dir: &Path) -> io::Result<bool> {
 static SWITCHABLE_GRAPHICS: &[&str] = &[
     "addw1",
     "addw2",
+    "galp5",
     "gaze14",
     "gaze15",
     "oryp4",
