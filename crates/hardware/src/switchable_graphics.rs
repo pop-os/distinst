@@ -67,6 +67,7 @@ static SWITCHABLE_GRAPHICS: &[&str] = &[
 
 /// Products which should default to integrated mode instead of hybrid mode.
 static DEFAULT_INTEGRATED: &[&str] = &[
+    "galp5",
     "oryp4",
     "oryp4-b",
 ];
