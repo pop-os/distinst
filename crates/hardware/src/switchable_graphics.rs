@@ -1,11 +1,9 @@
-extern crate proc_modules;
-
-use misc;
-use proc_modules::Module;
+use dbus::blocking::Connection;
 use std::{
     fs,
-    io::{self, Read},
+    io,
     path::Path,
+    time::Duration,
 };
 
 const POWER: &str = "etc/modprobe.d/system76-power.conf";
@@ -33,9 +31,8 @@ alias nvidia-modeset off
 /// Configure graphics mode if switchable graphics is supported.
 pub fn configure_graphics(mount_dir: &Path) -> io::Result<bool> {
     let product_version = &*product_version();
-    let switchable = has_switchable_graphics(product_version);
 
-    if !switchable {
+    if !has_switchable_graphics() {
         return Ok(false);
     }
 
@@ -58,19 +55,6 @@ pub fn configure_graphics(mount_dir: &Path) -> io::Result<bool> {
     Ok(true)
 }
 
-/// Products which support switchable graphics.
-static SWITCHABLE_GRAPHICS: &[&str] = &[
-    "addw1",
-    "addw2",
-    "galp5",
-    "gaze14",
-    "gaze15",
-    "oryp4",
-    "oryp4-b",
-    "oryp5",
-    "oryp6",
-];
-
 /// Products which should default to integrated mode instead of hybrid mode.
 static DEFAULT_INTEGRATED: &[&str] = &[
     "galp5",
@@ -78,24 +62,28 @@ static DEFAULT_INTEGRATED: &[&str] = &[
     "oryp4-b",
 ];
 
-fn has_switchable_graphics(product: &str) -> bool {
-    match product {
-        "galp5" => {
-            let modules = Module::all().unwrap_or_default();
-            modules.iter().any(|m| m.module == "nvidia" || m.module == "nouveau")
-        },
-        _ => SWITCHABLE_GRAPHICS.contains(&product),
+fn has_switchable_graphics() -> bool {
+    if let Ok(conn) = Connection::new_system() {
+        let proxy = conn.with_proxy("com.system76.PowerDaemon", "/com/system76/PowerDaemon", Duration::from_millis(1000));
+        let (switchable,): (bool,) = proxy.method_call("com.system76.PowerDaemon", "GetSwitchable", ()).unwrap_or_default();
+
+        // Limit configuring graphics to System76 models
+        switchable && (system_vendor() == "System76")
+    } else {
+        false
     }
 }
 
-/// Path where the product version can be obtained from the DMI.
-const DMI_PATH_PRODUCT_VERSION: &str = "/sys/class/dmi/id/product_version";
-
 fn product_version() -> String {
-    let mut output = String::new();
-    if let Ok(mut file) = misc::open(DMI_PATH_PRODUCT_VERSION) {
-        let _ = file.read_to_string(&mut output);
-        output = output.trim().into();
-    }
-    output
+    fs::read_to_string("/sys/class/dmi/id/product_version")
+        .unwrap_or_default()
+        .trim()
+        .into()
+}
+
+fn system_vendor() -> String {
+    fs::read_to_string("/sys/class/dmi/id/sys_vendor")
+        .unwrap_or_default()
+        .trim()
+        .into()
 }

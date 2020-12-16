@@ -12,6 +12,7 @@ edition = "2018"
 
 [dependencies]
 distinst-utils = { path = "../utils" }
+dbus = "0.9"
 os-release = "0.1.0"
 proc-modules = "0.1.0"
 raw-cpuid = "7.0.3"
