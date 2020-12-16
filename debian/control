@@ -18,7 +18,7 @@ Architecture: amd64
 Depends:
   libdistinst (= ${binary:Version}),
   ${misc:Depends},
-  ${shlib:Depends}
+  ${shlibs:Depends}
 Description: Distribution Installer CLI
 
 Package: libdistinst
@@ -50,7 +50,7 @@ Depends:
   util-linux,
   xfsprogs,
   ${misc:Depends},
-  ${shlib:Depends}
+  ${shlibs:Depends}
 Description: Distribution Installer Library
 
 Package: libdistinst-dev
