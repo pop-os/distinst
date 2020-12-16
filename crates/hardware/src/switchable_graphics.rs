@@ -1,4 +1,7 @@
+extern crate proc_modules;
+
 use misc;
+use proc_modules::Module;
 use std::{
     fs,
     io::{self, Read},
@@ -72,7 +75,15 @@ static DEFAULT_INTEGRATED: &[&str] = &[
     "oryp4-b",
 ];
 
-fn has_switchable_graphics(product: &str) -> bool { SWITCHABLE_GRAPHICS.contains(&product) }
+fn has_switchable_graphics(product: &str) -> bool {
+    match product {
+        "galp5" => {
+            let modules = Module::all().unwrap_or_default();
+            modules.iter().any(|m| m.module == "nvidia" || m.module == "nouveau")
+        },
+        _ => SWITCHABLE_GRAPHICS.contains(&product),
+    }
+}
 
 /// Path where the product version can be obtained from the DMI.
 const DMI_PATH_PRODUCT_VERSION: &str = "/sys/class/dmi/id/product_version";
