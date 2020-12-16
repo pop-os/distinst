@@ -8,6 +8,7 @@ readme = "README.md"
 license = "MIT"
 categories = ["os::unix-apis", "localization"]
 keywords = ["distinst", "linux", "locale", "keyboard", "language", "country"]
+edition = "2018"
 
 [dependencies]
 distinst-utils = { path = "../utils/" }

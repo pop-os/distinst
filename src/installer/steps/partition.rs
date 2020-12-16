@@ -1,6 +1,6 @@
-use disks::{operations::FormatPartitions, Disks};
-use errors::IoContext;
-use external::{blockdev, pvs, vgactivate, vgdeactivate};
+use crate::disks::{operations::FormatPartitions, Disks};
+use crate::errors::IoContext;
+use crate::external::{blockdev, pvs, vgactivate, vgdeactivate};
 use itertools::Itertools;
 use rayon::{self, prelude::*};
 use std::{collections::BTreeMap, io, path::PathBuf, thread::sleep, time::Duration};

@@ -1,4 +1,4 @@
-use disks::DiskError;
+use crate::disks::DiskError;
 use std::{error::Error, fmt::Display, io};
 
 /// Extends `Option<T>` to be converted into an `io::Result<T>`.

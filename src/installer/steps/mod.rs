@@ -13,7 +13,7 @@ use std::{
 };
 
 use sys_mount::*;
-use NO_EFI_VARIABLES;
+use crate::NO_EFI_VARIABLES;
 
 /// Installation step
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

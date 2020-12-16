@@ -1,16 +1,16 @@
-use bootloader::Bootloader;
+use crate::bootloader::Bootloader;
 mod chroot_conf;
 use self::chroot_conf::ChrootConfigurator;
 use super::{mount_cdrom, mount_efivars};
 use crate::installer::{conf::RecoveryEnv, steps::normalize_os_release_name};
-use chroot::Chroot;
-use distribution;
-use errors::*;
-use external::remount_rw;
-use hardware_support;
-use installer::traits::InstallerDiskOps;
+use crate::chroot::Chroot;
+use crate::distribution;
+use crate::errors::*;
+use crate::external::remount_rw;
+use crate::hardware_support;
+use crate::installer::traits::InstallerDiskOps;
 use libc;
-use misc;
+use crate::misc;
 use os_release::OsRelease;
 use partition_identity::PartitionID;
 use rayon;
@@ -21,10 +21,10 @@ use std::{
     path::Path,
 };
 use tempdir::TempDir;
-use timezones::Region;
-use Config;
-use UserAccountCreate;
-use INSTALL_HARDWARE_SUPPORT;
+use crate::timezones::Region;
+use crate::Config;
+use crate::UserAccountCreate;
+use crate::INSTALL_HARDWARE_SUPPORT;
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.

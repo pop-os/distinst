@@ -9,8 +9,8 @@ use super::{
     get_size,
 };
 use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
-pub use external::deactivate_devices;
-use external::{blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate};
+pub use crate::external::deactivate_devices;
+use crate::external::{blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate};
 use partition_identity::PartitionIdentifiers;
 use proc_mounts::MOUNTS;
 use std::{

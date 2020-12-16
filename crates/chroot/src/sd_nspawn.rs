@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     process::Stdio,
 };
-use Command;
+use crate::command::Command;
 
 /// Defines the location where a `chroot` will be performed, with `systemd-nspawn`.
 pub struct SystemdNspawn<'a> {

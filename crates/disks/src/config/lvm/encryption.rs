@@ -1,9 +1,9 @@
-use external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
+use crate::external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
 use std::{
     fmt,
     path::{Path, PathBuf},
 };
-use DiskError;
+use crate::DiskError;
 
 /// A structure which contains the encryption settings for a physical volume.
 #[derive(Clone, PartialEq)]

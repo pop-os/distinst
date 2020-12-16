@@ -14,16 +14,16 @@ use distinst::{
 };
 
 use super::{get_str, null_check};
-use ffi::AsMutPtr;
-use filesystem::DISTINST_FILE_SYSTEM;
-use gen_object_ptr;
-use lvm::{DistinstLvmDevice, DistinstLvmEncryption};
-use partition::{
+use crate::ffi::AsMutPtr;
+use crate::filesystem::DISTINST_FILE_SYSTEM;
+use crate::gen_object_ptr;
+use crate::lvm::{DistinstLvmDevice, DistinstLvmEncryption};
+use crate::partition::{
     DistinstPartition, DistinstPartitionAndDiskPath, DistinstPartitionBuilder,
     DISTINST_PARTITION_TABLE,
 };
-use partition_identity::PartitionID;
-use sector::DistinstSector;
+use crate::partition_identity::PartitionID;
+use crate::sector::DistinstSector;
 
 #[repr(C)]
 pub struct DistinstDisk;

@@ -6,11 +6,11 @@ use distinst::{
     BlockDeviceExt, Bootloader, FileSystem, LvmEncryption, PartitionBuilder, PartitionExt,
     PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
 };
-use filesystem::DISTINST_FILE_SYSTEM;
-use gen_object_ptr;
-use get_str;
-use null_check;
-use DistinstLvmEncryption;
+use crate::filesystem::DISTINST_FILE_SYSTEM;
+use crate::gen_object_ptr;
+use crate::get_str;
+use crate::null_check;
+use crate::DistinstLvmEncryption;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]

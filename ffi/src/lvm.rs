@@ -3,7 +3,7 @@ use distinst::{
     SectorExt,
 };
 use external::luks::deactivate_logical_devices;
-use ffi::AsMutPtr;
+use crate::ffi::AsMutPtr;
 use libc;
 
 use super::{

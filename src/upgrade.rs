@@ -1,11 +1,11 @@
 use apt_cli_wrappers::AptUpgradeEvent;
-use auto::{InstallOption, InstallOptionError, RecoveryOption};
-use chroot::SystemdNspawn;
+use crate::auto::{InstallOption, InstallOptionError, RecoveryOption};
+use crate::chroot::SystemdNspawn;
 use err_derive::Error;
-use disks::Disks;
-use errors::IoContext;
-use external::remount_rw;
-use installer::{steps::mount_efivars, RecoveryEnv};
+use crate::disks::Disks;
+use crate::errors::IoContext;
+use crate::external::remount_rw;
+use crate::installer::{steps::mount_efivars, RecoveryEnv};
 use std::{io, path::Path, process::Stdio};
 use systemd_boot_conf::SystemdBootConf;
 use tempdir::TempDir;

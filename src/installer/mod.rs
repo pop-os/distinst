@@ -10,26 +10,26 @@ pub use self::{conf::RecoveryEnv, steps::Step};
 
 use self::state::InstallerState;
 
-use auto::{
+use crate::auto::{
     delete_old_install, move_root, recover_root, remove_root, validate_backup_conditions,
     AccountFiles, Backup, ReinstallError,
 };
 use disk_types::BlockDeviceExt;
-use disks::{Bootloader, Disks};
-use errors::IoContext;
-use external::luks::deactivate_logical_devices;
-use hostname;
+use crate::disks::{Bootloader, Disks};
+use crate::errors::IoContext;
+use crate::external::luks::deactivate_logical_devices;
+use crate::hostname;
 use os_release::OsRelease;
 use partition_identity::PartitionID;
-use squashfs;
+use crate::squashfs;
 use std::{
     io,
     path::{Path, PathBuf},
     sync::atomic::Ordering,
 };
 use tempdir::TempDir;
-use timezones::Region;
-use PARTITIONING_TEST;
+use crate::timezones::Region;
+use crate::PARTITIONING_TEST;
 
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;

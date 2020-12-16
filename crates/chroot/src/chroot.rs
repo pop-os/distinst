@@ -5,7 +5,7 @@ use std::{
     process::Stdio,
 };
 use sys_mount::*;
-use Command;
+use crate::command::Command;
 
 /// Defines the location where a `chroot` will be performed, as well as storing
 /// handles to all of the binding mounts that the chroot requires.

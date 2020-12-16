@@ -1,5 +1,5 @@
 use distinst::{Config, UserAccountCreate};
-use get_str;
+use crate::get_str;
 use libc;
 use std::io;
 

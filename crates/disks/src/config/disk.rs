@@ -7,7 +7,7 @@ use super::{
     PVS,
 };
 use disk_types::{PartitionExt, PartitionTableExt, SectorExt};
-use external::{is_encrypted, pvs};
+use crate::external::{is_encrypted, pvs};
 use libparted::{Device, DeviceType, Disk as PedDisk};
 use operations::{
     parted::{get_device, open_disk},

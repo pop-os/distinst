@@ -1,8 +1,8 @@
 use distinst::Sector;
-use get_str;
+use crate::get_str;
 use libc;
 use std::ptr;
-use to_cstr;
+use crate::to_cstr;
 
 #[repr(C)]
 #[derive(Copy, Clone)]

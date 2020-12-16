@@ -39,7 +39,7 @@ pub enum ReinstallError {
     #[fail(display = "supplied disk configuration will format /home when it should not")]
     ReformattingHome,
     #[fail(display = "unable to probe existing devices: {}", why)]
-    DiskProbe { why: ::disks::DiskError },
+    DiskProbe { why: crate::disks::DiskError },
     #[fail(display = "invalid partition configuration: {}", why)]
     InvalidPartitionConfiguration { why: io::Error },
     #[fail(display = "install media at {:?} was not found", path)]

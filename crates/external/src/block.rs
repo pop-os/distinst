@@ -1,7 +1,7 @@
 use self::FileSystem::*;
 use super::exec;
 use disk_types::FileSystem;
-use retry::Retry;
+use crate::retry::Retry;
 use std::{
     ffi::{OsStr, OsString},
     io,

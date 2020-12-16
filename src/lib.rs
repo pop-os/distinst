@@ -47,11 +47,11 @@ extern crate rayon;
 extern crate systemd_boot_conf;
 extern crate tempdir;
 
-pub use bootloader::*;
+pub use crate::bootloader::*;
 pub use disk_types::*;
-pub use disks::*;
-pub use misc::device_layout_hash;
-pub use upgrade::*;
+pub use crate::disks::*;
+pub use crate::misc::device_layout_hash;
+pub use crate::upgrade::*;
 
 pub use self::installer::RecoveryEnv;
 
@@ -75,7 +75,7 @@ use std::{
 };
 
 use anyhow::Context;
-use external::dmlist;
+use crate::external::dmlist;
 use partition_identity::PartitionID;
 use sys_mount::*;
 use systemd_boot_conf::SystemdBootConf;
@@ -85,7 +85,7 @@ pub use self::{installer::*, logging::log};
 /// When set to true, this will stop the installation process.
 pub static KILL_SWITCH: AtomicBool = AtomicBool::new(false);
 
-pub use bootloader::FORCE_BOOTLOADER;
+pub use crate::bootloader::FORCE_BOOTLOADER;
 
 /// Exits before the unsquashfs step
 pub static PARTITIONING_TEST: AtomicBool = AtomicBool::new(false);

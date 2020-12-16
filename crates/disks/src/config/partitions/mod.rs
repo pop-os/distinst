@@ -6,7 +6,7 @@ use super::{
     PVS,
 };
 pub use disk_types::{BlockDeviceExt, FileSystem, PartitionExt, PartitionType};
-use external::{get_label, is_encrypted};
+use crate::external::{get_label, is_encrypted};
 use fstab_generate::BlockInfo;
 use libparted::{Partition, PartitionFlag};
 pub use os_detect::OS;
