@@ -1,12 +1,12 @@
 //! Retain users when reinstalling, keeping their home folder and user account.
 
-use bootloader::Bootloader;
+use crate::bootloader::Bootloader;
 use disk_types::FileSystem;
-use disks::Disks;
+use crate::disks::Disks;
 
 use super::{mount_and_then, AccountFiles, ReinstallError, UserData};
 
-use misc;
+use crate::misc;
 use std::{
     ffi::{OsStr, OsString},
     fs::{self, File, OpenOptions, Permissions},

@@ -8,6 +8,7 @@ readme = "README.md"
 license = "MIT"
 keywords =  ["distinst", "disk", "management", "partition"]
 categories = ["filesystem", "os"]
+edition = "2018"
 
 [dependencies]
 bitflags = "1.2.1"

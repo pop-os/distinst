@@ -7,6 +7,7 @@ repository = "https://github.com/pop-os/distinst"
 readme = "README.md"
 license = "MIT"
 keywords = ["squashfs"]
+edition = "2018"
 
 [dependencies]
 libc = "0.2.68"

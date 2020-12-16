@@ -6,8 +6,8 @@ use super::{
 };
 use disk_types::{FileSystem::*, SectorExt};
 
-use external::{generate_unique_id, remount_rw};
-use misc;
+use crate::external::{generate_unique_id, remount_rw};
+use crate::misc;
 use partition_identity::PartitionID;
 use proc_mounts::MountIter;
 

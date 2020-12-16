@@ -4,7 +4,7 @@ use super::{mount_and_then, ReinstallError};
 use disk_types::FileSystem;
 use std::{collections::HashMap, ffi::OsStr, os::unix::ffi::OsStrExt, path::Path};
 
-use misc::read;
+use crate::misc::read;
 
 #[derive(Default, Debug)]
 pub struct AccountFiles {

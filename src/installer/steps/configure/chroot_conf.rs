@@ -1,6 +1,6 @@
-use chroot::{Chroot, Command};
-use errors::IoContext;
-use misc;
+use crate::chroot::{Chroot, Command};
+use crate::errors::IoContext;
+use crate::misc;
 use partition_identity::PartitionID;
 use proc_mounts::MountList;
 use std::{
@@ -10,8 +10,8 @@ use std::{
     process::Stdio,
 };
 use sys_mount::*;
-use timezones::Region;
-use Config;
+use crate::timezones::Region;
+use crate::Config;
 
 const APT_OPTIONS: &[&str] = &[
     "-o",

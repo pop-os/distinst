@@ -8,6 +8,7 @@ readme = "README.md"
 license = "MIT"
 categories = ["os", "os::unix-apis"]
 keywords = ["linux", "hardware", "support"]
+edition = "2018"
 
 [dependencies]
 distinst-utils = { path = "../utils" }

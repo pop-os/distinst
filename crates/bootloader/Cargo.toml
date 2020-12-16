@@ -8,5 +8,6 @@ readme = "README.md"
 license = "MIT"
 keywords =  ["efi", "mbr", "bootloader", "distinst"]
 categories = ["os", "os::unix-apis"]
+edition = "2018"
 
 [dependencies]

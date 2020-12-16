@@ -8,6 +8,7 @@ readme = "README.md"
 license = "MIT"
 keywords =  ["chroot", "command", "process", "distinst"]
 categories = ["os", "os::unix-apis"]
+edition = "2018"
 
 [dependencies]
 sys-mount = "1.2.1"

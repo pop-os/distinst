@@ -9,6 +9,7 @@ authors = [
 ]
 license = "LGPL-3.0"
 readme = "README.md"
+edition = "2018"
 
 [[bin]]
 name = "distinst"

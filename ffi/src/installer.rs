@@ -2,12 +2,12 @@ use libc;
 
 use std::io;
 
-use config::DistinstConfig;
-use disk::DistinstDisks;
+use crate::config::DistinstConfig;
+use crate::disk::DistinstDisks;
 use distinst::{timezones::Region, Disks, Error, Installer, Status, Step};
-use gen_object_ptr;
-use DistinstRegion;
-use DistinstUserAccountCreate;
+use crate::gen_object_ptr;
+use crate::DistinstRegion;
+use crate::DistinstUserAccountCreate;
 
 /// Bootloader steps
 #[repr(C)]

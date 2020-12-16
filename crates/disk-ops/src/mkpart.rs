@@ -3,7 +3,7 @@ use libparted::{
     Device, FileSystemType as PedFileSystem, Geometry, Partition as PedPartition, PartitionFlag,
     PartitionType as PedPartitionType,
 };
-use parted::*;
+use crate::parted::*;
 use std::{
     io,
     path::{Path, PathBuf},

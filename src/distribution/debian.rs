@@ -1,6 +1,6 @@
-use bootloader::Bootloader;
-use chroot::Chroot;
-use installer::{bitflags::FileSystemSupport, traits::InstallerDiskOps};
+use crate::bootloader::Bootloader;
+use crate::chroot::Chroot;
+use crate::installer::{bitflags::FileSystemSupport, traits::InstallerDiskOps};
 use os_release::OsRelease;
 use std::{
     collections::HashSet,

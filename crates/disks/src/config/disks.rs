@@ -8,7 +8,7 @@ use super::{
     Disk, LvmEncryption, PartitionTable, PVS,
 };
 use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
-use external::{
+use crate::external::{
     cryptsetup_close, cryptsetup_open, lvs, physical_volumes_to_deactivate, pvs, vgdeactivate,
     CloseBy,
 };

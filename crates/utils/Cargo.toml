@@ -7,6 +7,7 @@ repository = "https://github.com/pop-os/distinst"
 readme = "README.md"
 license = "MIT"
 keywords = ["distinst", "utils"]
+edition = "2018"
 
 [dependencies]
 sedregex = "0.2.4"
