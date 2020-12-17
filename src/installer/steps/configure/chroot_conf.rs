@@ -396,13 +396,23 @@ OEM_MODE=0
         misc::cp(&[casper_data, "initrd.gz"].concat(), &efi_initrd)?;
         misc::cp(&[casper_data, "vmlinuz.efi"].concat(), &efi_vmlinuz)?;
 
+        // If the NVIDIA DKMS driver is installed, force it to load in the recovery partition
+        // This test must not use /proc or /sys for detection since the installer can run inside a
+        // chroot where those come from the host environment.
+        let has_nvidia = Path::new("/var/lib/dkms/nvidia").exists();
+
         let rec_entry_data = format!(
             r#"title {0} recovery
 linux /EFI/{1}/vmlinuz.efi
 initrd /EFI/{1}/initrd.gz
-options {2} boot=casper hostname=recovery userfullname=Recovery username=recovery live-media-path=/{3} live-media=/dev/disk/by-partuuid/{4} noprompt
+options {2} boot=casper hostname=recovery userfullname=Recovery username=recovery live-media-path=/{3} live-media=/dev/disk/by-partuuid/{4} noprompt {5}
 "#,
-            name, recovery, RECOVERY_BOOT_OPTIONS, casper, recovery_partuuid.id
+            name,
+            recovery,
+            RECOVERY_BOOT_OPTIONS,
+            casper,
+            recovery_partuuid.id,
+            if has_nvidia { "modules_load=nvidia" } else { "" }
         );
         let loader_entries = self.chroot.path.join("boot/efi/loader/entries/");
         if !loader_entries.exists() {
