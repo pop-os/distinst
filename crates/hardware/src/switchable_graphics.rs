@@ -44,6 +44,9 @@ pub fn configure_graphics(mount_dir: &Path) -> io::Result<bool> {
     if DEFAULT_INTEGRATED.contains(&product_version) {
         info!("disabling external NVIDIA graphics by default");
         fs::write(mount_dir.join(POWER), MODPROBE_INTEGRATED)?;
+
+        info!("configuring gpu-manager for integrated graphics mode");
+        fs::write(mount_dir.join(PRIME_DISCRETE), "off")?;
     } else {
         info!("settings module options for hybrid graphics mode");
         fs::write(mount_dir.join(POWER), MODPROBE_HYBRID)?;
