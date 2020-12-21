@@ -30,37 +30,44 @@ alias nvidia-modeset off
 
 /// Configure graphics mode if switchable graphics is supported.
 pub fn configure_graphics(mount_dir: &Path) -> io::Result<bool> {
-    let product_version = &*product_version();
-
     if !has_switchable_graphics() {
         return Ok(false);
     }
 
     let _ = fs::create_dir_all(mount_dir.join("etc/modprobe.d/"));
 
-    if DEFAULT_INTEGRATED.contains(&product_version) {
-        info!("disabling external NVIDIA graphics by default");
-        fs::write(mount_dir.join(POWER), MODPROBE_INTEGRATED)?;
+    match default_graphics().as_str() {
+        "integrated" => {
+            info!("disabling external NVIDIA graphics by default");
+            fs::write(mount_dir.join(POWER), MODPROBE_INTEGRATED)?;
 
-        info!("configuring gpu-manager for integrated graphics mode");
-        fs::write(mount_dir.join(PRIME_DISCRETE), "off")?;
-    } else {
-        info!("settings module options for hybrid graphics mode");
-        fs::write(mount_dir.join(POWER), MODPROBE_HYBRID)?;
+            info!("configuring gpu-manager for integrated graphics mode");
+            fs::write(mount_dir.join(PRIME_DISCRETE), "off")?;
+        },
+        "hybrid" => {
+            info!("settings module options for hybrid graphics mode");
+            fs::write(mount_dir.join(POWER), MODPROBE_HYBRID)?;
 
-        info!("configuring gpu-manager for hybrid graphics mode");
-        fs::write(mount_dir.join(PRIME_DISCRETE), "on-demand")?;
+            info!("configuring gpu-manager for hybrid graphics mode");
+            fs::write(mount_dir.join(PRIME_DISCRETE), "on-demand")?;
+        },
+        _ => (),
     }
 
     Ok(true)
 }
 
-/// Products which should default to integrated mode instead of hybrid mode.
-static DEFAULT_INTEGRATED: &[&str] = &[
-    "galp5",
-    "oryp4",
-    "oryp4-b",
-];
+fn default_graphics() -> String {
+    if let Ok(conn) = Connection::new_system() {
+        let proxy = conn.with_proxy("com.system76.PowerDaemon", "/com/system76/PowerDaemon", Duration::from_millis(1000));
+        let (gfx,): (String,) = proxy.method_call("com.system76.PowerDaemon", "GetDefaultGraphics", ())
+            .unwrap_or_else(|_| ("nvidia".to_string(), ));
+
+        gfx
+    } else {
+        "nvidia".to_string()
+    }
+}
 
 fn has_switchable_graphics() -> bool {
     if let Ok(conn) = Connection::new_system() {
@@ -72,13 +79,6 @@ fn has_switchable_graphics() -> bool {
     } else {
         false
     }
-}
-
-fn product_version() -> String {
-    fs::read_to_string("/sys/class/dmi/id/product_version")
-        .unwrap_or_default()
-        .trim()
-        .into()
 }
 
 fn system_vendor() -> String {
