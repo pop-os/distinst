@@ -36,6 +36,7 @@ Depends:
   fatresize,
   gettext,
   grub2-common,
+  iso-codes,
   kpartx,
   kpartx-boot,
   libparted-fs-resize0,

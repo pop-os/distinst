@@ -1,8 +1,9 @@
 use super::get_default;
 use gettextrs::*;
-use iso3166_1::{alpha2 as iso_3166_1, CountryCode};
 use isolang::Language;
 use std::env;
+
+use crate::iso3166_1::Country;
 
 /// Fetch the ISO 639 name of a language code.
 pub fn get_language_name(code: &str) -> Option<&'static str> {
@@ -33,26 +34,24 @@ pub fn get_language_name_translated(code: &str) -> Option<String> {
 
 /// Get the country name of an ISO 3166 country code.
 pub fn get_country_name(code: &str) -> Option<&'static str> {
-    if code == "TW" || code == "TWN" {
-        Some("Taiwan")
-    } else {
-        iso_3166_1(code).map(|x| x.name)
-    }
+    get_country(code).map(|x| x.common_name())
 }
 
 /// Get a country code from an ISO 3166 country code.
-pub fn get_country(code: &str) -> Option<CountryCode> { iso_3166_1(code) }
+pub fn get_country(code: &str) -> Option<&'static Country> {
+    Country::from_alpha_2(code)
+}
 
 /// Get the country name translated into the given language code.
 pub fn get_country_name_translated(country_code: &str, lang_code: &str) -> Option<String> {
-    get_country_name(country_code).map(|country| {
+    get_country_name(country_code).map(|country_name| {
         let current_lang = env::var("LANGUAGE");
         if let Some(locale) = get_default(lang_code) {
             env::set_var("LANGUAGE", locale);
         }
 
         setlocale(LocaleCategory::LcAll, "");
-        let result = dgettext("iso_3166", country);
+        let result = dgettext("iso_3166", country_name);
 
         match current_lang {
             Ok(lang) => env::set_var("LANGUAGE", lang),
