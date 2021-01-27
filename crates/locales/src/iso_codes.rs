@@ -32,21 +32,27 @@ pub fn get_language_name_translated(code: &str) -> Option<String> {
 }
 
 /// Get the country name of an ISO 3166 country code.
-pub fn get_country_name(code: &str) -> Option<&'static str> { iso_3166_1(code).map(|x| x.name) }
+pub fn get_country_name(code: &str) -> Option<&'static str> {
+    if code == "TW" || code == "TWN" {
+        Some("Taiwan")
+    } else {
+        iso_3166_1(code).map(|x| x.name)
+    }
+}
 
 /// Get a country code from an ISO 3166 country code.
 pub fn get_country(code: &str) -> Option<CountryCode> { iso_3166_1(code) }
 
 /// Get the country name translated into the given language code.
 pub fn get_country_name_translated(country_code: &str, lang_code: &str) -> Option<String> {
-    get_country(country_code).map(|country| {
+    get_country_name(country_code).map(|country| {
         let current_lang = env::var("LANGUAGE");
         if let Some(locale) = get_default(lang_code) {
             env::set_var("LANGUAGE", locale);
         }
 
         setlocale(LocaleCategory::LcAll, "");
-        let result = dgettext("iso_3166", country.name);
+        let result = dgettext("iso_3166", country);
 
         match current_lang {
             Ok(lang) => env::set_var("LANGUAGE", lang),
