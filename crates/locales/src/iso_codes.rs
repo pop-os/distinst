@@ -1,15 +1,15 @@
 use super::get_default;
 use gettextrs::*;
-use isolang::Language;
 use std::env;
 
 use crate::iso3166_1::Country;
+use crate::iso639::Language;
 
 /// Fetch the ISO 639 name of a language code.
 pub fn get_language_name(code: &str) -> Option<&'static str> {
     match code.len() {
-        2 => Language::from_639_1(code).map(|x| x.to_name()),
-        3 => Language::from_639_3(code).map(|x| x.to_name()),
+        2 => Language::from_alpha_2(code).map(|x| x.name.as_str()),
+        3 => Language::from_alpha_3(code).map(|x| x.name.as_str()),
         _ => None,
     }
 }

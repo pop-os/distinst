@@ -3,7 +3,6 @@
 
 extern crate distinst_utils as misc;
 extern crate gettextrs;
-extern crate isolang;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -12,6 +11,7 @@ extern crate serde_xml_rs;
 
 mod i18n;
 mod iso3166_1;
+mod iso639;
 mod iso_codes;
 mod keyboard_layout;
 mod main_countries;
