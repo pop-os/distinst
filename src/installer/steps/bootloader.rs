@@ -133,7 +133,7 @@ pub fn bootloader<F: FnMut(i32)>(
                         let loader = if &name == "Pop!_OS" {
                             "\\EFI\\systemd\\systemd-bootx64.efi".into()
                         } else {
-                            format!("\\EFI\\{}\\grubx64.efi", name)
+                            format!("\\EFI\\{}\\shimx64.efi", name)
                         };
 
                         let args: &[&OsStr] = &[
