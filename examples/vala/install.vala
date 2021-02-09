@@ -61,7 +61,7 @@ public static int main (string[] args) {
     var config = Config ();
 
     config.hostname = "distinst";
-    config.keyboard = "us";
+    config.keyboard_layout = "us";
     config.lang = "en_US.UTF-8";
     config.squashfs = "../../tests/filesystem.squashfs";
     config.remove = "../../tests/filesystem.manifest-remove";
@@ -98,8 +98,8 @@ public static int main (string[] args) {
             }
 
             // Obtains the start and end values using a human-readable abstraction.
-            var start = disk.get_sector (start_sector);
-            var end = disk.get_sector (end_sector);
+            var start = disk.get_sector (ref start_sector);
+            var end = disk.get_sector (ref end_sector);
 
             // Adds a newly-created partition builder object to the disk. This object is
             // defined as an EXT4 partition with the `boot` partition flag, and shall be
@@ -132,8 +132,8 @@ public static int main (string[] args) {
                 value = 512
             };
 
-            var start = disk.get_sector (start_sector);
-            var end = disk.get_sector (efi_sector);
+            var start = disk.get_sector (ref start_sector);
+            var end = disk.get_sector (ref efi_sector);
 
             // Adds a new partitition builder object which is defined to be a FAT partition
             // with the `esp` flag, and shall be mounted to `/boot/efi` after install. This
@@ -150,8 +150,8 @@ public static int main (string[] args) {
                 return 1;
             }
 
-            start = disk.get_sector (efi_sector);
-            end = disk.get_sector (end_sector);
+            start = disk.get_sector (ref efi_sector);
+            end = disk.get_sector (ref end_sector);
 
             // EFI installs require both an EFI and root partition, so this add a new EXT4
             // partition that is configured to start at the end of the EFI sector, and
@@ -174,9 +174,9 @@ public static int main (string[] args) {
     // object will be passed to the install method, and used as a blueprint for how changes
     // to each disk should be made, and where critical partitions are located.
     Disks disks = new Disks ();
-    disks.push (disk);
+    disks.push ((owned) disk);
 
-    installer.install (disks, config);
+    installer.install ((owned) disks, config);
 
     return 0;
 }
