@@ -235,7 +235,7 @@ pub unsafe extern "C" fn distinst_disk_get_sector_size(
     }
 
     let disk = &*(disk as *const Disk);
-    disk.get_sector_size()
+    disk.get_logical_block_size()
 }
 
 #[no_mangle]

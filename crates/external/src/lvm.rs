@@ -178,7 +178,7 @@ pub fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
         {
             let line = &current_line[2..];
             if let Some(pos) = line.find(' ') {
-                output.push(PathBuf::from(
+                let dev = PathBuf::from(
                     [
                         "/dev/mapper/",
                         &vg.replace("-", "--"),
@@ -186,7 +186,9 @@ pub fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
                         &(&line[..pos].replace("-", "--")),
                     ]
                     .concat(),
-                ));
+                );
+
+                output.push(dev);
             }
         }
 

@@ -15,5 +15,5 @@ distinst-utils = { path = "../utils" }
 dbus = "0.9"
 os-release = "0.1.0"
 proc-modules = "0.1.0"
-raw-cpuid = "7.0.3"
+raw-cpuid = "9.0"
 log = "0.4.8"

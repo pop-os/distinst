@@ -11,7 +11,7 @@ pub use self::{
 };
 
 use super::super::*;
-use disk_types::{PartitionExt, SectorExt};
+use disk_types::PartitionExt;
 
 use os_release::OS_RELEASE;
 use partition_identity::PartitionID;

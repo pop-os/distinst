@@ -160,7 +160,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
         let fs = builder.filesystem;
         let partition = builder.build();
         if let Some(fs) = fs {
-            fs.validate_size(partition.get_sectors() * self.get_sector_size()).map_err(|why| {
+            fs.validate_size(partition.get_sectors() * self.get_logical_block_size()).map_err(|why| {
                 DiskError::new_partition_error(partition.device_path.clone(), why)
             })?;
         }

@@ -7,7 +7,7 @@ use super::{
     partitions::{FORMAT, REMOVE, SOURCE},
     Disk, LvmEncryption, PartitionTable, PVS,
 };
-use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
+use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt};
 use crate::external::{
     cryptsetup_close, cryptsetup_open, lvs, physical_volumes_to_deactivate, pvs, vgdeactivate,
     CloseBy,
@@ -1007,7 +1007,7 @@ impl Disks {
         let mut existing_devices: Vec<LogicalDevice> = Vec::new();
 
         for disk in &self.physical {
-            let sector_size = disk.get_sector_size();
+            let sector_size = disk.get_logical_block_size();
             for partition in disk.get_partitions().iter() {
                 if let Some(ref lvm) = partition.volume_group {
                     // TODO: NLL

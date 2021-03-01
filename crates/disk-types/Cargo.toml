@@ -1,0 +1,19 @@
+[package]
+name = "disk-types"
+version = "0.1.5"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Common traits and types for handling block devices, partitions, file systems, etc."
+repository = "https://github.com/pop-os/disk-types"
+readme = "README.md"
+license = "MIT"
+keywords =  ["disk", "partition"]
+categories = ["filesystem", "os"]
+edition = "2018"
+
+[dependencies]
+sys-mount = "1.2.1"
+tempdir = "0.3.7"
+os-detect = { path = "../os-detect" }
+sysfs-class = "0.1.2"
+libparted = "0.1.4"
+err-derive = "0.3"

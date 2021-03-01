@@ -123,11 +123,7 @@ impl BlockDeviceExt for Disk {
     fn is_read_only(&self) -> bool { self.read_only }
 }
 
-impl SectorExt for Disk {
-    fn get_sector_size(&self) -> u64 { 512 }
-
-    fn get_sectors(&self) -> u64 { self.size }
-}
+impl SectorExt for Disk {}
 
 impl PartitionTableExt for Disk {
     fn get_partition_table(&self) -> Option<PartitionTable> { self.table_type }

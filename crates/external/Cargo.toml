@@ -10,11 +10,11 @@ keywords = ["distinst", "external", "commands"]
 edition = "2018"
 
 [dependencies]
-disk-types = "=0.1.2"
+disk-types = { path = "../disk-types" }
 distinst-utils = { path = "../utils" }
 log = "0.4.8"
 proc-mounts = "0.2.4"
-rand = "0.7.3"
+rand = "0.7"
 smart-default = "0.6.0"
 sys-mount = "1.2.1"
 tempdir = "0.3.7"

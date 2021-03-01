@@ -1,0 +1,14 @@
+[package]
+name = "fstab-generate"
+version = "0.1.2"
+authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+description = "Type for generating fstab entries"
+repository = "https://github.com/pop-os/fstab-generate"
+readme = "README.md"
+license = "MIT"
+categories = ["os::unix-apis"]
+keywords = ["linux", "fstab", "generate"]
+
+[dependencies]
+disk-types = { path = "../disk-types" }
+partition-identity = "0.2.0"
