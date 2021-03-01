@@ -38,15 +38,18 @@ pub fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystem> {
         .ok()?
         .stdout;
 
-    String::from_utf8_lossy(&output).split_whitespace().nth(2).and_then(|type_| {
-        info!("blkid found '{}'", type_);
-        let length = type_.len();
-        if length > 7 {
-            type_[6..length - 1].parse::<FileSystem>().ok()
-        } else {
-            None
+    for field in String::from_utf8_lossy(&output).split_whitespace() {
+        if field.starts_with("TYPE=") {
+            let length = field.len();
+            return if length > 7 {
+                field[6..length - 1].parse::<FileSystem>().ok()
+            } else {
+                None
+            }
         }
-    })
+    }
+
+    return None
 }
 
 /// Checks & corrects errors with partitions that have been moved / resized.
