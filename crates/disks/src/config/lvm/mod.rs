@@ -200,6 +200,14 @@ impl LogicalDevice {
 
                 let identifiers = PartitionIdentifiers::from_path(&path);
 
+                let device_path = match path.canonicalize() {
+                    Ok(resolved) => resolved,
+                    Err(why) => {
+                        eprintln!("LVM device path is not a symbolic link");
+                        continue
+                    }
+                };
+
                 let partition = PartitionInfo {
                     bitflags: SOURCE,
                     number: -1,
@@ -218,7 +226,7 @@ impl LogicalDevice {
                         let value = dev.find('-').map_or(0, |v| v + 1);
                         Some(dev.split_at(value).1.into())
                     },
-                    device_path: path,
+                    device_path,
                     mount_point: None,
                     target: None,
                     original_vg: None,
