@@ -13,7 +13,7 @@ edition = "2018"
 [dependencies]
 distinst-bootloader = { path = "../bootloader" }
 derive-new = "0.5.8"
-disk-types = "=0.1.2"
+disk-types = { path = "../disk-types" }
 distinst-external-commands = { path = "../external" }
 log = "0.4.8"
 tempdir = "0.3.7"

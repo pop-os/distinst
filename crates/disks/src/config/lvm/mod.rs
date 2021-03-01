@@ -8,7 +8,7 @@ use super::{
     },
     get_size,
 };
-use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
+use disk_types::{BlockDeviceExt, PartitionTableExt, SectorExt};
 pub use crate::external::deactivate_devices;
 use crate::external::{blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate};
 use partition_identity::PartitionIdentifiers;
@@ -57,17 +57,13 @@ impl BlockDeviceExt for LogicalDevice {
     fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_deref() }
 }
 
-impl SectorExt for LogicalDevice {
-    fn get_sector_size(&self) -> u64 { self.sector_size }
-
-    fn get_sectors(&self) -> u64 { self.sectors }
-}
-
 impl PartitionTableExt for LogicalDevice {
     fn get_partition_table(&self) -> Option<PartitionTable> { Some(PartitionTable::Gpt) }
 
     fn get_partition_type_count(&self) -> (usize, usize, bool) { (0, 0, false) }
 }
+
+impl SectorExt for LogicalDevice { }
 
 impl DiskExt for LogicalDevice {
     const LOGICAL: bool = true;

@@ -164,7 +164,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_sector_size(
     }
 
     let device = &*(device as *const LogicalDevice);
-    device.get_sector_size()
+    device.get_logical_block_size()
 }
 
 #[no_mangle]

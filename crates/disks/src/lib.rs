@@ -1,6 +1,6 @@
 extern crate bitflags;
 extern crate derive_new;
-extern crate disk_types;
+pub extern crate disk_types;
 extern crate distinst_bootloader as bootloader;
 extern crate distinst_external_commands as external_;
 extern crate distinst_utils as misc;
