@@ -69,22 +69,31 @@ pub trait BlockDeviceExt {
 
     /// The size of each logical sector, in bytes.
     fn get_logical_block_size(&self) -> u64 {
-        eprintln!("get block size for {:?}", self.sys_block_path());
-
         let block = Block::from_path(&self.sys_block_path())
             .expect("device lacks block");
 
         match block.queue_logical_block_size() {
             Ok(size) => return size,
             Err(_) => {
-                return Block::from_path(&self.sys_block_path())
-                    .expect("partition does not have a block device")
-                    .parent_device()
+                return self.get_parent_device()
                     .expect("partition lacks parent block device")
                     .queue_logical_block_size()
                     .expect("parent of partition lacks logical block size");
             }
         }
+    }
+
+    fn get_parent_device(&self) -> Option<Block> {
+        self.sys_block_path()
+            .canonicalize()
+            .ok()
+            .and_then(|canon| {
+                canon.parent()
+                    .and_then(|parent| parent.file_name())
+                    .and_then(|name| name.to_str())
+                    .map(|parent| Path::new("/sys/class/block").join(parent))
+            })
+            .and_then(|parent| Block::from_path(&parent).ok())
     }
 
     /// The size of each logical sector, in bytes.
