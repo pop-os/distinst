@@ -15,6 +15,7 @@ pub trait BlockDeviceExt {
     /// The sys path of the block device.
     fn sys_block_path(&self) -> PathBuf { sys_block_path(self.get_device_name(), "") }
 
+    /// Checks if the device is a partition
     fn is_partition(&self) -> bool {
         sys_block_path(self.get_device_name(), "partition").exists()
     }
@@ -54,7 +55,7 @@ pub trait BlockDeviceExt {
 
     /// The name of the device, such as `sda1`.
     fn get_device_name(&self) -> &str {
-        self.get_device_path()
+        dbg!(self.get_device_path())
             .file_name()
             .expect("BlockDeviceExt::get_device_path missing file_name")
             .to_str()
@@ -69,6 +70,7 @@ pub trait BlockDeviceExt {
 
     /// The size of each logical sector, in bytes.
     fn get_logical_block_size(&self) -> u64 {
+        eprintln!("fetching logical block size for {:?}", self.sys_block_path());
         let block = Block::from_path(&self.sys_block_path())
             .expect("device lacks block");
 
@@ -107,19 +109,12 @@ fn sys_block_path(name: &str, ppath: &str) -> PathBuf {
     PathBuf::from(["/sys/class/block/", name, ppath].concat())
 }
 
-thread_local! {
-    static BUFFER: RefCell<String> = String::with_capacity(256).into();
-}
-
 fn read_file<T: FromStr>(path: &Path) -> io::Result<T>
 where
     <T as FromStr>::Err: Debug,
 {
-    BUFFER.with(|buffer| {
-        let mut buffer = buffer.borrow_mut();
-        File::open(path)?.read_to_string(&mut buffer)?;
-        let value = buffer.trim().parse::<T>();
-        buffer.clear();
-        value.map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{:?}", why)))
-    })
+    std::fs::read_to_string(path)?
+        .trim()
+        .parse::<T>()
+        .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{:?}", why)))
 }

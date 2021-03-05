@@ -101,6 +101,8 @@ impl LogicalDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group.replace("-", "--")));
         let mounts = MOUNTS.read().expect("unable to get mounts within LogicalDevice::new");
 
+        eprintln!("Logical device of {} is {:?}", volume_group,device_path);
+
         LogicalDevice {
             model_name: ["LVM ", &volume_group].concat(),
             mount_point: mounts.get_mount_by_source(&device_path).map(|m| m.dest.clone()),
@@ -207,6 +209,8 @@ impl LogicalDevice {
                         continue
                     }
                 };
+
+                eprintln!("Found logical device {:?}: {:?}", path, device_path);
 
                 let partition = PartitionInfo {
                     bitflags: SOURCE,

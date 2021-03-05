@@ -228,6 +228,7 @@ pub fn pvs() -> io::Result<BTreeMap<PathBuf, Option<String>>> {
             let mut fields = current_line[2..].split_whitespace();
             fields.next().map(|pv| {
                 fields.next().map(|vg| {
+                    eprintln!("Found PV {}: VG {}", pv, vg);
                     output.insert(
                         PathBuf::from(pv),
                         if vg.is_empty() || vg == "lvm2" { None } else { Some(vg.into()) },

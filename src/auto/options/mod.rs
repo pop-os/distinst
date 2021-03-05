@@ -97,6 +97,8 @@ impl InstallOptions {
                 if device.is_read_only() || device.contains_mount("/", &disks) {
                     continue;
                 }
+                
+                eprintln!("device: {:?}", device.get_device_path());
 
                 let mut last_end_sector = 1024;
 
