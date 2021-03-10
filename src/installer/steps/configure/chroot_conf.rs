@@ -346,7 +346,7 @@ impl<'a> ChrootConfigurator<'a> {
             self.chroot
                 .command(
                     "rsync",
-                    &["-KLavc", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"],
+                    &["-KLavc", "--delete-before", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"],
                 )
                 .run()?;
 
