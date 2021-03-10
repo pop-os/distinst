@@ -1,8 +1,43 @@
-use crate::device::BlockDeviceExt;
+use crate::device::{BlockDeviceExt};
 use std::str::{self, FromStr};
+use sysfs_class::{Block, SysClass};
 
 /// Trait for getting and sectors from a device.
 pub trait SectorExt: BlockDeviceExt {
+    /// The combined total number of sectors on the disk.
+    fn get_sectors(&self) -> u64;
+
+    // fn get_sectors(&self) -> u64 {
+    //     let size_file = self.sys_block_path().join("size");
+    //     crate::utils::read_file::<u64>(&size_file).expect("no sector count found")
+    // }
+
+    /// The size of each logical sector, in bytes.
+    fn get_logical_block_size(&self) -> u64 {
+        debug!("get block size for {:?}", self.sys_block_path());
+
+        let block = match Block::from_path(&self.sys_block_path()) {
+            Ok(block) => block,
+            _ => return 512
+        };
+
+        match block.queue_logical_block_size() {
+            Ok(size) => return size,
+            Err(_) => {
+                return self.get_parent_device()
+                    .expect("partition lacks parent block device")
+                    .queue_logical_block_size()
+                    .expect("parent of partition lacks logical block size");
+            }
+        }
+    }
+
+    /// The size of each logical sector, in bytes.
+    fn get_physical_block_size(&self) -> u64 {
+        let path = self.sys_block_path().join("queue/physical_block_size");
+        crate::utils::read_file::<u64>(&path).expect("physical block size not found")
+    }
+
     /// Calculates the requested sector from a given `Sector` variant.
     fn get_sector(&self, sector: Sector) -> u64 {
         const MIB2: u64 = 2 * 1024 * 1024;

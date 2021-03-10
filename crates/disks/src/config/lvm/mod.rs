@@ -63,7 +63,11 @@ impl PartitionTableExt for LogicalDevice {
     fn get_partition_type_count(&self) -> (usize, usize, bool) { (0, 0, false) }
 }
 
-impl SectorExt for LogicalDevice { }
+impl SectorExt for LogicalDevice {
+    fn get_sectors(&self) -> u64 {
+        self.sectors
+    }
+}
 
 impl DiskExt for LogicalDevice {
     const LOGICAL: bool = true;

@@ -1,4 +1,4 @@
-use disk_types::{BlockDeviceExt, FileSystem, PartitionExt, PartitionType};
+use disk_types::{BlockDeviceExt, FileSystem, PartitionExt, PartitionType, SectorExt};
 use libparted::{
     Device, FileSystemType as PedFileSystem, Geometry, Partition as PedPartition, PartitionFlag,
     PartitionType as PedPartitionType,
@@ -49,6 +49,12 @@ impl PartitionExt for PartitionCreate {
     fn get_partition_label(&self) -> Option<&str> { self.label.as_deref() }
 
     fn get_partition_type(&self) -> PartitionType { self.kind }
+}
+
+impl SectorExt for PartitionCreate {
+    fn get_sectors(&self) -> u64 {
+        self.get_sector_end() - self.get_sector_start()
+    }
 }
 
 /// Creates a new partition on the device using the info in the `partition` parameter.

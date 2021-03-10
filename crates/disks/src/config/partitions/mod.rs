@@ -5,7 +5,7 @@ use super::{
     super::{LvmEncryption, PartitionError},
     PVS,
 };
-pub use disk_types::{BlockDeviceExt, FileSystem, PartitionExt, PartitionType};
+pub use disk_types::{BlockDeviceExt, FileSystem, PartitionExt, PartitionType, SectorExt};
 use crate::external::{get_label, is_encrypted};
 use fstab_generate::BlockInfo;
 use libparted::{Partition, PartitionFlag};
@@ -103,6 +103,12 @@ impl PartitionExt for PartitionInfo {
     fn get_sector_end(&self) -> u64 { self.end_sector }
 
     fn get_sector_start(&self) -> u64 { self.start_sector }
+}
+
+impl SectorExt for PartitionInfo {
+    fn get_sectors(&self) -> u64 {
+        self.get_sector_end() - self.get_sector_start()
+    }
 }
 
 impl PartitionInfo {
