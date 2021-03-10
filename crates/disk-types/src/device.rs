@@ -1,11 +1,6 @@
-use std::{
-    cell::RefCell,
-    fmt::Debug,
-    fs::File,
-    io::{self, Read},
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{io, fs, fmt::Debug};
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use sysfs_class::{Block, SysClass};
 
 /// Methods that all block devices share, whether they are partitions or disks.
@@ -13,11 +8,13 @@ use sysfs_class::{Block, SysClass};
 /// This trait is required to implement other disk traits.
 pub trait BlockDeviceExt {
     /// The sys path of the block device.
-    fn sys_block_path(&self) -> PathBuf { sys_block_path(self.get_device_name(), "") }
+    fn sys_block_path(&self) -> PathBuf {
+        let path = ["/sys/class/block/", &*self.get_device_name()].concat();
+        PathBuf::from(path)
+    }
 
-    /// Checks if the device is a partition
     fn is_partition(&self) -> bool {
-        sys_block_path(self.get_device_name(), "partition").exists()
+        self.sys_block_path().join("partition").exists()
     }
 
     /// Checks if the device is a read-only device.
@@ -54,35 +51,19 @@ pub trait BlockDeviceExt {
     fn get_mount_point(&self) -> Option<&Path> { None }
 
     /// The name of the device, such as `sda1`.
-    fn get_device_name(&self) -> &str {
-        dbg!(self.get_device_path())
-            .file_name()
-            .expect("BlockDeviceExt::get_device_path missing file_name")
+    fn get_device_name(&self) -> String {
+        let device_path = self.get_device_path();
+        let resolved = device_path.read_link();
+
+        let name = match resolved.as_ref() {
+            Ok(resolved) => resolved.file_name(),
+            _ => device_path.file_name(),
+        };
+
+        name.expect("BlockDeviceExt::get_device_path missing file_name")
             .to_str()
             .expect("BlockDeviceExt::get_device_path invalid file_name")
-    }
-
-    /// The combined total number of sectors on the disk.
-    fn get_sectors(&self) -> u64 {
-        let size_file = sys_block_path(self.get_device_name(), "/size");
-        read_file::<u64>(&size_file).expect("no sector count found")
-    }
-
-    /// The size of each logical sector, in bytes.
-    fn get_logical_block_size(&self) -> u64 {
-        eprintln!("fetching logical block size for {:?}", self.sys_block_path());
-        let block = Block::from_path(&self.sys_block_path())
-            .expect("device lacks block");
-
-        match block.queue_logical_block_size() {
-            Ok(size) => return size,
-            Err(_) => {
-                return self.get_parent_device()
-                    .expect("partition lacks parent block device")
-                    .queue_logical_block_size()
-                    .expect("parent of partition lacks logical block size");
-            }
-        }
+            .to_owned()
     }
 
     fn get_parent_device(&self) -> Option<Block> {
@@ -97,24 +78,4 @@ pub trait BlockDeviceExt {
             })
             .and_then(|parent| Block::from_path(&parent).ok())
     }
-
-    /// The size of each logical sector, in bytes.
-    fn get_physical_block_size(&self) -> u64 {
-        let path = sys_block_path(self.get_device_name(), "/queue/physical_block_size");
-        read_file::<u64>(&path).expect("physical block size not found")
-    }
-}
-
-fn sys_block_path(name: &str, ppath: &str) -> PathBuf {
-    PathBuf::from(["/sys/class/block/", name, ppath].concat())
-}
-
-fn read_file<T: FromStr>(path: &Path) -> io::Result<T>
-where
-    <T as FromStr>::Err: Debug,
-{
-    std::fs::read_to_string(path)?
-        .trim()
-        .parse::<T>()
-        .map_err(|why| io::Error::new(io::ErrorKind::Other, format!("{:?}", why)))
 }

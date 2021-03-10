@@ -1,5 +1,6 @@
 use crate::{
     device::BlockDeviceExt,
+    sector::SectorExt,
     fs::FileSystem::{self, *},
     usage::sectors_used,
 };
@@ -10,7 +11,7 @@ use sys_mount::*;
 use tempdir::TempDir;
 
 /// Trait to provide methods for interacting with partition-based block device.
-pub trait PartitionExt: BlockDeviceExt {
+pub trait PartitionExt: BlockDeviceExt + SectorExt {
     /// Defines the file system that this device was partitioned with.
     fn get_file_system(&self) -> Option<FileSystem>;
 
