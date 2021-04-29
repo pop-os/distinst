@@ -118,6 +118,38 @@ impl<'a> ChrootConfigurator<'a> {
         }
     }
 
+    pub fn install_drivers(&self, install: bool) -> io::Result<()> {
+        let mut packages = Vec::new();
+        if install {
+            info!("finding drivers for hardware");
+            let args: &[&str] = &["list"];
+            let output = self.chroot.command("ubuntu-drivers", args).run_with_stdout()?;
+
+            for result in output.lines().map(|line| line.split(",").nth(0)) {
+                match result {
+                    Some(package) => packages.push(package),
+                    None => continue,
+                }
+            }
+
+            info!("installing drivers: {:?}", packages);
+            let mut command = self.chroot.command(
+                "apt-get",
+                &cascade! {
+                    Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
+                    ..extend_from_slice(&["install", "-q", "-y"]);
+                    ..extend_from_slice(APT_OPTIONS);
+                    ..extend(packages);
+                },
+            );
+
+            command.stdout(Stdio::null());
+            command.run()
+        } else {
+            Ok(())
+        }
+    }
+
     /// Disable that repository, now that they system has been installed.
     pub fn cdrom_disable(&self) -> io::Result<()> {
         if Path::new("/cdrom").exists() {

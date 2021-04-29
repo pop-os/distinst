@@ -213,6 +213,11 @@ fn main() {
                 .takes_value(true)
                 .multiple(true),
         )
+        .arg(
+            Arg::with_name("run-ubuntu-drivers")
+                .long("run-ubuntu-drivers")
+                .help("use ubuntu-drivers to find drivers then install in the chroot, some may have proprietary licenses")
+        )
         .get_matches();
 
     if let Err(err) = distinst::log(|_level, _message| {}) {
@@ -405,6 +410,12 @@ fn install_flags(matches: &ArgMatches) -> u8 {
 
     flags += if matches.occurrences_of("hardware-support") != 0 {
         distinst::INSTALL_HARDWARE_SUPPORT
+    } else {
+        0
+    };
+
+    flags += if matches.occurrences_of("run-ubuntu-drivers") != 0 {
+        distinst::RUN_UBUNTU_DRIVERS
     } else {
         0
     };
