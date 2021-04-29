@@ -21,6 +21,7 @@ pub use self::{
 pub const DISTINST_MODIFY_BOOT_ORDER: u8 = 0b1;
 pub const DISTINST_INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
 pub const DISTINST_KEEP_OLD_ROOT: u8 = 0b100;
+pub const DISTINST_RUN_UBUNTU_DRIVERS: u8 = 0b1000;
 
 use std::io;
 

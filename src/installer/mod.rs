@@ -34,6 +34,7 @@ use crate::PARTITIONING_TEST;
 pub const MODIFY_BOOT_ORDER: u8 = 0b01;
 pub const INSTALL_HARDWARE_SUPPORT: u8 = 0b10;
 pub const KEEP_OLD_ROOT: u8 = 0b100;
+pub const RUN_UBUNTU_DRIVERS: u8 = 0b1000;
 
 macro_rules! percent {
     ($steps:expr) => {

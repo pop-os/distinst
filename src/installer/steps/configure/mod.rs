@@ -25,6 +25,7 @@ use crate::timezones::Region;
 use crate::Config;
 use crate::UserAccountCreate;
 use crate::INSTALL_HARDWARE_SUPPORT;
+use crate::RUN_UBUNTU_DRIVERS;
 
 /// Self-explanatory -- the fstab file will be generated with this header.
 const FSTAB_HEADER: &[u8] = b"# /etc/fstab: static file system information.
@@ -270,6 +271,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         let apt_install = chroot
             .cdrom_add()
             .and_then(|_| chroot.apt_install(&install_pkgs))
+            .and_then(|_| chroot.install_drivers(config.flags & RUN_UBUNTU_DRIVERS != 0))
             .and_then(|_| chroot.cdrom_disable());
 
         map_errors! {
