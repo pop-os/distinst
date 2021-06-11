@@ -167,6 +167,7 @@ impl<'a> ChrootConfigurator<'a> {
         user: &str,
         pass: Option<&str>,
         fullname: Option<&str>,
+        profile_icon: &str,
     ) -> io::Result<()> {
         let mut command = self.chroot.command("useradd", &["-m", "-G", "adm,sudo"]);
         if let Some(name) = fullname {
@@ -180,6 +181,12 @@ impl<'a> ChrootConfigurator<'a> {
         if let Some(pass) = pass {
             let pass = [pass, "\n", pass, "\n"].concat();
             self.chroot.command("passwd", &[user]).stdin_input(&pass).run()?;
+        }
+
+        let dest = self.chroot.path.join(&["home/", user, "/.face"].concat());
+
+        if fs::copy(&profile_icon, &dest).is_err() {
+            let _ = fs::remove_file(&dest);
         }
 
         Ok(())
