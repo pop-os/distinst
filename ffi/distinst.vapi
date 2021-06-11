@@ -59,6 +59,7 @@ namespace Distinst {
         string username;
         string? realname;
         string? password;
+        string profile_icon;
     }
 
     [CCode (cname = "DISTINST_PARTITION_TABLE", has_type_id = false)]

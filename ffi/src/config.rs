@@ -39,6 +39,7 @@ pub struct DistinstUserAccountCreate {
     pub username: *const libc::c_char,
     pub realname: *const libc::c_char,
     pub password: *const libc::c_char,
+    pub profile_icon: *const libc::c_char,
 }
 
 impl DistinstUserAccountCreate {
@@ -47,6 +48,7 @@ impl DistinstUserAccountCreate {
             username: get_str(self.username)?.to_owned(),
             realname: get_str(self.realname).ok().map(String::from),
             password: get_str(self.password).ok().map(String::from),
+            profile_icon: get_str(self.profile_icon)?.to_owned(),
         })
     }
 }

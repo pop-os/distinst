@@ -30,6 +30,7 @@ fn main() {
         .arg(
             Arg::with_name("username")
                 .long("username")
+                .requires("profile_icon")
                 .help("specifies a default user account to create")
                 .takes_value(true),
         )
@@ -45,6 +46,12 @@ fn main() {
                 .long("realname")
                 .help("the full name of user to create")
                 .requires("username")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("profile_icon")
+                .long("profile_icon")
+                .help("path to icon for user profile")
                 .takes_value(true),
         )
         .arg(
@@ -252,6 +259,10 @@ fn main() {
 
     let user_account = matches.value_of("username").map(|username| {
         let username = username.to_owned();
+        let profile_icon = matches.value_of("profile_icon")
+            .expect("requires profile icon path")
+            .to_owned();
+
         let realname = matches.value_of("realname").map(String::from);
         let password = matches.value_of("password").map(String::from).or_else(|| {
             if unsafe { libc::isatty(0) } == 0 {
@@ -264,7 +275,7 @@ fn main() {
             }
         });
 
-        UserAccountCreate { realname, username, password }
+        UserAccountCreate { realname, username, password, profile_icon }
     });
 
     let pb_opt: Rc<RefCell<Option<ProgressBar<io::Stdout>>>> = Rc::new(RefCell::new(None));
