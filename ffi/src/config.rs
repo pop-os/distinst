@@ -48,7 +48,7 @@ impl DistinstUserAccountCreate {
             username: get_str(self.username)?.to_owned(),
             realname: get_str(self.realname).ok().map(String::from),
             password: get_str(self.password).ok().map(String::from),
-            profile_icon: get_str(self.profile_icon)?.to_owned(),
+            profile_icon: get_str(self.profile_icon).ok().map(String::from),
         })
     }
 }

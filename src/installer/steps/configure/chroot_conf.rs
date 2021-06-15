@@ -167,26 +167,50 @@ impl<'a> ChrootConfigurator<'a> {
         user: &str,
         pass: Option<&str>,
         fullname: Option<&str>,
-        profile_icon: &str,
+        profile_icon: Option<&str>,
     ) -> io::Result<()> {
-        let mut command = self.chroot.command("useradd", &["-m", "-G", "adm,sudo,lpadmin", "-s", "/bin/bash"]);
-        if let Some(name) = fullname {
-            command.args(&["-c", name, user]);
-        } else {
-            command.arg(user);
-        };
+        // Add the user to the system.
+        {
+            const DEFAULT_USERADD_FLAGS: &[&str] = &[
+                "-m",
+                "-G", "adm,sudo,lpadmin",
+                "-s", "/bin/bash"
+            ];
 
-        command.run()?;
+            let mut command = self.chroot.command("useradd", DEFAULT_USERADD_FLAGS);
 
-        if let Some(pass) = pass {
-            let pass = [pass, "\n", pass, "\n"].concat();
-            self.chroot.command("passwd", &[user]).stdin_input(&pass).run()?;
+            if let Some(name) = fullname {
+                command.args(&["-c", name]);
+            }
+
+            command.arg(user).run()?;
         }
 
-        let dest = self.chroot.path.join(&["home/", user, "/.face"].concat());
+        // Set the password for the newly-created user.
+        if let Some(pass) = pass {
+            let pass = &[pass, "\n", pass, "\n"].concat();
+            self.chroot.command("passwd", &[user]).stdin_input(pass).run()?;
+        }
 
-        if fs::copy(&profile_icon, &dest).is_err() {
-            let _ = fs::remove_file(&dest);
+        // Copy the profile icon to `/home/{user}/.face` and assign that in
+        // the config file at `/var/lib/AccountsService/users/{user}`.
+        if let Some(path) = profile_icon {
+            let mut dest = self.chroot.path.join(&["home/", user, "/.face"].concat());
+
+            if fs::copy(&path, &dest).is_err() {
+                let _ = fs::remove_file(&dest);
+                return Ok(());
+            }
+
+            dest = self.chroot.path.join(&["var/lib/AccountsService/users/", user].concat());
+
+            if fs::write(&dest, fomat!(
+                "[User]\n"
+                "Icon=/home/" (user) "/.face\n"
+                "SystemAccount=false\n"
+            )).is_err() {
+                let _ = fs::remove_file(&dest);
+            }
         }
 
         Ok(())

@@ -16,19 +16,7 @@ edition = "2018"
 [workspace]
 members = [
     "cli",
-    "crates/bootloader",
-    "crates/chroot",
-    "crates/disks",
-    "crates/disk-ops",
-    "crates/disk-types",
-    "crates/external",
-    "crates/fstab-generate",
-    "crates/hardware",
-    "crates/locales",
-    "crates/os-detect",
-    "crates/squashfs",
-    "crates/timezones",
-    "crates/utils",
+    "crates/*",
     "ffi",
 ]
 
@@ -54,6 +42,7 @@ distinst-timezones = { path = "crates/timezones" }
 distinst-utils = { path = "crates/utils" }
 envfile = "0.2.1"
 fern = "0.6.0"
+fomat-macros = "0.3"
 fstab-generate = { path = "crates/fstab-generate" }
 hostname-validator = "1.0.0"
 itertools = "0.10.0"

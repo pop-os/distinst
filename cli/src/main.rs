@@ -259,9 +259,7 @@ fn main() {
 
     let user_account = matches.value_of("username").map(|username| {
         let username = username.to_owned();
-        let profile_icon = matches.value_of("profile_icon")
-            .expect("requires profile icon path")
-            .to_owned();
+        let profile_icon = matches.value_of("profile_icon").map(String::from);
 
         let realname = matches.value_of("realname").map(String::from);
         let password = matches.value_of("password").map(String::from).or_else(|| {

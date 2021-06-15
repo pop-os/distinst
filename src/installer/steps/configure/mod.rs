@@ -263,7 +263,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
                 &user.username,
                 user.password.as_deref(),
                 user.realname.as_deref(),
-                &user.profile_icon,
+                user.profile_icon.as_deref(),
             )
         } else {
             Ok(())
