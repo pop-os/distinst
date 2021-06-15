@@ -74,7 +74,7 @@ pub struct UserAccountCreate {
     pub username: String,
     pub realname: Option<String>,
     pub password: Option<String>,
-    pub profile_icon: String,
+    pub profile_icon: Option<String>,
 }
 
 /// Installer error

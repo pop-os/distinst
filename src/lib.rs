@@ -36,6 +36,8 @@ extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate fern;
+#[macro_use]
+extern crate fomat_macros;
 extern crate fstab_generate;
 extern crate itertools;
 extern crate libc;

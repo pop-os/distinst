@@ -417,6 +417,7 @@ dependencies = [
  "failure",
  "failure_derive",
  "fern",
+ "fomat-macros",
  "fstab-generate",
  "hostname-validator",
  "itertools 0.10.0",
@@ -694,6 +695,12 @@ checksum = "8c9a4820f0ccc8a7afd67c39a0f1a0f4b07ca1725164271a64939d7aeb9af065"
 dependencies = [
  "log",
 ]
+
+[[package]]
+name = "fomat-macros"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe56556a8c9f9f556150eb6b390bc1a8b3715fd2ddbb4585f36b6a5672c6a833"
 
 [[package]]
 name = "fstab-generate"
