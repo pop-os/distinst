@@ -192,10 +192,10 @@ impl<'a> ChrootConfigurator<'a> {
             self.chroot.command("passwd", &[user]).stdin_input(pass).run()?;
         }
 
-        // Copy the profile icon to `/home/{user}/.face` and assign that in
+        // Copy the profile icon to `/var/lib/AccountsService/icons/{user}` and assign that in
         // the config file at `/var/lib/AccountsService/users/{user}`.
         if let Some(path) = profile_icon {
-            let mut dest = self.chroot.path.join(&["home/", user, "/.face"].concat());
+            let mut dest = self.chroot.path.join(&["var/lib/AccountsService/icons/", user].concat());
 
             if fs::copy(&path, &dest).is_err() {
                 let _ = fs::remove_file(&dest);
@@ -206,7 +206,7 @@ impl<'a> ChrootConfigurator<'a> {
 
             if fs::write(&dest, fomat!(
                 "[User]\n"
-                "Icon=/home/" (user) "/.face\n"
+                "Icon=/var/lib/AccountsService/icons/" (user) "\n"
                 "SystemAccount=false\n"
             )).is_err() {
                 let _ = fs::remove_file(&dest);
