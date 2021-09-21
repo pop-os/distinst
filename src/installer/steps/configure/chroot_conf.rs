@@ -334,6 +334,7 @@ impl<'a> ChrootConfigurator<'a> {
     pub fn netresolve(&self) -> io::Result<()> {
         info!("creating /etc/resolv.conf");
 
+
         let resolvconf = "../run/systemd/resolve/stub-resolv.conf";
         self.chroot.command("ln", &["-sf", resolvconf, "/etc/resolv.conf"]).run()
     }
@@ -393,6 +394,19 @@ impl<'a> ChrootConfigurator<'a> {
         // If we are installing from the recovery partition, then we can skip this step.
         if recovery_uuid.id == cdrom_uuid {
             return Ok(());
+        }
+
+        // Erase whatever is on the recovery partition currently
+        if let Ok(dir) = recovery_path.read_dir() {
+            for entry in dir.filter_map(Result::ok) {
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_file() {
+                        let _ = fs::remove_file(&entry.path());
+                    } else if metadata.is_dir() {
+                        let _ = fs::remove_dir_all(&entry.path());
+                    }
+                }
+            }
         }
 
         let casper_data_: String;
