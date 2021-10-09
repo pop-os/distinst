@@ -987,9 +987,9 @@ impl Disks {
                     }
 
                     // 256 MiB should be the minimal size of the ESP partition.
-                    const REQUIRED_SECTORS: u64 = 524_288;
+                    const REQUIRED_ESP_SIZE: u64 = 256 * 1024 * 1024;
 
-                    if boot.get_sectors() < REQUIRED_SECTORS {
+                    if (boot.get_sectors() * boot.get_logical_block_size()) < REQUIRED_ESP_SIZE {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "the ESP partition must be at least 256 MiB in size",
