@@ -4,7 +4,7 @@ Distinst is a Rust-based software library that handles Linux distribution instal
 
 ## Frontends
 
-At the moment, elementary's installer is the primary target for distinst. However, distinst also ships with a CLI application (also called distinst) that serves as a fully-functioning test bed for the distinst library. Example scripts exist within the [tests](https://github.com/pop-os/distinst/tree/master_bionic/tests) directory to demonstrate how the CLI
+At the moment, elementary's installer is the primary target for distinst. However, distinst also ships with a CLI application (also called distinst) that serves as a fully-functioning test bed for the distinst library. Example scripts exist within the [tests](https://github.com/pop-os/distinst/tree/master/tests) directory to demonstrate how the CLI
 can be used to perform installs using files from the Pop! ISO.
 
 ### CLI
