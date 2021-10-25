@@ -38,4 +38,5 @@ echo "system76" | sudo target/debug/distinst \
     -n "$1:primary:-4096M:end:swap" \
     --username "oem" \
     --realname "System76 OEM Account" \
+    --profile_icon "/usr/share/pixmaps/faces/penguin.png" \
     --tz "America/Denver"
