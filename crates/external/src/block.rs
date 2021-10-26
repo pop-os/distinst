@@ -70,7 +70,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystem) -> io::Result<()> {
         Exfat => unimplemented!("exfat is not supported, yet"),
         Ext2 => ("mkfs.ext2", &["-F", "-q"]),
         Ext3 => ("mkfs.ext3", &["-F", "-q"]),
-        Ext4 => ("mkfs.ext4", &["-F", "-q", "-E", "lazy_itable_init"]),
+        Ext4 => ("mkfs.ext4", &["-F", "-q", "-E", "lazy_itable_init", "-O", "casefold"]),
         F2fs => ("mkfs.f2fs", &["-q"]),
         Fat16 => ("mkfs.fat", &["-F", "16"]),
         Fat32 => ("mkfs.fat", &["-F", "32"]),
