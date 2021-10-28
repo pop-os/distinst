@@ -990,9 +990,10 @@ impl Disks {
                     const REQUIRED_ESP_SIZE: u64 = 256 * 1024 * 1024;
                     const REQUIRED_SECTORS: u64 = 524_288;
 
-                    if boot.get_device_path().read_link().is_err()
-                        && boot.get_sectors() < REQUIRED_SECTORS
-                        || (boot.get_sectors() * boot.get_logical_block_size() < REQUIRED_ESP_SIZE)
+                    if boot.get_sectors() < REQUIRED_SECTORS
+                        || (boot.get_device_path().read_link().is_ok()
+                            && (boot.get_sectors() * boot.get_logical_block_size()
+                                < REQUIRED_ESP_SIZE))
                     {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
