@@ -115,7 +115,6 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
             "linux-image-generic-hwe-20.04",
         ],
         Bootloader::Efi if os_release.name == "elementary OS" => &[
-            "grub-efi",
             "grub-efi-amd64",
             "grub-efi-amd64-signed",
             "shim-signed",
