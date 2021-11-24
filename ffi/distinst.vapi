@@ -670,7 +670,6 @@ namespace Distinst {
         PERCENT
     }
 
-    [SimpleType]
     [CCode (has_type_id = false)]
     public struct SectorResult {
         /**
