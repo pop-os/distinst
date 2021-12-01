@@ -35,3 +35,9 @@ pub use self::{
 };
 pub use bootloader::{Bootloader, FORCE_BOOTLOADER};
 pub use libparted::PartitionFlag;
+
+/// Normalize 512-byte sector counts to the given sector size
+fn sectors_normalize(base_count: u64, sector_size: u64) -> u64 {
+    base_count / (sector_size / 512)
+}
+

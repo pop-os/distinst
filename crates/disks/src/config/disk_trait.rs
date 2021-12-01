@@ -113,6 +113,8 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
     ///
     /// An error can occur if the partition will not fit onto the disk.
     fn add_partition(&mut self, mut builder: PartitionBuilder) -> Result<(), DiskError> {
+        let sector_size = self.get_logical_block_size();
+
         // Ensure that the values aren't already contained within an existing partition.
         if !Self::LOGICAL && builder.part_type != PartitionType::Extended {
             info!("checking if {}:{} overlaps", builder.start_sector, builder.end_sector);
@@ -154,7 +156,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
             .partition_type(PartitionType::Extended);
 
             self.push_partition(part.build());
-            builder.start_sector += 1_024_000 / 512 + 1;
+            builder.start_sector += 1_024_000 / sector_size + 1;
         }
 
         let fs = builder.filesystem;

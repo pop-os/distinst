@@ -42,7 +42,7 @@ impl InstallOptions {
             let erase_options = &mut erase_options;
             let refresh_options = &mut refresh_options;
 
-            let mut check_partition = |part: &PartitionInfo| -> Option<OS> {
+            let mut check_partition = |part: &PartitionInfo, required_space: u64| -> Option<OS> {
                 // We're only going to find Linux on a Linux-compatible file system.
                 if let Some(os) = part.probe_os() {
                     info!(
@@ -96,13 +96,17 @@ impl InstallOptions {
                 
                 eprintln!("device: {:?}", device.get_device_path());
 
+                let sector_size = device.get_logical_block_size();
+                let required_space = crate::sectors_normalize(required_space, sector_size);
+                let shrink_overhead = crate::sectors_normalize(shrink_overhead, sector_size);
+
                 let mut last_end_sector = 1024;
 
                 for part in device.get_partitions() {
                     if let Ok(used) = part.sectors_used() {
                         let sectors = part.get_sectors();
                         let free = sectors - used;
-                        let os = check_partition(part);
+                        let os = check_partition(part, required_space);
                         if required_space + shrink_overhead < free {
                             info!(
                                 "found shrinkable partition on {:?}: {} free of {}",
@@ -118,6 +122,7 @@ impl InstallOptions {
                                     partition:     part.number,
                                     sectors_free:  free,
                                     sectors_total: sectors,
+                                    sector_size,
                                 },
                             });
                         }
@@ -138,7 +143,7 @@ impl InstallOptions {
                             method:    AlongsideMethod::Free(Region::new(
                                 last_end_sector + 1,
                                 part.start_sector - 1,
-                            )),
+                            ), sector_size),
                         })
                     }
 
@@ -159,7 +164,7 @@ impl InstallOptions {
                         method:    AlongsideMethod::Free(Region::new(
                             last_end_sector + 1,
                             last_sector,
-                        )),
+                        ), sector_size),
                     })
                 }
 
@@ -173,6 +178,8 @@ impl InstallOptions {
                 }
 
                 let sectors = device.get_sectors();
+                let sector_size = device.get_logical_block_size();
+
                 info!("found erase option on {:?}: {} sectors", device.get_device_path(), sectors);
                 erase_options.push(EraseOption {
                     device: device.get_device_path().to_path_buf(),
@@ -185,6 +192,7 @@ impl InstallOptions {
                         }
                     },
                     sectors,
+                    sector_size,
                     flags: {
                         let mut flags = if device.is_removable() { IS_REMOVABLE } else { 0 };
                         flags |= if device.is_rotational() { IS_ROTATIONAL } else { 0 };
@@ -200,8 +208,11 @@ impl InstallOptions {
             }
 
             for device in disks.get_logical_devices() {
+                let sector_size = device.get_logical_block_size();
+                let required_space = crate::sectors_normalize(required_space, sector_size);
+
                 for part in device.get_partitions() {
-                    check_partition(part);
+                    check_partition(part, required_space);
                 }
             }
         }

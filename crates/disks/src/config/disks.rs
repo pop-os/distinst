@@ -453,6 +453,7 @@ impl Disks {
             partition: &mut PartitionInfo,
             path: &Path,
             enc: &LvmEncryption,
+            sector_size: u64,
         ) -> Result<LogicalDevice, DecryptionError> {
             // Attempt to decrypt the device.
             cryptsetup_open(path, &enc)
@@ -476,7 +477,7 @@ impl Disks {
                         vg,
                         Some(enc.clone()),
                         partition.get_sectors(),
-                        512,
+                        sector_size,
                         true,
                     );
                     info!("settings luks_parent to {:?}", path);
@@ -492,7 +493,7 @@ impl Disks {
                             pv,
                             Some(enc.clone()),
                             partition.get_sectors(),
-                            512,
+                            sector_size,
                             true,
                         );
 
@@ -514,10 +515,12 @@ impl Disks {
 
         // Attempt to find the device in the configuration.
         for device in &mut self.physical {
+            let sector_size = device.get_logical_block_size();
+
             // TODO: NLL
             if let Some(partition) = device.get_file_system_mut() {
                 if partition.get_device_path() == path {
-                    decrypt(partition, path, &enc)?;
+                    decrypt(partition, path, &enc, sector_size)?;
                 }
             }
 
@@ -525,7 +528,7 @@ impl Disks {
                 device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut())
             {
                 if partition.get_device_path() == path {
-                    new_device = Some(decrypt(partition, path, &enc)?);
+                    new_device = Some(decrypt(partition, path, &enc, sector_size)?);
                     break;
                 }
             }
@@ -990,19 +993,19 @@ impl Disks {
                     const REQUIRED_ESP_SIZE: u64 = 256 * 1024 * 1024;
                     const REQUIRED_SECTORS: u64 = 524_288;
 
-                    if (boot.get_device_path().read_link().is_err()
-                        && boot.get_sectors() < REQUIRED_SECTORS)
-                        || (boot.get_device_path().read_link().is_ok()
-                            && (boot.get_sectors() * boot.get_logical_block_size()
+                    if (device.get_device_path().read_link().is_err()
+                        && device.get_sectors() < REQUIRED_SECTORS)
+                        || (device.get_device_path().read_link().is_ok()
+                            && (device.get_sectors() * device.get_logical_block_size()
                                 < REQUIRED_ESP_SIZE))
                     {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
-                            "the ESP partition must be at least 256 MiB in size",
+                            format!("VJR: the ESP partition {} must be at least 256 MiB in size", device.get_device_path().display()),
                         ));
                     }
                 }
-
+                info!("VJR: device path {}", device.get_device_path().display());
                 device
             };
 

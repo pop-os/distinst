@@ -201,6 +201,8 @@ pub struct PartitionChange {
     pub start:       u64,
     /// The end sector that the partition will have.
     pub end:         u64,
+    /// Size of this partition's sectors.
+    pub sector_size: u64,
     /// The file system that is currently on the partition.
     pub filesystem:  Option<FileSystem>,
     /// A diff of flags which should be set on the partition.
@@ -284,8 +286,8 @@ where
     // Each file system uses different units for specifying the size, and these
     // units are sometimes written in non-standard and conflicting ways.
     let size = match unit {
-        ResizeUnit::AbsoluteBytes => format!("{}", resize.absolute_sectors() * 512),
-        ResizeUnit::AbsoluteKibis => format!("{}ki", resize.absolute_sectors() / 2),
+        ResizeUnit::AbsoluteBytes => format!("{}", resize.absolute_sectors() * change.sector_size),
+        ResizeUnit::AbsoluteKibis => format!("{}ki", (resize.absolute_sectors() / 2) * (change.sector_size / 512)),
         ResizeUnit::AbsoluteSectorsWithUnit => format!("{}s", resize.absolute_sectors()),
         ResizeUnit::AbsoluteMebibyte => format!("{}M", resize.as_absolute_mebibyte()),
         ResizeUnit::AbsoluteMegabyte => format!("{}M", resize.as_absolute_megabyte()),
@@ -326,7 +328,7 @@ where
             let abs_sectors = resize.absolute_sectors();
             resize.old.resize_to(abs_sectors); // TODO: NLL
 
-            move_partition(&change.device_path, resize.offset(), 512).map_err(|why| {
+            move_partition(&change.device_path, resize.offset(), change.sector_size).map_err(|why| {
                 io::Error::new(
                     why.kind(),
                     format!("failed to move partition at {}: {}", change.path.display(), why),
@@ -366,7 +368,7 @@ where
         let abs_sectors = resize.absolute_sectors();
         resize.old.resize_to(abs_sectors); // TODO: NLL
 
-        move_partition(&change.device_path, resize.offset(), 512).map_err(|why| {
+        move_partition(&change.device_path, resize.offset(), change.sector_size).map_err(|why| {
             io::Error::new(
                 why.kind(),
                 format!("failed to move partition at {}: {}", change.path.display(), why),
