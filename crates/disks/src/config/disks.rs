@@ -1001,11 +1001,11 @@ impl Disks {
                     {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
-                            format!("VJR: the ESP partition {} must be at least 256 MiB in size", device.get_device_path().display()),
+                            "the ESP partition must be at least 256 MiB in size",
                         ));
                     }
                 }
-                info!("VJR: device path {}", device.get_device_path().display());
+
                 device
             };
 
