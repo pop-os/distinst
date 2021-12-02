@@ -129,11 +129,6 @@ impl SectorExt for Disk {
     fn get_sectors(&self) -> u64 {
         self.size
     }
-/*
-    fn get_sector_size(&self) -> u64 {
-        self.sector_size
-    }
-*/
 }
 
 impl PartitionTableExt for Disk {
