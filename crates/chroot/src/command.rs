@@ -8,6 +8,7 @@ use std::{
     thread,
     time::Duration,
 };
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Convenient wrapper around `process::Command` to make it easier to work with.
 pub struct Command<'a> {
@@ -168,10 +169,12 @@ fn non_blocking_line_reading<B: BufRead, F: Fn(&str)>(
         match reader.read_line(buffer) {
             Ok(0) => break,
             Ok(read) => {
-                if buffer.is_char_boundary(read) {
-                    callback(&buffer[..read - 1]);
-                    buffer.clear();
-                }
+                let last_index = UnicodeSegmentation::grapheme_indices(&buffer[..], true)
+                    .last()
+                    .unwrap_or((read - 1, ""))
+                    .0;
+                callback(&buffer[..last_index]);
+                buffer.clear();
             }
             Err(ref why) if why.kind() == io::ErrorKind::WouldBlock => break,
             Err(why) => {
