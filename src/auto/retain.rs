@@ -17,11 +17,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const USER_ICONS_TMP: &str = "distinst.tmp/user_icons";
+const USER_ICONS: &str = "var/lib/AccountsService/icons";
+
 /// Removes all files in the chroot at `/`, except for `/home`.
 pub fn remove_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     info!("removing all files except /home. This may take a while...");
     mount_and_then(root_path, root_fs, |base| {
-        read_and_exclude(base, &[OsStr::new("home")], |entry| {
+        // Backup user icons
+        let _ = fs::create_dir(&base.join("distinst.tmp"));
+        let _ = fs::rename(&base.join(USER_ICONS), &base.join(USER_ICONS_TMP));
+
+        read_and_exclude(base, &[OsStr::new("home"), OsStr::new("distinst.tmp")], |entry| {
             if entry.is_dir() {
                 fs::remove_dir_all(entry)?;
             } else {
@@ -78,7 +85,13 @@ pub fn recover_root(root_path: &Path, root_fs: FileSystem) -> Result<(), Reinsta
             let filename = entry.file_name().expect("root entry without file name");
             fs::rename(entry, base.join(filename))?;
             Ok(())
-        })
+        })?;
+
+        // Restore AccountsService icons
+        let _ = fs::rename(&base.join(USER_ICONS_TMP), &base.join(USER_ICONS));
+        let _ = fs::remove_dir(&base.join("distinst.tmp"));
+
+        Ok(())
     })
 }
 
@@ -204,6 +217,12 @@ impl<'a> Backup<'a> {
     /// system.
     pub fn restore(&self, device: &Path, fs: FileSystem) -> Result<(), ReinstallError> {
         mount_and_then(device, fs, |base| {
+            // Restore user icons;
+            let icons_path = base.join(USER_ICONS);
+            let _ = fs::create_dir_all(&icons_path);
+            let _ = fs::rename(&base.join(USER_ICONS_TMP), &icons_path);
+            let _ = fs::remove_dir(&base.join("distinst.tmp"));
+
             info!("appending user account data to new install");
             let (passwd, group, shadow, gshadow) = (
                 base.join("etc/passwd"),
