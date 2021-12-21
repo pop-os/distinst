@@ -1,8 +1,7 @@
 //! Retain users when reinstalling, keeping their home folder and user account.
 
-use crate::bootloader::Bootloader;
+use crate::{bootloader::Bootloader, disks::Disks};
 use disk_types::FileSystem;
-use crate::disks::Disks;
 
 use super::{mount_and_then, AccountFiles, ReinstallError, UserData};
 
@@ -194,7 +193,8 @@ impl<'a> Backup<'a> {
                 },
             );
 
-            let users = users.iter().filter_map(|user| account_files.get(user)).collect::<Vec<_>>();
+            let users =
+                users.iter().filter_map(|user| account_files.get(&base, user)).collect::<Vec<_>>();
 
             Ok(Backup { users, localtime, timezone, networks })
         })
@@ -224,6 +224,12 @@ impl<'a> Backup<'a> {
                 let mut entry = entry.to_owned();
                 entry.push(b'\n');
                 entry
+            }
+
+            let accounts_service_path = base.join("var/lib/AccountsService/users/");
+
+            if let Err(why) = fs::create_dir_all(&accounts_service_path) {
+                error!("could not create AccountsService directories: {}", why);
             }
 
             for user in &self.users {
@@ -272,6 +278,17 @@ impl<'a> Backup<'a> {
                     group.seek(SeekFrom::Start(0))?;
                     group.set_len(0)?;
                     group.write_all(&serialized)?;
+
+                    if let Some(accounts_service) = user.accounts_service.as_ref() {
+                        let username = String::from_utf8_lossy(user.user);
+                        let path = accounts_service_path.join(&*username);
+                        if let Err(why) = fs::write(&path, accounts_service.as_bytes()) {
+                            error!(
+                                "failed to write accounts service file for {}: {}",
+                                username, why
+                            );
+                        }
+                    }
                 }
             }
 
