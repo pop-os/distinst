@@ -20,15 +20,29 @@ use std::{
 const USER_ICONS_TMP: &str = "distinst.tmp/user_icons";
 const USER_ICONS: &str = "var/lib/AccountsService/icons";
 
+fn accounts_service(base: &Path) -> PathBuf { base.join("var/lib/AccountsService") }
+
+fn accounts_service_backup_path(base: &Path) -> PathBuf {
+    base.join("distinst.tmp/AccountsService")
+}
+
+fn accounts_service_backup(base: &Path) {
+    let _ = fs::create_dir_all(&base.join("distinst.tmp"));
+    let _ = fs::rename(&accounts_service(base), &accounts_service_backup_path(base));
+}
+
+fn accounts_service_restore(base: &Path) {
+    let _ = fs::rename(&accounts_service_backup_path(base), &accounts_service(base));
+}
+
 /// Removes all files in the chroot at `/`, except for `/home`.
 pub fn remove_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     info!("removing all files except /home. This may take a while...");
     mount_and_then(root_path, root_fs, |base| {
-        // Backup user icons
-        let _ = fs::create_dir(&base.join("distinst.tmp"));
-        let _ = fs::rename(&base.join(USER_ICONS), &base.join(USER_ICONS_TMP));
+        accounts_service_backup(base);
 
         read_and_exclude(base, &[OsStr::new("home"), OsStr::new("distinst.tmp")], |entry| {
+            info!("removing {:?}", entry);
             if entry.is_dir() {
                 fs::remove_dir_all(entry)?;
             } else {
@@ -43,6 +57,8 @@ pub fn remove_root(root_path: &Path, root_fs: FileSystem) -> Result<(), Reinstal
 /// Migrate the original system to the `/linux.old/` directory, excluding `/home`.
 pub fn move_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     mount_and_then(root_path, root_fs, |base| {
+        accounts_service_backup(base);
+
         let old_root = base.join("linux.old");
 
         // Remove an old, old root if it already exists.
@@ -55,7 +71,7 @@ pub fn move_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallE
         fs::create_dir(&old_root)?;
 
         // Migrate the current root system to the old root path.
-        let exclude = &[OsStr::new("home"), OsStr::new("linux.old")];
+        let exclude = &[OsStr::new("home"), OsStr::new("linux.old"), OsStr::new("distinst.tmp")];
         read_and_exclude(base, exclude, |entry| {
             let filename = entry.file_name().expect("root entry without file name");
             fs::rename(entry, base.join("linux.old").join(filename))?;
@@ -87,9 +103,7 @@ pub fn recover_root(root_path: &Path, root_fs: FileSystem) -> Result<(), Reinsta
             Ok(())
         })?;
 
-        // Restore AccountsService icons
-        let _ = fs::rename(&base.join(USER_ICONS_TMP), &base.join(USER_ICONS));
-        let _ = fs::remove_dir(&base.join("distinst.tmp"));
+        accounts_service_restore(base);
 
         Ok(())
     })
@@ -206,8 +220,7 @@ impl<'a> Backup<'a> {
                 },
             );
 
-            let users =
-                users.iter().filter_map(|user| account_files.get(&base, user)).collect::<Vec<_>>();
+            let users = users.iter().filter_map(|user| account_files.get(user)).collect::<Vec<_>>();
 
             Ok(Backup { users, localtime, timezone, networks })
         })
@@ -297,17 +310,6 @@ impl<'a> Backup<'a> {
                     group.seek(SeekFrom::Start(0))?;
                     group.set_len(0)?;
                     group.write_all(&serialized)?;
-
-                    if let Some(accounts_service) = user.accounts_service.as_ref() {
-                        let username = String::from_utf8_lossy(user.user);
-                        let path = accounts_service_path.join(&*username);
-                        if let Err(why) = fs::write(&path, accounts_service.as_bytes()) {
-                            error!(
-                                "failed to write accounts service file for {}: {}",
-                                username, why
-                            );
-                        }
-                    }
                 }
             }
 
@@ -335,6 +337,8 @@ impl<'a> Backup<'a> {
                     create_network_conf(network_conf_dir, connection, data);
                 }
             }
+
+            accounts_service_restore(base);
 
             Ok(())
         })

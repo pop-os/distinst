@@ -47,7 +47,7 @@ impl AccountFiles {
         })
     }
 
-    pub fn get(&self, base: &Path, home: &OsStr) -> Option<UserData> {
+    pub fn get(&self, home: &OsStr) -> Option<UserData> {
         let mut home_path = b"/home/".to_vec();
         home_path.extend_from_slice(home.as_bytes());
         let home: &[u8] = &home_path;
@@ -99,38 +99,7 @@ impl AccountFiles {
             let shadow = self.shadow.get(user)?;
             let gshadow = self.gshadow.get(user)?;
 
-            let path = base.join(&["var/lib/AccountsService/users/", &user_string].concat());
-            let accounts_service = std::fs::read_to_string(&*path)
-                .map(|string| {
-                    let mut modified = String::new();
-
-                    // Ensure that the user account is set to the Pop session, and that
-                    // the SystemAccount value is false.
-                    for line in string.lines() {
-                        if line.starts_with("Session=") {
-                            modified.push_str("Session=pop");
-                        } else if line.starts_with("SystemAccount=true") {
-                            modified.push_str("SystemAccount=false");
-                        } else {
-                            modified.push_str(line);
-                        }
-
-                        modified.push('\n');
-                    }
-
-                    modified
-                })
-                .ok();
-
-            Some(UserData {
-                user,
-                passwd,
-                group,
-                shadow,
-                gshadow,
-                secondary_groups,
-                accounts_service,
-            })
+            Some(UserData { user, passwd, group, shadow, gshadow, secondary_groups })
         })
     }
 }
@@ -162,7 +131,6 @@ pub struct UserData<'a> {
     pub group:            &'a [u8],
     pub gshadow:          &'a [u8],
     pub secondary_groups: Vec<&'a [u8]>,
-    pub accounts_service: Option<String>,
 }
 
 #[cfg(test)]
