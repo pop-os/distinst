@@ -263,6 +263,29 @@ impl<'a> ChrootConfigurator<'a> {
         .with_context(|err| format!("failed to write hosts to {:?}: {}", hosts, err))
     }
 
+    pub fn initramfs_disable(&self) -> io::Result<()> {
+        info!("symlinking update-initramfs to true for duration of initial setup");
+
+        self.chroot.command("sh", &"-c", ["mv /usr/sbin/update-initramfs /usr/sbin/update-initramfs.bak"])
+            .run()
+            .with_context(|err| format!("failed to migrate `update-initramfs`: {}", err))?;
+
+        self.chroot.command("sh", &["-c", "ln -s /usr/bin/true /usr/sbin/update-initramfs"])
+            .run()
+            .with_context(|err| format!("failed to link `true` to `update-initramfs`: {}", err))
+    }
+
+    pub fn initramfs_reenable(&self) -> io::Result<()> {
+        info!("re-enabling update-initramfs");
+        self.chroot.command("sh", &["-c", "rm /usr/sbin/update-initramfs"])
+            .run()
+            .with_context(|err| format!("failed to remove update-initramfs symlink: {}", err))?;
+
+        self.chroot.command("sh", &["-c", "mv /usr/sbin/update-initramfs.bak /usr/sbin/update-initramfs"])
+            .run()
+            .with_context(|err| format!("failed to restore backup of update-initramfs: {}", err))
+    }
+
     /// Set the keyboard layout so that the layout will function, even within the decryption screen.
     pub fn keyboard_layout(&self, config: &Config) -> io::Result<()> {
         info!("configuring keyboard layout");
