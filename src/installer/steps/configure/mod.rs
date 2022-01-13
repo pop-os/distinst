@@ -245,6 +245,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         // TODO: use a macro to make this more manageable.
         let chroot = ChrootConfigurator::new(chroot);
 
+        chroot.initramfs_disable()?;
+
         let hostname = chroot.hostname(&config.hostname);
         let hosts = chroot.hosts(&config.hostname);
         let machine_id = chroot.generate_machine_id();
@@ -317,9 +319,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             .with_context(|why| format!("error setting keyboard layout: {}", why))?;
         callback(85);
 
-        chroot
-            .update_initramfs()
-            .with_context(|why| format!("error updating initramfs: {}", why))?;
+        chroot.initramfs_reenable()?;
+
         callback(90);
 
         // Sync to the disk before unmounting

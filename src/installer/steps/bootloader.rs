@@ -124,9 +124,9 @@ pub fn bootloader<F: FnMut(i32)>(
                                 &["-o", &format!("/boot/efi/EFI/{}/grub/grub.cfg", name)],
                             )
                             .run()?;
-
-                        chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
                     }
+
+                    chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
 
                     if config.flags & MODIFY_BOOT_ORDER != 0 {
                         let efi_part_num = efi_part_num.to_string();
