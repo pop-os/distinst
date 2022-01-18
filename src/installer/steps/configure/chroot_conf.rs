@@ -266,7 +266,7 @@ impl<'a> ChrootConfigurator<'a> {
     pub fn initramfs_disable(&self) -> io::Result<()> {
         info!("symlinking update-initramfs to true for duration of initial setup");
 
-        self.chroot.command("sh", &"-c", ["mv /usr/sbin/update-initramfs /usr/sbin/update-initramfs.bak"])
+        self.chroot.command("sh", &["-c", "mv /usr/sbin/update-initramfs /usr/sbin/update-initramfs.bak"])
             .run()
             .with_context(|err| format!("failed to migrate `update-initramfs`: {}", err))?;
 
