@@ -1,5 +1,5 @@
 use crate::chroot::{Chroot, Command};
-use crate::errors::IoContext;
+use crate::errors::{IoContext, IntoIoResult};
 use crate::misc;
 use partition_identity::PartitionID;
 use proc_mounts::MountList;
@@ -394,21 +394,21 @@ impl<'a> ChrootConfigurator<'a> {
         let mounts = MountList::new()?;
         let recovery_mount = mounts
             .get_mount_by_dest(&recovery_path)
-            .expect("/recovery is mount not associated with block device");
+            .into_io_result(|| "/recovery is mount not associated with block device")?;
 
         let efi_mount = mounts
             .get_mount_by_dest(&efi_path)
-            .expect("efi is mount not associated with block device");
+            .into_io_result(|| "efi is mount not associated with block device")?;
 
         let efi_partuuid = PartitionID::get_partuuid(&efi_mount.source)
-            .expect("efi partiton does not have a PartUUID");
+            .into_io_result(|| "efi partiton does not have a PartUUID")?;
 
         let recovery_partuuid = PartitionID::get_partuuid(&recovery_mount.source)
-            .expect("/recovery does not have a PartUUID");
+            .into_io_result(|| "/recovery does not have a PartUUID")?;
 
         let recovery_uuid = PartitionID::get_uuid(&recovery_mount.source)
             .or_else(|| PartitionID::get_uuid(&efi_mount.source))
-            .expect("/recovery does not have a UUID");
+            .into_io_result(|| "/recovery does not have a UUID")?;
 
         let cdrom_uuid =
             Command::new("findmnt").args(&["-n", "-o", "UUID", "/cdrom"]).run_with_stdout()?;
