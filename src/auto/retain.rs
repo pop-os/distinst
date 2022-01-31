@@ -1,8 +1,7 @@
 //! Retain users when reinstalling, keeping their home folder and user account.
 
-use crate::bootloader::Bootloader;
+use crate::{bootloader::Bootloader, disks::Disks};
 use disk_types::FileSystem;
-use crate::disks::Disks;
 
 use super::{mount_and_then, AccountFiles, ReinstallError, UserData};
 
@@ -18,11 +17,32 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const USER_ICONS_TMP: &str = "distinst.tmp/user_icons";
+const USER_ICONS: &str = "var/lib/AccountsService/icons";
+
+fn accounts_service(base: &Path) -> PathBuf { base.join("var/lib/AccountsService") }
+
+fn accounts_service_backup_path(base: &Path) -> PathBuf {
+    base.join("distinst.tmp/AccountsService")
+}
+
+fn accounts_service_backup(base: &Path) {
+    let _ = fs::create_dir_all(&base.join("distinst.tmp"));
+    let _ = fs::rename(&accounts_service(base), &accounts_service_backup_path(base));
+}
+
+fn accounts_service_restore(base: &Path) {
+    let _ = fs::rename(&accounts_service_backup_path(base), &accounts_service(base));
+}
+
 /// Removes all files in the chroot at `/`, except for `/home`.
 pub fn remove_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     info!("removing all files except /home. This may take a while...");
     mount_and_then(root_path, root_fs, |base| {
-        read_and_exclude(base, &[OsStr::new("home")], |entry| {
+        accounts_service_backup(base);
+
+        read_and_exclude(base, &[OsStr::new("home"), OsStr::new("distinst.tmp")], |entry| {
+            info!("removing {:?}", entry);
             if entry.is_dir() {
                 fs::remove_dir_all(entry)?;
             } else {
@@ -37,6 +57,8 @@ pub fn remove_root(root_path: &Path, root_fs: FileSystem) -> Result<(), Reinstal
 /// Migrate the original system to the `/linux.old/` directory, excluding `/home`.
 pub fn move_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallError> {
     mount_and_then(root_path, root_fs, |base| {
+        accounts_service_backup(base);
+
         let old_root = base.join("linux.old");
 
         // Remove an old, old root if it already exists.
@@ -49,7 +71,7 @@ pub fn move_root(root_path: &Path, root_fs: FileSystem) -> Result<(), ReinstallE
         fs::create_dir(&old_root)?;
 
         // Migrate the current root system to the old root path.
-        let exclude = &[OsStr::new("home"), OsStr::new("linux.old")];
+        let exclude = &[OsStr::new("home"), OsStr::new("linux.old"), OsStr::new("distinst.tmp")];
         read_and_exclude(base, exclude, |entry| {
             let filename = entry.file_name().expect("root entry without file name");
             fs::rename(entry, base.join("linux.old").join(filename))?;
@@ -79,7 +101,11 @@ pub fn recover_root(root_path: &Path, root_fs: FileSystem) -> Result<(), Reinsta
             let filename = entry.file_name().expect("root entry without file name");
             fs::rename(entry, base.join(filename))?;
             Ok(())
-        })
+        })?;
+
+        accounts_service_restore(base);
+
+        Ok(())
     })
 }
 
@@ -204,6 +230,12 @@ impl<'a> Backup<'a> {
     /// system.
     pub fn restore(&self, device: &Path, fs: FileSystem) -> Result<(), ReinstallError> {
         mount_and_then(device, fs, |base| {
+            // Restore user icons;
+            let icons_path = base.join(USER_ICONS);
+            let _ = fs::create_dir_all(&icons_path);
+            let _ = fs::rename(&base.join(USER_ICONS_TMP), &icons_path);
+            let _ = fs::remove_dir(&base.join("distinst.tmp"));
+
             info!("appending user account data to new install");
             let (passwd, group, shadow, gshadow) = (
                 base.join("etc/passwd"),
@@ -224,6 +256,12 @@ impl<'a> Backup<'a> {
                 let mut entry = entry.to_owned();
                 entry.push(b'\n');
                 entry
+            }
+
+            let accounts_service_path = base.join("var/lib/AccountsService/users/");
+
+            if let Err(why) = fs::create_dir_all(&accounts_service_path) {
+                error!("could not create AccountsService directories: {}", why);
             }
 
             for user in &self.users {
@@ -299,6 +337,8 @@ impl<'a> Backup<'a> {
                     create_network_conf(network_conf_dir, connection, data);
                 }
             }
+
+            accounts_service_restore(base);
 
             Ok(())
         })
