@@ -14,7 +14,7 @@ use crate::auto::{
     delete_old_install, move_root, recover_root, remove_root, validate_backup_conditions,
     AccountFiles, Backup, ReinstallError,
 };
-use disk_types::BlockDeviceExt;
+use disk_types::{BlockDeviceExt, FileSystem};
 use crate::disks::{Bootloader, Disks};
 use crate::errors::IoContext;
 use crate::external::luks::deactivate_logical_devices;
@@ -139,6 +139,7 @@ impl Installer {
     ///
     /// If `config.old_root` is set, then home at that location will be retained.
     pub fn install(&mut self, mut disks: Disks, config: &Config) -> io::Result<()> {
+        debug!("Installing to {:#?}", disks);
         let mut recovery_conf = if Path::new("/cdrom/recovery.conf").exists() {
             Some(RecoveryEnv::new()?)
         } else {
@@ -148,12 +149,34 @@ impl Installer {
         disks.remove_untouched_disks();
         let steps = &mut InstallerState::new(self);
 
+        // If a btrfs root is defined without subvolumes, switch it to using subvolumes.
+        let contains_home = disks.find_partition(Path::new("/home")).is_some();
+        for partition in disks.get_partitions_mut() {
+            if let Some(FileSystem::Btrfs) = partition.filesystem {
+                if let Some(mount) = partition.mount_point.get(0) {
+                    if Path::new("/") == mount {
+                        partition.mount_point = Vec::new();
+                        partition.subvolumes.insert(Path::new("/").into(), "@root".into());
+
+                        if !contains_home {
+                            partition.subvolumes.insert(Path::new("/home").into(), "@home".into());
+                        }
+
+                        break
+                    }
+                }
+            }
+        }
+
+        debug!("AFTER {:#?}", disks);
+
         Self::backup(disks, config, steps, |mut disks, config, steps| {
             if !hostname::is_valid(&config.hostname) {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput, "hostname is not valid"));
             }
 
             let bootloader = Bootloader::detect();
+            debug!("BEFORE VERIFY: {:#?}", disks);
             disks
                 .verify_partitions(bootloader)
                 .with_context(|err| format!("partition validation: {}", err))?;
@@ -232,14 +255,17 @@ impl Installer {
     /// Create a backup of key data on the system, execute the given functi on, and then restore
     /// that backup. If a backup is not requested for the configuration, then it will just
     /// execute the given function.
-    fn backup<F: FnMut(Disks, &Config, &mut InstallerState) -> io::Result<()>>(
-        disks: Disks,
+    fn backup<F: FnMut(&mut Disks, &Config, &mut InstallerState) -> io::Result<()>>(
+        mut disks: Disks,
         config: &Config,
         steps: &mut InstallerState,
         mut func: F,
     ) -> io::Result<()> {
         let account_files;
         let mut old_backup = None;
+
+        let temp = Path::new("/tmp/distinst");
+        let _ = std::fs::create_dir_all(temp);
 
         let backup = if let Some(ref old_root_uuid) = config.old_root {
             info!("installing while retaining home");
@@ -248,11 +274,7 @@ impl Installer {
                 .get_partition_by_id(&PartitionID::new_uuid(old_root_uuid.clone()))
                 .ok_or(ReinstallError::NoRootPartition)?;
 
-            let new_root = disks
-                .get_partition_with_target(Path::new("/"))
-                .ok_or(ReinstallError::NoRootPartition)?;
-
-            let (home, home_is_root) = disks
+            let (home, _) = disks
                 .get_partition_with_target(Path::new("/home"))
                 .map_or((old_root, true), |p| (p, false));
 
@@ -260,29 +282,26 @@ impl Installer {
                 return Err(ReinstallError::ReformattingHome.into());
             }
 
-            let home_path = home.get_device_path();
-            let root_path = new_root.get_device_path().to_path_buf();
-            let root_fs = new_root.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
             let old_root_path = old_root.get_device_path();
-            let old_root_fs = old_root.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
-            let home_fs = home.filesystem.ok_or_else(|| ReinstallError::NoFilesystem)?;
+            let old_root_fs = old_root.filesystem.ok_or(ReinstallError::NoFilesystem)?;
 
-            account_files = AccountFiles::new(old_root_path, old_root_fs)?;
+            let _mounts = disks.mount_all_targets(&temp)?;
+            account_files = AccountFiles::new(temp)?;
 
             let backup = steps.apply(Step::Backup, "backing up", |steps| {
                 let mut callback = percent!(steps);
 
-                let backup = Backup::new(home_path, home_fs, home_is_root, &account_files)?;
+                let backup = Backup::new(temp, &account_files)?;
                 callback(25);
 
                 validate_backup_conditions(&disks, &config.squashfs)?;
                 callback(50);
 
                 if config.flags & KEEP_OLD_ROOT != 0 {
-                    move_root(old_root_path, old_root_fs)?;
+                    move_root(temp)?;
                     old_backup = Some((old_root_path.to_path_buf(), old_root_fs));
                 } else {
-                    remove_root(old_root_path, old_root_fs)?;
+                    remove_root(temp)?;
                 }
 
                 callback(100);
@@ -290,28 +309,29 @@ impl Installer {
                 Ok(backup)
             })?;
 
-            Some((backup, root_path, root_fs))
+            Some(backup)
         } else {
             None
         };
 
         // Do the destructive action of reinstalling the system.
-        if let Err(why) = func(disks, config, steps) {
+        if let Err(why) = func(&mut disks, config, steps) {
             error!("errored while installing system: {}", why);
 
-            if let Some((path, fs)) = old_backup {
-                recover_root(&path, fs)?;
-            }
+            let _mounts = disks.mount_all_targets(temp)?;
+            recover_root(temp)?;
 
             return Err(why);
         }
 
         // Then restore the backup, if it exists.
-        if let Some((backup, root_path, root_fs)) = backup {
-            info!("applying backup");
-            backup.restore(&root_path, root_fs)?;
 
-            if let Err(why) = delete_old_install(&root_path, root_fs) {
+        if let Some(backup) = backup {
+            info!("applying backup");
+            let _mounts = disks.mount_all_targets(temp)?;
+            backup.restore(temp)?;
+
+            if let Err(why) = delete_old_install(temp) {
                 warn!("failed to delete old install: {}", why);
             }
         }

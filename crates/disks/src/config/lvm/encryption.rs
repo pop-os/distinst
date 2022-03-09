@@ -1,38 +1,41 @@
 use crate::external::{cryptsetup_encrypt, cryptsetup_open, pvcreate};
+use crate::DiskError;
 use std::{
     fmt,
     path::{Path, PathBuf},
 };
-use crate::DiskError;
 
 /// A structure which contains the encryption settings for a physical volume.
 #[derive(Clone, PartialEq)]
-pub struct LvmEncryption {
+pub struct LuksEncryption {
     pub physical_volume: String,
     pub password:        Option<String>,
     pub keydata:         Option<(String, Option<(PathBuf, PathBuf)>)>,
+    pub filesystem:      disk_types::FileSystem,
 }
 
-impl fmt::Debug for LvmEncryption {
+impl fmt::Debug for LuksEncryption {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "LvmEncryption {{ physical_volume: {}, password: hidden, keydata: {:?} }}",
+            "LuksEncryption {{ physical_volume: {}, password: hidden, keydata: {:?} }}",
             self.physical_volume, self.keydata
         )
     }
 }
 
-impl LvmEncryption {
+impl LuksEncryption {
     pub fn new<S: Into<Option<String>>>(
         physical_volume: String,
         password: S,
         keydata: S,
-    ) -> LvmEncryption {
-        LvmEncryption {
+        filesystem: disk_types::FileSystem,
+    ) -> LuksEncryption {
+        LuksEncryption {
             physical_volume,
             password: password.into(),
             keydata: keydata.into().map(|key| (key, None)),
+            filesystem,
         }
     }
 

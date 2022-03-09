@@ -56,8 +56,15 @@ pub(crate) fn reused(disks: &mut Disks, parts: Option<Values>) -> Result<(), Dis
             if let Some(fs) = fs {
                 let fs = match fs {
                     PartType::Fs(fs) => fs,
+                    PartType::Luks(encryption) => {
+                        partition.set_encryption(encryption);
+                        Some(FileSystem::Luks)
+                    }
                     PartType::Lvm(volume_group, encryption) => {
-                        partition.set_volume_group(volume_group, encryption);
+                        partition.set_volume_group(volume_group);
+                        if let Some(encryption) = encryption {
+                            partition.set_encryption(encryption);
+                        }
                         Some(FileSystem::Lvm)
                     }
                 };

@@ -45,6 +45,7 @@ mod tests {
     use super::*;
     use operations::*;
     use partition_identity::PartitionIdentifiers;
+    use std::collections::HashMap;
 
     fn get_default() -> Disks {
         Disks {
@@ -54,7 +55,7 @@ mod tests {
                 serial:      "Test Disk 123".into(),
                 device_path: "/dev/sdz".into(),
                 file_system: None,
-                mount_point: None,
+                mount_point: vec![],
                 size:        1953525168,
                 device_type: "TEST".into(),
                 table_type:  Some(PartitionTable::Gpt),
@@ -64,7 +65,7 @@ mod tests {
                         bitflags:     ACTIVE | BUSY | SOURCE,
                         device_path:  Path::new("/dev/sdz1").to_path_buf(),
                         flags:        vec![],
-                        mount_point:  Some(Path::new("/boot/efi").to_path_buf()),
+                        mount_point:  vec!(Path::new("/boot/efi").to_path_buf()),
                         target:       Some(Path::new("/boot/efi").to_path_buf()),
                         start_sector: 2048,
                         end_sector:   1026047,
@@ -75,14 +76,16 @@ mod tests {
                         part_type:    PartitionType::Primary,
                         key_id:       None,
                         original_vg:  None,
-                        volume_group: None,
+                        lvm_vg:       None,
+                        encryption:   None,
                         identifiers:  PartitionIdentifiers::default(),
+                        subvolumes:   HashMap::new(),
                     },
                     PartitionInfo {
                         bitflags:     ACTIVE | BUSY | SOURCE,
                         device_path:  Path::new("/dev/sdz2").to_path_buf(),
                         flags:        vec![],
-                        mount_point:  Some(Path::new("/").to_path_buf()),
+                        mount_point:  vec!(Path::new("/").to_path_buf()),
                         target:       Some(Path::new("/").to_path_buf()),
                         start_sector: 1026048,
                         end_sector:   420456447,
@@ -93,14 +96,16 @@ mod tests {
                         part_type:    PartitionType::Primary,
                         key_id:       None,
                         original_vg:  None,
-                        volume_group: None,
+                        lvm_vg: None,
+                        encryption: None,
                         identifiers:  PartitionIdentifiers::default(),
+                        subvolumes:   HashMap::new(),
                     },
                     PartitionInfo {
                         bitflags:     SOURCE,
                         device_path:  Path::new("/dev/sdz3").to_path_buf(),
                         flags:        vec![],
-                        mount_point:  None,
+                        mount_point:  vec![],
                         target:       None,
                         start_sector: 420456448,
                         end_sector:   1936738303,
@@ -111,14 +116,16 @@ mod tests {
                         part_type:    PartitionType::Primary,
                         key_id:       None,
                         original_vg:  None,
-                        volume_group: None,
+                        lvm_vg: None,
+                        encryption: None,
                         identifiers:  PartitionIdentifiers::default(),
+                        subvolumes:   HashMap::new(),
                     },
                     PartitionInfo {
                         bitflags:     ACTIVE | SOURCE,
                         device_path:  Path::new("/dev/sdz4").to_path_buf(),
                         flags:        vec![],
-                        mount_point:  None,
+                        mount_point:  Vec::new(),
                         target:       None,
                         start_sector: 1936738304,
                         end_sector:   1953523711,
@@ -129,8 +136,10 @@ mod tests {
                         part_type:    PartitionType::Primary,
                         key_id:       None,
                         original_vg:  None,
-                        volume_group: None,
+                        lvm_vg: None,
+                        encryption: None,
                         identifiers:  PartitionIdentifiers::default(),
+                        subvolumes:   HashMap::new(),
                     },
                 ],
             }],
@@ -146,7 +155,7 @@ mod tests {
                 model_name:  "Test Disk".into(),
                 serial:      "Test Disk 123".into(),
                 device_path: "/dev/sdz".into(),
-                mount_point: None,
+                mount_point: Vec::new(),
                 size:        1953525168,
                 device_type: "TEST".into(),
                 table_type:  Some(PartitionTable::Gpt),
@@ -161,7 +170,7 @@ mod tests {
 
     // 500 MiB Fat16 partition.
     fn boot_part(start: u64) -> PartitionBuilder {
-        PartitionBuilder::new(start, 1024_000 + start, FileSystem::Fat16)
+        PartitionBuilder::new(start, 1_024_000 + start, FileSystem::Fat16)
     }
 
     // 20 GiB Ext4 partition.
@@ -180,7 +189,7 @@ mod tests {
         new.resize_partition(3, start + GIB20).unwrap();
         new.remove_partition(4).unwrap();
         new.add_partition(boot_part(2048)).unwrap();
-        new.add_partition(root_part(1026_048)).unwrap();
+        new.add_partition(root_part(1_026_048)).unwrap();
         assert_eq!(
             source.diff(&new).unwrap(),
             DiskOps {
@@ -201,7 +210,7 @@ mod tests {
                     },
                     PartitionCreate {
                         start_sector: 2048,
-                        end_sector:   1024_000 + 2047,
+                        end_sector:   1_024_000 + 2047,
                         file_system:  Some(FileSystem::Fat16),
                         kind:         PartitionType::Primary,
                         flags:        vec![],
@@ -210,8 +219,8 @@ mod tests {
                         path:         PathBuf::from("/dev/sdz"),
                     },
                     PartitionCreate {
-                        start_sector: 1026_048,
-                        end_sector:   GIB20 + 1026_047,
+                        start_sector: 1_026_048,
+                        end_sector:   GIB20 + 1_026_047,
                         file_system:  Some(FileSystem::Ext4),
                         kind:         PartitionType::Primary,
                         flags:        vec![],
@@ -245,10 +254,10 @@ mod tests {
 
         // This should fail with an off by one error, due to the start
         // sector being located within the previous partition.
-        assert!(source.add_partition(root_part(1026_047)).is_err());
+        assert!(source.add_partition(root_part(1_026_047)).is_err());
 
         // Create 20GiB Ext4 partition after that.
-        source.add_partition(root_part(1026_048)).unwrap();
+        source.add_partition(root_part(1_026_048)).unwrap();
     }
 
     #[test]
@@ -268,7 +277,7 @@ mod tests {
         let mut duplicate = source.clone();
         assert!(source.validate_layout(&duplicate).is_ok());
         duplicate
-            .add_partition(PartitionBuilder::new(2048, 1024_000 + 2048, FileSystem::Fat16))
+            .add_partition(PartitionBuilder::new(2048, 1_024_000 + 2048, FileSystem::Fat16))
             .unwrap();
         assert!(source.validate_layout(&duplicate).is_ok());
     }

@@ -54,16 +54,14 @@ fn set_mount_by_identity(
 
 fn generate_encryption(
     password: Option<String>,
-) -> Result<Option<(LvmEncryption, String)>, InstallOptionError> {
+    filesystem: FileSystem
+) -> Result<Option<LuksEncryption>, InstallOptionError> {
     let value = match password {
         Some(pass) => {
-            let (root, encrypted_vg) = generate_unique_id("data", &[])
-                .and_then(|r| generate_unique_id("cryptdata", &[]).map(|e| (r, e)))
+            let encrypted_pv = generate_unique_id("cryptdata", &[])
                 .map_err(|why| InstallOptionError::GenerateID { why })?;
 
-            let root_vg = root;
-            let enc = LvmEncryption::new(encrypted_vg, Some(pass), None);
-            Some((enc, root_vg))
+            Some(LuksEncryption::new(encrypted_pv, Some(pass), None, filesystem))
         }
         None => None,
     };
@@ -123,11 +121,7 @@ fn alongside_config(
         AlongsideMethod::Free(ref region) => (region.start + 1, region.end - 1),
     };
 
-    let (lvm, root_vg) = match generate_encryption(password)? {
-        Some((enc, root)) => (Some((enc, root.clone())), Some(root)),
-        None => (None, None),
-    };
-
+    let root_encryption = generate_encryption(password, Btrfs)?;
     let bootloader = Bootloader::detect();
 
     if bootloader == Bootloader::Efi {
@@ -158,7 +152,7 @@ fn alongside_config(
         )?;
 
         start = recovery_end;
-    } else if lvm.is_some() {
+    } else if root_encryption.is_some() {
         // BIOS systems with an encrypted root must have a separate boot partition.
         let boot_end = start + DEFAULT_ESP_SECTORS;
 
@@ -173,11 +167,14 @@ fn alongside_config(
     }
 
     // Configure optionally-encrypted root volume
-    if let Some((enc, root_vg)) = lvm {
+    if let Some(encryption) = root_encryption {
         device.add_partition(
-            PartitionBuilder::new(start, end, Lvm)
+            PartitionBuilder::new(start, end, Luks)
                 .partition_type(PartitionType::Primary)
-                .logical_volume(root_vg, Some(enc)),
+                .encryption(encryption)
+                .name("cryptdata".into())
+                .subvolume("/", "@root")
+                .subvolume("/home", "@home")
         )?;
     } else {
         let swap = end - DEFAULT_SWAP_SECTORS;
@@ -190,29 +187,16 @@ fn alongside_config(
             end
         };
 
-        device.add_partition(PartitionBuilder::new(start, end, Ext4).mount("/".into()))?;
+        device.add_partition(
+            PartitionBuilder::new(start, end, Btrfs)
+                .name("Pop".into())
+                .subvolume("/", "@root")
+                .subvolume("/home", "@home")
+        )?;
     }
 
     disks.add(device);
     disks.initialize_volume_groups()?;
-
-    if let Some(root_vg) = root_vg {
-        let lvm_device = disks
-            .get_logical_device_mut(&root_vg)
-            .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
-
-        let start = lvm_device.get_sector(Sector::Start);
-        let swap = lvm_device.get_sector(Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS));
-        let end = lvm_device.get_sector(Sector::End);
-
-        lvm_device
-            .add_partition(
-                PartitionBuilder::new(start, swap, Ext4).name("root".into()).mount("/".into()),
-            )
-            .and_then(|_| {
-                lvm_device.add_partition(PartitionBuilder::new(swap, end, Swap).name("swap".into()))
-            })?;
-    }
 
     Ok(())
 }
@@ -234,21 +218,46 @@ fn upgrade_config(disks: &mut Disks, option: &RecoveryOption) -> Result<(), Inst
 
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
-    info!("applying refresh install config");
-    set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_part.clone()), "/")?;
+    info!("applying refresh install config: {:#?}", option);
+    info!("disk configuration: {:#?}", disks);
+
+    {
+        let root = &option.root;
+        let subvolume = root.options.split(',')
+            .find_map(|o| o.strip_prefix("subvol="));
+
+        if let Some(subvol) = subvolume {
+            debug!("setting root subvol");
+            disks.set_subvolume(&root.source, subvol, "/");
+        } else {
+            debug!("setting root");
+            set_mount_by_identity(disks, &root.source, "/")?;
+        }
+    }
+
 
     if let Some(ref home) = option.home_part {
-        set_mount_by_identity(disks, home, "/home")?;
+        debug!("home = {}", home.options);
+        let subvolume = home.options.split(',')
+            .find_map(|o| o.strip_prefix("subvol="));
+
+        if let Some(subvol) = subvolume {
+            debug!("setting home subvol");
+            disks.set_subvolume(&home.source, subvol, "/home");
+        } else {
+            debug!("setting home");
+            set_mount_by_identity(disks, &home.source, "/home")?;
+        }
     }
 
     if let Some(ref efi) = option.efi_part {
-        set_mount_by_identity(disks, efi, "/boot/efi")?;
+        set_mount_by_identity(disks, &efi.source, "/boot/efi")?;
     } else if Bootloader::detect() == Bootloader::Efi {
         return Err(InstallOptionError::RefreshWithoutEFI);
     }
 
     if let Some(ref recovery) = option.recovery_part {
-        mount_recovery_partid(disks, recovery)?;
+        mount_recovery_partid(disks, &recovery.source)?;
     }
 
     Ok(())
@@ -282,10 +291,7 @@ fn recovery_config(
     let mut tmp = Disks::default();
     mem::swap(&mut tmp, disks);
 
-    let (lvm, root_vg) = match generate_encryption(password)? {
-        Some((enc, root)) => (Some((enc, root.clone())), Some(root)),
-        None => (None, None),
-    };
+    let luks = generate_encryption(password, Btrfs)?;
 
     let mut recovery_device: Disk = {
         let mut recovery_path = option.parse_recovery_id().get_device_path().ok_or_else(|| {
@@ -370,31 +376,27 @@ fn recovery_config(
 
         recovery_device.remove_partition(id)?;
 
-        if let Some((enc, root)) = lvm {
+        if let Some(enc) = luks {
             recovery_device.add_partition(
-                PartitionBuilder::new(start, end, Luks).logical_volume(root, Some(enc)),
+                PartitionBuilder::new(start, end, Luks)
+                    .encryption(enc)
+                    .name("cryptdata".into())
+                    .subvolume("/", "@root")
+                    .subvolume("/home", "@home"),
             )?;
         } else {
             recovery_device
-                .add_partition(PartitionBuilder::new(start, end, Ext4).mount("/".into()))?;
+                .add_partition(
+                    PartitionBuilder::new(start, end, Btrfs)
+                        .name("Pop".into())
+                        .subvolume("/", "@root")
+                        .subvolume("/home", "@home")
+                )?;
         }
     }
 
     disks.add(recovery_device);
     disks.initialize_volume_groups()?;
-
-    if let Some(root_vg) = root_vg {
-        let lvm_device = disks
-            .get_logical_device_mut(&root_vg)
-            .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
-
-        let start = lvm_device.get_sector(Sector::Start);
-        let end = lvm_device.get_sector(Sector::End);
-
-        lvm_device.add_partition(
-            PartitionBuilder::new(start, end, Ext4).name("root".into()).mount("/".into()),
-        )?;
-    }
 
     Ok(())
 }
@@ -416,10 +418,7 @@ fn erase_config(
     let swap_sector = Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS);
     let end_sector = Sector::End;
 
-    let (lvm, root_vg) = match generate_encryption(password)? {
-        Some((enc, root)) => (Some((enc, root.clone())), Some(root)),
-        None => (None, None),
-    };
+    let luks = generate_encryption(password, Btrfs)?;
 
     {
         let mut device = Disk::from_name(&option.device)
@@ -458,7 +457,7 @@ fn erase_config(
                     .mklabel(PartitionTable::Msdos)
                     // This is used to ensure LVM installs will work with BIOS
                     .and_then(|_| {
-                        if lvm.is_some() {
+                        if luks.is_some() {
                             let start = device.get_sector(start_sector);
                             let end = device.get_sector(boot_sector);
                             device
@@ -480,12 +479,18 @@ fn erase_config(
         // Configure optionally-encrypted root volume
         result
             .and_then(|(start, end)| {
-                device.add_partition(if let Some((enc, root_vg)) = lvm {
-                    PartitionBuilder::new(start, end, Lvm)
+                device.add_partition(if let Some(enc) = luks {
+                    PartitionBuilder::new(start, end, Luks)
                         .partition_type(PartitionType::Primary)
-                        .logical_volume(root_vg, Some(enc))
+                        .encryption(enc)
+                        .name("cryptdata".into())
+                        .subvolume("/", "@root")
+                        .subvolume("/home", "@home")
                 } else {
-                    PartitionBuilder::new(start, end, Ext4).mount("/".into())
+                    PartitionBuilder::new(start, end, Btrfs)
+                        .name("Pop".into())
+                        .subvolume("/", "@root")
+                        .subvolume("/home", "@home")
                 })
             })
             // Configure swap partition
@@ -500,18 +505,7 @@ fn erase_config(
 
     disks.initialize_volume_groups()?;
 
-    if let Some(root_vg) = root_vg {
-        let lvm_device = disks
-            .get_logical_device_mut(&root_vg)
-            .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
-
-        let start = lvm_device.get_sector(start_sector);
-        let end = lvm_device.get_sector(end_sector);
-
-        lvm_device.add_partition(
-            PartitionBuilder::new(start, end, Ext4).name("root".into()).mount("/".into()),
-        )?;
-    }
+    dbg!(disks);
 
     Ok(())
 }

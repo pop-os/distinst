@@ -1,6 +1,6 @@
 [package]
 name = "os-detect"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Detect an OS installed on a partition"
 repository = "https://github.com/pop-os/distinst"
@@ -12,6 +12,6 @@ keywords = ["detect", "probe", "os"]
 [dependencies]
 os-release = "0.1.0"
 partition-identity = "0.2.0"
-sys-mount = "1.1.0"
+sys-mount = "1.5.1"
 tempdir = "0.3.7"
 log = "0.4.6"

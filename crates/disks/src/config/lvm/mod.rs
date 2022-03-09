@@ -1,6 +1,5 @@
 mod encryption;
-
-pub use self::encryption::LvmEncryption;
+pub use self::encryption::LuksEncryption;
 use super::{
     super::{
         DiskError, DiskExt, PartitionError, PartitionInfo, PartitionTable, PartitionType, FORMAT,
@@ -40,12 +39,13 @@ pub struct LogicalDevice {
     pub volume_group: String,
     pub device_path:  PathBuf,
     pub luks_parent:  Option<PathBuf>,
-    pub mount_point:  Option<PathBuf>,
+    pub mount_point:  Vec<PathBuf>,
     pub file_system:  Option<PartitionInfo>,
     pub sectors:      u64,
     pub sector_size:  u64,
     pub partitions:   Vec<PartitionInfo>,
-    pub encryption:   Option<LvmEncryption>,
+    pub encryption:   Option<LuksEncryption>,
+    pub has_lvm:      bool,
     pub is_source:    bool,
     pub remove:       bool,
     pub vg_data:      VgData,
@@ -54,7 +54,7 @@ pub struct LogicalDevice {
 impl BlockDeviceExt for LogicalDevice {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
-    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_deref() }
+    fn get_mount_point(&self) -> &[PathBuf] { self.mount_point.as_ref() }
 }
 
 impl PartitionTableExt for LogicalDevice {
@@ -78,7 +78,8 @@ impl DiskExt for LogicalDevice {
 
     fn set_file_system(&mut self, mut fs: PartitionInfo) {
         // Set the volume group + encryption to be the same as the parent.
-        fs.volume_group = Some((self.volume_group.clone(), self.encryption.clone()));
+        fs.lvm_vg = Some(self.volume_group.clone());
+        fs.encryption = self.encryption.clone();
 
         self.file_system = Some(fs);
         self.partitions.clear();
@@ -97,7 +98,7 @@ impl LogicalDevice {
     /// Creates a new volume group, with an optional encryption configuration.
     pub fn new(
         volume_group: String,
-        encryption: Option<LvmEncryption>,
+        encryption: Option<LuksEncryption>,
         sectors: u64,
         sector_size: u64,
         is_source: bool,
@@ -109,7 +110,11 @@ impl LogicalDevice {
 
         LogicalDevice {
             model_name: ["LVM ", &volume_group].concat(),
-            mount_point: mounts.get_mount_by_source(&device_path).map(|m| m.dest.clone()),
+            mount_point: mounts.0
+                .iter()
+                .filter(|mount| &mount.source == &device_path)
+                .map(|m| m.dest.clone())
+                .collect(),
             volume_group,
             device_path,
             sectors,
@@ -209,7 +214,7 @@ impl LogicalDevice {
                 let device_path = match path.canonicalize() {
                     Ok(resolved) => resolved,
                     Err(why) => {
-                        eprintln!("LVM device path is not a symbolic link");
+                        eprintln!("LVM device path is not a symbolic link: {}", why);
                         continue
                     }
                 };
@@ -235,12 +240,14 @@ impl LogicalDevice {
                         Some(dev.split_at(value).1.into())
                     },
                     device_path,
-                    mount_point: None,
+                    mount_point: Vec::new(),
                     target: None,
                     original_vg: None,
-                    volume_group: None,
+                    lvm_vg: None,
+                    encryption: None,
                     key_id: None,
                     identifiers,
+                    subvolumes: std::collections::HashMap::new(),
                 };
 
                 start_sector += length + 1;

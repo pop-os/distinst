@@ -7,7 +7,7 @@ use crate::ffi::AsMutPtr;
 use libc;
 
 use super::{
-    get_str, null_check, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector,
+    get_str, null_check, DistinstDisks, DistinstPartition, DistinstSector,
 };
 use std::{os::unix::ffi::OsStrExt, path::Path, ptr};
 
@@ -214,50 +214,6 @@ pub unsafe extern "C" fn distinst_lvm_device_get_partition_by_path(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_lvm_device_add_partition(
-    device: *mut DistinstLvmDevice,
-    partition: *mut DistinstPartitionBuilder,
-) -> libc::c_int {
-    if null_check(device).is_err() {
-        return -1;
-    }
-
-    let device = &mut *(device as *mut LogicalDevice);
-
-    if let Err(why) = device.add_partition(*Box::from_raw(partition as *mut PartitionBuilder)) {
-        error!("unable to add partition: {}", why);
-        -1
-    } else {
-        0
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_lvm_device_remove_partition(
-    device: *mut DistinstLvmDevice,
-    volume: *const libc::c_char,
-) -> libc::c_int {
-    if null_check(device).is_err() {
-        return -1;
-    }
-
-    get_str(volume).ok().map_or(1, |volume| {
-        let device = &mut *(device as *mut LogicalDevice);
-        device.remove_partition(volume).ok().map_or(2, |_| 0)
-    })
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_lvm_device_clear_partitions(device: *mut DistinstLvmDevice) {
-    if null_check(device).is_err() {
-        return;
-    }
-
-    let device = &mut *(device as *mut LogicalDevice);
-    device.clear_partitions();
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_device_list_partitions(
     device: *const DistinstLvmDevice,
     len: *mut libc::c_int,
@@ -295,7 +251,7 @@ pub unsafe extern "C" fn distinst_lvm_device_contains_mount(
 }
 
 #[repr(C)]
-pub struct DistinstLvmEncryption {
+pub struct DistinstLuksEncryption {
     /// The PV field is not optional
     pub physical_volume: *mut libc::c_char,
     /// The password field is optional
@@ -306,8 +262,8 @@ pub struct DistinstLvmEncryption {
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_lvm_encryption_copy(
-    src: *const DistinstLvmEncryption,
-    dst: *mut DistinstLvmEncryption,
+    src: *const DistinstLuksEncryption,
+    dst: *mut DistinstLuksEncryption,
 ) {
     if null_check(src).or_else(|_| null_check(dst)).is_err() {
         return;

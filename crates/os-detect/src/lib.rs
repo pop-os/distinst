@@ -31,14 +31,21 @@ use std::path::PathBuf;
 use partition_identity::PartitionID;
 use sys_mount::*;
 
+#[derive(Debug, Clone)]
+pub struct LinuxPartition {
+    pub source: PartitionID,
+    pub dest: PathBuf,
+    pub fs: String,
+    pub options: String,
+}
+
 /// Describes the OS found on a partition.
 #[derive(Debug, Clone)]
 pub enum OS {
     Windows(String),
     Linux {
         info: OsRelease,
-        partitions: Vec<PartitionID>,
-        targets: Vec<PathBuf>,
+        partitions: Vec<LinuxPartition>
     },
     MacOs(String)
 }
@@ -48,16 +55,34 @@ pub enum OS {
 ///
 /// If the installed operating system is Linux, it will also report back the location
 /// of the home partition.
-pub fn detect_os_from_device<'a, F: Into<FilesystemType<'a>>>(device: &Path, fs: F) -> Option<OS> {
+pub fn detect_os_from_device<'a>(device: &Path, subvol: Option<&str>, fs: impl Into<FilesystemType<'a>>) -> Option<OS> {
     info!("detecting OS from device: {:?}", device);
     // Create a temporary directoy where we will mount the FS.
     TempDir::new("distinst").ok().and_then(|tempdir| {
         // Mount the FS to the temporary directory
         let base = tempdir.path();
-        Mount::new(device, base, fs, MountFlags::empty(), None)
-            .map(|m| m.into_unmount_drop(UnmountFlags::DETACH))
-            .ok()
-            .and_then(|_mount| detect_os_from_path(base))
+
+        let data = if let Some(subvol) = subvol {
+            ["subvol=", subvol].concat()
+        } else {
+            String::new()
+        };
+
+        let fs = fs.into();
+
+        info!("mounting {:?} {:?} {}", device, fs, data);
+
+        let mount = Mount::builder()
+            .data(&*data)
+            .fstype(fs)
+            .mount_autodrop(device, base, UnmountFlags::DETACH);
+
+        if let Err(why) = mount {
+            error!("failed to mount device for probing: {:?}", why);
+            return None
+        }
+
+        detect_os_from_path(base)
     })
 }
 
@@ -83,8 +108,10 @@ pub fn detect_linux(base: &Path) -> Option<OS> {
     if path.exists() {
         info!("found OS Release: {}", std::fs::read_to_string(&path).unwrap());
         if let Ok(info) = OsRelease::new_from(path) {
-            let (partitions, targets) = find_linux_parts(base);
-            return Some(OS::Linux { info, partitions, targets });
+            return Some(OS::Linux {
+                info,
+                partitions: find_linux_parts(base)
+            });
         }
     }
 
@@ -110,33 +137,36 @@ pub fn detect_windows(base: &Path) -> Option<OS> {
         .map(|| OS::Windows("Windows".into()))
 }
 
-fn find_linux_parts(base: &Path) -> (Vec<PartitionID>, Vec<PathBuf>) {
+fn find_linux_parts(base: &Path) -> Vec<LinuxPartition> {
     let mut partitions = Vec::new();
-    let mut targets = Vec::new();
 
     if let Ok(fstab) = open(base.join("etc/fstab")) {
-        for entry in BufReader::new(fstab).lines() {
-            if let Ok(entry) = entry {
-                let entry = entry.trim();
-                if entry.starts_with('#') || entry.is_empty() {
-                    continue;
-                }
+        for entry in BufReader::new(fstab).lines().flatten() {
+            let entry = entry.trim();
+            if entry.starts_with('#') || entry.is_empty() {
+                continue;
+            }
 
-                let mut fields = entry.split_whitespace();
-                let source = fields.next();
-                let target = fields.next();
+            let mut fields = entry.split_whitespace();
+            let source = fields.next();
+            let dest = fields.next();
+            let fs = fields.next();
+            let options = fields.next();
 
-                if let Some(target) = target {
-                    if let Some(Ok(path)) = source.map(|s| s.parse::<PartitionID>()) {
-                        partitions.push(path);
-                        targets.push(PathBuf::from(String::from(target)));
-                    }
+            if let Some(((dest, fs), options)) = dest.zip(fs).zip(options) {
+                if let Some(Ok(source)) = source.map(|s| s.parse::<PartitionID>()) {
+                    partitions.push(LinuxPartition {
+                        source,
+                        dest: PathBuf::from(dest.to_owned()),
+                        fs: fs.to_owned(),
+                        options: options.to_owned()
+                    })
                 }
             }
         }
     }
 
-    (partitions, targets)
+    partitions
 }
 
 fn parse_plist<R: BufRead>(file: R) -> Option<String> {

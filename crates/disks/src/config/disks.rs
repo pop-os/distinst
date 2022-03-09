@@ -5,7 +5,7 @@ use super::{
     },
     detect_fs_on_device, find_partition, find_partition_mut,
     partitions::{FORMAT, REMOVE, SOURCE},
-    Disk, LvmEncryption, PartitionTable, PVS,
+    Disk, LuksEncryption, PartitionTable, PVS,
 };
 use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableExt, SectorExt};
 use crate::external::{
@@ -14,7 +14,6 @@ use crate::external::{
 };
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
-use misc;
 use partition_identity::PartitionID;
 use proc_mounts::{MountIter, MOUNTS, SWAPS};
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
@@ -169,61 +168,92 @@ impl Disks {
     pub fn mount_all_targets<P: AsRef<Path>>(&self, base_dir: P) -> io::Result<Mounts> {
         let base_dir = base_dir.as_ref();
         let targets =
-            self.get_partitions().filter(|part| part.target.is_some() && part.filesystem.is_some());
+            self.get_partitions().filter(|part| {
+                (part.target.is_some() && part.filesystem.is_some())
+                    || !part.subvolumes.is_empty()
+            });
 
+        #[derive(Debug)]
         enum MountKind {
-            Direct { device: PathBuf, fs: &'static str },
+            Direct { data: String, device: PathBuf, fs: &'static str },
             Bind { source: PathBuf },
         }
 
         // The mount path will actually consist of the target concatenated with the
         // root. NOTE: It is assumed that the target is an absolute path.
         let paths: BTreeMap<PathBuf, MountKind> = targets
-            .map(|target| {
-                // Path mangling commences here, since we need to concatenate an absolute
-                // path onto another absolute path, and the standard library opts for
-                // overwriting the original path when doing that.
-                let target_mount: PathBuf = {
-                    // Ensure that the base_dir path has the ending '/'.
-                    let base_dir = base_dir.as_os_str().as_bytes();
-                    let mut target_mount: Vec<u8> = if base_dir[base_dir.len() - 1] == b'/' {
-                        base_dir.to_owned()
-                    } else {
-                        let mut temp = base_dir.to_owned();
-                        temp.push(b'/');
-                        temp
-                    };
-
-                    // Cut the starting '/' from the target path if it exists.
-                    let target_path = target.target.as_ref().unwrap().as_os_str().as_bytes();
-                    let target_path = if !target_path.is_empty() && target_path[0] == b'/' {
-                        if target_path.len() > 1 {
-                            &target_path[1..]
+            .flat_map(|partition| {
+                let generate_target = |part: &PartitionInfo, data: String, target: &Path| {
+                    // Path mangling commences here, since we need to concatenate an absolute
+                    // path onto another absolute path, and the standard library opts for
+                    // overwriting the original path when doing that.
+                    let target_mount: PathBuf = {
+                        // Ensure that the base_dir path has the ending '/'.
+                        let base_dir = base_dir.as_os_str().as_bytes();
+                        let mut target_mount: Vec<u8> = if base_dir[base_dir.len() - 1] == b'/' {
+                            base_dir.to_owned()
                         } else {
-                            b""
-                        }
+                            let mut temp = base_dir.to_owned();
+                            temp.push(b'/');
+                            temp
+                        };
+
+                        // Cut the starting '/' from the target path if it exists.
+                        let target_path = target.as_os_str().as_bytes();
+                        let target_path = if !target_path.is_empty() && target_path[0] == b'/' {
+                            if target_path.len() > 1 {
+                                &target_path[1..]
+                            } else {
+                                b""
+                            }
+                        } else {
+                            target_path
+                        };
+
+                        // Append the target path to the base_dir, and return it as a path type.
+                        target_mount.extend_from_slice(target_path);
+                        PathBuf::from(OsString::from_vec(target_mount))
+                    };
+
+                    // If a partition is already mounted, we should perform a bind mount.
+                    // If it is not mounted, we can mount it directly.
+                    let kind = if let Some(source) = part.mount_point.get(0).cloned() {
+                        MountKind::Bind { source }
                     } else {
-                        target_path
+                        let device;
+                        let fs;
+
+                        match part.filesystem.unwrap() {
+                            FileSystem::Fat16 | FileSystem::Fat32 => {
+                                fs = "vfat";
+                                device = part.device_path.clone();
+                            }
+                            FileSystem::Luks => {
+                                let encryption = part.encryption.as_ref().unwrap();
+                                fs = encryption.filesystem.into();
+                                device = PathBuf::from(["/dev/mapper/", &*encryption.physical_volume].concat());
+                            }
+                            other => {
+                                fs = other.into();
+                                device = part.device_path.clone();
+                            },
+                        };
+
+                        MountKind::Direct { data, device, fs }
                     };
 
-                    // Append the target path to the base_dir, and return it as a path type.
-                    target_mount.extend_from_slice(target_path);
-                    PathBuf::from(OsString::from_vec(target_mount))
+                    (target_mount, kind)
                 };
 
-                // If a partition is already mounted, we should perform a bind mount.
-                // If it is not mounted, we can mount it directly.
-                let kind = if let Some(source) = target.mount_point.clone() {
-                    MountKind::Bind { source }
+                if !partition.subvolumes.is_empty() {
+                    partition.subvolumes.iter()
+                        .map(|(target, subvol)| {
+                            generate_target(partition, format!("subvol={}", subvol), target)
+                        })
+                        .collect::<Vec<_>>()
                 } else {
-                    let fs = match target.filesystem.unwrap() {
-                        FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
-                        fs => fs.into(),
-                    };
-
-                    MountKind::Direct { device: target.device_path.clone(), fs }
-                };
-                (target_mount, kind)
+                    vec![generate_target(partition, String::new(), partition.target.as_deref().unwrap())]
+                }
             })
             .collect();
 
@@ -239,9 +269,48 @@ impl Disks {
             }
 
             let mount = match kind {
-                MountKind::Direct { device, fs } => {
-                    info!("mounting {:?} ({}) to {:?}", device, fs, target_mount);
-                    Mount::new(device, &target_mount, fs, MountFlags::empty(), None)?
+                MountKind::Direct { data, device, fs } => {
+                    info!("mounting {:?} ({}) to {:?} with {}", device, fs, target_mount, data);
+
+                    let mut result = Mount::builder()
+                        .fstype(fs)
+                        .data(&data)
+                        .mount(&device, &target_mount);
+
+                    // Create missing subvolumes with zstd compression.
+                    if let Err(io::ErrorKind::NotFound) = result.as_ref().map_err(io::Error::kind) {
+                        if let Some(subvol) = data.strip_prefix("subvol=") {
+                            const BTRFS_MOUNT: &str = "/tmp/distinst.btrfs/";
+
+                            let _ = fs::create_dir_all(BTRFS_MOUNT);
+
+                            let subvol = &*[BTRFS_MOUNT, subvol].concat();
+
+                            info!("mounting {:?} to {}", device, BTRFS_MOUNT);
+                            let mount = Mount::builder()
+                                .fstype(fs)
+                                .mount(&device, BTRFS_MOUNT)?;
+
+                            info!("creating subvolume at {}", subvol);
+                            std::process::Command::new("btrfs")
+                                .args(&["subvolume", "create", subvol])
+                                .status()?;
+
+                            info!("setting zstd compression on {}", subvol);
+                            std::process::Command::new("btrfs")
+                                .args(&["property", "set", subvol, "compression", "zstd"])
+                                .status()?;
+
+                            let _ = mount.unmount(UnmountFlags::DETACH);
+
+                            result = Mount::builder()
+                                .fstype(fs)
+                                .data(&data)
+                                .mount(&device, &target_mount)
+                        }
+                    }
+
+                    result?
                 }
                 MountKind::Bind { source } => {
                     info!("bind mounting {:?} to {:?}", source, target_mount);
@@ -304,7 +373,10 @@ impl Disks {
     /// Obtains the partition which contains the given target.
     pub fn get_partition_with_target(&self, target: &Path) -> Option<&PartitionInfo> {
         self.get_partitions()
-            .find(|part| part.target.as_ref().map_or(false, |p| p.as_path() == target))
+            .find(|part| {
+                part.target.as_ref().map_or(false, |p| p.as_path() == target)
+                    || part.subvolumes.get(target).is_some()
+            })
     }
 
     /// Obtains the partition which contains the given device path
@@ -329,7 +401,19 @@ impl Disks {
 
     /// Obtains the partition which contains the given identity
     pub fn get_partition_by_id_mut(&mut self, id: &PartitionID) -> Option<&mut PartitionInfo> {
-        self.get_partitions_mut().find(|part| part.identifiers.matches(id))
+        self.get_partitions_mut().find(|part| {
+            part.identifiers.matches(id) || {
+                if let Some((path, _)) = part.encrypted_info() {
+                    if let Some(encrypted_id) = PartitionID::get_uuid(&path) {
+                        if &encrypted_id == id {
+                            return true
+                        }
+                    }
+                }
+
+                false
+            }
+        })
     }
 
     #[deprecated(note = "use the 'get_partition_by_id()' method instead")]
@@ -423,7 +507,7 @@ impl Disks {
             .iter()
             .filter_map(|dev| volume_map.get(dev))
             .unique()
-            .map(|entry| {
+            .try_for_each(|entry| {
                 if let Some(ref vg) = *entry {
                     umount(vg).and_then(|_| {
                         vgdeactivate(vg).map_err(|why| DiskError::ExternalCommand { why })
@@ -432,7 +516,6 @@ impl Disks {
                     Ok(())
                 }
             })
-            .collect::<Result<(), DiskError>>()
     }
 
     /// Attempts to decrypt the specified partition.
@@ -443,7 +526,7 @@ impl Disks {
     pub fn decrypt_partition(
         &mut self,
         path: &Path,
-        enc: &LvmEncryption,
+        enc: &mut LuksEncryption,
     ) -> Result<(), DecryptionError> {
         info!("decrypting partition at {:?}", path);
         // An intermediary value that can avoid the borrowck issue.
@@ -452,13 +535,13 @@ impl Disks {
         fn decrypt(
             partition: &mut PartitionInfo,
             path: &Path,
-            enc: &LvmEncryption,
+            enc: &mut LuksEncryption,
         ) -> Result<LogicalDevice, DecryptionError> {
             // Attempt to decrypt the device.
-            cryptsetup_open(path, &enc)
+            cryptsetup_open(path, enc)
                 .map_err(|why| DecryptionError::Open { device: path.to_path_buf(), why })?;
 
-            // Determine which VG the newly-decrypted device belongs to.
+            // Determine which PV the newly-decrypted device belongs to.
             let pv = &PathBuf::from(["/dev/mapper/", &enc.physical_volume].concat());
             info!("which belongs to PV {:?}", pv);
             let mut attempt = 0;
@@ -471,7 +554,9 @@ impl Disks {
             match pvs().expect("pvs() failed in decrypt_partition").remove(pv) {
                 Some(Some(vg)) => {
                     // Set values in the device's partition.
-                    partition.volume_group = Some((vg.clone(), Some(enc.clone())));
+                    partition.lvm_vg = Some(vg.clone());
+                    partition.encryption = Some(enc.clone());
+
                     let mut luks = LogicalDevice::new(
                         vg,
                         Some(enc.clone()),
@@ -496,6 +581,12 @@ impl Disks {
                             true,
                         );
 
+                        if let Some(fs) = fs.filesystem {
+                            enc.filesystem = fs;
+                        }
+
+                        partition.encryption = Some(enc.clone());
+
                         luks.set_file_system(fs);
                         info!("settings luks_parent to {:?}", path);
                         luks.set_luks_parent(path.to_path_buf());
@@ -517,7 +608,7 @@ impl Disks {
             // TODO: NLL
             if let Some(partition) = device.get_file_system_mut() {
                 if partition.get_device_path() == path {
-                    decrypt(partition, path, &enc)?;
+                    decrypt(partition, path, enc)?;
                 }
             }
 
@@ -525,7 +616,7 @@ impl Disks {
                 device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut())
             {
                 if partition.get_device_path() == path {
-                    new_device = Some(decrypt(partition, path, &enc)?);
+                    new_device = Some(decrypt(partition, path, enc)?);
                     break;
                 }
             }
@@ -550,8 +641,8 @@ impl Disks {
         info!("unmounting devices");
         self.physical
             .iter()
-            .map(|device| {
-                if let Some(mount) = device.get_mount_point() {
+            .try_for_each(|device| {
+                if let Some(mount) = device.get_mount_point().get(0) {
                     if mount != Path::new("/cdrom") {
                         info!("unmounting device mounted at {}", mount.display());
                         unmount(&mount, UnmountFlags::empty()).map_err(|why| {
@@ -565,11 +656,11 @@ impl Disks {
 
                 Ok(())
             })
-            .collect::<Result<(), DiskError>>()
     }
 
     /// Probes for and returns disk information for every disk in the system.
     pub fn probe_devices() -> Result<Disks, DiskError> {
+        info!("probing devices");
         let mut disks = Disks::default();
         for mut device in Device::devices(true) {
             if let Some(name) = device.path().file_name().and_then(|x| x.to_str()) {
@@ -645,16 +736,26 @@ impl Disks {
 
         // Check partitions which have already been mounted first.
         for partition in disks.get_physical_partitions() {
-            match partition.mount_point {
-                Some(ref path) if path == expected_at => return Ok(func(partition, path)),
-                Some(_) => continue,
-                None => (),
+            if ! partition.mount_point.is_empty() {
+                for path in &partition.mount_point {
+                    if path == expected_at {
+                        return Ok(func(partition, path))
+                    }
+                }
+
+                continue
             }
+
+            // match partition.mount_point {
+            //     Some(ref path) if path == expected_at => return Ok(func(partition, path)),
+            //     Some(_) => continue,
+            //     None => (),
+            // }
         }
 
         // Then check partitions which have not been mounted yet.
         for partition in disks.get_physical_partitions() {
-            if partition.mount_point.is_some() {
+            if !partition.mount_point.is_empty() {
                 continue;
             }
 
@@ -722,9 +823,8 @@ impl Disks {
                 // The volume group may be stored in either the `original_vg`
                 // or `volume_group` fields. This combines the optionals.
                 let vg: Option<&String> = partition
-                    .volume_group
+                    .lvm_vg
                     .as_ref()
-                    .map(|x| &x.0)
                     .or_else(|| partition.original_vg.as_ref());
 
                 if let Some(ref pvg) = vg {
@@ -800,6 +900,12 @@ impl Disks {
 
                 (root, Some(efi))
             }
+        }
+    }
+
+    pub fn set_subvolume(&mut self, volume: &PartitionID, name: &str, target: impl AsRef<Path>) {
+        if let Some(partition) = self.get_partition_by_id_mut(volume) {
+            partition.subvolumes.insert(PathBuf::from(target.as_ref()), name.into());
         }
     }
 
@@ -880,7 +986,7 @@ impl Disks {
                 .chain(self.logical.iter_mut().flat_map(|x| x.get_partitions_mut().iter_mut()));
 
             for partition in partitions {
-                if let Some(&mut (_, Some(ref mut enc))) = partition.volume_group.as_mut() {
+                if let Some(ref mut enc) = partition.encryption.as_mut() {
                     if let Some((ref id, ref mut ppath)) = enc.keydata {
                         if *id == *key {
                             *ppath = paths.clone();
@@ -1024,9 +1130,9 @@ impl Disks {
         for disk in &self.physical {
             let sector_size = disk.get_logical_block_size();
             for partition in disk.get_partitions().iter() {
-                if let Some(ref lvm) = partition.volume_group {
+                if let Some(ref lvm) = partition.lvm_vg {
                     // TODO: NLL
-                    let push = match existing_devices.iter_mut().find(|d| d.volume_group == lvm.0) {
+                    let push = match existing_devices.iter_mut().find(|d| &d.volume_group == lvm) {
                         Some(device) => {
                             device.add_sectors(partition.get_sectors());
                             false
@@ -1036,8 +1142,8 @@ impl Disks {
 
                     if push {
                         existing_devices.push(LogicalDevice::new(
-                            lvm.0.clone(),
-                            lvm.1.clone(),
+                            lvm.clone(),
+                            partition.encryption.clone(),
                             partition.get_sectors(),
                             sector_size,
                             false,
@@ -1170,6 +1276,27 @@ impl Disks {
             let mut logical = &mut self.logical[id];
             info!("associating {:?} with {:?}", logical.device_path, luks_parent);
             logical.luks_parent = Some(luks_parent);
+        }
+
+        // FS on LUKS
+        for device in self.get_partitions_mut() {
+            let format = device.flag_is_enabled(FORMAT);
+            device.flag_disable(FORMAT);
+            if let Some(encryption) = device.encryption.as_mut() {
+                if encryption.filesystem == FileSystem::Lvm {
+                    continue
+                }
+
+                if format {
+                    encryption.encrypt(&device.device_path)?;
+                    encryption.open(&device.device_path)?;
+
+                    distinst_external_commands::mkfs(
+                        &["/dev/mapper/", device.name.as_deref().unwrap()].concat(),
+                        encryption.filesystem
+                    ).unwrap();
+                }
+            }
         }
 
         Ok(())

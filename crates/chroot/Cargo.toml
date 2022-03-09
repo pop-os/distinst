@@ -11,7 +11,7 @@ categories = ["os", "os::unix-apis"]
 edition = "2018"
 
 [dependencies]
-sys-mount = "1.2.1"
+sys-mount = "1.5.1"
 cascade = "1.0"
 log = "0.4.8"
 libc = "0.2.68"

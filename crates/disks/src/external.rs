@@ -12,7 +12,7 @@ use std::{
 };
 use sys_mount::*;
 use tempdir::TempDir;
-use crate::LvmEncryption;
+use crate::LuksEncryption;
 
 fn remove_encrypted_device(device: &Path) -> io::Result<()> {
     let mounts = MountList::new().expect("failed to get mounts in deactivate_device_maps");
@@ -60,7 +60,7 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
 
 /// Creates a LUKS partition from a physical partition. This could be either a LUKS on LVM
 /// configuration, or a LVM on LUKS configurations.
-pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
+pub fn cryptsetup_encrypt(device: &Path, enc: &LuksEncryption) -> io::Result<()> {
     remove_encrypted_device(device)?;
 
     info!("cryptsetup is encrypting {} with {:?}", device.display(), enc);
@@ -83,9 +83,10 @@ pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> 
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let supported = SupportedFilesystems::new()?;
-            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
-                .into_unmount_drop(UnmountFlags::DETACH);
+            let _mount = Mount::builder()
+                .flags(MountFlags::BIND)
+                .mount_autodrop(&keydata.0, tmpfs.path(), UnmountFlags::DETACH)?;
+
             let keypath = tmpfs.path().join(&enc.physical_volume);
 
             generate_keyfile(&keypath)?;
@@ -111,7 +112,7 @@ pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> 
 }
 
 /// Opens an encrypted partition and maps it to the pv name.
-pub fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
+pub fn cryptsetup_open(device: &Path, enc: &LuksEncryption) -> io::Result<()> {
     deactivate_devices(&[device])?;
     let pv = &enc.physical_volume;
     info!("cryptsetup is opening {} with pv {} and {:?}", device.display(), pv, enc);
@@ -126,9 +127,9 @@ pub fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
         (None, Some(&(_, ref keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
-            let supported = SupportedFilesystems::new()?;
-            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
-                .into_unmount_drop(UnmountFlags::DETACH);
+            let _mount = Mount::builder()
+                .flags(MountFlags::BIND)
+                .mount_autodrop(&keydata.0, tmpfs.path(),UnmountFlags::DETACH)?;
             let keypath = tmpfs.path().join(&enc.physical_volume);
             info!("keypath exists: {}", keypath.is_file());
 

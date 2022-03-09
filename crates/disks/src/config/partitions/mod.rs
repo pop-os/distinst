@@ -2,17 +2,18 @@ mod builder;
 
 pub use self::builder::PartitionBuilder;
 use super::{
-    super::{LvmEncryption, PartitionError},
+    super::{LuksEncryption, PartitionError},
     PVS,
 };
 pub use disk_types::{BlockDeviceExt, FileSystem, PartitionExt, PartitionType, SectorExt};
-use crate::external::{get_label, is_encrypted};
+use crate::{external::{get_label, is_encrypted}};
 use fstab_generate::BlockInfo;
 use libparted::{Partition, PartitionFlag};
 pub use os_detect::OS;
 use partition_identity::PartitionIdentifiers;
 use proc_mounts::{MountList, SwapList};
 use std::{
+    collections::HashMap,
     io,
     path::{Path, PathBuf},
     str::FromStr,
@@ -71,24 +72,26 @@ pub struct PartitionInfo {
     /// the partition number.
     pub device_path:  PathBuf,
     /// Where this partition is mounted in the file system, if at all.
-    pub mount_point:  Option<PathBuf>,
+    pub mount_point:  Vec<PathBuf>,
     /// Where this partition will be mounted in the future
     pub target:       Option<PathBuf>,
     /// The pre-existing volume group assigned to this partition.
     pub original_vg:  Option<String>,
-    /// The volume group & LUKS configuration to associate with this device.
-    // TODO: Separate the tuple?
-    pub volume_group: Option<(String, Option<LvmEncryption>)>,
+    /// The LVM volume group
+    pub lvm_vg: Option<String>,
+    pub encryption: Option<LuksEncryption>,
     /// If the partition is associated with a keyfile, this will name the key.
     pub key_id:       Option<String>,
     /// Possible identifiers for this partition.
     pub identifiers:  PartitionIdentifiers,
+    /// Subvolumes found on this device
+    pub subvolumes:   HashMap<PathBuf, String>
 }
 
 impl BlockDeviceExt for PartitionInfo {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
-    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_deref() }
+    fn get_mount_point(&self) -> &[PathBuf] { self.mount_point.as_ref() }
 }
 
 impl PartitionExt for PartitionInfo {
@@ -103,6 +106,14 @@ impl PartitionExt for PartitionInfo {
     fn get_sector_end(&self) -> u64 { self.end_sector }
 
     fn get_sector_start(&self) -> u64 { self.start_sector }
+
+    fn encrypted_info(&self) -> Option<(PathBuf, FileSystem)> {
+        self.encryption.as_ref()
+            .map(|enc| {
+                let path = PathBuf::from(["/dev/mapper/", &*enc.physical_volume].concat());
+                (path, enc.filesystem)
+            })
+    }
 }
 
 impl SectorExt for PartitionInfo {
@@ -130,7 +141,7 @@ impl PartitionInfo {
                 "logical" => PartitionType::Logical,
                 _ => return Ok(None),
             },
-            mount_point: None,
+            mount_point: Vec::new(),
             target: None,
             filesystem,
             flags: get_flags(partition),
@@ -141,9 +152,11 @@ impl PartitionInfo {
             start_sector: partition.geom_start() as u64,
             end_sector: partition.geom_end() as u64,
             original_vg: None,
-            volume_group: None,
+            lvm_vg: None,
+            encryption: None,
             key_id: None,
             identifiers,
+            subvolumes: HashMap::new(),
         }))
     }
 
@@ -166,7 +179,12 @@ impl PartitionInfo {
             };
         }
 
-        self.mount_point = mounts.get_mount_by_source(device_path).map(|m| m.dest.clone());
+        self.mount_point = mounts.0
+            .iter()
+            .filter(|mount| &mount.source == device_path)
+            .map(|m| m.dest.clone())
+            .collect();
+
         self.bitflags |= if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
         self.original_vg = original_vg;
     }
@@ -178,7 +196,7 @@ impl PartitionInfo {
                 swapoff(path).map_err(|why| (path.to_path_buf(), why))?;
             }
         }
-        self.mount_point = None;
+        self.mount_point = Vec::new();
         self.flag_disable(SWAPPED);
         Ok(())
     }
@@ -217,12 +235,12 @@ impl PartitionInfo {
     pub fn set_mount(&mut self, target: PathBuf) { self.target = Some(target); }
 
     /// Defines that the partition belongs to a given volume group.
-    ///
-    /// Optionally, this partition may be encrypted, in which you will also need to
-    /// specify a new physical volume name as well. In the event of encryption, an LVM
-    /// device will be assigned to the encrypted partition.
-    pub fn set_volume_group(&mut self, group: String, encryption: Option<LvmEncryption>) {
-        self.volume_group = Some((group, encryption));
+    pub fn set_volume_group(&mut self, group: String) {
+        self.lvm_vg = Some(group);
+    }
+
+    pub fn set_encryption(&mut self, encryption: LuksEncryption) {
+        self.encryption = Some(encryption);
     }
 
     /// Shrinks the partition, if possible.
@@ -265,7 +283,7 @@ impl PartitionInfo {
     /// generating entries in "/etc/fstab".
     pub fn get_block_info(&self) -> Option<BlockInfo> {
         let fs = self.get_file_system()?;
-        if fs != FileSystem::Swap && self.target.is_none() {
+        if fs != FileSystem::Swap && self.target.is_none() && self.subvolumes.is_empty() {
             return None;
         }
 
@@ -317,7 +335,7 @@ mod tests {
             bitflags:     ACTIVE | BUSY | SOURCE,
             device_path:  Path::new("/dev/sdz1").to_path_buf(),
             flags:        vec![PartitionFlag::PED_PARTITION_ESP],
-            mount_point:  Some(Path::new("/boot/efi").to_path_buf()),
+            mount_point:  vec!(Path::new("/boot/efi").to_path_buf()),
             target:       Some(Path::new("/boot/efi").to_path_buf()),
             start_sector: 2048,
             end_sector:   1026047,
@@ -328,8 +346,10 @@ mod tests {
             part_type:    PartitionType::Primary,
             key_id:       None,
             original_vg:  None,
-            volume_group: None,
+            lvm_vg: None,
+            encryption: None,
             identifiers:  PartitionIdentifiers::default(),
+            subvolumes: HashMap::new()
         }
     }
 
@@ -338,7 +358,7 @@ mod tests {
             bitflags:     ACTIVE | BUSY | SOURCE,
             device_path:  Path::new("/dev/sdz2").to_path_buf(),
             flags:        vec![],
-            mount_point:  Some(Path::new("/").to_path_buf()),
+            mount_point:  vec!(Path::new("/").to_path_buf()),
             target:       Some(Path::new("/").to_path_buf()),
             start_sector: 1026048,
             end_sector:   420456447,
@@ -349,8 +369,10 @@ mod tests {
             part_type:    PartitionType::Primary,
             key_id:       None,
             original_vg:  None,
-            volume_group: None,
+            lvm_vg: None,
+            encryption: None,
             identifiers:  PartitionIdentifiers::default(),
+            subvolumes:   HashMap::new(),
         }
     }
 
@@ -359,7 +381,7 @@ mod tests {
             bitflags:     ACTIVE | SOURCE,
             device_path:  Path::new("/dev/sdz3").to_path_buf(),
             flags:        vec![],
-            mount_point:  None,
+            mount_point:  vec![],
             target:       None,
             start_sector: 420456448,
             end_sector:   1936738303,
@@ -371,14 +393,14 @@ mod tests {
             key_id:       None,
             original_vg:  None,
             identifiers:  PartitionIdentifiers::default(),
-            volume_group: Some((
-                "LVM_GROUP".into(),
-                Some(LvmEncryption {
-                    physical_volume: "LUKS_PV".into(),
-                    password:        Some("password".into()),
-                    keydata:         None,
-                }),
-            )),
+            lvm_vg: Some("LVM_GROUP".into()),
+            encryption: Some(LuksEncryption {
+                physical_volume: "LUKS_PV".into(),
+                password:        Some("password".into()),
+                keydata:         None,
+                filesystem:      FileSystem::Lvm,
+            }),
+            subvolumes:   HashMap::new(),
         }
     }
 
@@ -387,7 +409,7 @@ mod tests {
             bitflags:     ACTIVE | SOURCE,
             device_path:  Path::new("/dev/sdz3").to_path_buf(),
             flags:        vec![],
-            mount_point:  None,
+            mount_point:  vec![],
             target:       None,
             start_sector: 420456448,
             end_sector:   1936738303,
@@ -398,8 +420,10 @@ mod tests {
             part_type:    PartitionType::Primary,
             key_id:       None,
             original_vg:  None,
-            volume_group: Some(("LVM_GROUP".into(), None)),
+            lvm_vg: Some("LVM_GROUP".into()),
+            encryption:   None,
             identifiers:  PartitionIdentifiers::default(),
+            subvolumes:   HashMap::new(),
         }
     }
 
@@ -408,7 +432,7 @@ mod tests {
             bitflags:     ACTIVE | SOURCE,
             device_path:  Path::new("/dev/sdz4").to_path_buf(),
             flags:        vec![],
-            mount_point:  None,
+            mount_point:  vec![],
             target:       None,
             start_sector: 1936738304,
             end_sector:   1953523711,
@@ -419,8 +443,10 @@ mod tests {
             part_type:    PartitionType::Primary,
             key_id:       None,
             original_vg:  None,
-            volume_group: None,
+            lvm_vg: None,
+            encryption: None,
             identifiers:  PartitionIdentifiers::default(),
+            subvolumes:   HashMap::new(),
         }
     }
 

@@ -34,7 +34,7 @@ pub struct PartitionCreate {
 impl BlockDeviceExt for PartitionCreate {
     fn get_device_path(&self) -> &Path { &self.path }
 
-    fn get_mount_point(&self) -> Option<&Path> { None }
+    fn get_mount_point(&self) -> &[PathBuf] { &[] }
 }
 
 impl PartitionExt for PartitionCreate {

@@ -491,55 +491,6 @@ namespace Distinst {
         ESP
     }
 
-    /**
-     * Partition builders are supplied as inputs to the `add_partition` method.
-     */
-    [CCode (has_type_id = false, unref_function = "")]
-    public class PartitionBuilder {
-        /**
-         * Creates a new partition builder which has it's start and end sectors defined, as well
-         * as the file system to assign to it.
-         */
-        public PartitionBuilder (uint64 start_sector, uint64 end_sector, FileSystem filesystem);
-
-        /**
-         * Defines a label for the new partition.
-         */
-        public PartitionBuilder name (string name);
-
-        /**
-         * Specifies where the new partition should be mounted.
-         */
-        public PartitionBuilder mount (string target);
-
-        /**
-         * Defines if the partition is either primary or logical.
-         */
-        public PartitionBuilder partition_type (PartitionType part_type);
-
-        /**
-         * Adds a partition flag to the new partition.
-         */
-        public PartitionBuilder flag (PartitionFlag flag);
-
-        /**
-         * Assigns this new partition to a logical volume group.
-         *
-         * If the encryption parameter is not set, this will be a LVM partition.
-         * Otherwise, a LUKS partition will be created with the information in in the
-         * encryption parameter, and a LVM partition will be assigned on top of that.
-         */
-        public PartitionBuilder logical_volume (string volume_group, LvmEncryption? encryption);
-
-        /**
-         * Species that this partition will contain a keyfile that belongs to the associated ID.
-         *
-         * Note that this partition should also have a mount target, or otherwise
-         * an error will occur.
-         */
-        public PartitionBuilder associate_keyfile (string keyfile_id);
-    }
-
     [SimpleType]
     [CCode (has_type_id = false)]
     public struct PartitionUsage {
@@ -762,11 +713,6 @@ namespace Distinst {
         public unowned Partition[] list_partitions ();
 
         /**
-         * Adds a new partition to the physical device from a partition builder.
-         */
-        public int add_partition (PartitionBuilder partition);
-
-        /**
          * Specifies to format a partition at the given partition ID with the specified
          * file system.
          */
@@ -912,11 +858,6 @@ namespace Distinst {
         public unowned Partition get_partition_by_path (string path);
 
         /**
-         * Adds a new partition to the physical device from a partition builder.
-         */
-        public int add_partition (PartitionBuilder partition);
-
-        /**
          * Sets the remove bit on the specified logical volume
          *
          * # Return Values
@@ -937,7 +878,7 @@ namespace Distinst {
      * Defines the configuration options to use when creating a new LUKS partition.
      */
     [CCode (has_type_id = false, destroy_function = "", unref_function = "")]
-    public struct LvmEncryption {
+    public struct LuksEncryption {
         /**
          * Defines the name of the new PV that the LUKS partition will expose
          * IE: "cryptdata" set here will create a new device map at `/dev/mapper/cryptdata`
@@ -1041,7 +982,7 @@ namespace Distinst {
          * - 5 indicates that the decrypted partition lacks a LVM volume group
          * - 6 indicates that the specified LUKS partition at `path` was not found
          */
-        public int decrypt_partition (string path, LvmEncryption encryption);
+        public int decrypt_partition (string path, LuksEncryption encryption);
 
         /**
          * Finds the partition block path and associated partition information

@@ -64,8 +64,11 @@ pub fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
                                 };
                             }
 
-                            part.mount_point =
-                                mounts.get_mount_by_source(device_path).map(|m| m.dest.clone());
+                            part.mount_point = mounts.0
+                                .iter()
+                                .filter(|mount| &mount.source == device_path)
+                                .map(|m| m.dest.clone())
+                                .collect();
                             part.bitflags |=
                                 if swaps.get_swapped(device_path) { SWAPPED } else { 0 };
                             part.original_vg = original_vg;
@@ -99,7 +102,7 @@ pub struct Disk {
     /// Account for the possibility that the entire disk is a file system.
     pub file_system: Option<PartitionInfo>,
     /// Where the device is mounted, if mounted at all.
-    pub mount_point: Option<PathBuf>,
+    pub mount_point: Vec<PathBuf>,
     /// The size of the disk in sectors.
     pub size:        u64,
     /// The type of the device, such as SCSI.
@@ -118,7 +121,7 @@ pub struct Disk {
 impl BlockDeviceExt for Disk {
     fn get_device_path(&self) -> &Path { &self.device_path }
 
-    fn get_mount_point(&self) -> Option<&Path> { self.mount_point.as_deref() }
+    fn get_mount_point(&self) -> &[PathBuf] { self.mount_point.as_ref() }
 
     fn is_read_only(&self) -> bool { self.read_only }
 }
@@ -190,7 +193,11 @@ impl Disk {
 
         Ok(Disk {
             model_name,
-            mount_point: mounts.get_mount_by_source(&device_path).map(|m| m.dest.clone()),
+            mount_point: mounts.0
+                .iter()
+                .filter(|mount| &mount.source == &device_path)
+                .map(|m| m.dest.clone())
+                .collect(),
             device_path,
             file_system: None,
             serial,
@@ -269,7 +276,8 @@ impl Disk {
             x.bitflags & REMOVE != 0
                 || x.bitflags & FORMAT != 0
                 || x.target.is_some()
-                || x.volume_group.is_some()
+                || x.lvm_vg.is_some()
+                || !x.subvolumes.is_empty()
         })
     }
 
@@ -279,7 +287,7 @@ impl Disk {
 
         let swaps = SWAPS.read().expect("failed to get swaps in unmount_all_partitions");
         for partition in &mut self.partitions {
-            if let Some(ref mount) = partition.mount_point {
+            for mount in partition.mount_point.iter().rev() {
                 if mount == Path::new("/cdrom") || mount == Path::new("/") {
                     continue;
                 }
@@ -314,7 +322,8 @@ impl Disk {
         }
 
         let mut mounts = BTreeSet::new();
-        for mount in mountstab.source_starts_with(self.path()) {
+        for mount in dbg!(&mountstab).source_starts_with(self.path()) {
+            debug!("checking {:?}", mount);
             if mount.dest == Path::new("/cdrom")
                 || mount.dest == Path::new("/")
                 || mount.dest == Path::new("/boot/efi")
@@ -809,14 +818,26 @@ impl Disk {
         // Back up any fields that need to be carried over after reloading disk data.
         let collected = self
             .partitions
-            .iter()
+            .iter_mut()
             .filter_map(|partition| {
                 let start = partition.start_sector;
+                let name = partition.name.clone();
                 let mount = partition.target.as_ref().map(|ref path| path.to_path_buf());
-                let vg = partition.volume_group.as_ref().cloned();
+                let vg = partition.lvm_vg.clone();
+                let enc = partition.encryption.clone();
                 let keyid = partition.key_id.as_ref().cloned();
-                if mount.is_some() || vg.is_some() || keyid.is_some() {
-                    Some((start, mount, vg, keyid))
+                let mut subvolumes = std::collections::HashMap::new();
+
+                let format = if partition.flag_is_enabled(FORMAT) && enc.is_some() {
+                    Some(FORMAT)
+                } else {
+                    None
+                };
+
+                std::mem::swap(&mut subvolumes, &mut partition.subvolumes);
+
+                if mount.is_some() || name.is_some() || enc.is_some() || vg.is_some() || keyid.is_some() || !subvolumes.is_empty() || format.is_some() {
+                    Some((start, name, mount, vg, enc, keyid, subvolumes, format))
                 } else {
                     None
                 }
@@ -827,16 +848,23 @@ impl Disk {
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
 
         // Then re-add the critical information which was lost.
-        for (sector, mount, vg, keyid) in collected {
+        for (sector, name, mount, vg, enc, keyid, subvolumes, format) in collected {
             info!("checking for mount target at {}", sector);
             let part = self
                 .get_partition_at(sector)
                 .and_then(|num| self.get_partition_mut(num))
                 .expect("partition sectors are off");
 
+            part.name = name;
             part.target = mount;
-            part.volume_group = vg;
+            part.lvm_vg = vg;
+            part.encryption = enc;
             part.key_id = keyid;
+            part.subvolumes = subvolumes;
+
+            if let Some(format) = format {
+                part.bitflags |= format;
+            }
         }
 
         Ok(())

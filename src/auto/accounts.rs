@@ -1,7 +1,6 @@
 //! User account information will be collected here.
 
-use super::{mount_and_then, ReinstallError};
-use disk_types::FileSystem;
+use super::ReinstallError;
 use std::{collections::HashMap, ffi::OsStr, os::unix::ffi::OsStrExt, path::Path};
 
 use crate::misc::read;
@@ -30,21 +29,19 @@ pub(crate) fn lines<T: ::std::iter::FromIterator<(Vec<u8>, Vec<u8>)>>(input: &[u
 }
 
 impl AccountFiles {
-    pub fn new(device: &Path, fs: FileSystem) -> Result<AccountFiles, ReinstallError> {
+    pub fn new(base: &Path) -> Result<AccountFiles, ReinstallError> {
         info!("retrieving user account data");
-        mount_and_then(device, fs, |base| {
-            read(base.join("etc/passwd"))
-                .and_then(|p| read(base.join("etc/group")).map(|g| (p, g)))
-                .and_then(|(p, g)| read(base.join("etc/shadow")).map(|s| (p, g, s)))
-                .and_then(|(p, g, s)| read(base.join("etc/gshadow")).map(|gs| (p, g, s, gs)))
-                .map(|(ref passwd, ref group, ref shadow, ref gshadow)| AccountFiles {
-                    passwd:  lines(passwd),
-                    group:   lines(group),
-                    shadow:  lines(shadow),
-                    gshadow: lines(gshadow),
-                })
-                .map_err(|why| ReinstallError::AccountsObtain { why, step: "get" })
-        })
+        read(base.join("etc/passwd"))
+            .and_then(|p| read(base.join("etc/group")).map(|g| (p, g)))
+            .and_then(|(p, g)| read(base.join("etc/shadow")).map(|s| (p, g, s)))
+            .and_then(|(p, g, s)| read(base.join("etc/gshadow")).map(|gs| (p, g, s, gs)))
+            .map(|(ref passwd, ref group, ref shadow, ref gshadow)| AccountFiles {
+                passwd:  lines(passwd),
+                group:   lines(group),
+                shadow:  lines(shadow),
+                gshadow: lines(gshadow),
+            })
+            .map_err(|why| ReinstallError::AccountsObtain { why, step: "get" })
     }
 
     pub fn get(&self, home: &OsStr) -> Option<UserData> {
@@ -63,15 +60,14 @@ impl AccountFiles {
         }
 
         user_fields.and_then(|(user, group_id, home, passwd)| {
-            let user_string = String::from_utf8_lossy(&user);
+            let user_string = String::from_utf8_lossy(user);
             info!(
                 "found user '{}' from home path at {}",
                 user_string,
                 String::from_utf8_lossy(home)
             );
 
-            let user: &[u8] = &user;
-            let group = self.group.iter().find(|&(_, value)| group_has_id(&value, group_id)).map(
+            let group = self.group.iter().find(|&(_, value)| group_has_id(value, group_id)).map(
                 |(group, value)| {
                     info!(
                         "found group '{}' associated with '{}'",
@@ -85,7 +81,7 @@ impl AccountFiles {
             let secondary_groups = self
                 .group
                 .iter()
-                .filter(|&(_, value)| group_has_user(&value, user))
+                .filter(|&(_, value)| group_has_user(value, user))
                 .inspect(|&(group, _)| {
                     info!(
                         "{} has a secondary group: '{}'",

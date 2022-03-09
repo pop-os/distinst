@@ -9,7 +9,7 @@ use std::{
 
 use distinst::{
     BlockDeviceExt, DecryptionError, Disk, DiskExt, Disks, FileSystem, LogicalDevice,
-    LvmEncryption, PartitionBuilder, PartitionInfo, PartitionTable, PartitionTableExt, Sector,
+    LuksEncryption, PartitionBuilder, PartitionInfo, PartitionTable, PartitionTableExt, Sector,
     SectorExt,
 };
 
@@ -17,9 +17,9 @@ use super::{get_str, null_check};
 use crate::ffi::AsMutPtr;
 use crate::filesystem::DISTINST_FILE_SYSTEM;
 use crate::gen_object_ptr;
-use crate::lvm::{DistinstLvmDevice, DistinstLvmEncryption};
+use crate::lvm::{DistinstLvmDevice, DistinstLuksEncryption};
 use crate::partition::{
-    DistinstPartition, DistinstPartitionAndDiskPath, DistinstPartitionBuilder,
+    DistinstPartition, DistinstPartitionAndDiskPath,
     DISTINST_PARTITION_TABLE,
 };
 use crate::partition_identity::PartitionID;
@@ -263,153 +263,6 @@ pub unsafe extern "C" fn distinst_disk_get_partition_table(
     disk.get_partition_table().into()
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disk_mklabel(
-    disk: *mut DistinstDisk,
-    table: DISTINST_PARTITION_TABLE,
-) -> libc::c_int {
-    if null_check(disk).is_err() {
-        return -1;
-    }
-
-    let disk = &mut *(disk as *mut Disk);
-
-    let table = match table {
-        DISTINST_PARTITION_TABLE::GPT => PartitionTable::Gpt,
-        DISTINST_PARTITION_TABLE::MSDOS => PartitionTable::Msdos,
-        _ => return -1,
-    };
-
-    if let Err(why) = disk.mklabel(table) {
-        info!("unable to write partition table on {}: {}", disk.path().display(), why);
-        -1
-    } else {
-        0
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disk_add_partition(
-    disk: *mut DistinstDisk,
-    partition: *mut DistinstPartitionBuilder,
-) -> libc::c_int {
-    if null_check(disk).or_else(|_| null_check(partition)).is_err() {
-        return -1;
-    }
-
-    let disk = &mut *(disk as *mut Disk);
-
-    if let Err(why) = disk.add_partition(*Box::from_raw(partition as *mut PartitionBuilder)) {
-        info!("unable to add partition: {}", why);
-        -1
-    } else {
-        0
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disk_remove_partition(
-    disk: *mut DistinstDisk,
-    partition: libc::c_int,
-) -> libc::c_int {
-    if null_check(disk).is_err() {
-        return -1;
-    }
-
-    let disk = &mut *(disk as *mut Disk);
-
-    if let Err(why) = disk.remove_partition(partition) {
-        info!("unable to remove partition: {}", why);
-        -1
-    } else {
-        0
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disk_resize_partition(
-    disk: *mut DistinstDisk,
-    partition: libc::c_int,
-    end: u64,
-) -> libc::c_int {
-    if null_check(disk).is_err() {
-        return 0;
-    }
-
-    let disk = &mut *(disk as *mut Disk);
-
-    if let Err(why) = disk.resize_partition(partition, end) {
-        info!("libdistinst: unable to resize partition: {}", why);
-        -1
-    } else {
-        0
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disk_move_partition(
-    disk: *mut DistinstDisk,
-    partition: libc::c_int,
-    start: u64,
-) -> libc::c_int {
-    if null_check(disk).is_err() {
-        return -1;
-    }
-
-    let disk = &mut *(disk as *mut Disk);
-
-    if let Err(why) = disk.move_partition(partition, start) {
-        info!("unable to remove partition: {}", why);
-        -1
-    } else {
-        0
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disk_format_partition(
-    disk: *mut DistinstDisk,
-    partition: libc::c_int,
-    fs: DISTINST_FILE_SYSTEM,
-) -> libc::c_int {
-    if null_check(disk).is_err() {
-        return -1;
-    }
-
-    let disk = &mut *(disk as *mut Disk);
-
-    let fs = match Option::<FileSystem>::from(fs) {
-        Some(fs) => fs,
-        None => {
-            info!("file system type required");
-            return -1;
-        }
-    };
-
-    if let Err(why) = disk.format_partition(partition, fs) {
-        info!("unable to remove partition: {}", why);
-        -1
-    } else {
-        0
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_disk_commit(disk: *mut DistinstDisk) -> libc::c_int {
-    if null_check(disk).is_err() {
-        return -1;
-    }
-
-    let disk = &mut *(disk as *mut Disk);
-
-    if let Err(why) = disk.commit() {
-        info!("unable to commit changes to disk: {}", why);
-        -1
-    } else {
-        0
-    }
-}
-
 #[repr(C)]
 pub struct DistinstDisks;
 
@@ -651,7 +504,7 @@ pub unsafe extern "C" fn distinst_disks_find_partition(
 pub unsafe extern "C" fn distinst_disks_decrypt_partition(
     disks: *mut DistinstDisks,
     path: *const libc::c_char,
-    enc: *mut DistinstLvmEncryption,
+    enc: *mut DistinstLuksEncryption,
 ) -> libc::c_int {
     if null_check(disks)
         .or_else(|_| null_check(path))
@@ -669,9 +522,9 @@ pub unsafe extern "C" fn distinst_disks_decrypt_partition(
             if password.is_none() && keydata.is_none() {
                 3
             } else {
-                let enc = LvmEncryption::new(pv.into(), password, keydata);
+                let mut enc = LuksEncryption::new(pv.into(), password, keydata, FileSystem::Ext4);
                 let disks = &mut *(disks as *mut Disks);
-                match disks.decrypt_partition(&Path::new(path), &enc) {
+                match disks.decrypt_partition(&Path::new(path), &mut enc) {
                     Ok(_) => 0,
                     Err(why) => {
                         error!("decryption error: {}", why);

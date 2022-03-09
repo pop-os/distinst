@@ -64,8 +64,15 @@ pub(crate) fn lvm(
             if let Some(fs) = fs {
                 let fs = match fs {
                     PartType::Fs(fs) => fs,
+                    PartType::Luks(encryption) => {
+                        partition.set_encryption(encryption);
+                        Some(FileSystem::Luks)
+                    }
                     PartType::Lvm(volume_group, encryption) => {
-                        partition.set_volume_group(volume_group, encryption);
+                        partition.set_volume_group(volume_group);
+                        if let Some(params) = encryption {
+                            partition.set_encryption(params);
+                        }
                         Some(FileSystem::Lvm)
                     }
                 };
@@ -162,7 +169,7 @@ fn parse_logical<F: FnMut(LogicalArgs) -> Result<(), DistinstError>>(
             size: parse_sector(values[2])?,
             fs: match parse_fs(values[3])? {
                 PartType::Fs(fs) => fs,
-                PartType::Lvm(..) => {
+                _ => {
                     unimplemented!("LUKS on LVM is unsupported");
                 }
             },

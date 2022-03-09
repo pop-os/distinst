@@ -32,6 +32,10 @@ pub trait PartitionExt: BlockDeviceExt + SectorExt {
     /// The sector where this partition begins on the parent block device..
     fn get_sector_start(&self) -> u64;
 
+    fn encrypted_info(&self) -> Option<(std::path::PathBuf, FileSystem)> {
+        None
+    }
+
     /// True if the partition is an ESP partition.
     fn is_esp_partition(&self) -> bool {
         self.get_file_system().map_or(false, |fs| {
@@ -80,8 +84,16 @@ pub trait PartitionExt: BlockDeviceExt + SectorExt {
 
     /// Detects if an OS is installed to this partition, and if so, what the OS
     /// is named.
-    fn probe_os(&self) -> Option<OS> {
-        self.get_file_system().and_then(|fs| detect_os_from_device(self.get_device_path(), fs))
+    fn probe_os(&self, subvol: Option<&str>) -> Option<OS> {
+        let (device_path, fs) = match self.encrypted_info() {
+            Some((p, f)) => (p, f),
+            None => (
+                self.get_device_path().to_path_buf(),
+                self.get_file_system()?
+            )
+        };
+
+        detect_os_from_device(&device_path, subvol, fs)
     }
 
     /// True if the sectors in the compared partition differs from the source.
