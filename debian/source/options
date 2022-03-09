@@ -1,0 +1,3 @@
+tar-ignore = "vendor"
+tar-ignore = "target"
+tar-ignore = ".git"
