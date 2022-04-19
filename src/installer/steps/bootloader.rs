@@ -74,6 +74,8 @@ pub fn bootloader<F: FnMut(i32)>(
                             ],
                         )
                         .run()?;
+
+                    chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
                 }
                 Bootloader::Efi => {
                     // Grub disallows whitespaces in the name.
