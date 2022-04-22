@@ -3,9 +3,11 @@ extern crate distinst_utils as misc;
 extern crate log;
 extern crate os_release;
 extern crate proc_modules;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 extern crate raw_cpuid;
 
 use os_release::OsRelease;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use raw_cpuid::CpuId;
 use std::io::Read;
 
@@ -16,7 +18,7 @@ mod macros;
 use proc_modules::Module;
 
 // NOTE: Distributions should provide their distro ID and associated packages here, if applicable.
-
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn amd_microcode(os_release: &OsRelease) -> Option<&'static str> {
     if &os_release.id_like == "debian" {
         Some("amd64-microcode")
@@ -25,6 +27,7 @@ fn amd_microcode(os_release: &OsRelease) -> Option<&'static str> {
     }
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn intel_microcode(os_release: &OsRelease) -> Option<&'static str> {
     if &os_release.id_like == "debian" {
         Some("intel-microcode")
@@ -68,6 +71,7 @@ fn graphics_support(os_release: &OsRelease) -> Option<&'static str> {
 }
 
 /// Microcode packages for specific processor vendors.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn processor_support(os_release: &OsRelease) -> Option<&'static str> {
     if let Some(vf) = CpuId::new().get_vendor_info() {
         return match vf.as_string() {
@@ -77,6 +81,11 @@ fn processor_support(os_release: &OsRelease) -> Option<&'static str> {
         };
     }
 
+    None
+}
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+fn processor_support(_os_release: &OsRelease) -> Option<&'static str> {
     None
 }
 

@@ -14,7 +14,7 @@ Standards-Version: 4.1.1
 Homepage: https://github.com/pop-os/distinst
 
 Package: distinst
-Architecture: amd64
+Architecture: linux-any
 Depends:
   libdistinst (= ${binary:Version}),
   ${misc:Depends},
@@ -22,7 +22,7 @@ Depends:
 Description: Distribution Installer CLI
 
 Package: libdistinst
-Architecture: amd64
+Architecture: linux-any
 Depends:
   apt,
   btrfs-progs,
@@ -55,7 +55,7 @@ Depends:
 Description: Distribution Installer Library
 
 Package: libdistinst-dev
-Architecture: amd64
+Architecture: linux-any
 Depends:
   libdistinst (= ${binary:Version}),
   ${misc:Depends}
