@@ -123,11 +123,12 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
         Bootloader::Efi => &[
             "grub-efi",
             "grub-efi-amd64",
+            "grub-efi-amd64-bin",
             "grub-efi-amd64-signed",
             "shim-signed",
             "mokutil",
-            "fwupdate-signed",
-            "linux-signed-generic",
+            "fwupd-signed",
+            "linux-image-generic",
         ],
     }
 }
