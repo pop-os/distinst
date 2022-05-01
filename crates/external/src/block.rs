@@ -95,7 +95,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystem) -> io::Result<()> {
 
 /// Get the label from the given partition, if it exists.
 pub fn get_label<P: AsRef<Path>>(part: P, kind: FileSystem) -> Option<String> {
-    let (cmd, args) = get_label_cmd(kind)?;
+    let (cmd, args) = get_label_cmd(kind, part.as_ref())?;
 
     let output = Command::new(cmd)
         .args(args)
@@ -123,13 +123,17 @@ pub fn get_label<P: AsRef<Path>>(part: P, kind: FileSystem) -> Option<String> {
     Some(output)
 }
 
-fn get_label_cmd(kind: FileSystem) -> Option<(&'static str, &'static [&'static str])> {
-    let cmd: (&'static str, &'static [&'static str]) = match kind {
+fn get_label_cmd<'a>(kind: FileSystem, path: &Path) -> Option<(&'a str, &'a [&'a str])> {
+    let cmd: (&'a str, &'a [&'a str]) = match kind {
         Btrfs => ("btrfs", &["filesystem", "label"]),
         // Exfat => ("exfatlabel", &[]),
         Exfat => unimplemented!("exfat is not supported, yet"),
         Ext2 | Ext3 | Ext4 => ("e2label", &[]),
-        F2fs => unimplemented!(),
+        F2fs => {
+            return path
+                .to_str()
+                .and_then(|value| Some(("blkid", &["-s", "LABEL", "-o", "value", value])))
+        }
         Fat16 | Fat32 => ("dosfslabel", &[]),
         Ntfs => ("ntfslabel", &[]),
         Xfs => ("xfs_admin", &["-l"]),
