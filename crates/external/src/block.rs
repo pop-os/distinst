@@ -124,18 +124,16 @@ pub fn get_label<P: AsRef<Path>>(part: P, kind: FileSystem) -> Option<String> {
 }
 
 fn get_label_cmd(kind: FileSystem) -> Option<(&'static str, &'static [&'static str])> {
-    let cmd: (&'static str, &'static [&'static str]) = match kind {
-        Btrfs => ("btrfs", &["filesystem", "label"]),
-        // Exfat => ("exfatlabel", &[]),
-        Exfat => unimplemented!("exfat is not supported, yet"),
-        Ext2 | Ext3 | Ext4 => ("e2label", &[]),
-        F2fs => unimplemented!(),
-        Fat16 | Fat32 => ("dosfslabel", &[]),
-        Ntfs => ("ntfslabel", &[]),
-        Xfs => ("xfs_admin", &["-l"]),
+    let cmd = match kind {
+        Btrfs => ("btrfs", &["filesystem", "label"][..]),
+        Ext2 | Ext3 | Ext4 => ("e2label", &[][..]),
+        Fat16 | Fat32 => ("dosfslabel", &[][..]),
+        Ntfs => ("ntfslabel", &[][..]),
+        Xfs => ("xfs_admin", &["-l"][..]),
         Swap | Luks | Lvm => {
             return None;
         }
+        _ => ("blkid", &["-s", "LABEL", "-o", "value"][..]),
     };
 
     Some(cmd)
