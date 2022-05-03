@@ -1,6 +1,6 @@
 use libc;
 
-use std::io;
+use std::{io, mem};
 
 use crate::config::DistinstConfig;
 use crate::disk::DistinstDisks;
@@ -79,7 +79,7 @@ pub type DistinstTimezoneCallback =
 
 /// Installer user account creation callback
 pub type DistinstUserAccountCallback =
-    extern "C" fn(user_data: *mut libc::c_void) -> DistinstUserAccountCreate;
+    extern "C" fn(user_account_create: *mut DistinstUserAccountCreate, user_data: *mut libc::c_void);
 
 /// An installer object
 #[repr(C)]
@@ -164,7 +164,9 @@ pub unsafe extern "C" fn distinst_installer_set_user_callback(
     user_data: *mut libc::c_void,
 ) {
     (*(installer as *mut Installer)).set_user_callback(move || {
-        (callback(user_data)).as_config().expect("user callback invalid")
+        let mut user_account_create = mem::zeroed();
+        callback(&mut user_account_create, user_data);
+        user_account_create.as_config().expect("user callback invalid")
     });
 }
 
