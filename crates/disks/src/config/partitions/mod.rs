@@ -24,6 +24,7 @@ pub fn get_preferred_options(fs: FileSystem) -> &'static str {
         FileSystem::Fat16 | FileSystem::Fat32 => "umask=0077",
         FileSystem::Ext4 => "noatime,errors=remount-ro",
         FileSystem::Swap => "sw",
+        FileSystem::F2fs => "defaults,compress_algorithm=lz4,compress_chksum,atgc,gc_merge,lazytime,nodiscard",
         _ => "defaults",
     }
 }
