@@ -71,7 +71,7 @@ pub fn mkfs<P: AsRef<Path>>(part: P, kind: FileSystem) -> io::Result<()> {
         Ext2 => ("mkfs.ext2", &["-F", "-q"]),
         Ext3 => ("mkfs.ext3", &["-F", "-q"]),
         Ext4 => ("mkfs.ext4", &["-F", "-q", "-E", "lazy_itable_init"]),
-        F2fs => ("mkfs.f2fs", &["-q", "-O", "extra_attr,inode_checksum,sb_checksum,compression"]),
+        F2fs => ("mkfs.f2fs", &["-f", "-q", "-O", "extra_attr,inode_checksum,sb_checksum,compression"]),
         Fat16 => ("mkfs.fat", &["-F", "16"]),
         Fat32 => ("mkfs.fat", &["-F", "32"]),
         Ntfs => ("mkfs.ntfs", &["-FQ", "-q"]),
