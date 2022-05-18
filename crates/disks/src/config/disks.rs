@@ -223,21 +223,21 @@ impl Disks {
                         let device;
                         let fs;
 
-                        match part.filesystem.unwrap() {
-                            FileSystem::Fat16 | FileSystem::Fat32 => {
-                                fs = "vfat";
-                                device = part.device_path.clone();
+                        if let Some(encryption) = part.encryption.as_ref() {
+                            fs = encryption.filesystem.into();
+                            device = PathBuf::from(["/dev/mapper/", &*encryption.physical_volume].concat());
+                        } else {
+                            match part.filesystem.unwrap() {
+                                FileSystem::Fat16 | FileSystem::Fat32 => {
+                                    fs = "vfat";
+                                    device = part.device_path.clone();
+                                }
+                                other => {
+                                    fs = other.into();
+                                    device = part.device_path.clone();
+                                },
                             }
-                            FileSystem::Luks => {
-                                let encryption = part.encryption.as_ref().unwrap();
-                                fs = encryption.filesystem.into();
-                                device = PathBuf::from(["/dev/mapper/", &*encryption.physical_volume].concat());
-                            }
-                            other => {
-                                fs = other.into();
-                                device = part.device_path.clone();
-                            },
-                        };
+                        }
 
                         MountKind::Direct { data, device, fs }
                     };
@@ -272,10 +272,18 @@ impl Disks {
                 MountKind::Direct { data, device, fs } => {
                     info!("mounting {:?} ({}) to {:?} with {}", device, fs, target_mount, data);
 
-                    let mut result = Mount::builder()
+                    let mount = || Mount::builder()
                         .fstype(fs)
                         .data(&data)
                         .mount(&device, &target_mount);
+
+                    let mut result = mount();
+
+                    while let Err(Some(16)) = result.as_ref().map_err(io::Error::raw_os_error) {
+                        eprintln!("device was busy");
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                        result = mount();
+                    }
 
                     // Create missing subvolumes with zstd compression.
                     if let Err(io::ErrorKind::NotFound) = result.as_ref().map_err(io::Error::kind) {

@@ -862,6 +862,10 @@ impl Disk {
             part.key_id = keyid;
             part.subvolumes = subvolumes;
 
+            if !part.subvolumes.is_empty() {
+                part.filesystem = Some(FileSystem::Btrfs);
+            }
+
             if let Some(format) = format {
                 part.bitflags |= format;
             }
