@@ -153,9 +153,9 @@ impl Installer {
         let contains_home = disks.find_partition(Path::new("/home")).is_some();
         for partition in disks.get_partitions_mut() {
             if let Some(FileSystem::Btrfs) = partition.filesystem {
-                if let Some(mount) = partition.mount_point.get(0) {
+                if let Some(mount) = partition.target.as_deref() {
                     if Path::new("/") == mount {
-                        partition.mount_point = Vec::new();
+                        partition.target = None;
                         partition.subvolumes.insert(Path::new("/").into(), "@root".into());
 
                         if !contains_home {
