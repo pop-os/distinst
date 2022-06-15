@@ -9,7 +9,7 @@ extern crate raw_cpuid;
 use os_release::OsRelease;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use raw_cpuid::CpuId;
-use std::io::Read;
+use std::{fs, io::Read};
 
 pub mod switchable_graphics;
 #[macro_use]
@@ -42,6 +42,24 @@ fn system76_driver(os_release: &OsRelease) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+fn version(os_release: &OsRelease) -> Option<(u8, u8)> {
+    let mut components = os_release.version_id.split('.');
+    let major = components.next()?.parse::<u8>().ok()?;
+    let minor = components.next()?.parse::<u8>().ok()?;
+    Some((major, minor))
+}
+
+fn hp_vendor(os_release: &OsRelease) -> Option<&'static str> {
+    if &os_release.name == "Pop!_OS" && version(os_release).unwrap_or((0, 0)) >= (22, 04) {
+        let board = fs::read_to_string("/sys/class/dmi/id/board_name").ok()?;
+        // HP Dev One
+        if board.trim() == "8A78" {
+            return Some("pop-hp-vendor");
+        }
+    }
+    None
 }
 
 fn nvidia_driver(os_release: &OsRelease) -> Option<&'static str> {
@@ -94,7 +112,8 @@ fn vendor_support(os_release: &OsRelease) -> Option<&'static str> {
     if let Some(vendor) = vendor() {
         // NOTE: Vendors should add their logic & package names here.
         vendor!(os_release, vendor.trim() => {
-            starts_with "System76" => system76_driver
+            starts_with "System76" => system76_driver,
+            starts_with "HP" => hp_vendor
         });
     }
 
