@@ -13,10 +13,8 @@ pub use self::{options::*, retain::delete_old_install};
 use disk_types::FileSystem;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
-use sys_mount::{Mount, MountFlags, Unmount, UnmountFlags};
-use tempdir::TempDir;
 
 #[derive(Debug, Fail)]
 pub enum ReinstallError {
@@ -48,24 +46,4 @@ pub enum ReinstallError {
 
 impl From<io::Error> for ReinstallError {
     fn from(why: io::Error) -> ReinstallError { ReinstallError::IO { why } }
-}
-
-fn mount_and_then<T, F>(device: &Path, fs: FileSystem, mut action: F) -> Result<T, ReinstallError>
-where
-    F: FnMut(&Path) -> Result<T, ReinstallError>,
-{
-    let fs: &str = match fs {
-        FileSystem::Fat16 | FileSystem::Fat32 => {
-            return Err(ReinstallError::InvalidFilesystem { part: device.to_path_buf(), fs });
-        }
-        fs => fs.into(),
-    };
-
-    TempDir::new("distinst").map_err(|why| ReinstallError::TempDir { why }).and_then(|tempdir| {
-        let base = tempdir.path();
-        Mount::new(device, base, fs, MountFlags::empty(), None)
-            .map(|m| m.into_unmount_drop(UnmountFlags::DETACH))
-            .map_err(|why| ReinstallError::PartitionMount { why })
-            .and_then(|_mount| action(base))
-    })
 }

@@ -401,19 +401,3 @@ fn ntfs_dry_run(path: &Path, size: &str) -> io::Result<()> {
         Err(io::Error::new(io::ErrorKind::Other, format!("ntfsresize exited with {:?}", status)))
     }
 }
-
-fn ntfs_consistency_check(path: &Path) -> io::Result<()> {
-    let mut consistency_check = Command::new("ntfsresize");
-    consistency_check.args(&["-i", "-f"]).arg(path);
-
-    info!("executing {:?}", consistency_check);
-    let mut child = consistency_check.stdin(Stdio::piped()).spawn()?;
-    child.stdin.as_mut().expect("failed to get stdin").write_all(b"y\n")?;
-
-    let status = child.wait()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::new(io::ErrorKind::Other, format!("ntfsresize exited with {:?}", status)))
-    }
-}

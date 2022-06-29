@@ -16,7 +16,7 @@ pub(crate) fn decrypt(disks: &mut Disks, decrypt: Option<Values>) -> Result<(), 
             parse_key(&values[2], &mut pass, &mut keydata)?;
 
             disks
-                .decrypt_partition(device, &LvmEncryption::new(pv, pass, keydata))
+                .decrypt_partition(device, &mut LuksEncryption::new(pv, pass, keydata, FileSystem::Btrfs))
                 .map_err(|why| DistinstError::DecryptFailed { why })?;
         }
     }

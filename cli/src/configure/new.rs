@@ -38,10 +38,21 @@ pub(crate) fn new(disks: &mut Disks, parts: Option<Values>) -> Result<(), Distin
             let start = disk.get_sector(start);
             let end = disk.get_sector(end);
             let mut builder = match fs {
-                PartType::Lvm(volume_group, encryption) => {
-                    PartitionBuilder::new(start, end, FileSystem::Lvm)
+                PartType::Luks(encryption) => {
+                    PartitionBuilder::new(start, end, FileSystem::Luks)
                         .partition_type(kind)
-                        .logical_volume(volume_group, encryption)
+                        .encryption(encryption)
+                }
+                PartType::Lvm(volume_group, encryption) => {
+                    let mut builder = PartitionBuilder::new(start, end, FileSystem::Lvm)
+                        .partition_type(kind)
+                        .logical_volume(volume_group);
+
+                    if let Some(params) = encryption {
+                        builder = builder.encryption(params);
+                    }
+
+                    builder
                 }
                 PartType::Fs(fs) => PartitionBuilder::new(start, end, fs).partition_type(kind),
             };

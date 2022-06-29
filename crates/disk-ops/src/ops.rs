@@ -292,7 +292,7 @@ impl FormatPartitions {
         info!("executing format operations");
         self.0
             .par_iter()
-            .map(|&(ref part, fs)| {
+            .try_for_each(|&(ref part, fs)| {
                 info!("formatting {} with {:?}", part.display(), fs);
                 mkfs(part, fs).map_err(|why| {
                     io::Error::new(
@@ -301,6 +301,5 @@ impl FormatPartitions {
                     )
                 })
             })
-            .collect::<io::Result<()>>()
     }
 }

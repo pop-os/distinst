@@ -306,7 +306,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(75);
 
-        chroot.bootloader().with_context(|why| format!("error installing bootloader: {}", why))?;
+        chroot.bootloader(disks.rootflags().as_deref())
+            .with_context(|why| format!("error installing bootloader: {}", why))?;
 
         callback(80);
 

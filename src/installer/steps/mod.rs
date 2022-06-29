@@ -46,10 +46,11 @@ pub fn mount_efivars(mount_dir: &Path) -> io::Result<Option<UnmountDrop<Mount>>>
 fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<UnmountDrop<Mount>>> {
     if source.exists() {
         let _ = fs::create_dir_all(&target);
-        Ok(Some(
-            Mount::new(source, &target, "none", MountFlags::BIND, None)?
-                .into_unmount_drop(UnmountFlags::empty()),
-        ))
+        let mount = Mount::builder()
+            .fstype("none")
+            .flags(MountFlags::BIND)
+            .mount_autodrop(source, target, UnmountFlags::empty())?;
+        Ok(Some(mount))
     } else {
         Ok(None)
     }

@@ -69,7 +69,7 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     /// Configure the bootloader on the system.
-    pub fn bootloader(&self) -> io::Result<()> {
+    pub fn bootloader(&self, options: Option<&str>) -> io::Result<()> {
         info!("configuring bootloader");
         let result = self
             .chroot
@@ -89,9 +89,28 @@ impl<'a> ChrootConfigurator<'a> {
             .run();
 
         match result {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                if let Some(options) = options {
+                    self.chroot.command("kernelstub", &["-a", options]).run()?;
+                }
+
+                Ok(())
+            },
             // If kernelstub was not found, use grub instead.
             Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+                // Update the grub config to define the rootflags option.
+                if let Some(options) = options {
+                    let path = self.chroot.path.join("etc/default/grub");
+
+                    let mut config = std::fs::read_to_string(&path)
+                        .with_context(|err| format!("failed to read grub config: {}", err))?;
+
+                    config = config.replace("GRUB_CMDLINE_LINUX=\"", &["GRUB_CMDLINE_LINUX=\"", options].concat());
+
+                    std::fs::write(&path, config.as_bytes())
+                        .with_context(|err| format!("failed to update grub config: {}", err))?;
+                }
+
                 let args: &[&str] = &[];
                 self.chroot.command("update-grub", args).run()
             }
@@ -289,10 +308,15 @@ impl<'a> ChrootConfigurator<'a> {
     /// Set the keyboard layout so that the layout will function, even within the decryption screen.
     pub fn keyboard_layout(&self, config: &Config) -> io::Result<()> {
         info!("configuring keyboard layout");
+
         // Ensure that localectl writes to the chroot, instead.
+        let source = self.chroot.path.join("etc");
+
         let _etc_mount =
-            Mount::new(&self.chroot.path.join("etc"), "/etc", "none", MountFlags::BIND, None)?
-                .into_unmount_drop(UnmountFlags::DETACH);
+            Mount::builder()
+                .flags(MountFlags::BIND)
+                .fstype("none")
+                .mount_autodrop(source, "/etc", UnmountFlags::DETACH)?;
 
         self.chroot
             .command(
@@ -533,12 +557,5 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
 
         let args: &[&str] = &[];
         self.chroot.command("ln", args).arg(region.path()).arg("/etc/timezone").run()
-    }
-
-    pub fn update_initramfs(&self) -> io::Result<()> {
-        self.chroot
-            .command("update-initramfs", &["-u"])
-            .run()
-            .with_context(|why| format!("failed to update initramfs: {}", why))
     }
 }

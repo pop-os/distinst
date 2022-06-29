@@ -1,7 +1,9 @@
 use super::{
-    FileSystem, LvmEncryption, PartitionFlag, PartitionIdentifiers, PartitionInfo, PartitionType,
+    FileSystem, PartitionFlag, PartitionIdentifiers, PartitionInfo, PartitionType,
     FORMAT,
 };
+use crate::LuksEncryption;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Partition builders are supplied as inputs to `Disk::add_partition`.
@@ -13,8 +15,10 @@ pub struct PartitionBuilder {
     pub name:         Option<String>,
     pub flags:        Vec<PartitionFlag>,
     pub mount:        Option<PathBuf>,
-    pub volume_group: Option<(String, Option<LvmEncryption>)>,
+    pub lvm_vg:       Option<String>,
+    pub encryption:   Option<LuksEncryption>,
     pub key_id:       Option<String>,
+    pub subvolumes:   HashMap<PathBuf, String>
 }
 
 impl PartitionBuilder {
@@ -28,8 +32,10 @@ impl PartitionBuilder {
             name:         None,
             flags:        Vec::new(),
             mount:        None,
-            volume_group: None,
+            lvm_vg:       None,
+            encryption:   None,
             key_id:       None,
+            subvolumes:   HashMap::new()
         }
     }
 
@@ -68,9 +74,16 @@ impl PartitionBuilder {
     pub fn logical_volume(
         mut self,
         group: String,
-        encryption: Option<LvmEncryption>,
     ) -> PartitionBuilder {
-        self.volume_group = Some((group, encryption));
+        self.lvm_vg = Some(group);
+        self
+    }
+
+    pub fn encryption(
+        mut self,
+        encryption: LuksEncryption,
+    ) -> PartitionBuilder {
+        self.encryption = Some(encryption);
         self
     }
 
@@ -78,6 +91,11 @@ impl PartitionBuilder {
     /// at the target mount point.
     pub fn associate_keyfile(mut self, id: String) -> PartitionBuilder {
         self.key_id = Some(id);
+        self
+    }
+
+    pub fn subvolume(mut self, target: impl Into<String>, volume: impl Into<String>) -> Self {
+        self.subvolumes.insert(PathBuf::from(target.into()), volume.into());
         self
     }
 
@@ -89,25 +107,25 @@ impl PartitionBuilder {
             start_sector: self.start_sector,
             end_sector:   self.end_sector,
             part_type:    self.part_type,
-            filesystem:   if self.volume_group.is_some() {
-                if self.volume_group.as_ref().unwrap().1.is_some() {
-                    Some(FileSystem::Luks)
-                } else {
-                    Some(FileSystem::Lvm)
-                }
+            filesystem: if self.encryption.is_some() {
+                Some(FileSystem::Luks)
+            } else if self.lvm_vg.is_some() {
+                Some(FileSystem::Lvm)
             } else {
                 self.filesystem
             },
             flags:        self.flags,
             name:         self.name,
             device_path:  PathBuf::new(),
-            mount_point:  None,
+            mount_point:  Vec::new(),
             ordering:     -1,
             target:       self.mount,
             original_vg:  None,
-            volume_group: self.volume_group.clone(),
+            lvm_vg:       self.lvm_vg,
+            encryption:   self.encryption,
             key_id:       self.key_id,
             identifiers:  PartitionIdentifiers::default(),
+            subvolumes:   self.subvolumes
         }
     }
 }

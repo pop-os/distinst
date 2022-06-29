@@ -1,17 +1,17 @@
-
+use concat_in_place::strcat;
 use partition_identity::{PartitionID, PartitionSource};
-use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use disk_types::FileSystem;
+use std::borrow::Cow;
 
 /// Information that will be used to generate a fstab entry for the given
 /// partition.
 #[derive(Debug, PartialEq)]
 pub struct BlockInfo<'a> {
     pub uid:     PartitionID,
-    mount:       Option<PathBuf>,
+    pub mount:   Option<PathBuf>,
     pub fs:      &'static str,
-    pub options: &'a str,
+    pub options: Cow<'a, str>,
     pub dump:    bool,
     pub pass:    bool,
 }
@@ -28,21 +28,22 @@ impl<'a> BlockInfo<'a> {
             mount: if fs == FileSystem::Swap {
                 None
             } else {
-                Some(target.expect("unable to get block info due to lack of target").to_path_buf())
+                target.map(Path::to_path_buf)
             },
             fs: match fs {
                 FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
                 FileSystem::Swap => "swap",
                 _ => fs.into(),
             },
-            options,
+            options: Cow::Borrowed(options),
             dump: false,
             pass: false,
         }
     }
 
+    #[allow(unused_braces)]
     /// Writes a single line to the fstab buffer for this file system.
-    pub fn write_entry(&self, fstab: &mut OsString) {
+    pub fn write(&self, fstab: &mut String) {
         let mount_variant = match self.uid.variant {
             PartitionSource::ID => "ID=",
             PartitionSource::Label => "LABEL=",
@@ -52,26 +53,26 @@ impl<'a> BlockInfo<'a> {
             PartitionSource::UUID => "UUID=",
         };
 
-        fstab.push(mount_variant);
-        fstab.push(&self.uid.id);
-        fstab.push("  ");
-        fstab.push(self.mount());
-        fstab.push("  ");
-        fstab.push(&self.fs);
-        fstab.push("  ");
-        fstab.push(&self.options);
-        fstab.push("  ");
-        fstab.push(if self.dump { "1" } else { "0" });
-        fstab.push("  ");
-        fstab.push(if self.pass { "1" } else { "0" });
-        fstab.push("\n");
+        let id = &self.uid.id;
+        let mount = self.mount();
+
+        strcat!(
+            fstab,
+            mount_variant id
+            "  " mount
+            "  " self.fs
+            "  " {&self.options}
+            "  " if self.dump { "1" } else { "0" }
+            "  " if self.pass { "1" } else { "0" }
+            "\n"
+        );
     }
 
     /// Retrieve the mount point, which is `none` if non-existent.
-    pub fn mount(&self) -> &OsStr {
+    pub fn mount(&self) -> &str {
         self.mount
             .as_ref()
-            .map_or(OsStr::new("none"), |path| path.as_os_str())
+            .map_or("none", |path| path.as_os_str().to_str().unwrap())
     }
 
     /// Helper for fetching the Partition ID of a partition.
@@ -92,6 +93,7 @@ mod tests {
     use super::*;
     use std::ffi::OsStr;
 
+
     #[test]
     fn fstab_entries() {
         let swap_id = PartitionID { id: "SWAP".into(), variant: PartitionSource::UUID };
@@ -99,18 +101,18 @@ mod tests {
         let efi_id = PartitionID { id: "EFI".into(), variant: PartitionSource::PartUUID };
         let efi = BlockInfo::new(efi_id, FileSystem::Fat32, Some(Path::new("/boot/efi")), "defaults");
         let root_id = PartitionID { id: "ROOT".into(), variant: PartitionSource::UUID };
-        let root = BlockInfo::new(root_id, FileSystem::Ext4, Some(Path::new("/")), "defaults");
+        let root = BlockInfo::new(root_id, FileSystem::Btrfs, Some(Path::new("/")), "defaults");
 
-        let fstab = &mut OsString::new();
-        swap.write_entry(fstab);
-        efi.write_entry(fstab);
-        root.write_entry(fstab);
+        let fstab = &mut String::new();
+        swap.write(fstab);
+        efi.write(fstab);
+        root.write(fstab);
 
         assert_eq!(
             *fstab,
-            OsString::from(r#"UUID=SWAP  none  swap  sw  0  0
+            String::from(r#"UUID=SWAP  none  swap  sw  0  0
 PARTUUID=EFI  /boot/efi  vfat  defaults  0  0
-UUID=ROOT  /  ext4  defaults  0  0
+UUID=ROOT  /  btrfs  defaults  0  0
 "#)
         );
     }
@@ -131,7 +133,7 @@ UUID=ROOT  /  ext4  defaults  0  0
                 },
                 mount: None,
                 fs: "swap",
-                options: "sw",
+                options: Cow::Borrowed("sw"),
                 dump: false,
                 pass: false,
             }
@@ -155,7 +157,7 @@ UUID=ROOT  /  ext4  defaults  0  0
                 },
                 mount: Some(PathBuf::from("/boot/efi")),
                 fs: "vfat",
-                options: "defaults",
+                options: Cow::Borrowed("defaults"),
                 dump: false,
                 pass: false,
             }
@@ -179,7 +181,7 @@ UUID=ROOT  /  ext4  defaults  0  0
                 },
                 mount: Some(PathBuf::from("/")),
                 fs: FileSystem::Ext4.into(),
-                options: "defaults",
+                options: Cow::Borrowed("defaults"),
                 dump: false,
                 pass: false,
             }

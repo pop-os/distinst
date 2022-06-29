@@ -3,14 +3,14 @@ use libc;
 use std::{ffi::CString, io, os::unix::ffi::OsStrExt, path::PathBuf, ptr};
 
 use distinst::{
-    BlockDeviceExt, Bootloader, FileSystem, LvmEncryption, PartitionBuilder, PartitionExt,
+    BlockDeviceExt, Bootloader, FileSystem, LuksEncryption, PartitionBuilder, PartitionExt,
     PartitionFlag, PartitionInfo, PartitionTable, PartitionType,
 };
 use crate::filesystem::DISTINST_FILE_SYSTEM;
 use crate::gen_object_ptr;
 use crate::get_str;
 use crate::null_check;
-use crate::DistinstLvmEncryption;
+use crate::DistinstLuksEncryption;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -148,149 +148,6 @@ impl From<DISTINST_PARTITION_FLAG> for PartitionFlag {
 }
 
 #[repr(C)]
-pub struct DistinstPartitionBuilder;
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_partition_builder_new(
-    start_sector: u64,
-    end_sector: u64,
-    filesystem: DISTINST_FILE_SYSTEM,
-) -> *mut DistinstPartitionBuilder {
-    let filesystem: FileSystem = match filesystem.into() {
-        Some(filesystem) => filesystem,
-        None => {
-            error!("distinst_partition_builder_new: filesystem is NONE");
-            return ptr::null_mut();
-        }
-    };
-
-    gen_object_ptr(PartitionBuilder::new(start_sector, end_sector, filesystem))
-        as *mut DistinstPartitionBuilder
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_partition_builder_destroy(
-    builder: *mut DistinstPartitionBuilder,
-) {
-    if builder.is_null() {
-        error!("DistinstPartitionBuilder was to be destroyed even though it is null");
-    } else {
-        Box::from_raw(builder as *mut PartitionBuilder);
-    }
-}
-
-/// Converts a `DistinstPartitionBuilder` into a `PartitionBuilder`, executes a given action with
-/// that `PartitionBuilder`, then converts it back into a `DistinstPartitionBuilder`, returning the
-/// exit status of the function.
-unsafe fn builder_action<F: FnOnce(PartitionBuilder) -> PartitionBuilder>(
-    builder: *mut DistinstPartitionBuilder,
-    action: F,
-) -> *mut DistinstPartitionBuilder {
-    if null_check(builder).is_err() {
-        builder
-    } else {
-        gen_object_ptr(action(*Box::from_raw(builder as *mut PartitionBuilder)))
-            as *mut DistinstPartitionBuilder
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_partition_builder_name(
-    builder: *mut DistinstPartitionBuilder,
-    name: *const libc::c_char,
-) -> *mut DistinstPartitionBuilder {
-    match get_str(name) {
-        Ok(string) => builder_action(builder, move |builder| builder.name(string.into())),
-        Err(_) => builder,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_partition_builder_mount(
-    builder: *mut DistinstPartitionBuilder,
-    target: *const libc::c_char,
-) -> *mut DistinstPartitionBuilder {
-    match get_str(target) {
-        Ok(string) => {
-            builder_action(builder, move |builder| builder.mount(PathBuf::from(string.to_string())))
-        }
-        Err(_) => builder,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_partition_builder_associate_keyfile(
-    builder: *mut DistinstPartitionBuilder,
-    keyid: *const libc::c_char,
-) -> *mut DistinstPartitionBuilder {
-    match get_str(keyid) {
-        Ok(string) => {
-            builder_action(builder, move |builder| builder.associate_keyfile(string.into()))
-        }
-        Err(_) => builder,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_partition_builder_partition_type(
-    builder: *mut DistinstPartitionBuilder,
-    part_type: DISTINST_PARTITION_TYPE,
-) -> *mut DistinstPartitionBuilder {
-    builder_action(builder, |builder| builder.partition_type(part_type.into()))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_partition_builder_flag(
-    builder: *mut DistinstPartitionBuilder,
-    flag: DISTINST_PARTITION_FLAG,
-) -> *mut DistinstPartitionBuilder {
-    builder_action(builder, |builder| builder.flag(flag.into()))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn distinst_partition_builder_logical_volume(
-    builder: *mut DistinstPartitionBuilder,
-    group: *const libc::c_char,
-    encryption: *mut DistinstLvmEncryption,
-) -> *mut DistinstPartitionBuilder {
-    let group = match get_str(group) {
-        Ok(string) => string.to_string(),
-        Err(_) => return builder,
-    };
-
-    let encryption = if encryption.is_null() {
-        None
-    } else {
-        let pv = match get_str((*encryption).physical_volume) {
-            Ok(string) => string.to_string(),
-            Err(_) => return builder,
-        };
-
-        let password = if (*encryption).password.is_null() {
-            None
-        } else {
-            match get_str((*encryption).password) {
-                Ok(string) => Some(string.to_string()),
-                Err(_) => return builder,
-            }
-        };
-
-        let keydata = if (*encryption).keydata.is_null() {
-            None
-        } else {
-            match get_str((*encryption).keydata) {
-                Ok(string) => Some(string.to_string()),
-                Err(_) => return builder,
-            }
-        };
-
-        Some(LvmEncryption::new(pv, password, keydata))
-    };
-
-    builder_action(builder, |builder| builder.logical_volume(group, encryption))
-}
-
-#[repr(C)]
 pub struct DistinstPartition;
 
 #[no_mangle]
@@ -380,7 +237,7 @@ pub unsafe extern "C" fn distinst_partition_get_mount_point(
     }
 
     let part = &*(partition as *const PartitionInfo);
-    if let Some(ref mount) = part.mount_point {
+    if let Some(ref mount) = part.mount_point.get(0) {
         let mount = mount.as_os_str();
         *len = mount.len() as libc::c_int;
         return mount.as_bytes().as_ptr();

@@ -11,9 +11,8 @@ pub use self::{
 };
 
 use super::super::*;
-use disk_types::PartitionExt;
+use disk_types::{FileSystem, PartitionExt};
 
-use os_release::OS_RELEASE;
 use partition_identity::PartitionID;
 use std::path::PathBuf;
 
@@ -36,7 +35,6 @@ impl InstallOptions {
         let mut alongside_options = Vec::new();
 
         let recovery_option = detect_recovery();
-        let os_release = OS_RELEASE.as_ref().expect("OS_RELEASE fetch failed");
 
         {
             let erase_options = &mut erase_options;
@@ -44,7 +42,20 @@ impl InstallOptions {
 
             let mut check_partition = |part: &PartitionInfo| -> Option<OS> {
                 // We're only going to find Linux on a Linux-compatible file system.
-                if let Some(os) = part.probe_os() {
+                let inner_fs = match part.encryption.as_ref() {
+                    Some(encryption) => {
+                        Some(encryption.filesystem)
+                    },
+                    None => part.filesystem
+                };
+
+                let subvol = if let Some(FileSystem::Btrfs) = inner_fs {
+                    Some("@root")
+                } else {
+                    None
+                };
+
+                if let Some(os) = part.probe_os(subvol) {
                     info!(
                         "found OS on {:?}: {}",
                         part.get_device_path(),
@@ -56,14 +67,14 @@ impl InstallOptions {
                     );
 
                     // Only consider Linux installs for refreshing.
-                    if let OS::Linux { ref info, ref partitions, ref targets } = os {
-                        let home = targets.iter().position(|t| t == Path::new("/home"));
-                        let efi = targets.iter().position(|t| t == Path::new("/boot/efi"));
-                        let recovery = targets.iter().position(|t| t == Path::new("/recovery"));
+                    if let OS::Linux { ref info, ref partitions  } = os {
+                        let efi_part = partitions.iter().find(|t| t.dest == Path::new("/boot/efi")).cloned();
+
+                        let root = partitions.iter().find(|t| t.dest == Path::new("/")).cloned()?;
 
                         info!(
                             "found refresh option {}on {:?}",
-                            if efi.is_some() { "with EFI partition " } else { "" },
+                            if efi_part.is_some() { "with EFI partition " } else { "" },
                             part.get_device_path()
                         );
 
@@ -72,9 +83,10 @@ impl InstallOptions {
                             root_part:      PartitionID::get_uuid(part.get_device_path())
                                 .expect("root device did not have uuid")
                                 .id,
-                            home_part:      home.map(|pos| partitions[pos].clone()),
-                            efi_part:       efi.map(|pos| partitions[pos].clone()),
-                            recovery_part:  recovery.map(|pos| partitions[pos].clone()),
+                            root,
+                            home_part: partitions.iter().find(|t| t.dest == Path::new("/home")).cloned(),
+                            efi_part,
+                            recovery_part: partitions.iter().find(|t| t.dest == Path::new("/recovery")).cloned(),
                             can_retain_old: if let Ok(used) = part.sectors_used() {
                                 part.get_sectors() - used > required_space
                             } else {
@@ -90,19 +102,21 @@ impl InstallOptions {
             };
 
             for device in disks.get_physical_devices() {
-                if device.is_read_only() || device.contains_mount("/", &disks) {
+                if device.is_read_only() || device.contains_mount("/", disks) {
                     continue;
                 }
-                
+
                 eprintln!("device: {:?}", device.get_device_path());
 
                 let mut last_end_sector = 1024;
 
                 for part in device.get_partitions() {
+                    let os = check_partition(part);
+
                     if let Ok(used) = part.sectors_used() {
                         let sectors = part.get_sectors();
                         let free = sectors - used;
-                        let os = check_partition(part);
+
                         if required_space + shrink_overhead < free {
                             info!(
                                 "found shrinkable partition on {:?}: {} free of {}",
@@ -164,8 +178,8 @@ impl InstallOptions {
                 }
 
                 let skip = !Path::new("/cdrom/recovery.conf").exists()
-                    && (device.contains_mount("/", &disks)
-                        || device.contains_mount("/cdrom", &disks));
+                    && (device.contains_mount("/", disks)
+                        || device.contains_mount("/cdrom", disks));
 
                 if skip {
                     info!("install options: skipping options on {:?}", device.get_device_path());
@@ -179,7 +193,7 @@ impl InstallOptions {
                     model: {
                         let model = device.get_model();
                         if model.is_empty() {
-                            device.get_serial().replace("_", " ")
+                            device.get_serial().replace('_', " ")
                         } else {
                             model.into()
                         }

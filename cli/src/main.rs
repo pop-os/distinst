@@ -450,7 +450,8 @@ enum PartType {
     /// A normal partition with a standard file system
     Fs(Option<FileSystem>),
     /// A partition that is formatted with LVM, optionally with encryption.
-    Lvm(String, Option<LvmEncryption>),
+    Lvm(String, Option<LuksEncryption>),
+    Luks(LuksEncryption)
 }
 
 fn parse_key(
@@ -480,10 +481,22 @@ fn parse_key(
 }
 
 fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
-    if fs.starts_with("enc=") {
+    if let Some(fs) = fs.strip_prefix("luks=") {
         let (mut pass, mut keydata) = (None, None);
 
-        let mut fields = fs[4..].split(',');
+        let mut fields = fs.split(',');
+        let physical_volume =
+            fields.next().map(|pv| pv.into()).ok_or(DistinstError::NoPhysicalVolume)?;
+
+        for field in fields {
+            parse_key(field, &mut pass, &mut keydata)?;
+        }
+
+        Ok(PartType::Luks(LuksEncryption::new(physical_volume, pass, keydata, FileSystem::Btrfs)))
+    } else if let Some(fs) = fs.strip_prefix("enc=") {
+        let (mut pass, mut keydata) = (None, None);
+
+        let mut fields = fs.split(',');
         let physical_volume =
             fields.next().map(|pv| pv.into()).ok_or(DistinstError::NoPhysicalVolume)?;
 
@@ -498,7 +511,7 @@ fn parse_fs(fs: &str) -> Result<PartType, DistinstError> {
             if pass.is_none() && keydata.is_none() {
                 None
             } else {
-                Some(LvmEncryption::new(physical_volume, pass, keydata))
+                Some(LuksEncryption::new(physical_volume, pass, keydata, FileSystem::Btrfs))
             },
         ))
     } else if fs.starts_with("lvm=") {

@@ -8,7 +8,7 @@ categories = ["filesystem", "os"]
 edition = "2018"
 
 [dependencies]
-sys-mount = "1.2.1"
+sys-mount = "1.5.1"
 tempdir = "0.3.7"
 os-detect = { path = "../os-detect" }
 sysfs-class = "0.1.2"
