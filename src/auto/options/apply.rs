@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{fmt, fs::File, io::BufReader, mem};
 
 use super::{
@@ -235,23 +236,72 @@ fn upgrade_config(disks: &mut Disks, option: &RecoveryOption) -> Result<(), Inst
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
     info!("applying refresh install config");
-    set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_part.clone()), "/")?;
 
-    if let Some(ref home) = option.home_part {
-        set_mount_by_identity(disks, home, "/home")?;
+    use std::time::Instant;
+
+    let start = Instant::now();
+
+    // In the event of a failure to find a device to mount, rescan the disk for missing partitions.
+    loop {
+        let result = (|| {
+            set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_part.clone()), "/")?;
+
+            if let Some(ref home) = option.home_part {
+                set_mount_by_identity(disks, home, "/home")?;
+            }
+
+            if let Some(ref efi) = option.efi_part {
+                set_mount_by_identity(disks, efi, "/boot/efi")?;
+            } else if Bootloader::detect() == Bootloader::Efi {
+                return Err(InstallOptionError::RefreshWithoutEFI);
+            }
+
+            if let Some(ref recovery) = option.recovery_part {
+                mount_recovery_partid(disks, recovery)?;
+            }
+
+            Ok(())
+        })();
+
+        if result.is_ok() || Instant::now().duration_since(start) > Duration::from_secs(60) {
+            return result;
+        }
+
+        std::thread::sleep(Duration::from_secs(1));
+
+        for mut device in libparted::Device::devices(true) {
+            if let Some(name) = device.path().file_name().and_then(|x| x.to_str()) {
+                // Ignore CDROM devices
+                if name.starts_with("sr") || name.starts_with("scd") { continue }
+
+                use libparted::DeviceType;
+
+                match device.type_() {
+                    DeviceType::PED_DEVICE_UNKNOWN
+                    | DeviceType::PED_DEVICE_LOOP
+                    | DeviceType::PED_DEVICE_FILE
+                    | DeviceType::PED_DEVICE_DM => continue,
+                    _ => {
+                        if let Ok(disk) = Disk::new(&mut device, false) {
+                            if let Some(compared) = disks.find_disk_mut(&*disk.device_path) {
+                                'outer: for partition in disk.partitions {
+                                    for compared_partition in compared.get_partitions_mut() {
+                                        if compared_partition.device_path == partition.device_path {
+                                            compared_partition.identifiers = partition.identifiers;
+                                            continue 'outer
+                                        }
+                                    }
+
+                                    compared.partitions.push(partition);
+                                }
+
+                            }
+                        }
+                    },
+                }
+            }
+        }
     }
-
-    if let Some(ref efi) = option.efi_part {
-        set_mount_by_identity(disks, efi, "/boot/efi")?;
-    } else if Bootloader::detect() == Bootloader::Efi {
-        return Err(InstallOptionError::RefreshWithoutEFI);
-    }
-
-    if let Some(ref recovery) = option.recovery_part {
-        mount_recovery_partid(disks, recovery)?;
-    }
-
-    Ok(())
 }
 
 fn mount_recovery_partid(

@@ -119,18 +119,6 @@ impl Default for Installer {
 impl Installer {
     const CHROOT_ROOT: &'static str = "distinst";
 
-    /// Get a list of disks, skipping loopback devices
-    ///
-    /// ```ignore,rust
-    /// use distinst::Installer;
-    /// let installer = Installer::new();
-    /// let disks = installer.disks().unwrap();
-    /// ```
-    pub fn disks(&self) -> io::Result<Disks> {
-        info!("probing disks on system");
-        Disks::probe_devices().with_context(|err| format!("disk probing error: {}", err))
-    }
-
     /// The user will use this method to hand off installation tasks to distinst.
     ///
     /// The `disks` field contains all of the disks configuration information that will be
