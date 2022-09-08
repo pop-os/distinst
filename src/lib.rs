@@ -95,10 +95,10 @@ pub static PARTITIONING_TEST: AtomicBool = AtomicBool::new(false);
 /// Even if the system is EFI, the efivars directory will not be mounted in the chroot.
 pub static NO_EFI_VARIABLES: AtomicBool = AtomicBool::new(false);
 
-/// 500 MiB EFI partition
-pub const DEFAULT_ESP_SECTORS: u64 = 1_024_000;
+/// 1 GiB EFI partition in 512-byte sectors
+pub const DEFAULT_ESP_SECTORS: u64 = 2_097_152;
 
-/// 4096 MiB recovery partition
+/// 4 GiB recovery partition in 512-byte sectors
 pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
 
 pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
