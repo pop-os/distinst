@@ -42,7 +42,7 @@ impl<'a> ChrootConfigurator<'a> {
             "apt-get",
             &cascade! {
                 Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
-                ..extend_from_slice(&["install", "-q", "-y"]);
+                ..extend_from_slice(&["install", "-y"]);
                 ..extend_from_slice(APT_OPTIONS);
                 ..extend_from_slice(&packages);
             },
@@ -137,7 +137,7 @@ impl<'a> ChrootConfigurator<'a> {
                 "apt-get",
                 &cascade! {
                     Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
-                    ..extend_from_slice(&["install", "-q", "-y"]);
+                    ..extend_from_slice(&["install", "-y"]);
                     ..extend_from_slice(APT_OPTIONS);
                     ..extend(packages);
                 },
