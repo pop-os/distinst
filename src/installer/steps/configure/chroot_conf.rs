@@ -48,7 +48,6 @@ impl<'a> ChrootConfigurator<'a> {
             },
         );
 
-        command.stdout(Stdio::null());
         command.run()
     }
 
@@ -143,7 +142,6 @@ impl<'a> ChrootConfigurator<'a> {
                 },
             );
 
-            command.stdout(Stdio::null());
             command.run()
         } else {
             Ok(())

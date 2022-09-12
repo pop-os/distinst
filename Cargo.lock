@@ -448,7 +448,6 @@ dependencies = [
  "libc",
  "log",
  "sys-mount",
- "unicode-segmentation",
 ]
 
 [[package]]

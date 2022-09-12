@@ -1,14 +1,8 @@
-use libc;
 use std::{
     ffi::OsStr,
-    fs::File,
     io::{self, BufRead, BufReader, Error, ErrorKind, Write},
-    os::unix::io::{FromRawFd, IntoRawFd},
     process::{self, Child, ExitStatus, Stdio},
-    thread,
-    time::Duration,
 };
-use unicode_segmentation::UnicodeSegmentation;
 
 /// Convenient wrapper around `process::Command` to make it easier to work with.
 pub struct Command<'a> {
@@ -114,27 +108,40 @@ impl<'a> Command<'a> {
 
         self.stdin_redirect(&mut child)?;
 
-        let mut stdout_buffer = String::new();
-        let mut stdout = child.stdout.take().map(non_blocking).map(BufReader::new);
+        enum Message {
+            Stdout(String),
+            Stderr(String),
+        }
 
-        let mut stderr_buffer = String::new();
-        let mut stderr = child.stderr.take().map(non_blocking).map(BufReader::new);
+        let (tx, rx) = std::sync::mpsc::channel();
 
-        loop {
-            thread::sleep(Duration::from_millis(16));
-            match child.try_wait()? {
-                Some(status) => return status_as_result(status, &cmd),
-                None => {
-                    if let Some(ref mut stdout) = stdout {
-                        non_blocking_line_reading(stdout, &mut stdout_buffer, &info)?;
-                    }
-
-                    if let Some(ref mut stderr) = stderr {
-                        non_blocking_line_reading(stderr, &mut stderr_buffer, &error)?;
-                    }
+        if let Some(stdout) = child.stdout.take() {
+            let tx = tx.clone();
+            std::thread::spawn(move || {
+                let stdout = BufReader::new(stdout);
+                for line in stdout.lines().filter_map(Result::ok) {
+                    let _res = tx.send(Message::Stdout(line));
                 }
+            });
+        }
+
+        if let Some(stderr) = child.stderr.take() {
+            std::thread::spawn(move || {
+                let stderr = BufReader::new(stderr);
+                for line in stderr.lines().filter_map(Result::ok) {
+                    let _ = tx.send(Message::Stderr(line));
+                }
+            });
+        }
+
+        for message in rx {
+            match message {
+                Message::Stdout(line) => info(&line),
+                Message::Stderr(line) => error(&line),
             }
         }
+
+        child.wait().and_then(|status| status_as_result(status, &cmd))
     }
 }
 
@@ -149,42 +156,6 @@ fn status_as_result(status: ExitStatus, cmd: &str) -> io::Result<()> {
             format!("command failed with exit status: {}", status),
         ))
     }
-}
-
-fn non_blocking<F: IntoRawFd>(fd: F) -> File {
-    let fd = fd.into_raw_fd();
-    unsafe {
-        let flags = libc::fcntl(fd, libc::F_GETFL, 0);
-        libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
-        File::from_raw_fd(fd)
-    }
-}
-
-fn non_blocking_line_reading<B: BufRead, F: Fn(&str)>(
-    reader: &mut B,
-    buffer: &mut String,
-    callback: F,
-) -> io::Result<()> {
-    loop {
-        match reader.read_line(buffer) {
-            Ok(0) => break,
-            Ok(read) => {
-                let last_index = UnicodeSegmentation::grapheme_indices(&buffer[..], true)
-                    .last()
-                    .unwrap_or((read - 1, ""))
-                    .0;
-                callback(&buffer[..last_index]);
-                buffer.clear();
-            }
-            Err(ref why) if why.kind() == io::ErrorKind::WouldBlock => break,
-            Err(why) => {
-                buffer.clear();
-                return Err(why);
-            }
-        }
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
