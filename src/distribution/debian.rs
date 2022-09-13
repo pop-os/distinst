@@ -114,6 +114,16 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str
             "fwupd-signed",
             "linux-image-generic-hwe-20.04",
         ],
+        Bootloader::Efi if os_release.name == "Ubuntu" && os_release.version_id.starts_with("22.04") => &[
+            "efibootmgr",
+            "grub-common",
+            "grub-efi-amd64-bin",
+            "grub-efi-amd64-signed",
+            "shim-signed",
+            "mokutil",
+            "fwupd-signed",
+            "linux-image-generic",
+        ],
         Bootloader::Efi if os_release.name == "elementary OS" => &[
             "grub-efi-amd64",
             "grub-efi-amd64-signed",
