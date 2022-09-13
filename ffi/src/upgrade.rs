@@ -1,6 +1,6 @@
 use super::{DistinstDisks, DistinstRecoveryOption};
 use distinst::{self, auto::RecoveryOption, Disks, RecoveryEnv, UpgradeEvent};
-use libc;
+use libc::{self, c_void};
 use std::ptr;
 
 #[repr(C)]
@@ -111,19 +111,19 @@ impl From<UpgradeEvent<'_>> for DistinstUpgradeEvent {
 }
 
 pub type DistinstUpgradeEventCallback =
-    extern "C" fn(event: DistinstUpgradeEvent, user_data: *mut libc::c_void);
+    extern "C" fn(event: DistinstUpgradeEvent, user_data: *mut c_void);
 
 pub type DistinstUpgradeRepairCallback =
-    extern "C" fn(user_data: *mut libc::c_void) -> u8;
+    extern "C" fn(user_data: *mut c_void) -> u8;
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_upgrade(
     disks: *mut DistinstDisks,
     option: *const DistinstRecoveryOption,
     event_cb: DistinstUpgradeEventCallback,
-    user_data1: *mut libc::c_void,
+    user_data1: *mut c_void,
     repair_cb: DistinstUpgradeRepairCallback,
-    user_data2: *mut libc::c_void,
+    user_data2: *mut c_void,
 ) -> libc::c_int {
     let mut env = match RecoveryEnv::new() {
         Ok(env) => env,
@@ -137,7 +137,9 @@ pub unsafe extern "C" fn distinst_upgrade(
         &mut env,
         &mut *(disks as *mut Disks),
         &*(option as *const RecoveryOption),
-        move |event| event_cb(DistinstUpgradeEvent::from(event), user_data1),
+        move |event| {
+            event_cb(DistinstUpgradeEvent::from(event), user_data1)
+        },
         move || repair_cb(user_data2) != 0,
     );
 
