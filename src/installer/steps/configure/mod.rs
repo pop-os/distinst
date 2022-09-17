@@ -274,6 +274,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         let apt_install = chroot
             .cdrom_add()
             .and_then(|_| chroot.apt_install(&install_pkgs))
+            .and_then(|_| chroot.run_script(include_bytes!["../../../scripts/nvidia-drm.sh"]))
             .and_then(|_| chroot.install_drivers(config.flags & RUN_UBUNTU_DRIVERS != 0))
             .and_then(|_| chroot.cdrom_disable());
 
