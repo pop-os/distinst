@@ -67,6 +67,13 @@ impl<'a> ChrootConfigurator<'a> {
         self.chroot.command("apt-get", &["autoremove", "-y", "--purge"]).run()
     }
 
+    /// Takes a script path, and runs the script in the chroot environemnt.
+    pub fn run_script(&self, script: &[u8]) -> io::Result<()> {
+        self.chroot.command("/usr/bin/env", &["bash", "-c", format!("echo -e {} > chroot_script.sh", String::from_utf8_lossy(&script)).as_str()]).run()?;
+        self.chroot.command("sh", &["chroot_script.sh"]).run()?;
+        self.chroot.command("rm", &["chroot_script.sh"]).run()
+    }
+
     /// Configure the bootloader on the system.
     pub fn bootloader(&self) -> io::Result<()> {
         info!("configuring bootloader");
