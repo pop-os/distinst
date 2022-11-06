@@ -1,4 +1,3 @@
-
 use partition_identity::{PartitionID, PartitionSource};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -17,12 +16,7 @@ pub struct BlockInfo<'a> {
 }
 
 impl<'a> BlockInfo<'a> {
-    pub fn new(
-        uid: PartitionID,
-        fs: FileSystem,
-        target: Option<&Path>,
-        options: &'a str,
-    ) -> Self {
+    pub fn new(uid: PartitionID, fs: FileSystem, target: Option<&Path>, options: &'a str,) -> Self {
         BlockInfo {
             uid,
             mount: if fs == FileSystem::Swap {
@@ -37,7 +31,7 @@ impl<'a> BlockInfo<'a> {
             },
             options,
             dump: false,
-            pass: false,
+            pass: if PartitionID::id == "ROOT" { true } else { false },
         }
     }
 
@@ -110,7 +104,7 @@ mod tests {
             *fstab,
             OsString::from(r#"UUID=SWAP  none  swap  sw  0  0
 PARTUUID=EFI  /boot/efi  vfat  defaults  0  0
-UUID=ROOT  /  ext4  defaults  0  0
+UUID=ROOT  /  ext4  defaults  0  1
 "#)
         );
     }
