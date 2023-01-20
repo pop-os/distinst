@@ -23,6 +23,7 @@ impl<'a> BlockInfo<'a> {
         target: Option<&Path>,
         options: &'a str,
     ) -> Self {
+        let pass = target == Some(Path::new("/"));
         BlockInfo {
             uid,
             mount: if fs == FileSystem::Swap {
@@ -37,7 +38,7 @@ impl<'a> BlockInfo<'a> {
             },
             options,
             dump: false,
-            pass: false,
+            pass,
         }
     }
 
@@ -110,7 +111,7 @@ mod tests {
             *fstab,
             OsString::from(r#"UUID=SWAP  none  swap  sw  0  0
 PARTUUID=EFI  /boot/efi  vfat  defaults  0  0
-UUID=ROOT  /  ext4  defaults  0  0
+UUID=ROOT  /  ext4  defaults  0  1
 "#)
         );
     }
@@ -181,7 +182,7 @@ UUID=ROOT  /  ext4  defaults  0  0
                 fs: FileSystem::Ext4.into(),
                 options: "defaults",
                 dump: false,
-                pass: false,
+                pass: true,
             }
         );
         assert_eq!(root.mount(), OsStr::new("/"));
