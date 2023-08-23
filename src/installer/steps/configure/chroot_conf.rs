@@ -142,7 +142,15 @@ impl<'a> ChrootConfigurator<'a> {
                 },
             );
 
-            command.run()
+            let result = command.run();
+            match result {
+                Ok(()) => Ok(()),
+                // Don't fail the whole install if it wasn't possible to install drivers
+                Err(_) => {
+                    warn!("Unable to install optional drivers");
+                    Ok(())
+                }
+            }
         } else {
             Ok(())
         }
