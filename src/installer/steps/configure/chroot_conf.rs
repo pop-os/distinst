@@ -121,7 +121,7 @@ impl<'a> ChrootConfigurator<'a> {
         let mut packages = Vec::new();
         if install {
             info!("finding drivers for hardware");
-            let args: &[&str] = &["list"];
+            let args: &[&str] = &["list", "--recommended"];
             let output = self.chroot.command("ubuntu-drivers", args).run_with_stdout()?;
 
             for result in output.lines().map(|line| line.split(",").nth(0)) {
