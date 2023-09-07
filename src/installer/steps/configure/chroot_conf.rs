@@ -118,18 +118,13 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     pub fn install_drivers(&self, install: bool) -> io::Result<()> {
-        let mut packages = Vec::new();
         if install {
             info!("finding drivers for hardware");
             let args: &[&str] = &["list", "--recommended"];
             let output = self.chroot.command("ubuntu-drivers", args).run_with_stdout()?;
-
-            for result in output.lines().map(|line| line.split(",").nth(0)) {
-                match result {
-                    Some(package) => packages.push(package),
-                    None => continue,
-                }
-            }
+            // ubuntu-drivers returns packages separated by newlines and/or space characters.
+            // https://git.launchpad.net/ubuntu/+source/ubuntu-drivers-common/tree/ubuntu-drivers#n479
+            let packages: Vec<&str> = output.lines().flat_map(|line| line.split(" ")).collect();
 
             info!("installing drivers: {:?}", packages);
             let mut command = self.chroot.command(
