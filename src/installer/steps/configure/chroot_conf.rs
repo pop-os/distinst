@@ -124,7 +124,7 @@ impl<'a> ChrootConfigurator<'a> {
             let output = self.chroot.command("ubuntu-drivers", args).run_with_stdout()?;
             // ubuntu-drivers returns packages separated by newlines and/or space characters.
             // https://git.launchpad.net/ubuntu/+source/ubuntu-drivers-common/tree/ubuntu-drivers#n479
-            let packages: Vec<&str> = output.lines().flat_map(|line| line.split(" ")).collect();
+            let packages: Vec<&str> = output.lines().flat_map(|line| line.trim().split(" ")).collect();
 
             info!("installing drivers: {:?}", packages);
             let mut command = self.chroot.command(
