@@ -256,10 +256,10 @@ impl<'a> ChrootConfigurator<'a> {
         let mut file = misc::create(&hosts)?;
         writeln!(
             &mut file,
-            r#"127.0.0.1	localhost
-::1		localhost
-127.0.1.1	{0}.localdomain	{0}"#,
-            hostname
+            "# See `man hosts` for details.\n#
+# By default, systemd-resolved or libnss-myhostname will resolve
+# localhost and the system hostname if they're not specified here.
+127.0.0.1\tlocalhost\n::1\t\tlocalhost"
         )
         .with_context(|err| format!("failed to write hosts to {:?}: {}", hosts, err))
     }
