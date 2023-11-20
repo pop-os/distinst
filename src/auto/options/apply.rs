@@ -83,6 +83,8 @@ impl<'a> InstallOption<'a> {
     pub fn apply(self, disks: &mut Disks) -> Result<(), InstallOptionError> {
         disks.rescan_partition_uuids();
 
+        info!("applying configuration with {disks:#?}");
+
         match self {
             // Install alongside another OS, taking `sectors` from the largest free partition.
             InstallOption::Alongside { option, password, sectors } => {

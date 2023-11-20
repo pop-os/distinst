@@ -48,7 +48,7 @@ impl Disks {
                 if let Some(device_path) = part.identifiers.path.as_ref() {
                     part.identifiers.part_uuid = PartitionID::get_partuuid(&["/dev/disk/by-path/", device_path].concat()).map(|pid| pid.id);
                     if let Some(new_uuid) = part.identifiers.part_uuid.as_ref() {
-                        info!("found missing PartUUID for device ({device_path})");
+                        info!("found missing PartUUID ({new_uuid}) for device ({device_path})");
                     }
                 }
             }
