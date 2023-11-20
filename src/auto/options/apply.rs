@@ -22,17 +22,17 @@ pub enum InstallOption<'a> {
 impl<'a> fmt::Debug for InstallOption<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            InstallOption::Alongside { ref option, .. } => {
+            InstallOption::Alongside { option, .. } => {
                 write!(f, "InstallOption::Alongside {{ option: {:?}, .. }}", option)
             }
-            InstallOption::Refresh(ref option) => {
+            InstallOption::Refresh(option) => {
                 write!(f, "InstallOption::RefreshOption({:?})", option)
             }
-            InstallOption::Upgrade(ref option) => {
+            InstallOption::Upgrade(option) => {
                 write!(f, "InstallOption::UpgradeOption({:?})", option)
             }
             InstallOption::Recovery { .. } => write!(f, "InstallOption::RecoveryOption"),
-            InstallOption::Erase { ref option, .. } => {
+            InstallOption::Erase { option, .. } => {
                 write!(f, "InstallOption::EraseOption {{ option: {:?}, .. }}", option)
             }
         }
@@ -44,6 +44,7 @@ fn set_mount_by_identity(
     id: &PartitionID,
     mount: &str,
 ) -> Result<(), InstallOptionError> {
+    info!("setting mount for {mount} with {id}");
     disks
         .get_partition_by_id_mut(id)
         .ok_or_else(|| InstallOptionError::PartitionIDNotFound { id: id.clone() })
@@ -75,6 +76,10 @@ impl<'a> InstallOption<'a> {
     /// Applies a given installation option to the `disks` object.
     ///
     /// If the option is to erase and install, the `disks` object will be replaced with a new one.
+    ///
+    /// # Errors
+    ///
+    /// Produces error if a partition or configuration file cannot be found.
     pub fn apply(self, disks: &mut Disks) -> Result<(), InstallOptionError> {
         match self {
             // Install alongside another OS, taking `sectors` from the largest free partition.
@@ -235,6 +240,17 @@ fn upgrade_config(disks: &mut Disks, option: &RecoveryOption) -> Result<(), Inst
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
     info!("applying refresh install config");
+
+    // List block devices in case we need to debug a refresh install
+    info!("lsblk dump: {:?}", {
+        std::process::Command::new("lsblk")
+            .args(&["-o", "NAME,PARTUUID,MOUNTPOINTS"])
+            .output()
+            .map(|output| {
+                String::from_utf8(output.stdout)
+            })
+    });
+
     set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_part.clone()), "/")?;
 
     if let Some(ref home) = option.home_part {
