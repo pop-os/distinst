@@ -251,6 +251,8 @@ fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), Insta
             })
     });
 
+    info!("Cached disks: {:?}", disks);
+
     set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_part.clone()), "/")?;
 
     if let Some(ref home) = option.home_part {
