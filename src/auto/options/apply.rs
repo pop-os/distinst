@@ -81,6 +81,8 @@ impl<'a> InstallOption<'a> {
     ///
     /// Produces error if a partition or configuration file cannot be found.
     pub fn apply(self, disks: &mut Disks) -> Result<(), InstallOptionError> {
+        disks.rescan_partition_uuids();
+
         match self {
             // Install alongside another OS, taking `sectors` from the largest free partition.
             InstallOption::Alongside { option, password, sectors } => {
@@ -240,18 +242,6 @@ fn upgrade_config(disks: &mut Disks, option: &RecoveryOption) -> Result<(), Inst
 /// Apply a `refresh` config to `disks`.
 fn refresh_config(disks: &mut Disks, option: &RefreshOption) -> Result<(), InstallOptionError> {
     info!("applying refresh install config");
-
-    // List block devices in case we need to debug a refresh install
-    info!("lsblk dump: {:?}", {
-        std::process::Command::new("lsblk")
-            .args(&["-o", "NAME,PARTUUID,MOUNTPOINTS"])
-            .output()
-            .map(|output| {
-                String::from_utf8(output.stdout)
-            })
-    });
-
-    info!("Cached disks: {:?}", disks);
 
     set_mount_by_identity(disks, &PartitionID::new_uuid(option.root_part.clone()), "/")?;
 

@@ -73,7 +73,11 @@ impl InstallOptions {
                                 .expect("root device did not have uuid")
                                 .id,
                             home_part:      home.map(|pos| partitions[pos].clone()),
-                            efi_part:       efi.map(|pos| partitions[pos].clone()),
+                            efi_part:       {
+                                let efi_part = efi.map(|pos| partitions[pos].clone());
+                                info!("RefreshOption EFI Part: {:?}", efi_part);
+                                efi_part
+                            },
                             recovery_part:  recovery.map(|pos| partitions[pos].clone()),
                             can_retain_old: if let Ok(used) = part.sectors_used() {
                                 part.get_sectors() - used > required_space
@@ -93,7 +97,7 @@ impl InstallOptions {
                 if device.is_read_only() || device.contains_mount("/", &disks) {
                     continue;
                 }
-                
+
                 eprintln!("device: {:?}", device.get_device_path());
 
                 let mut last_end_sector = 1024;
