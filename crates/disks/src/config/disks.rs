@@ -468,6 +468,9 @@ impl Disks {
                 thread::sleep(Duration::from_millis(1000));
             }
 
+            // Wait to allow the opened block devices to settle.
+            std::thread::sleep(Duration::from_secs(3));
+
             match pvs().expect("pvs() failed in decrypt_partition").remove(pv) {
                 Some(Some(vg)) => {
                     // Set values in the device's partition.
