@@ -15,7 +15,7 @@ use crate::external::{
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
 use misc;
-use partition_identity::PartitionID;
+use partition_identity::{PartitionID, PartitionSource};
 use proc_mounts::{MountIter, MOUNTS, SWAPS};
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
 use std::{
@@ -41,9 +41,17 @@ impl Disks {
     /// Adds a disk to the disks configuration.
     pub fn add(&mut self, disk: Disk) { self.physical.push(disk); }
 
-    /// Fill in any missing PartUUIDs.
-    pub fn rescan_partition_uuids(&mut self) {
+    /// Fill in any missing IDs.
+    pub fn rescan_partition_ids(&mut self) {
         for part in self.get_partitions_mut() {
+            if part.identifiers.path.is_none() {
+                part.identifiers.path = PartitionID::get_source(PartitionSource::Path, part.get_device_path()).map(|pid| pid.id);
+            }
+
+            if part.identifiers.uuid.is_none() {
+                part.identifiers.uuid = PartitionID::get_uuid(part.get_device_path()).map(|pid| pid.id);
+            }
+
             if part.identifiers.part_uuid.is_none() {
                 part.identifiers.part_uuid = PartitionID::get_partuuid(part.get_device_path()).map(|pid| pid.id);
             }

@@ -81,7 +81,7 @@ impl<'a> InstallOption<'a> {
     ///
     /// Produces error if a partition or configuration file cannot be found.
     pub fn apply(self, disks: &mut Disks) -> Result<(), InstallOptionError> {
-        disks.rescan_partition_uuids();
+        disks.rescan_partition_ids();
 
         info!("applying configuration with {disks:#?}");
 
