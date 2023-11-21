@@ -45,12 +45,7 @@ impl Disks {
     pub fn rescan_partition_uuids(&mut self) {
         for part in self.get_partitions_mut() {
             if part.identifiers.part_uuid.is_none() {
-                if let Some(device_path) = part.identifiers.path.as_ref() {
-                    part.identifiers.part_uuid = PartitionID::get_partuuid(&["/dev/disk/by-path/", device_path].concat()).map(|pid| pid.id);
-                    if let Some(new_uuid) = part.identifiers.part_uuid.as_ref() {
-                        info!("found missing PartUUID ({new_uuid}) for device ({device_path})");
-                    }
-                }
+                part.identifiers.part_uuid = PartitionID::get_partuuid(part.get_device_path()).map(|pid| pid.id);
             }
         }
     }
