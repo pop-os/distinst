@@ -290,22 +290,32 @@ impl<'a> ChrootConfigurator<'a> {
     /// Set the keyboard layout so that the layout will function, even within the decryption screen.
     pub fn keyboard_layout(&self, config: &Config) -> io::Result<()> {
         info!("configuring keyboard layout");
-        // Ensure that localectl writes to the chroot, instead.
-        let _etc_mount =
-            Mount::new(&self.chroot.path.join("etc"), "/etc", "none", MountFlags::BIND, None)?
-                .into_unmount_drop(UnmountFlags::DETACH);
 
-        self.chroot
-            .command(
-                "localectl",
-                &[
-                    "set-x11-keymap",
-                    &config.keyboard_layout,
-                    config.keyboard_model.as_deref().unwrap_or(""),
-                    config.keyboard_variant.as_deref().unwrap_or(""),
-                ],
-            )
-            .run()?;
+        // This used to use localectl set-x11-keymap, but that doesn't work on some
+        // versions of Ubuntu/Debian.
+        //
+        // See https://bugs.launchpad.net/ubuntu/+source/cloud-init/+bug/2030788
+        //
+        // So, write the keyboard layout to /etc/default/keyboard in the chroot
+
+        let keyboard_file = self.chroot.path.join("etc/default/keyboard");
+        let mut file = misc::create(&keyboard_file)?;
+        writeln!(&mut file, "XKBLAYOUT={}\nBACKSPACE=guess", config.keyboard_layout)
+            .with_context(|err| {
+                format!("failed to write keyboard layout to /etc/default/keyboard: {}", err)
+            })?;
+
+        if let Some(model) = config.keyboard_model.as_deref() {
+            writeln!(&mut file, "XKBMODEL={}", model).with_context(|err| {
+                format!("failed to write keyboard layout to /etc/default/keyboard: {}", err)
+            })?;
+        }
+
+        if let Some(variant) = config.keyboard_variant.as_deref() {
+            writeln!(&mut file, "XKBVARIANT={}", variant).with_context(|err| {
+                format!("failed to write keyboard layout to /etc/default/keyboard: {}", err)
+            })?;
+        }
 
         self.chroot
             .command(
@@ -357,7 +367,6 @@ impl<'a> ChrootConfigurator<'a> {
 
     pub fn netresolve(&self) -> io::Result<()> {
         info!("creating /etc/resolv.conf");
-
 
         let resolvconf = "../run/systemd/resolve/stub-resolv.conf";
         self.chroot.command("ln", &["-sf", resolvconf, "/etc/resolv.conf"]).run()
