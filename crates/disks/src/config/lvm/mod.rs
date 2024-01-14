@@ -67,6 +67,10 @@ impl SectorExt for LogicalDevice {
     fn get_sectors(&self) -> u64 {
         self.sectors
     }
+
+    fn get_logical_block_size(&self) -> u64 {
+        self.sector_size
+    }
 }
 
 impl DiskExt for LogicalDevice {

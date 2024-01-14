@@ -108,7 +108,7 @@ pub fn device_map_exists(name: &str) -> bool {
     dmlist().ok().map_or(false, |list| list.contains(&name.into()))
 }
 
-/// Gets the minimum number of sectors required. The input should be in sectors, not bytes.
+/// Gets the minimum number of 512-byte sectors required. The input should be in sectors, not bytes.
 ///
 /// The number of sectors required is calculated through:
 ///
@@ -182,3 +182,8 @@ fn mount_efi(efi_id: &str, target_dir: &Path) -> anyhow::Result<UnmountDrop<Moun
         .context("failed to mount EFI partition")
         .map(|mount| mount.into_unmount_drop(UnmountFlags::DETACH))
 }
+
+fn sectors_normalize(base_count: u64, sector_size: u64) -> u64 {
+    base_count / (sector_size / 512)
+}
+

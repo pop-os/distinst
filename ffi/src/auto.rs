@@ -123,7 +123,7 @@ pub unsafe extern "C" fn distinst_alongside_option_get_sectors_free(
     let option = &*(option as *const AlongsideOption);
     match option.method {
         AlongsideMethod::Shrink { sectors_free, .. } => sectors_free,
-        AlongsideMethod::Free(ref region) => region.size(),
+        AlongsideMethod::Free(ref region, _) => region.size(),
     }
 }
 
@@ -134,7 +134,18 @@ pub unsafe extern "C" fn distinst_alongside_option_get_sectors_total(
     let option = &*(option as *const AlongsideOption);
     match option.method {
         AlongsideMethod::Shrink { sectors_total, .. } => sectors_total,
-        AlongsideMethod::Free(ref region) => region.size(),
+        AlongsideMethod::Free(ref region, _) => region.size(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_alongside_option_get_sector_size(
+    option: *const DistinstAlongsideOption,
+) -> libc::uint64_t {
+    let option = &*(option as *const AlongsideOption);
+    match option.method {
+        AlongsideMethod::Shrink { sector_size, .. } => sector_size,
+        AlongsideMethod::Free(_, size) => size
     }
 }
 
@@ -284,6 +295,18 @@ pub unsafe extern "C" fn distinst_erase_option_get_sectors(
 
     let option = &*(option as *const EraseOption);
     option.sectors
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn distinst_erase_option_get_sector_size(
+    option: *const DistinstEraseOption,
+) -> libc::uint64_t {
+    if null_check(option).is_err() {
+        return 0;
+    }
+
+    let option = &*(option as *const EraseOption);
+    option.sector_size
 }
 
 #[no_mangle]

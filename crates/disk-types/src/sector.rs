@@ -32,7 +32,7 @@ pub trait SectorExt: BlockDeviceExt {
         }
     }
 
-    /// The size of each logical sector, in bytes.
+    /// The size of each physical sector, in bytes.
     fn get_physical_block_size(&self) -> u64 {
         let path = self.sys_block_path().join("queue/physical_block_size");
         crate::utils::read_file::<u64>(&path).expect("physical block size not found")

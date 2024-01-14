@@ -148,6 +148,7 @@ namespace Distinst {
         public int get_partition ();
         public uint64 get_sectors_free ();
         public uint64 get_sectors_total ();
+        public uint64 get_sector_size ();
     }
 
     /**
@@ -184,6 +185,10 @@ namespace Distinst {
          * Gets the number of sectors that this option's device contains.
          */
         public uint64 get_sectors ();
+        /**
+         * Gets the size of sectors on this device.
+         */
+        public uint64 get_sector_size ();
     }
 
     /**
