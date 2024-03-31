@@ -106,25 +106,6 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.59.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bd2a9a458e8f4304c52c43ebb0cfbd520289f8379a52e329a38afda99bf8eb8"
-dependencies = [
- "bitflags 1.3.2",
- "cexpr",
- "clang-sys",
- "lazy_static",
- "lazycell",
- "peeking_take_while",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash",
- "shlex",
-]
-
-[[package]]
-name = "bindgen"
 version = "0.65.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfdf7b466f9a4903edc73f95d6d2bcd5baf8ae620638762244d3f60143643cc5"
@@ -419,7 +400,7 @@ dependencies = [
  "libparted",
  "log",
  "os-detect",
- "sys-mount 3.0.1",
+ "sys-mount",
  "sysfs-class",
  "tempdir",
 ]
@@ -463,7 +444,7 @@ dependencies = [
  "pbr",
  "proc-mounts",
  "rayon",
- "sys-mount 3.0.1",
+ "sys-mount",
  "systemd-boot-conf",
  "tempdir",
 ]
@@ -479,7 +460,7 @@ dependencies = [
  "cascade 1.0.1",
  "libc",
  "log",
- "sys-mount 3.0.1",
+ "sys-mount",
 ]
 
 [[package]]
@@ -494,7 +475,7 @@ dependencies = [
  "log",
  "rayon",
  "smart-default 0.6.0",
- "sys-mount 3.0.1",
+ "sys-mount",
  "tempdir",
 ]
 
@@ -522,7 +503,7 @@ dependencies = [
  "proc-mounts",
  "rand 0.7.3",
  "rayon",
- "sys-mount 3.0.1",
+ "sys-mount",
  "sysfs-class",
  "tempdir",
 ]
@@ -537,7 +518,7 @@ dependencies = [
  "proc-mounts",
  "rand 0.7.3",
  "smart-default 0.6.0",
- "sys-mount 3.0.1",
+ "sys-mount",
  "tempdir",
 ]
 
@@ -660,33 +641,12 @@ dependencies = [
 
 [[package]]
 name = "errno"
-version = "0.2.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f639046355ee4f37944e44f60642c6f3a7efa3cf6b78c78a0d989a8ce6c396a1"
-dependencies = [
- "errno-dragonfly",
- "libc",
- "winapi",
-]
-
-[[package]]
-name = "errno"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a258e46cdc063eb8519c00b9fc845fc47bcfca4130e2f08e88665ceda8474245"
 dependencies = [
  "libc",
  "windows-sys",
-]
-
-[[package]]
-name = "errno-dragonfly"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa68f1b12764fab894d2755d2518754e71b4fd80ecfb822714a1206c2aab39bf"
-dependencies = [
- "cc",
- "libc",
 ]
 
 [[package]]
@@ -1012,24 +972,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "loopdev"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bfa0855b04611e38acaff718542e9e809cddfc16535d39f9d9c694ab19f7388"
-dependencies = [
- "bindgen 0.59.2",
- "errno 0.2.8",
- "libc",
-]
-
-[[package]]
 name = "loopdev-3"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90a97d7a5124296ee9124a815acdc3dc4a91f577b72812b3f1f99bb959b46e8d"
 dependencies = [
  "bindgen 0.69.4",
- "errno 0.3.8",
+ "errno",
  "libc",
 ]
 
@@ -1101,7 +1050,7 @@ dependencies = [
  "log",
  "os-release",
  "partition-identity",
- "sys-mount 1.5.1",
+ "sys-mount",
  "tempdir",
 ]
 
@@ -1440,7 +1389,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65e04861e65f21776e67888bfbea442b3642beaa0138fdb1dd7a84a52dffdb89"
 dependencies = [
  "bitflags 2.5.0",
- "errno 0.3.8",
+ "errno",
  "libc",
  "linux-raw-sys",
  "windows-sys",
@@ -1591,20 +1540,6 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "unicode-xid",
-]
-
-[[package]]
-name = "sys-mount"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c1af10c09a6d1f65753e52772a4621e00da8b1d772d0f24595b60ccd36d6b51"
-dependencies = [
- "bitflags 1.3.2",
- "libc",
- "loopdev",
- "smart-default 0.6.0",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
