@@ -138,7 +138,7 @@ pub fn resize_partition<P: AsRef<Path>>(
         let (npath, _mount) = if options & (BTRFS | XFS) != 0 {
             let temp = TempDir::new("distinst")?;
             info!("temporarily mounting {} to {}", path.as_ref().display(), temp.path().display());
-            let mount = Mount::new(path.as_ref(), temp.path(), fs, MountFlags::empty(), None)?;
+            let mount = Mount::new(path.as_ref(), temp.path())?;
             let mount = mount.into_unmount_drop(UnmountFlags::DETACH);
             (temp.path().to_path_buf(), Some((mount, temp)))
         } else {

@@ -12,8 +12,8 @@ use std::{
     sync::atomic::Ordering,
 };
 
-use sys_mount::*;
 use crate::NO_EFI_VARIABLES;
+use sys_mount::*;
 
 /// Installation step
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -47,7 +47,10 @@ fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<Unmou
     if source.exists() {
         let _ = fs::create_dir_all(&target);
         Ok(Some(
-            Mount::new(source, &target, "none", MountFlags::BIND, None)?
+            Mount::builder()
+                .fstype("none")
+                .flags(MountFlags::BIND)
+                .mount(source, target)?
                 .into_unmount_drop(UnmountFlags::empty()),
         ))
     } else {

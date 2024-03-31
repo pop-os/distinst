@@ -1,7 +1,7 @@
 use crate::{
     device::BlockDeviceExt,
-    sector::SectorExt,
     fs::FileSystem::{self, *},
+    sector::SectorExt,
     usage::sectors_used,
 };
 use libparted::PartitionFlag;
@@ -49,10 +49,14 @@ pub trait PartitionExt: BlockDeviceExt + SectorExt {
     }
 
     /// True if this is a LUKS partition
-    fn is_luks(&self) -> bool { self.get_file_system().map_or(false, |fs| fs == FileSystem::Luks) }
+    fn is_luks(&self) -> bool {
+        self.get_file_system().map_or(false, |fs| fs == FileSystem::Luks)
+    }
 
     /// True if the partition is a swap partition.
-    fn is_swap(&self) -> bool { self.get_file_system().map_or(false, |fs| fs == FileSystem::Swap) }
+    fn is_swap(&self) -> bool {
+        self.get_file_system().map_or(false, |fs| fs == FileSystem::Swap)
+    }
 
     /// Mount the file system at a temporary directory, and allow the caller to scan it.
     fn probe<T, F>(&self, mut func: F) -> T
@@ -70,7 +74,7 @@ pub trait PartitionExt: BlockDeviceExt + SectorExt {
 
             // Mount the FS to the temporary directory
             let base = tempdir.path();
-            if let Ok(m) = Mount::new(self.get_device_path(), base, fs, MountFlags::empty(), None) {
+            if let Ok(m) = Mount::new(self.get_device_path(), base) {
                 return func(Some((base, m.into_unmount_drop(UnmountFlags::DETACH))));
             }
         }
@@ -137,44 +141,60 @@ mod tests {
 
     struct Fake {
         start_sector: u64,
-        end_sector:   u64,
-        filesystem:   Option<FileSystem>,
-        name:         Option<String>,
-        part_type:    PartitionType,
-        flags:        Vec<PartitionFlag>,
+        end_sector: u64,
+        filesystem: Option<FileSystem>,
+        name: Option<String>,
+        part_type: PartitionType,
+        flags: Vec<PartitionFlag>,
     }
 
     impl Default for Fake {
         fn default() -> Fake {
             Self {
                 start_sector: 0,
-                end_sector:   1,
-                filesystem:   None,
-                name:         None,
-                part_type:    PartitionType::Primary,
-                flags:        Vec::new(),
+                end_sector: 1,
+                filesystem: None,
+                name: None,
+                part_type: PartitionType::Primary,
+                flags: Vec::new(),
             }
         }
     }
 
     impl BlockDeviceExt for Fake {
-        fn get_device_name(&self) -> &str { "fictional" }
+        fn get_device_name(&self) -> &str {
+            "fictional"
+        }
 
-        fn get_device_path(&self) -> &Path { Path::new("/dev/fictional")  }
+        fn get_device_path(&self) -> &Path {
+            Path::new("/dev/fictional")
+        }
     }
 
     impl PartitionExt for Fake {
-        fn get_file_system(&self) -> Option<FileSystem> { self.filesystem }
+        fn get_file_system(&self) -> Option<FileSystem> {
+            self.filesystem
+        }
 
-        fn get_partition_flags(&self) -> &[PartitionFlag] { &self.flags }
+        fn get_partition_flags(&self) -> &[PartitionFlag] {
+            &self.flags
+        }
 
-        fn get_partition_label(&self) -> Option<&str> { self.name.as_ref().map(|s| s.as_str()) }
+        fn get_partition_label(&self) -> Option<&str> {
+            self.name.as_ref().map(|s| s.as_str())
+        }
 
-        fn get_partition_type(&self) -> PartitionType { self.part_type }
+        fn get_partition_type(&self) -> PartitionType {
+            self.part_type
+        }
 
-        fn get_sector_end(&self) -> u64 { self.end_sector }
+        fn get_sector_end(&self) -> u64 {
+            self.end_sector
+        }
 
-        fn get_sector_start(&self) -> u64 { self.start_sector }
+        fn get_sector_start(&self) -> u64 {
+            self.start_sector
+        }
     }
 
     #[test]

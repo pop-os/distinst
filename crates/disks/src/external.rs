@@ -1,6 +1,7 @@
 //! A collection of external commands used throughout the program.
 
 pub use crate::config::deactivate_devices;
+use crate::LvmEncryption;
 pub use external_::*;
 use misc;
 use proc_mounts::{MountList, SwapList};
@@ -12,7 +13,6 @@ use std::{
 };
 use sys_mount::*;
 use tempdir::TempDir;
-use crate::LvmEncryption;
 
 fn remove_encrypted_device(device: &Path) -> io::Result<()> {
     let mounts = MountList::new().expect("failed to get mounts in deactivate_device_maps");
@@ -84,7 +84,10 @@ pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> 
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             let supported = SupportedFilesystems::new()?;
-            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
+            let _mount = Mount::builder()
+                .fstype(&supported)
+                .flags(MountFlags::BIND)
+                .mount(&keydata.0, tmpfs.path())?
                 .into_unmount_drop(UnmountFlags::DETACH);
             let keypath = tmpfs.path().join(&enc.physical_volume);
 
@@ -127,7 +130,10 @@ pub fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             let supported = SupportedFilesystems::new()?;
-            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
+            let _mount = Mount::builder()
+                .fstype(&supported)
+                .flags(MountFlags::BIND)
+                .mount(&keydata.0, tmpfs.path())?
                 .into_unmount_drop(UnmountFlags::DETACH);
             let keypath = tmpfs.path().join(&enc.physical_volume);
             info!("keypath exists: {}", keypath.is_file());

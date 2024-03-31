@@ -47,7 +47,9 @@ pub enum ReinstallError {
 }
 
 impl From<io::Error> for ReinstallError {
-    fn from(why: io::Error) -> ReinstallError { ReinstallError::IO { why } }
+    fn from(why: io::Error) -> ReinstallError {
+        ReinstallError::IO { why }
+    }
 }
 
 fn mount_and_then<T, F>(device: &Path, fs: FileSystem, mut action: F) -> Result<T, ReinstallError>
@@ -62,8 +64,11 @@ where
     };
 
     TempDir::new("distinst").map_err(|why| ReinstallError::TempDir { why }).and_then(|tempdir| {
-        let base = tempdir.path();
-        Mount::new(device, base, fs, MountFlags::empty(), None)
+        let base = tempdir.path(); // (device, base, fs, MountFlags::empty(), None
+        Mount::builder()
+            .fstype(fs)
+            .flags(MountFlags::empty())
+            .mount(device, base)
             .map(|m| m.into_unmount_drop(UnmountFlags::DETACH))
             .map_err(|why| ReinstallError::PartitionMount { why })
             .and_then(|_mount| action(base))
