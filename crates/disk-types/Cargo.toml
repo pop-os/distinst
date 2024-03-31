@@ -1,14 +1,17 @@
 [package]
 name = "disk-types"
 version = "0.1.5"
-authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+authors = [
+    "Jeremy Soller <jackpot51@gmail.com>",
+    "Michael Aaron Murphy <mmstickman@gmail.com>",
+]
 description = "Common traits and types for handling block devices, partitions, file systems, etc."
-keywords =  ["disk", "partition"]
+keywords = ["disk", "partition"]
 categories = ["filesystem", "os"]
 edition = "2018"
 
 [dependencies]
-sys-mount = "1.2.1"
+sys-mount = "^3.0.1"
 tempdir = "0.3.7"
 os-detect = { path = "../os-detect" }
 sysfs-class = "0.1.2"

@@ -1,7 +1,10 @@
 [package]
 name = "distinst-external-commands"
 version = "0.1.0"
-authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
+authors = [
+    "Jeremy Soller <jackpot51@gmail.com>",
+    "Michael Aaron Murphy <mmstickman@gmail.com>",
+]
 description = "External commands used by distinst and its crates"
 repository = "https://github.com/pop-os/distinst"
 readme = "README.md"
@@ -16,5 +19,5 @@ log = "0.4.8"
 proc-mounts = "0.2.4"
 rand = "0.7"
 smart-default = "0.6.0"
-sys-mount = "1.2.1"
+sys-mount = "^3.0.1"
 tempdir = "0.3.7"
