@@ -208,7 +208,7 @@ impl LogicalDevice {
 
                 let device_path = match path.canonicalize() {
                     Ok(resolved) => resolved,
-                    Err(why) => {
+                    Err(_why) => {
                         eprintln!("LVM device path is not a symbolic link");
                         continue
                     }

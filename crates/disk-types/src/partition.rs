@@ -67,7 +67,7 @@ pub trait PartitionExt: BlockDeviceExt + SectorExt {
             self.get_file_system().and_then(|fs| TempDir::new("distinst").ok().map(|t| (fs, t)));
 
         if let Some((fs, tempdir)) = mount {
-            let fs = match fs {
+            let _fs = match fs {
                 FileSystem::Fat16 | FileSystem::Fat32 => "vfat",
                 fs => fs.into(),
             };

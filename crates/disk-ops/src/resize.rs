@@ -103,7 +103,7 @@ pub fn resize_partition<P: AsRef<Path>>(
     args: &[&str],
     size: &str,
     path: P,
-    fs: &str,
+    _fs: &str,
     options: u8,
 ) -> io::Result<()> {
     info!("resizing {} to {}", path.as_ref().display(), size);
