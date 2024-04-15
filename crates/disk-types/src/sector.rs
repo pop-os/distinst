@@ -134,13 +134,15 @@ mod tests {
 
     struct FictionalBlock(u64);
 
-    impl SectorExt for FictionalBlock {}
-
-    impl BlockDeviceExt for FictionalBlock {
-        fn get_device_name(&self) -> &str { "fictional" }
-        fn get_device_path(&self) -> &Path { Path::new("/dev/fictional")  }
+    impl SectorExt for FictionalBlock {
         fn get_sectors(&self) -> u64 { self.0 }
         fn get_logical_block_size(&self) -> u64 { 512 }
+    }
+
+    impl BlockDeviceExt for FictionalBlock {
+        fn get_device_name(&self) -> String { "fictional".to_string() }
+        fn get_device_path(&self) -> &Path { Path::new("/dev/fictional")  }
+
     }
 
     #[test]

@@ -162,13 +162,20 @@ mod tests {
     }
 
     impl BlockDeviceExt for Fake {
-        fn get_device_name(&self) -> &str {
-            "fictional"
+        fn get_device_name(&self) -> String {
+            "fictional".to_string()
         }
 
         fn get_device_path(&self) -> &Path {
             Path::new("/dev/fictional")
         }
+    }
+
+    impl SectorExt for Fake {
+        fn get_sectors(&self) -> u64 {
+            self.end_sector - self.start_sector
+        }
+        fn get_logical_block_size(&self) -> u64 { 512 }
     }
 
     impl PartitionExt for Fake {
