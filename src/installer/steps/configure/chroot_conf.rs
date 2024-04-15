@@ -7,9 +7,8 @@ use std::{
     fs,
     io::{self, Write},
     path::Path,
-    process::Stdio,
 };
-use sys_mount::*;
+
 use crate::timezones::Region;
 use crate::Config;
 
@@ -250,7 +249,7 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     /// Create a default hosts file for the new install.
-    pub fn hosts(&self, hostname: &str) -> io::Result<()> {
+    pub fn hosts(&self, _hostname: &str) -> io::Result<()> {
         info!("setting hosts file");
         let hosts = self.chroot.path.join("etc/hosts");
         let mut file = misc::create(&hosts)?;

@@ -11,7 +11,7 @@ fn list() -> Result<()> {
     let _ = disks.initialize_volume_groups();
 
     for disk in disks.get_physical_devices() {
-        let sector_size = disk.get_sector_size();
+        let sector_size = disk.get_physical_block_size();
         println!(
             "{}: {{ {}: {} MB ({} sectors) }}",
             disk.get_device_path().display(),
@@ -64,7 +64,7 @@ fn list() -> Result<()> {
     }
 
     for disk in disks.get_logical_devices() {
-        let sector_size = disk.get_sector_size();
+        let sector_size = disk.get_logical_block_size();
         println!(
             "{}: {{ {}: {} MB ({} sectors) }}",
             disk.get_device_path().display(),
