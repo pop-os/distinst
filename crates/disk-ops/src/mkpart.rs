@@ -65,7 +65,7 @@ where
 {
     // Create a new geometry from the start sector and length of the new partition.
     let length = partition.get_sector_end() - partition.get_sector_start();
-    let geometry = Geometry::new(&device, partition.get_sector_start() as i64, length as i64)
+    let geometry = Geometry::new(device, partition.get_sector_start() as i64, length as i64)
         .map_err(|why| io::Error::new(why.kind(), format!("failed to create geometry: {}", why)))?;
 
     // Convert our internal partition type enum into libparted's variant.

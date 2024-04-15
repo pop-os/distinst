@@ -52,7 +52,7 @@ impl LvmEncryption {
     /// Creates a physical volume
     pub fn create_physical_volume(&self) -> Result<(), DiskError> {
         let path = ["/dev/mapper/", &self.physical_volume].concat();
-        pvcreate(&path).map_err(|why| DiskError::PhysicalVolumeCreate {
+        pvcreate(path).map_err(|why| DiskError::PhysicalVolumeCreate {
             volume: self.physical_volume.clone(),
             why,
         })

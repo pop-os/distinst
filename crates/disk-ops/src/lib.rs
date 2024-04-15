@@ -41,7 +41,7 @@ impl BlockCoordinates {
     pub fn resize_to(&mut self, new_len: u64) {
         let offset = (self.end - self.start) as i64 - new_len as i64;
         if offset < 0 {
-            self.end += offset.abs() as u64;
+            self.end += offset.unsigned_abs();
         } else {
             self.end -= offset as u64;
         }

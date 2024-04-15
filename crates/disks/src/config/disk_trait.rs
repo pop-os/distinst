@@ -72,7 +72,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
                     return true;
                 }
 
-                partition.volume_group.as_ref().map_or(false, |&(ref vg, _)| {
+                partition.volume_group.as_ref().map_or(false, |(vg, _)| {
                     parent.get_logical_device(vg).map_or(false, |d| d.contains_mount(mount, parent))
                 })
             }) || check_sysfs()

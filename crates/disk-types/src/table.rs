@@ -58,7 +58,7 @@ mod tests {
     }
 
     impl BlockDeviceExt for FictionalBlock {
-        fn get_device_name(&self) -> &str { "fictional" }
+        fn get_device_name(&self) -> String { "fictional".to_string() }
 
         fn get_device_path(&self) -> &Path { Path::new("/dev/fictional")  }
 

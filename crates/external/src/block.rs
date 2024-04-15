@@ -49,7 +49,7 @@ pub fn blkid_partition<P: AsRef<Path>>(part: P) -> Option<FileSystem> {
         }
     }
 
-    return None
+    None
 }
 
 /// Checks & corrects errors with partitions that have been moved / resized.

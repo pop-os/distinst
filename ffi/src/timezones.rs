@@ -1,6 +1,6 @@
 use distinst::timezones::*;
 use crate::gen_object_ptr;
-use libc;
+
 use std::ptr;
 
 #[repr(C)]
@@ -12,7 +12,7 @@ pub unsafe extern "C" fn distinst_timezones_new() -> *mut DistinstTimezones {
         Ok(timezones) => gen_object_ptr(timezones) as *mut Timezones as *mut DistinstTimezones,
         Err(why) => {
             eprintln!("distinst: timezone error: {}", why);
-            return ptr::null_mut();
+            ptr::null_mut()
         }
     }
 }
@@ -26,7 +26,7 @@ pub unsafe extern "C" fn distinst_timezones_zones(
         return ptr::null_mut();
     }
     let boxed: Box<dyn Iterator<Item = &Zone>> =
-        Box::new((&*(tz as *const Timezones)).zones().into_iter());
+        Box::new((*(tz as *const Timezones)).zones().iter());
     gen_object_ptr(boxed) as *mut DistinstZones
 }
 
@@ -45,7 +45,7 @@ pub struct DistinstZones;
 #[no_mangle]
 pub unsafe extern "C" fn distinst_zones_next(tz: *mut DistinstZones) -> *const DistinstZone {
     let zones = &mut *(tz as *mut Box<dyn Iterator<Item = &Zone>>);
-    zones.next().map_or_else(|| ptr::null(), |zone| zone as *const Zone as *const DistinstZone)
+    zones.next().map_or_else(ptr::null, |zone| zone as *const Zone as *const DistinstZone)
 }
 
 #[no_mangle]
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn distinst_zones_nth(
     let zones = &mut *(tz as *mut Box<dyn Iterator<Item = &Zone>>);
     zones
         .nth(nth as usize)
-        .map_or_else(|| ptr::null(), |zone| zone as *const Zone as *const DistinstZone)
+        .map_or_else(ptr::null, |zone| zone as *const Zone as *const DistinstZone)
 }
 
 #[no_mangle]
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn distinst_zone_name(
         return ptr::null();
     }
 
-    let name = (&*(zone as *const Zone)).name().as_bytes();
+    let name = (*(zone as *const Zone)).name().as_bytes();
     *len = name.len() as libc::c_int;
     name.as_ptr()
 }
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn distinst_zone_regions(zone: *const DistinstZone) -> *mu
     }
 
     let boxed: Box<dyn Iterator<Item = &Region>> =
-        Box::new((&*(zone as *const Zone)).regions().into_iter());
+        Box::new((*(zone as *const Zone)).regions().iter());
     gen_object_ptr(boxed) as *mut DistinstRegions
 }
 
@@ -108,7 +108,7 @@ pub unsafe extern "C" fn distinst_regions_next(
     let regions = &mut *(regions as *mut Box<dyn Iterator<Item = &Region>>);
     regions
         .next()
-        .map_or_else(|| ptr::null(), |region| region as *const Region as *const DistinstRegion)
+        .map_or_else(ptr::null, |region| region as *const Region as *const DistinstRegion)
 }
 
 #[no_mangle]
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn distinst_regions_nth(
     let regions = &mut *(regions as *mut Box<dyn Iterator<Item = &Region>>);
     regions
         .nth(nth as usize)
-        .map_or_else(|| ptr::null(), |region| region as *const Region as *const DistinstRegion)
+        .map_or_else(ptr::null, |region| region as *const Region as *const DistinstRegion)
 }
 
 #[no_mangle]
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn distinst_region_name(
         return ptr::null();
     }
 
-    let name = (&*(region as *const Region)).name().as_bytes();
+    let name = (*(region as *const Region)).name().as_bytes();
     *len = name.len() as libc::c_int;
     name.as_ptr()
 }

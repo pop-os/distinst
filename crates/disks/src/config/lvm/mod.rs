@@ -102,7 +102,7 @@ impl LogicalDevice {
         sector_size: u64,
         is_source: bool,
     ) -> LogicalDevice {
-        let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group.replace("-", "--")));
+        let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group.replace('-', "--")));
         let mounts = MOUNTS.read().expect("unable to get mounts within LogicalDevice::new");
 
         eprintln!("Logical device of {} is {:?}", volume_group,device_path);
@@ -208,7 +208,7 @@ impl LogicalDevice {
 
                 let device_path = match path.canonicalize() {
                     Ok(resolved) => resolved,
-                    Err(why) => {
+                    Err(_why) => {
                         eprintln!("LVM device path is not a symbolic link");
                         continue
                     }

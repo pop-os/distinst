@@ -12,8 +12,8 @@ use std::{
     sync::atomic::Ordering,
 };
 
-use sys_mount::*;
 use crate::NO_EFI_VARIABLES;
+use sys_mount::*;
 
 /// Installation step
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -29,7 +29,7 @@ pub enum Step {
 fn mount_cdrom(mount_dir: &Path) -> io::Result<Option<(UnmountDrop<Mount>, PathBuf)>> {
     let cdrom_source = Path::new("/cdrom");
     let cdrom_target = mount_dir.join("cdrom");
-    mount_bind_if_exists(&cdrom_source, &cdrom_target).map(|res| res.map(|m| (m, cdrom_target)))
+    mount_bind_if_exists(cdrom_source, &cdrom_target).map(|res| res.map(|m| (m, cdrom_target)))
 }
 
 pub fn mount_efivars(mount_dir: &Path) -> io::Result<Option<UnmountDrop<Mount>>> {
@@ -39,15 +39,18 @@ pub fn mount_efivars(mount_dir: &Path) -> io::Result<Option<UnmountDrop<Mount>>>
     } else {
         let efivars_source = Path::new("/sys/firmware/efi/efivars");
         let efivars_target = mount_dir.join("sys/firmware/efi/efivars");
-        mount_bind_if_exists(&efivars_source, &efivars_target)
+        mount_bind_if_exists(efivars_source, &efivars_target)
     }
 }
 
 fn mount_bind_if_exists(source: &Path, target: &Path) -> io::Result<Option<UnmountDrop<Mount>>> {
     if source.exists() {
-        let _ = fs::create_dir_all(&target);
+        let _ = fs::create_dir_all(target);
         Ok(Some(
-            Mount::new(source, &target, "none", MountFlags::BIND, None)?
+            Mount::builder()
+                .fstype("none")
+                .flags(MountFlags::BIND)
+                .mount(source, target)?
                 .into_unmount_drop(UnmountFlags::empty()),
         ))
     } else {

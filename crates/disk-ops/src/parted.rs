@@ -47,7 +47,7 @@ pub fn open_disk<'a>(device: &'a mut Device) -> io::Result<PedDisk<'a>> {
                         why.kind(),
                         format!(
                             "failed to create new partition table on {:?}: {}",
-                            (&*device).path(),
+                            (*device).path(),
                             why
                         ),
                     )

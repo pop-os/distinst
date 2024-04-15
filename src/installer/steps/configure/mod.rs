@@ -9,11 +9,11 @@ use crate::errors::*;
 use crate::external::remount_rw;
 use crate::hardware_support;
 use crate::installer::traits::InstallerDiskOps;
-use libc;
+
 use crate::misc;
 use os_release::OsRelease;
 use partition_identity::PartitionID;
-use rayon;
+
 use std::{
     fs::{self, Permissions},
     io::{self, Write},
@@ -83,7 +83,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
     let install_pkgs = &mut cascade! {
         Vec::with_capacity(32);
-        ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release));
+        ..extend_from_slice(distribution::debian::get_bootloader_packages(iso_os_release));
     };
 
     callback(5);
@@ -126,7 +126,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             s.spawn(|_| c = generate_fstabs());
             s.spawn(|_| {
                 if config.flags & INSTALL_HARDWARE_SUPPORT != 0 {
-                    hardware_support::append_packages(install_pkgs, &iso_os_release);
+                    hardware_support::append_packages(install_pkgs, iso_os_release);
                 }
 
                 configure_graphics = hardware_support::switchable_graphics::configure_graphics(&mount_dir);
@@ -227,7 +227,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         let mut remove = remove_pkgs
             .iter()
             .map(AsRef::as_ref)
-            .filter(|pkg| !lang_packs.iter().any(|x| pkg == x) && !install_pkgs.contains(&pkg))
+            .filter(|pkg| !lang_packs.iter().any(|x| pkg == x) && !install_pkgs.contains(pkg))
             .collect::<Vec<&str>>();
 
         // Remove incompatible bootloader packages
@@ -260,7 +260,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             Ok(())
         };
 
-        let useradd = if let Some(ref user) = user {
+        let useradd = if let Some(user) = user {
             chroot.create_user(
                 &user.username,
                 user.password.as_deref(),
@@ -273,7 +273,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         let apt_install = chroot
             .cdrom_add()
-            .and_then(|_| chroot.apt_install(&install_pkgs))
+            .and_then(|_| chroot.apt_install(install_pkgs))
             .and_then(|_| chroot.install_drivers(config.flags & RUN_UBUNTU_DRIVERS != 0))
             .and_then(|_| chroot.cdrom_disable());
 
@@ -296,7 +296,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             config,
             &normalize_os_release_name(&iso_os_release.name),
             &root_uuid.id,
-            luks_uuid.as_ref().map_or("", |ref uuid| uuid.id.as_str()),
+            luks_uuid.as_ref().map_or("", |uuid| uuid.id.as_str()),
         );
 
         map_errors! {
@@ -331,7 +331,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         // Ensure that the cdrom binding is unmounted before the chroot.
         if let Some((cdrom_mount, cdrom_target)) = cdrom_mount {
             drop(cdrom_mount);
-            let _ = fs::remove_dir(&cdrom_target);
+            let _ = fs::remove_dir(cdrom_target);
         }
 
         drop(efivars_mount);
