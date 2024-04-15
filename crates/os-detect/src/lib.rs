@@ -54,7 +54,10 @@ pub fn detect_os_from_device<'a, F: Into<FilesystemType<'a>>>(device: &Path, fs:
     TempDir::new("distinst").ok().and_then(|tempdir| {
         // Mount the FS to the temporary directory
         let base = tempdir.path();
-        Mount::new(device, base, fs, MountFlags::empty(), None)
+        Mount::builder()
+            .flags(MountFlags::empty())
+            .fstype(fs)
+            .mount(device, base)
             .map(|m| m.into_unmount_drop(UnmountFlags::DETACH))
             .ok()
             .and_then(|_mount| detect_os_from_path(base))
