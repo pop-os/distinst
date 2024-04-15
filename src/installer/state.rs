@@ -1,5 +1,5 @@
 use super::{Error, Installer, Status, Step};
-use libc;
+
 use std::{io, sync::atomic::Ordering};
 use crate::KILL_SWITCH;
 
@@ -44,5 +44,5 @@ impl<'a> InstallerState<'a> {
 
     pub fn emit_status(&mut self, status: Status) { self.installer.emit_status(status); }
 
-    pub fn emit_error(&mut self, error: &Error) { self.installer.emit_error(&error); }
+    pub fn emit_error(&mut self, error: &Error) { self.installer.emit_error(error); }
 }

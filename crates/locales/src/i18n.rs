@@ -3,7 +3,7 @@
 //! associated with a language (if any exist at all).
 
 use super::get_main_country;
-use misc;
+
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     io::{self, BufRead, BufReader},
@@ -36,7 +36,7 @@ pub fn get_default(lang: &str) -> Option<String> {
                         format!("{}_{}.UTF-8", lang, country)
                     } else {
                         match codeset.first() {
-                            Some(&Some(ref codeset)) if codeset.dot => {
+                            Some(Some(codeset)) if codeset.dot => {
                                 format!("{}_{}.{}", lang, country, codeset.variant)
                             }
                             _ => format!("{}_{}", lang, country),
@@ -63,7 +63,7 @@ pub fn get_default(lang: &str) -> Option<String> {
             format!("{}.UTF-8", prefix)
         } else {
             match codeset.first() {
-                Some(&Some(ref codeset)) if codeset.dot => {
+                Some(Some(codeset)) if codeset.dot => {
                     format!("{}.{}", prefix, codeset.variant)
                 }
                 _ => prefix,
@@ -222,17 +222,17 @@ hak_TW UTF-8
         let mut lines = INPUT.lines();
 
         assert_eq!(
-            parse_entry(&lines.next().unwrap()),
+            parse_entry(lines.next().unwrap()),
             Some(LocaleEntry::new("gu".into(), Some("IN".into()), Some(("UTF-8".into(), false))))
         );
 
         assert_eq!(
-            parse_entry(&lines.next().unwrap()),
+            parse_entry(lines.next().unwrap()),
             Some(LocaleEntry::new("gv".into(), Some("GB".into()), Some(("UTF-8".into(), true))))
         );
 
         assert_eq!(
-            parse_entry(&lines.next().unwrap()),
+            parse_entry(lines.next().unwrap()),
             Some(LocaleEntry::new(
                 "gv".into(),
                 Some("GB".into()),
@@ -241,7 +241,7 @@ hak_TW UTF-8
         );
 
         assert_eq!(
-            parse_entry(&lines.next().unwrap()),
+            parse_entry(lines.next().unwrap()),
             Some(LocaleEntry::new("hak".into(), Some("TW".into()), Some(("UTF-8".into(), false))))
         );
     }

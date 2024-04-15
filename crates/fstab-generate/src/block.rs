@@ -58,9 +58,9 @@ impl<'a> BlockInfo<'a> {
         fstab.push("  ");
         fstab.push(self.mount());
         fstab.push("  ");
-        fstab.push(&self.fs);
+        fstab.push(self.fs);
         fstab.push("  ");
-        fstab.push(&self.options);
+        fstab.push(self.options);
         fstab.push("  ");
         fstab.push(if self.dump { "1" } else { "0" });
         fstab.push("  ");

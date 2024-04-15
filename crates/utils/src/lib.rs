@@ -199,6 +199,6 @@ pub fn sed<P: AsRef<Path>>(path: P, pattern: &str) -> io::Result<()> {
 
     match replace {
         Cow::Borrowed(_) => Ok(()),
-        Cow::Owned(text) => write(&path, &text),
+        Cow::Owned(text) => write(path, text),
     }
 }

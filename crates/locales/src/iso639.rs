@@ -31,7 +31,7 @@ impl Language {
     }
 
     pub fn from_alpha_2(alpha_2: &str) -> Option<&'static Self> {
-        Self::all().iter().find(|i| i.alpha_2.as_ref().map(String::as_str) == Some(alpha_2))
+        Self::all().iter().find(|i| i.alpha_2.as_deref() == Some(alpha_2))
     }
 
     pub fn from_alpha_3(alpha_3: &str) -> Option<&'static Self> {

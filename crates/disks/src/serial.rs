@@ -13,7 +13,7 @@ const PATTERN: &str = "E: ID_SERIAL=";
 pub fn get_serial(path: &Path) -> io::Result<String> {
     info!("obtaining serial model from {}", path.display());
     Command::new("udevadm")
-        .args(&["info", "--query=all", &format!("--name={}", path.display())])
+        .args(["info", "--query=all", &format!("--name={}", path.display())])
         .output()
         .and_then(|output| parse_serial(&output.stdout))
 }

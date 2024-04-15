@@ -28,27 +28,27 @@ impl<'a> Chroot<'a> {
         let dev_mount = Mount::builder()
             .fstype("none")
             .flags(MountFlags::BIND)
-            .mount("/dev", &path.join("dev"))?;
+            .mount("/dev", path.join("dev"))?;
 
         let pts_mount = Mount::builder()
             .fstype("none")
             .flags(MountFlags::BIND)
-            .mount("/dev/pts", &path.join("dev").join("pts"))?;
+            .mount("/dev/pts", path.join("dev").join("pts"))?;
 
         let proc_mount = Mount::builder()
             .fstype("none")
             .flags(MountFlags::BIND)
-            .mount("/proc", &path.join("proc"))?;
+            .mount("/proc", path.join("proc"))?;
 
         let run_mount = Mount::builder()
             .fstype("none")
             .flags(MountFlags::BIND)
-            .mount("/run", &path.join("run"))?;
+            .mount("/run", path.join("run"))?;
 
         let sys_mount = Mount::builder()
             .fstype("none")
             .flags(MountFlags::BIND)
-            .mount("/sys", &path.join("sys"))?;
+            .mount("/sys", path.join("sys"))?;
 
         Ok(Chroot {
             path,

@@ -90,7 +90,7 @@ impl InstallOptions {
             };
 
             for device in disks.get_physical_devices() {
-                if device.is_read_only() || device.contains_mount("/", &disks) {
+                if device.is_read_only() || device.contains_mount("/", disks) {
                     continue;
                 }
 
@@ -164,8 +164,8 @@ impl InstallOptions {
                 }
 
                 let skip = !Path::new("/cdrom/recovery.conf").exists()
-                    && (device.contains_mount("/", &disks)
-                        || device.contains_mount("/cdrom", &disks));
+                    && (device.contains_mount("/", disks)
+                        || device.contains_mount("/cdrom", disks));
 
                 if skip {
                     info!("install options: skipping options on {:?}", device.get_device_path());
@@ -179,7 +179,7 @@ impl InstallOptions {
                     model: {
                         let model = device.get_model();
                         if model.is_empty() {
-                            device.get_serial().replace("_", " ")
+                            device.get_serial().replace('_', " ")
                         } else {
                             model.into()
                         }

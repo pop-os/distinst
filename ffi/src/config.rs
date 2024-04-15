@@ -1,6 +1,6 @@
 use distinst::{Config, UserAccountCreate};
 use crate::get_str;
-use libc;
+
 use std::io;
 
 /// Installer configuration

@@ -195,7 +195,7 @@ impl Installer {
                     recovery_conf.as_mut(),
                     &disks,
                     mount_dir.path(),
-                    &config,
+                    config,
                     &iso_os_release,
                     timezone.as_ref(),
                     user.as_ref(),
@@ -209,7 +209,7 @@ impl Installer {
                     &disks,
                     mount_dir.path(),
                     bootloader,
-                    &config,
+                    config,
                     &iso_os_release,
                     percent!(steps),
                 )
@@ -413,7 +413,7 @@ impl Installer {
         info!("Extracting {}", squashfs.as_ref().display());
         let mount_dir = mount_dir.as_ref();
         squashfs::extract(squashfs, mount_dir, callback)?;
-        OsRelease::new_from(&mount_dir.join("etc/os-release")).with_context(|why| {
+        OsRelease::new_from(mount_dir.join("etc/os-release")).with_context(|why| {
             format!("failed to parse /etc/os-release from extracted image: {}", why)
         })
     }

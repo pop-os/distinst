@@ -188,7 +188,7 @@ mod tests {
         }
 
         fn get_partition_label(&self) -> Option<&str> {
-            self.name.as_ref().map(|s| s.as_str())
+            self.name.as_deref()
         }
 
         fn get_partition_type(&self) -> PartitionType {

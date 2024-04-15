@@ -183,7 +183,7 @@ fn main() {
     }
 
     {
-        let pb_opt = pb_opt.clone();
+        let pb_opt = pb_opt;
         let mut step_opt = None;
         installer.on_status(move |status| {
             if step_opt != Some(status.step) {

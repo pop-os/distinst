@@ -13,7 +13,7 @@ pub(crate) fn decrypt(disks: &mut Disks, decrypt: Option<Values>) -> Result<(), 
             let (device, pv) = (Path::new(values[0]), values[1].into());
 
             let (mut pass, mut keydata) = (None, None);
-            parse_key(&values[2], &mut pass, &mut keydata)?;
+            parse_key(values[2], &mut pass, &mut keydata)?;
 
             disks
                 .decrypt_partition(device, &LvmEncryption::new(pv, pass, keydata))

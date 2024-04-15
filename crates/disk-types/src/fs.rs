@@ -93,9 +93,9 @@ impl FromStr for FileSystem {
     }
 }
 
-impl Into<&'static str> for FileSystem {
-    fn into(self) -> &'static str {
-        match self {
+impl From<FileSystem> for &'static str {
+    fn from(val: FileSystem) -> Self {
+        match val {
             FileSystem::Btrfs => "btrfs",
             FileSystem::Exfat => "exfat",
             FileSystem::Ext2 => "ext2",

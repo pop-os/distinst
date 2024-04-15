@@ -148,7 +148,7 @@ fn parse_plist<R: BufRead>(file: R) -> Option<String> {
     let mut version: Option<String> = None;
     let mut flags = 0;
 
-    for entry in file.lines().flat_map(|line| line) {
+    for entry in file.lines().flatten() {
         let entry = entry.trim();
         match flags {
             0 => match entry {

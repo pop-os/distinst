@@ -43,7 +43,7 @@ impl<'a> ChrootConfigurator<'a> {
                 Vec::with_capacity(APT_OPTIONS.len() + packages.len() + 3);
                 ..extend_from_slice(&["install", "-y"]);
                 ..extend_from_slice(APT_OPTIONS);
-                ..extend_from_slice(&packages);
+                ..extend_from_slice(packages);
             },
         );
 
@@ -63,7 +63,7 @@ impl<'a> ChrootConfigurator<'a> {
                 },
             )
             .run()?;
-        self.chroot.command("apt-get", &["autoremove", "-y", "--purge"]).run()
+        self.chroot.command("apt-get", ["autoremove", "-y", "--purge"]).run()
     }
 
     /// Configure the bootloader on the system.
@@ -73,7 +73,7 @@ impl<'a> ChrootConfigurator<'a> {
             .chroot
             .command(
                 "kernelstub",
-                &[
+                [
                     "--esp-path",
                     "/boot/efi",
                     "--add-options",
@@ -123,7 +123,7 @@ impl<'a> ChrootConfigurator<'a> {
             let output = self.chroot.command("ubuntu-drivers", args).run_with_stdout()?;
             // ubuntu-drivers returns packages separated by newlines and/or space characters.
             // https://git.launchpad.net/ubuntu/+source/ubuntu-drivers-common/tree/ubuntu-drivers#n479
-            let packages: Vec<&str> = output.lines().flat_map(|line| line.trim().split(" ")).collect();
+            let packages: Vec<&str> = output.lines().flat_map(|line| line.trim().split(' ')).collect();
 
             info!("installing drivers: {:?}", packages);
             let mut command = self.chroot.command(
@@ -155,7 +155,7 @@ impl<'a> ChrootConfigurator<'a> {
         if Path::new("/cdrom").exists() {
             info!("disabling apt-cdrom from /etc/apt/sources.list");
             let path = self.chroot.path.join("etc/apt/sources.list");
-            misc::sed(&path, "s/deb cdrom:/# deb cdrom:/g")
+            misc::sed(path, "s/deb cdrom:/# deb cdrom:/g")
         } else {
             Ok(())
         }
@@ -180,7 +180,7 @@ impl<'a> ChrootConfigurator<'a> {
             let mut command = self.chroot.command("useradd", DEFAULT_USERADD_FLAGS);
 
             if let Some(name) = fullname {
-                command.args(&["-c", name]);
+                command.args(["-c", name]);
             }
 
             command.arg(user).run()?;
@@ -189,20 +189,20 @@ impl<'a> ChrootConfigurator<'a> {
         // Set the password for the newly-created user.
         if let Some(pass) = pass {
             let pass = &[pass, "\n", pass, "\n"].concat();
-            self.chroot.command("passwd", &[user]).stdin_input(pass).run()?;
+            self.chroot.command("passwd", [user]).stdin_input(pass).run()?;
         }
 
         // Copy the profile icon to `/var/lib/AccountsService/icons/{user}` and assign that in
         // the config file at `/var/lib/AccountsService/users/{user}`.
         if let Some(path) = profile_icon {
-            let mut dest = self.chroot.path.join(&["var/lib/AccountsService/icons/", user].concat());
+            let mut dest = self.chroot.path.join(["var/lib/AccountsService/icons/", user].concat());
 
-            if fs::copy(&path, &dest).is_err() {
+            if fs::copy(path, &dest).is_err() {
                 let _ = fs::remove_file(&dest);
                 return Ok(());
             }
 
-            dest = self.chroot.path.join(&["var/lib/AccountsService/users/", user].concat());
+            dest = self.chroot.path.join(["var/lib/AccountsService/users/", user].concat());
 
             if fs::write(&dest, fomat!(
                 "[User]\n"
@@ -228,15 +228,15 @@ impl<'a> ChrootConfigurator<'a> {
     /// Use locale-gen and update-locale to set the locale of the machine.
     pub fn generate_locale(&self, locale: &str) -> io::Result<()> {
         info!("generating locales via `locale-gen` and `update-locale`");
-        self.chroot.command("locale-gen", &["--purge", locale]).run()?;
-        self.chroot.command("update-locale", &["--reset", &["LANG=", locale].concat()]).run()
+        self.chroot.command("locale-gen", ["--purge", locale]).run()?;
+        self.chroot.command("update-locale", ["--reset", &["LANG=", locale].concat()]).run()
     }
 
     /// Generate a new machine ID for /var/lib/dbus/machine-id
     pub fn generate_machine_id(&self) -> io::Result<()> {
         info!("generating machine id via `dbus-uuidgen`");
-        self.chroot.command("sh", &["-c", "dbus-uuidgen > /etc/machine-id"]).run()?;
-        self.chroot.command("ln", &["-sf", "/etc/machine-id", "/var/lib/dbus/machine-id"]).run()
+        self.chroot.command("sh", ["-c", "dbus-uuidgen > /etc/machine-id"]).run()?;
+        self.chroot.command("ln", ["-sf", "/etc/machine-id", "/var/lib/dbus/machine-id"]).run()
     }
 
     /// Set the hostname of the new install.
@@ -266,22 +266,22 @@ impl<'a> ChrootConfigurator<'a> {
     pub fn initramfs_disable(&self) -> io::Result<()> {
         info!("symlinking update-initramfs to true for duration of initial setup");
 
-        self.chroot.command("sh", &["-c", "mv /usr/sbin/update-initramfs /usr/sbin/update-initramfs.bak"])
+        self.chroot.command("sh", ["-c", "mv /usr/sbin/update-initramfs /usr/sbin/update-initramfs.bak"])
             .run()
             .with_context(|err| format!("failed to migrate `update-initramfs`: {}", err))?;
 
-        self.chroot.command("sh", &["-c", "ln -s /usr/bin/true /usr/sbin/update-initramfs"])
+        self.chroot.command("sh", ["-c", "ln -s /usr/bin/true /usr/sbin/update-initramfs"])
             .run()
             .with_context(|err| format!("failed to link `true` to `update-initramfs`: {}", err))
     }
 
     pub fn initramfs_reenable(&self) -> io::Result<()> {
         info!("re-enabling update-initramfs");
-        self.chroot.command("sh", &["-c", "rm /usr/sbin/update-initramfs"])
+        self.chroot.command("sh", ["-c", "rm /usr/sbin/update-initramfs"])
             .run()
             .with_context(|err| format!("failed to remove update-initramfs symlink: {}", err))?;
 
-        self.chroot.command("sh", &["-c", "mv /usr/sbin/update-initramfs.bak /usr/sbin/update-initramfs"])
+        self.chroot.command("sh", ["-c", "mv /usr/sbin/update-initramfs.bak /usr/sbin/update-initramfs"])
             .run()
             .with_context(|err| format!("failed to restore backup of update-initramfs: {}", err))
     }
@@ -298,7 +298,7 @@ impl<'a> ChrootConfigurator<'a> {
         // So, write the keyboard layout to /etc/default/keyboard in the chroot
 
         let keyboard_file = self.chroot.path.join("etc/default/keyboard");
-        let mut file = misc::create(&keyboard_file)?;
+        let mut file = misc::create(keyboard_file)?;
         writeln!(&mut file, "XKBLAYOUT={}\nBACKSPACE=guess", config.keyboard_layout)
             .with_context(|err| {
                 format!("failed to write keyboard layout to /etc/default/keyboard: {}", err)
@@ -319,7 +319,7 @@ impl<'a> ChrootConfigurator<'a> {
         self.chroot
             .command(
                 "/usr/bin/env",
-                &[
+                [
                     "-i",
                     "SYSTEMCTL_SKIP_REDIRECT=_",
                     "openvt",
@@ -340,7 +340,7 @@ impl<'a> ChrootConfigurator<'a> {
         self.chroot
             .command(
                 "ln",
-                &[
+                [
                     "-s",
                     "/etc/console-setup/cached_UTF-8_del.kmap.gz",
                     "/etc/console-setup/cached.kmap.gz",
@@ -357,7 +357,7 @@ impl<'a> ChrootConfigurator<'a> {
         if cdrom_kernel.exists() && !chroot_kernel.exists() {
             info!("copying kernel from /cdrom");
             self.chroot
-                .command("sh", &["-c", "cp /cdrom/casper/vmlinuz \"$(realpath /vmlinuz)\""])
+                .command("sh", ["-c", "cp /cdrom/casper/vmlinuz \"$(realpath /vmlinuz)\""])
                 .run()
         } else {
             Ok(())
@@ -368,7 +368,7 @@ impl<'a> ChrootConfigurator<'a> {
         info!("creating /etc/resolv.conf");
 
         let resolvconf = "../run/systemd/resolve/stub-resolv.conf";
-        self.chroot.command("ln", &["-sf", resolvconf, "/etc/resolv.conf"]).run()
+        self.chroot.command("ln", ["-sf", resolvconf, "/etc/resolv.conf"]).run()
     }
 
     pub fn recovery(
@@ -420,7 +420,7 @@ impl<'a> ChrootConfigurator<'a> {
             .into_io_result(|| "/recovery does not have a UUID")?;
 
         let cdrom_uuid =
-            Command::new("findmnt").args(&["-n", "-o", "UUID", "/cdrom"]).run_with_stdout()?;
+            Command::new("findmnt").args(["-n", "-o", "UUID", "/cdrom"]).run_with_stdout()?;
         let cdrom_uuid = cdrom_uuid.trim();
 
         // If we are installing from the recovery partition, then we can skip this step.
@@ -455,12 +455,12 @@ impl<'a> ChrootConfigurator<'a> {
             self.chroot
                 .command(
                     "rsync",
-                    &["-KLavc", "--delete-before", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"],
+                    ["-KLavc", "--delete-before", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"],
                 )
                 .run()?;
 
             self.chroot
-                .command("rsync", &["-KLavc", casper_data, &["/recovery/", &casper].concat()])
+                .command("rsync", ["-KLavc", casper_data, &["/recovery/", &casper].concat()])
                 .run()?;
         }
 
@@ -490,7 +490,7 @@ OEM_MODE=0
 
         // Copy initrd and vmlinuz to EFI partition
         let recovery_path = self.chroot.path.join("recovery/recovery.conf");
-        let mut recovery_file = misc::create(&recovery_path)?;
+        let mut recovery_file = misc::create(recovery_path)?;
         recovery_file
             .write_all(recovery_data.as_bytes())
             .with_context(|err| format!("failed to write recovery file: {}", err))?;
@@ -502,8 +502,8 @@ OEM_MODE=0
         fs::create_dir_all(self.chroot.path.join(efi_recovery))
             .with_context(|err| format!("failed to create EFI recovery directories: {}", err))?;
 
-        misc::cp(&[casper_data, "initrd.gz"].concat(), &efi_initrd)?;
-        misc::cp(&[casper_data, "vmlinuz.efi"].concat(), &efi_vmlinuz)?;
+        misc::cp([casper_data, "initrd.gz"].concat(), efi_initrd)?;
+        misc::cp([casper_data, "vmlinuz.efi"].concat(), efi_vmlinuz)?;
 
         // If the NVIDIA DKMS driver is installed, force it to load in the recovery partition
         // This test must not use /proc or /sys for detection since the installer can run inside a
@@ -530,7 +530,7 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
         }
 
         let rec_entry_path = loader_entries.join([recovery.as_str(), ".conf"].concat());
-        let mut rec_entry_file = misc::create(&rec_entry_path)?;
+        let mut rec_entry_file = misc::create(rec_entry_path)?;
         rec_entry_file
             .write_all(rec_entry_data.as_bytes())
             .with_context(|err| format!("failed to write recovery EFI entry: {}", err))?;
@@ -538,7 +538,7 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
     }
 
     pub fn timezone(&self, region: &Region) -> io::Result<()> {
-        self.chroot.command("rm", &["/etc/timezone"]).run()?;
+        self.chroot.command("rm", ["/etc/timezone"]).run()?;
 
         let args: &[&str] = &[];
         self.chroot.command("ln", args).arg(region.path()).arg("/etc/timezone").run()
@@ -546,7 +546,7 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
 
     pub fn update_initramfs(&self) -> io::Result<()> {
         self.chroot
-            .command("update-initramfs", &["-u"])
+            .command("update-initramfs", ["-u"])
             .run()
             .with_context(|why| format!("failed to update initramfs: {}", why))
     }

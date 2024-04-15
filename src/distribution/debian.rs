@@ -14,13 +14,13 @@ pub fn check_language_support(lang: &str, chroot: &Chroot) -> io::Result<Option<
         Some(pos) => &lang[..pos],
         None => match lang.find('.') {
             Some(pos) => &lang[..pos],
-            None => &lang,
+            None => lang,
         },
     };
 
     // Attempt to run the check-language-support external command.
     let check_language_support = chroot
-        .command("check_language_support", &["-l", locale, "--show-installed"])
+        .command("check_language_support", ["-l", locale, "--show-installed"])
         .run_with_stdout();
 
     // If the command executed, get the standard output.
@@ -67,7 +67,7 @@ pub fn get_dependencies_from_list<P: AsRef<str>>(deps: &[P]) -> Option<Vec<Strin
 }
 
 fn get_dependencies_from_package<A: FnMut(&str), P: AsRef<str>>(dep: P, mut action: A) {
-    let output = Command::new("apt-cache").args(&["show", dep.as_ref()]).output().ok();
+    let output = Command::new("apt-cache").args(["show", dep.as_ref()]).output().ok();
 
     if let Some(output) = output {
         for line in io::Cursor::new(output.stdout).lines() {

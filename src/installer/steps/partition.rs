@@ -32,7 +32,7 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
 
             partitions_to_format.format()?;
 
-            disks.physical.iter_mut().map(|disk| disk.reload().map_err(io::Error::from)).collect()
+            disks.physical.iter_mut().try_for_each(|disk| disk.reload().map_err(io::Error::from))
         },
     );
 
@@ -46,14 +46,14 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
     let vgs = disks
         .get_physical_partitions()
         .filter_map(|part| match pvs.get(&part.device_path) {
-            Some(&Some(ref vg)) => Some(vg.clone()),
+            Some(Some(vg)) => Some(vg.clone()),
             _ => None,
         })
         .unique()
         .collect::<Vec<String>>();
 
     // Deactivate logical volumes so that blockdev will not fail.
-    vgs.iter().map(|vg| vgdeactivate(vg)).collect::<io::Result<()>>()?;
+    vgs.iter().try_for_each(|vg| vgdeactivate(vg))?;
 
     // Ensure that the logical volumes have had time to deactivate.
     sleep(Duration::from_secs(1));
@@ -62,7 +62,7 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
     // This is to ensure that everything's been written and the OS is ready to
     // proceed.
     disks.physical.par_iter().for_each(|disk| {
-        let _ = blockdev(&disk.path(), &["--flushbufs", "--rereadpt"]);
+        let _ = blockdev(disk.path(), ["--flushbufs", "--rereadpt"]);
     });
 
     // Give a bit of time to ensure that logical volumes can be re-activated.
@@ -70,7 +70,7 @@ pub fn partition<F: FnMut(i32)>(disks: &mut Disks, mut callback: F) -> io::Resul
     callback(75);
 
     // Reactivate the logical volumes.
-    vgs.iter().map(|vg| vgactivate(vg)).collect::<io::Result<()>>()?;
+    vgs.iter().try_for_each(|vg| vgactivate(vg))?;
 
     let res = disks
         .commit_logical_partitions()

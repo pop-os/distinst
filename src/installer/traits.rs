@@ -27,7 +27,7 @@ pub trait InstallerDiskOps: Sync {
 impl InstallerDiskOps for Disks {
     /// Generates the crypttab and fstab files in memory.
     fn generate_fstabs(&self) -> (OsString, OsString) {
-        let &Disks { ref logical, ref physical, .. } = self;
+        let Disks { logical, physical, .. } = self;
 
         info!("generating /etc/crypttab & /etc/fstab in memory");
         let mut crypttab = OsString::with_capacity(1024);
@@ -62,7 +62,7 @@ impl InstallerDiskOps for Disks {
                         (true, None) => Cow::Borrowed(OsStr::new("none")),
                         (false, None) => Cow::Borrowed(OsStr::new("/dev/urandom")),
                         (true, Some(_key)) => unimplemented!(),
-                        (false, Some(&(_, ref key))) => {
+                        (false, Some((_, key))) => {
                             let path = key
                                 .clone()
                                 .expect("should have been populated")
@@ -73,7 +73,7 @@ impl InstallerDiskOps for Disks {
                     };
 
                 let ppath = partition.get_device_path();
-                let luks_path = luks_parent.as_ref().map_or(ppath, |x| &x);
+                let luks_path = luks_parent.as_ref().map_or(ppath, |x| x);
 
                 for logical in logical {
                     if let Some(ref parent) = logical.luks_parent {
@@ -108,7 +108,7 @@ impl InstallerDiskOps for Disks {
                 }
             } else if partition.is_swap() {
                 if is_unencrypted {
-                    match PartitionID::get_uuid(&partition.get_device_path()) {
+                    match PartitionID::get_uuid(partition.get_device_path()) {
                         Some(uuid) => {
                             let unique_id = generate_unique_id("cryptswap", &swap_uuids)
                                 .unwrap_or_else(|_| "cryptswap".into());

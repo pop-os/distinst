@@ -180,7 +180,7 @@ fn mount_efi(efi_id: &str, target_dir: &Path) -> anyhow::Result<UnmountDrop<Moun
 
     Mount::builder()
         .fstype("vfat")
-        .mount(&efi_path, target_dir)
+        .mount(efi_path, target_dir)
         .context("failed to mount EFI partition")
         .map(|mount| mount.into_unmount_drop(UnmountFlags::DETACH))
 }

@@ -1,7 +1,7 @@
 use crate::chroot::Chroot;
 use crate::disks::{Bootloader, Disks};
 use crate::errors::IoContext;
-use libc;
+
 use os_release::OsRelease;
 use std::{
     ffi::{OsStr, OsString},
@@ -51,13 +51,13 @@ pub fn bootloader<F: FnMut(i32)>(
 
         // Also ensure that the /boot/efi directory is created.
         if bootloader == Bootloader::Efi && boot_opt.is_some() {
-            fs::create_dir_all(&efi_path)
+            fs::create_dir_all(efi_path)
                 .with_context(|err| format!("failed to create efi directory: {}", err))?;
         }
 
         {
             let mut chroot = Chroot::new(mount_dir)?;
-            let efivars_mount = mount_efivars(&mount_dir)?;
+            let efivars_mount = mount_efivars(mount_dir)?;
 
             match bootloader {
                 Bootloader::Bios => {
@@ -75,7 +75,7 @@ pub fn bootloader<F: FnMut(i32)>(
                         )
                         .run()?;
 
-                    chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
+                    chroot.command("update-initramfs", ["-c", "-k", "all"]).run()?;
                 }
                 Bootloader::Efi => {
                     // Grub disallows whitespaces in the name.
@@ -98,7 +98,7 @@ pub fn bootloader<F: FnMut(i32)>(
                         chroot
                             .command(
                                 "/usr/bin/env",
-                                &[
+                                [
                                     "bash",
                                     "-c",
                                     "echo GRUB_ENABLE_CRYPTODISK=y >> /etc/default/grub",
@@ -109,7 +109,7 @@ pub fn bootloader<F: FnMut(i32)>(
                         chroot
                             .command(
                                 "grub-install",
-                                &[
+                                [
                                     "--target=x86_64-efi",
                                     "--efi-directory=/boot/efi",
                                     &format!("--boot-directory=/boot/efi/EFI/{}", name),
@@ -123,12 +123,12 @@ pub fn bootloader<F: FnMut(i32)>(
                         chroot
                             .command(
                                 "grub-mkconfig",
-                                &["-o", &format!("/boot/efi/EFI/{}/grub/grub.cfg", name)],
+                                ["-o", &format!("/boot/efi/EFI/{}/grub/grub.cfg", name)],
                             )
                             .run()?;
                     }
 
-                    chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
+                    chroot.command("update-initramfs", ["-c", "-k", "all"]).run()?;
 
                     if config.flags & MODIFY_BOOT_ORDER != 0 {
                         let efi_part_num = efi_part_num.to_string();

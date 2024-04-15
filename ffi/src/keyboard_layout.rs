@@ -1,6 +1,6 @@
 use super::null_check;
 use distinst::locale::{self, KeyboardLayout, KeyboardLayouts, KeyboardVariant};
-use libc;
+
 use std::ptr;
 
 #[repr(C)]

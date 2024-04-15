@@ -63,15 +63,15 @@ impl AccountFiles {
         }
 
         user_fields.and_then(|(user, group_id, home, passwd)| {
-            let user_string = String::from_utf8_lossy(&user);
+            let user_string = String::from_utf8_lossy(user);
             info!(
                 "found user '{}' from home path at {}",
                 user_string,
                 String::from_utf8_lossy(home)
             );
 
-            let user: &[u8] = &user;
-            let group = self.group.iter().find(|&(_, value)| group_has_id(&value, group_id)).map(
+            let user: &[u8] = user;
+            let group = self.group.iter().find(|&(_, value)| group_has_id(value, group_id)).map(
                 |(group, value)| {
                     info!(
                         "found group '{}' associated with '{}'",
@@ -85,7 +85,7 @@ impl AccountFiles {
             let secondary_groups = self
                 .group
                 .iter()
-                .filter(|&(_, value)| group_has_user(&value, user))
+                .filter(|&(_, value)| group_has_user(value, user))
                 .inspect(|&(group, _)| {
                     info!(
                         "{} has a secondary group: '{}'",

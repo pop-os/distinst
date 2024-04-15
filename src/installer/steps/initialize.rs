@@ -1,6 +1,6 @@
 use crate::disks::*;
 use crate::misc;
-use rayon;
+
 use std::{
     io::{self, BufRead},
     path::{Path, PathBuf},
@@ -107,8 +107,7 @@ pub fn initialize<F: FnMut(i32)>(
         .physical
         .iter_mut()
         .zip(unmount.into_iter())
-        .filter(|&(_, unmount)| unmount)
-        .map(|(disk, _)| {
+        .filter(|&(_, unmount)| unmount).try_for_each(|(disk, _)| {
             if let Err(why) = disk.unmount_all_partitions_with_target() {
                 error!("unable to unmount partitions");
                 return Err(io::Error::new(
@@ -118,8 +117,7 @@ pub fn initialize<F: FnMut(i32)>(
             }
 
             Ok(())
-        })
-        .collect::<io::Result<()>>()?;
+        })?;
 
     callback(100);
 

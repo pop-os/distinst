@@ -1,4 +1,4 @@
-use libc;
+
 
 use std::{
     ffi::{CStr, CString, OsStr},
@@ -113,7 +113,7 @@ pub unsafe extern "C" fn distinst_disk_get_partition(
     }
 
     let disk = &mut *(disk as *mut Disk);
-    disk.get_partition_mut(partition as i32).as_mut_ptr() as *mut DistinstPartition
+    disk.get_partition_mut(partition).as_mut_ptr() as *mut DistinstPartition
 }
 
 #[no_mangle]
@@ -148,7 +148,7 @@ pub unsafe extern "C" fn distinst_disk_contains_mount(
     get_str(mount).ok().map_or(false, |mount| {
         let disk = &mut *(disk as *mut Disk);
         let disks = &*(disks as *const Disks);
-        disk.contains_mount(mount, &*disks)
+        disk.contains_mount(mount, disks)
     })
 }
 
@@ -227,9 +227,7 @@ pub unsafe extern "C" fn distinst_disk_get_sectors(disk: *const DistinstDisk) ->
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn distinst_disk_get_sector_size(
-    disk: *const DistinstDisk,
-) -> u64 {
+pub unsafe extern "C" fn distinst_disk_get_sector_size(disk: *const DistinstDisk) -> u64 {
     if null_check(disk).is_err() {
         return 0;
     }
@@ -418,7 +416,7 @@ pub struct DistinstDisks;
 /// On error, a null pointer will be returned.
 #[no_mangle]
 pub unsafe extern "C" fn distinst_disks_new() -> *mut DistinstDisks {
-    Box::into_raw(Box::new(Disks::default())) as *mut DistinstDisks
+    Box::<Disks>::into_raw(Box::default()) as *mut DistinstDisks
 }
 
 /// A destructor for a `DistinstDisks`
@@ -427,7 +425,7 @@ pub unsafe extern "C" fn distinst_disks_destroy(disks: *mut DistinstDisks) {
     if disks.is_null() {
         error!("DistisntDisks was to be destroyed even though it is null");
     } else {
-        Box::from_raw(disks as *mut Disks);
+        let _ = Box::from_raw(disks as *mut Disks);
     }
 }
 
@@ -483,7 +481,7 @@ pub unsafe extern "C" fn distinst_disks_get_disk_with_mount(
         }
     };
 
-    disks.get_disk_with_mount_mut(&target).as_mut_ptr() as *mut DistinstDisk
+    disks.get_disk_with_mount_mut(target).as_mut_ptr() as *mut DistinstDisk
 }
 
 #[no_mangle]
@@ -671,7 +669,7 @@ pub unsafe extern "C" fn distinst_disks_decrypt_partition(
             } else {
                 let enc = LvmEncryption::new(pv.into(), password, keydata);
                 let disks = &mut *(disks as *mut Disks);
-                match disks.decrypt_partition(&Path::new(path), &enc) {
+                match disks.decrypt_partition(Path::new(path), &enc) {
                     Ok(_) => 0,
                     Err(why) => {
                         error!("decryption error: {}", why);

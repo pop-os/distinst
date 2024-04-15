@@ -1,6 +1,6 @@
 use super::null_check;
 use distinst::os_release::{OsRelease, OS_RELEASE};
-use libc;
+
 use std::{ffi::CString, mem::forget, ptr};
 
 macro_rules! get_os_release {

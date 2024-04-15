@@ -4,7 +4,7 @@ use distinst::{
 };
 use external::luks::deactivate_logical_devices;
 use crate::ffi::AsMutPtr;
-use libc;
+
 
 use super::{
     get_str, null_check, DistinstDisks, DistinstPartition, DistinstPartitionBuilder, DistinstSector,
@@ -31,7 +31,7 @@ pub unsafe extern "C" fn distinst_disks_initialize_volume_groups(
         return -1;
     }
 
-    match (&mut *(disks as *mut Disks)).initialize_volume_groups() {
+    match (*(disks as *mut Disks)).initialize_volume_groups() {
         Ok(_) => 0,
         Err(why) => {
             error!("unable to initialize volumes: {}", why);
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn distinst_lvm_device_last_used_sector(
         return 0;
     }
 
-    (&*(device as *const LogicalDevice)).get_partitions().iter().last().map_or(0, |p| p.end_sector)
+    (*(device as *const LogicalDevice)).get_partitions().iter().last().map_or(0, |p| p.end_sector)
 }
 
 #[no_mangle]
@@ -176,7 +176,7 @@ pub unsafe extern "C" fn distinst_lvm_device_get_sector(
         return 0;
     }
 
-    (&*(device as *const LogicalDevice)).get_sector(Sector::from(*sector))
+    (*(device as *const LogicalDevice)).get_sector(Sector::from(*sector))
 }
 
 #[no_mangle]
@@ -290,7 +290,7 @@ pub unsafe extern "C" fn distinst_lvm_device_contains_mount(
     get_str(mount).ok().map_or(false, |mount| {
         let device = &mut *(device as *mut LogicalDevice);
         let disks = &*(disks as *const Disks);
-        device.contains_mount(mount, &*disks)
+        device.contains_mount(mount, disks)
     })
 }
 

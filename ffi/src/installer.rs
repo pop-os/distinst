@@ -1,4 +1,4 @@
-use libc;
+
 
 use std::{io, mem};
 
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn distinst_installer_set_timezone_callback(
     user_data: *mut libc::c_void,
 ) {
     (*(installer as *mut Installer))
-        .set_timezone_callback(move || (&*(callback(user_data) as *const Region)).clone());
+        .set_timezone_callback(move || (*(callback(user_data) as *const Region)).clone());
 }
 
 #[no_mangle]

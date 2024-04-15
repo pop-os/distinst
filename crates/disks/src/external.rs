@@ -36,9 +36,9 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
     let to_deactivate = physical_volumes_to_deactivate(&[device]);
 
     for pv in &to_deactivate {
-        let dev = CloseBy::Path(&pv);
+        let dev = CloseBy::Path(pv);
         match volume_map.get(pv) {
-            Some(&Some(ref vg)) => umount(vg).and_then(|_| {
+            Some(Some(vg)) => umount(vg).and_then(|_| {
                 info!("removing pre-existing LUKS + LVM volumes on {:?}", device);
                 vgdeactivate(vg)
                     .and_then(|_| vgremove(vg))
@@ -50,7 +50,7 @@ fn remove_encrypted_device(device: &Path) -> io::Result<()> {
         }
     }
 
-    if let Some(ref vg) = volume_map.get(device).and_then(|x| x.as_ref()) {
+    if let Some(vg) = volume_map.get(device).and_then(|x| x.as_ref()) {
         info!("removing pre-existing LVM volumes on {:?}", device);
         umount(vg).and_then(|_| vgremove(vg))?
     }
@@ -80,7 +80,7 @@ pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> 
                 device.into(),
             ],
         ),
-        (None, Some(&(_, ref keydata))) => {
+        (None, Some((_, keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             let supported = SupportedFilesystems::new()?;
@@ -126,7 +126,7 @@ pub fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
             None,
             &["open".into(), device.into(), pv.into()],
         ),
-        (None, Some(&(_, ref keydata))) => {
+        (None, Some((_, keydata))) => {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             let supported = SupportedFilesystems::new()?;

@@ -14,7 +14,7 @@ use crate::external::{
 };
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
-use misc;
+
 use partition_identity::{PartitionID, PartitionSource};
 use proc_mounts::{MountIter, MOUNTS, SWAPS};
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
@@ -370,7 +370,7 @@ impl Disks {
     /// Find the disk which contains the given mount.
     pub fn get_disk_with_mount<P: AsRef<Path>>(&self, target: P) -> Option<&Disk> {
         let device_path = find_device_path_of_mount(target).ok()?;
-        self.get_physical_device_with_partition(&device_path)
+        self.get_physical_device_with_partition(device_path)
     }
 
     /// Find the disk, mutably, which contains the given mount.
@@ -424,9 +424,9 @@ impl Disks {
         // Handle LVM on LUKS
         pvs.par_iter()
             .map(|pv| {
-                let dev = CloseBy::Path(&pv);
+                let dev = CloseBy::Path(pv);
                 match volume_map.get(pv) {
-                    Some(&Some(ref vg)) => umount(vg).and_then(|_| {
+                    Some(Some(vg)) => umount(vg).and_then(|_| {
                         vgdeactivate(vg)
                             .and_then(|_| cryptsetup_close(dev))
                             .map_err(|why| DiskError::ExternalCommand { why })
@@ -443,8 +443,7 @@ impl Disks {
         devices_to_modify
             .iter()
             .filter_map(|dev| volume_map.get(dev))
-            .unique()
-            .map(|entry| {
+            .unique().try_for_each(|entry| {
                 if let Some(ref vg) = *entry {
                     umount(vg).and_then(|_| {
                         vgdeactivate(vg).map_err(|why| DiskError::ExternalCommand { why })
@@ -453,7 +452,6 @@ impl Disks {
                     Ok(())
                 }
             })
-            .collect::<Result<(), DiskError>>()
     }
 
     /// Attempts to decrypt the specified partition.
@@ -476,7 +474,7 @@ impl Disks {
             enc: &LvmEncryption,
         ) -> Result<LogicalDevice, DecryptionError> {
             // Attempt to decrypt the device.
-            cryptsetup_open(path, &enc)
+            cryptsetup_open(path, enc)
                 .map_err(|why| DecryptionError::Open { device: path.to_path_buf(), why })?;
 
             // Determine which VG the newly-decrypted device belongs to.
@@ -507,7 +505,7 @@ impl Disks {
                 }
                 _ => {
                     // Detect a file system on the device
-                    if let Some(fs) = detect_fs_on_device(&pv) {
+                    if let Some(fs) = detect_fs_on_device(pv) {
                         let pv = enc.physical_volume.clone();
                         let mut luks = LogicalDevice::new(
                             pv,
@@ -525,7 +523,7 @@ impl Disks {
                     }
 
                     // Attempt to close the device as we've failed to find a VG.
-                    let _ = cryptsetup_close(CloseBy::Path(&pv));
+                    let _ = cryptsetup_close(CloseBy::Path(pv));
 
                     // NOTE: Should we handle this in some way?
                     Err(DecryptionError::DecryptedLacksVG { device: path.to_path_buf() })
@@ -538,7 +536,7 @@ impl Disks {
             // TODO: NLL
             if let Some(partition) = device.get_file_system_mut() {
                 if partition.get_device_path() == path {
-                    decrypt(partition, path, &enc)?;
+                    decrypt(partition, path, enc)?;
                 }
             }
 
@@ -546,7 +544,7 @@ impl Disks {
                 device.file_system.as_mut().into_iter().chain(device.partitions.iter_mut())
             {
                 if partition.get_device_path() == path {
-                    new_device = Some(decrypt(partition, path, &enc)?);
+                    new_device = Some(decrypt(partition, path, enc)?);
                     break;
                 }
             }
@@ -570,12 +568,11 @@ impl Disks {
     pub fn unmount_devices(&self) -> Result<(), DiskError> {
         info!("unmounting devices");
         self.physical
-            .iter()
-            .map(|device| {
+            .iter().try_for_each(|device| {
                 if let Some(mount) = device.get_mount_point() {
                     if mount != Path::new("/cdrom") {
                         info!("unmounting device mounted at {}", mount.display());
-                        unmount(&mount, UnmountFlags::empty()).map_err(|why| {
+                        unmount(mount, UnmountFlags::empty()).map_err(|why| {
                             DiskError::Unmount {
                                 device: device.get_device_path().to_path_buf(),
                                 why,
@@ -586,7 +583,6 @@ impl Disks {
 
                 Ok(())
             })
-            .collect::<Result<(), DiskError>>()
     }
 
     /// Probes for and returns disk information for every disk in the system.
@@ -746,9 +742,9 @@ impl Disks {
                     .volume_group
                     .as_ref()
                     .map(|x| &x.0)
-                    .or_else(|| partition.original_vg.as_ref());
+                    .or(partition.original_vg.as_ref());
 
-                if let Some(ref pvg) = vg {
+                if let Some(pvg) = vg {
                     if pvg.as_str() == volume_group {
                         volumes.push((disk.get_device_path(), partition.get_device_path()));
                     }

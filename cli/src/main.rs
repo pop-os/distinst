@@ -244,14 +244,14 @@ fn main() {
             tzs_ = Timezones::new().expect("failed to get timzones");
             let zone = tzs_
                 .zones()
-                .into_iter()
+                .iter()
                 .find(|z| z.name() == zone)
-                .expect(&format!("failed to find zone: {}", zone));
+                .unwrap_or_else(|| panic!("failed to find zone: {}", zone));
             let region = zone
                 .regions()
-                .into_iter()
+                .iter()
                 .find(|r| r.name() == region)
-                .expect(&format!("failed to find region: {}", region));
+                .unwrap_or_else(|| panic!("failed to find region: {}", region));
             Some(region.clone())
         }
         None => None,
@@ -559,5 +559,5 @@ fn find_partition_mut(
     disk: &mut Disk,
     partition: i32,
 ) -> Result<&mut PartitionInfo, DistinstError> {
-    disk.get_partition_mut(partition).ok_or_else(|| DistinstError::PartitionNotFound { partition })
+    disk.get_partition_mut(partition).ok_or(DistinstError::PartitionNotFound { partition })
 }

@@ -134,7 +134,7 @@ fn systemd_boot_entry_restore<P: AsRef<Path>>(base: P) -> Result<(), UpgradeErro
 
 fn apt_upgrade<F: Fn(UpgradeEvent)>(chroot: &mut SystemdNspawn, callback: &F) -> io::Result<()> {
     chroot
-        .command("apt-get", &["-y", "--allow-downgrades", "--show-progress", "full-upgrade"])
+        .command("apt-get", ["-y", "--allow-downgrades", "--show-progress", "full-upgrade"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .run_with_callbacks(
@@ -175,7 +175,7 @@ fn dpkg_configure_all<F: Fn(UpgradeEvent)>(
     callback: &F,
 ) -> io::Result<()> {
     chroot
-        .command("dpkg", &["--configure", "-a"])
+        .command("dpkg", ["--configure", "-a"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .run_with_callbacks(

@@ -336,7 +336,7 @@ impl Disk {
 
         for mount in mounts.into_iter().rev() {
             info!("unmounting {}", mount.display());
-            unmount(&mount, UnmountFlags::empty()).map_err(|why| (mount.to_path_buf(), why))?;
+            unmount(mount, UnmountFlags::empty()).map_err(|why| (mount.to_path_buf(), why))?;
         }
 
         Ok(())
@@ -366,7 +366,7 @@ impl Disk {
             .partitions
             .iter_mut()
             .enumerate()
-            .find(|&(_, ref p)| p.number == partition)
+            .find(|(_, p)| p.number == partition)
             .ok_or(DiskError::PartitionNotFound { partition })
             .map(|(id, p)| {
                 if p.flag_is_enabled(SOURCE) {
@@ -812,7 +812,7 @@ impl Disk {
             .iter()
             .filter_map(|partition| {
                 let start = partition.start_sector;
-                let mount = partition.target.as_ref().map(|ref path| path.to_path_buf());
+                let mount = partition.target.as_ref().map(|path| path.to_path_buf());
                 let vg = partition.volume_group.as_ref().cloned();
                 let keyid = partition.key_id.as_ref().cloned();
                 if mount.is_some() || vg.is_some() || keyid.is_some() {
