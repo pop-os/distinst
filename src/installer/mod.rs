@@ -15,7 +15,7 @@ use crate::auto::{
     AccountFiles, Backup, ReinstallError,
 };
 use disk_types::BlockDeviceExt;
-use crate::disks::{Bootloader, Disks};
+use crate::disks::{Bootloader, Disks, SKIP_BOOTLOADER};
 use crate::errors::IoContext;
 use crate::external::luks::deactivate_logical_devices;
 use crate::hostname;
@@ -204,16 +204,20 @@ impl Installer {
                 )
             })?;
 
-            steps.apply(Step::Bootloader, "configuring bootloader", |steps| {
-                Installer::bootloader(
-                    &disks,
-                    mount_dir.path(),
-                    bootloader,
-                    &config,
-                    &iso_os_release,
-                    percent!(steps),
-                )
-            })?;
+            if SKIP_BOOTLOADER.load(Ordering::Relaxed) {
+                info!("was ordered to skip the bootloader step");
+            } else {
+                steps.apply(Step::Bootloader, "configuring bootloader", |steps| {
+                    Installer::bootloader(
+                        &disks,
+                        mount_dir.path(),
+                        bootloader,
+                        &config,
+                        &iso_os_release,
+                        percent!(steps),
+                    )
+                })?;
+            }
 
             mounts.unmount(false).with_context(|err| format!("chroot unmount: {}", err))?;
             mount_dir.close().with_context(|err| format!("closing mount directory: {}", err))

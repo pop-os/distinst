@@ -1,4 +1,4 @@
-use crate::bootloader::Bootloader;
+use crate::bootloader::{Bootloader, SKIP_BOOTLOADER};
 mod chroot_conf;
 use self::chroot_conf::ChrootConfigurator;
 use super::{mount_cdrom, mount_efivars};
@@ -19,6 +19,7 @@ use std::{
     io::{self, Write},
     os::unix::{ffi::OsStrExt, fs::PermissionsExt},
     path::Path,
+    sync::atomic::Ordering,
 };
 use tempdir::TempDir;
 use crate::timezones::Region;
@@ -306,7 +307,11 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(75);
 
-        chroot.bootloader().with_context(|why| format!("error installing bootloader: {}", why))?;
+        if SKIP_BOOTLOADER.load(Ordering::Relaxed) {
+            info!("skipping bootloader configuration");
+        } else {
+            chroot.bootloader().with_context(|why| format!("error installing bootloader: {}", why))?;
+        }
 
         callback(80);
 

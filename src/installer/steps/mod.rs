@@ -14,6 +14,7 @@ use std::{
 
 use sys_mount::*;
 use crate::NO_EFI_VARIABLES;
+use crate::disks::SKIP_BOOTLOADER;
 
 /// Installation step
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -33,7 +34,7 @@ fn mount_cdrom(mount_dir: &Path) -> io::Result<Option<(UnmountDrop<Mount>, PathB
 }
 
 pub fn mount_efivars(mount_dir: &Path) -> io::Result<Option<UnmountDrop<Mount>>> {
-    if NO_EFI_VARIABLES.load(Ordering::Relaxed) {
+    if NO_EFI_VARIABLES.load(Ordering::Relaxed) || SKIP_BOOTLOADER.load(Ordering::Relaxed) {
         info!("was ordered to not mount the efivars directory");
         Ok(None)
     } else {

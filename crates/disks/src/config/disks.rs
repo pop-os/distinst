@@ -12,6 +12,7 @@ use crate::external::{
     cryptsetup_close, cryptsetup_open, lvs, physical_volumes_to_deactivate, pvs, vgdeactivate,
     CloseBy,
 };
+pub use bootloader::SKIP_BOOTLOADER;
 use itertools::Itertools;
 use libparted::{Device, DeviceType};
 use misc;
@@ -27,6 +28,7 @@ use std::{
     path::{Path, PathBuf},
     str, thread,
     time::Duration,
+    sync::atomic::Ordering,
 };
 use sys_mount::{swapoff, unmount, Mount, MountFlags, Mounts, Unmount, UnmountFlags};
 
@@ -953,13 +955,19 @@ impl Disks {
 
         if let Some((partition, kind, is_efi)) = boot_partition {
             let device = {
-                let (device, boot) =
-                    self.find_partition(Path::new(partition)).ok_or_else(|| {
-                        io::Error::new(
+                let (device, boot) = match self.find_partition(Path::new(partition)) {
+                    Some((device, boot)) => (device, boot),
+                    None => {
+                        if is_efi {
+                            bootloader::SKIP_BOOTLOADER.store(true, Ordering::Relaxed);
+                            return Ok(())
+                        }
+                        return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
                             format!("{} partition was not defined", kind),
-                        )
-                    })?;
+                        ))
+                    }
+                };
 
                 let device = match self.find_disk(device) {
                     Some(device) => device,
