@@ -11,11 +11,14 @@
 
 use std::{
     path::Path,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 /// Force the installation to perform either a BIOS or EFI installation.
 pub static FORCE_BOOTLOADER: AtomicUsize = AtomicUsize::new(0);
+
+/// Skip the installation of the bootloader altogether.
+pub static SKIP_BOOTLOADER: AtomicBool = AtomicBool::new(false);
 
 /// Bootloader type
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
