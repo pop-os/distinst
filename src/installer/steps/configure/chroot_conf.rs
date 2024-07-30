@@ -70,6 +70,13 @@ impl<'a> ChrootConfigurator<'a> {
     /// Configure the bootloader on the system.
     pub fn bootloader(&self) -> io::Result<()> {
         info!("configuring bootloader");
+
+        // If the NVIDIA DKMS driver is installed, add it's flags to the cmdline for the simpledrm patch to pick up.
+        // This test must not use /proc or /sys for detection since the installer can run inside a
+        // chroot where those come from the host environment.
+        let has_nvidia = Path::new("/var/lib/dkms/nvidia").exists();
+        let nvidia_boot_options = if has_nvidia { "nvidia-drm.modeset=1" } else { "" };
+
         let result = self
             .chroot
             .command(
@@ -78,7 +85,7 @@ impl<'a> ChrootConfigurator<'a> {
                     "--esp-path",
                     "/boot/efi",
                     "--add-options",
-                    BOOT_OPTIONS,
+                    &format!("{BOOT_OPTIONS} {nvidia_boot_options}"),
                     "--loader",
                     "--manage-only",
                     "--force-update",
