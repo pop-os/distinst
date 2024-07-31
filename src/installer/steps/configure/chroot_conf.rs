@@ -71,7 +71,7 @@ impl<'a> ChrootConfigurator<'a> {
     pub fn bootloader(&self) -> io::Result<()> {
         info!("configuring bootloader");
 
-        // If the NVIDIA DKMS driver is installed, add it's flags to the cmdline for the simpledrm patch to pick up.
+        // If the NVIDIA DKMS driver is installed, add its flags to the cmdline for the simpledrm patch to pick up.
         // This test must not use /proc or /sys for detection since the installer can run inside a
         // chroot where those come from the host environment.
         let has_nvidia = Path::new("/var/lib/dkms/nvidia").exists();
