@@ -600,7 +600,13 @@ impl Disks {
                     | DeviceType::PED_DEVICE_LOOP
                     | DeviceType::PED_DEVICE_FILE
                     | DeviceType::PED_DEVICE_DM => continue,
-                    _ => disks.add(Disk::new(&mut device, false)?),
+                    _ => { 
+                        let disk = Disk::new(&mut device, false);
+                        match disk {
+                            Ok(disk) => disks.add(disk),
+                            Err(error) => info!("unable to probe device: {}", err),
+                        }
+                    },
                 }
             }
         }
