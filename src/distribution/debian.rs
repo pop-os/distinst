@@ -1,9 +1,12 @@
-use crate::bootloader::Bootloader;
-use crate::chroot::Chroot;
-use crate::installer::{bitflags::FileSystemSupport, traits::InstallerDiskOps};
+use crate::{
+    bootloader::Bootloader,
+    chroot::Chroot,
+    installer::{bitflags::FileSystemSupport, traits::InstallerDiskOps},
+};
 use os_release::OsRelease;
 use std::{
     collections::HashSet,
+    env,
     io::{self, BufRead},
     process::Command,
 };
@@ -92,54 +95,38 @@ fn parse_dependency_line<F: FnMut(&str)>(line: &str, mut func: F) {
     }
 }
 
-pub fn get_bootloader_packages(os_release: &OsRelease) -> &'static [&'static str] {
-    match Bootloader::detect() {
-        Bootloader::Bios => &["grub-common", "grub2-common", "grub-pc"],
-        Bootloader::Efi if os_release.name == "Pop!_OS" => &["kernelstub"],
-        Bootloader::Efi if os_release.name == "Ubuntu" && os_release.version_id == "18.04" => &[
-            "grub-efi",
-            "grub-efi-amd64",
-            "grub-efi-amd64-signed",
-            "shim-signed",
-            "mokutil",
-            "fwupdate-signed",
-            "linux-signed-generic-hwe-18.04",
-        ],
-        Bootloader::Efi if os_release.name == "Ubuntu" && os_release.version_id == "20.04" => &[
-            "grub-efi",
-            "grub-efi-amd64",
-            "grub-efi-amd64-signed",
-            "shim-signed",
-            "mokutil",
-            "fwupd-signed",
-            "linux-image-generic-hwe-20.04",
-        ],
-        Bootloader::Efi if os_release.name == "Ubuntu" && os_release.version_id.starts_with("22.04") => &[
+pub fn get_bootloader_packages(os_release: &OsRelease) -> io::Result<&'static [&'static str]> {
+    match (os_release.name.as_str(), os_release.version_id.as_str(), env::consts::ARCH, Bootloader::detect()) {
+        (_, _, _, Bootloader::Bios) => Ok(&["grub-pc"]),
+        ("Pop!_OS", _, _, Bootloader::Efi) => Ok(&["kernelstub"]),
+        ("Ubuntu", "24.04", "aarch64", Bootloader::Efi) => Ok(&[
             "efibootmgr",
-            "grub-common",
-            "grub-efi-amd64-bin",
-            "grub-efi-amd64-signed",
-            "shim-signed",
-            "mokutil",
             "fwupd-signed",
-            "linux-image-generic-hwe-22.04",
-        ],
-        Bootloader::Efi if os_release.name == "elementary OS" => &[
+            "grub-efi-arm64",
+            "grub-efi-arm64-signed",
+            "linux-image-generic-hwe-24.04",
+            "mokutil",
+            "shim-signed",
+        ]),
+        ("Ubuntu", "24.04", "x86_64", Bootloader::Efi) => Ok(&[
+            "efibootmgr",
+            "fwupd-signed",
             "grub-efi-amd64",
             "grub-efi-amd64-signed",
-            "shim-signed",
+            "linux-image-generic-hwe-24.04",
             "mokutil",
-        ],
-        Bootloader::Efi => &[
-            "grub-efi",
-            "grub-efi-amd64",
-            "grub-efi-amd64-bin",
-            "grub-efi-amd64-signed",
             "shim-signed",
-            "mokutil",
-            "fwupd-signed",
-            "linux-image-generic",
-        ],
+        ]),
+        ("elementary OS", _, "x86_64", Bootloader::Efi) => {
+            Ok(&["grub-efi-amd64", "grub-efi-amd64-signed", "mokutil", "shim-signed"])
+        }
+        (release, version, arch, bootloader) => Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!(
+                "unsupported OS release {release:?} version {version:?} arch {arch:?} bootloader \
+                 {bootloader:?}, add to distinst/src/distribution"
+            ),
+        )),
     }
 }
 
