@@ -220,11 +220,10 @@ fn main() {
                 .takes_value(true)
                 .multiple(true),
         )
-        .arg(
-            Arg::with_name("run-ubuntu-drivers")
-                .long("run-ubuntu-drivers")
-                .help("use ubuntu-drivers to find drivers then install in the chroot, some may have proprietary licenses")
-        )
+        .arg(Arg::with_name("run-ubuntu-drivers").long("run-ubuntu-drivers").help(
+            "use ubuntu-drivers to find drivers then install in the chroot, some may have \
+             proprietary licenses",
+        ))
         .get_matches();
 
     if let Err(err) = distinst::log(|_level, _message| {}) {
