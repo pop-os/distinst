@@ -83,7 +83,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
     let install_pkgs = &mut cascade! {
         Vec::with_capacity(32);
-        ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release));
+        ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release)?);
     };
 
     callback(5);
