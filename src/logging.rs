@@ -1,5 +1,5 @@
-use dirs;
-use fern;
+
+
 use log::{Level, LevelFilter};
 use std::io;
 
@@ -42,9 +42,9 @@ pub fn log<F: Fn(Level, &str) + Send + Sync + 'static>(callback: F) -> Result<()
             if let Some(home) = dirs::home_dir() {
                 let desktop = home.join("Desktop");
                 let log = if desktop.is_dir() {
-                    fern::log_file(&desktop.join("installer.log"))
+                    fern::log_file(desktop.join("installer.log"))
                 } else {
-                    fern::log_file(&home.join("installer.log"))
+                    fern::log_file(home.join("installer.log"))
                 };
 
                 match log {

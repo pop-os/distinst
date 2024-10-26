@@ -1,5 +1,5 @@
 #![allow(unknown_lints)]
-#![allow(cast_ptr_alignment)]
+#![allow(clippy::cast_ptr_alignment)]
 
 extern crate distinst;
 extern crate distinst_external_commands as external;
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn distinst_generate_unique_id(
 
 #[no_mangle]
 pub unsafe extern "C" fn distinst_validate_hostname(hostname: *const libc::c_char) -> bool {
-    get_str(hostname).ok().map_or(false, |hostname| distinst::hostname::is_valid(hostname))
+    get_str(hostname).ok().map_or(false, distinst::hostname::is_valid)
 }
 
 #[no_mangle]

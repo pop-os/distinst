@@ -1,4 +1,4 @@
-use libc;
+
 
 use super::{gen_object_ptr, get_str, null_check, DistinstDisks, DistinstOsRelease};
 use distinst::{
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn distinst_refresh_option_can_retain_old(
         return false;
     }
 
-    (&*(option as *const RefreshOption)).can_retain_old
+    (*(option as *const RefreshOption)).can_retain_old
 }
 
 #[no_mangle]
@@ -336,7 +336,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_efi_uuid(
 
     let option = &*(option as *const RecoveryOption);
     match option.efi_uuid.as_ref() {
-        Some(ref efi_uuid) => {
+        Some(efi_uuid) => {
             let output = efi_uuid.as_bytes();
             *len = output.len() as libc::c_int;
             output.as_ptr()
@@ -454,7 +454,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_kbd_model(
 
     let option = &*(option as *const RecoveryOption);
     match option.kbd_model.as_ref() {
-        Some(ref kbd_model) => {
+        Some(kbd_model) => {
             let output = kbd_model.as_bytes();
             *len = output.len() as libc::c_int;
             output.as_ptr()
@@ -474,7 +474,7 @@ pub unsafe extern "C" fn distinst_recovery_option_get_kbd_variant(
 
     let option = &*(option as *const RecoveryOption);
     match option.kbd_variant.as_ref() {
-        Some(ref kbd_variant) => {
+        Some(kbd_variant) => {
             let output = kbd_variant.as_bytes();
             *len = output.len() as libc::c_int;
             output.as_ptr()
@@ -504,7 +504,7 @@ pub unsafe extern "C" fn distinst_recovery_option_mode(
         return ptr::null();
     }
 
-    (&*(option as *const RecoveryOption)).mode.as_ref().map_or(ptr::null(), |mode| {
+    (*(option as *const RecoveryOption)).mode.as_ref().map_or(ptr::null(), |mode| {
         *len = mode.len() as libc::c_int;
         mode.as_bytes().as_ptr()
     })

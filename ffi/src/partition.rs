@@ -1,4 +1,4 @@
-use libc;
+
 
 use std::{ffi::CString, io, os::unix::ffi::OsStrExt, path::PathBuf, ptr};
 
@@ -471,7 +471,7 @@ pub unsafe extern "C" fn distinst_partition_set_flags(
         return;
     }
 
-    let targets = ::std::slice::from_raw_parts(ptr, len as usize)
+    let targets = ::std::slice::from_raw_parts(ptr, len)
         .iter()
         .map(|flag| PartitionFlag::from(*flag))
         .collect::<Vec<PartitionFlag>>();

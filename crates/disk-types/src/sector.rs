@@ -22,12 +22,12 @@ pub trait SectorExt: BlockDeviceExt {
         };
 
         match block.queue_logical_block_size() {
-            Ok(size) => return size,
+            Ok(size) => size,
             Err(_) => {
-                return self.get_parent_device()
+                self.get_parent_device()
                     .expect("partition lacks parent block device")
                     .queue_logical_block_size()
-                    .expect("parent of partition lacks logical block size");
+                    .expect("parent of partition lacks logical block size")
             }
         }
     }
@@ -134,13 +134,15 @@ mod tests {
 
     struct FictionalBlock(u64);
 
-    impl SectorExt for FictionalBlock {}
-
-    impl BlockDeviceExt for FictionalBlock {
-        fn get_device_name(&self) -> &str { "fictional" }
-        fn get_device_path(&self) -> &Path { Path::new("/dev/fictional")  }
+    impl SectorExt for FictionalBlock {
         fn get_sectors(&self) -> u64 { self.0 }
         fn get_logical_block_size(&self) -> u64 { 512 }
+    }
+
+    impl BlockDeviceExt for FictionalBlock {
+        fn get_device_name(&self) -> String { "fictional".to_string() }
+        fn get_device_path(&self) -> &Path { Path::new("/dev/fictional")  }
+
     }
 
     #[test]

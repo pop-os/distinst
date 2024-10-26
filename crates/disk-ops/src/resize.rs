@@ -103,7 +103,7 @@ pub fn resize_partition<P: AsRef<Path>>(
     args: &[&str],
     size: &str,
     path: P,
-    fs: &str,
+    _fs: &str,
     options: u8,
 ) -> io::Result<()> {
     info!("resizing {} to {}", path.as_ref().display(), size);
@@ -116,7 +116,7 @@ pub fn resize_partition<P: AsRef<Path>>(
     // Attempt to sync three times before returning an error.
     for attempt in 0..3 {
         ::std::thread::sleep(::std::time::Duration::from_secs(1));
-        let result = blockdev(&path, &["--flushbufs"]);
+        let result = blockdev(&path, ["--flushbufs"]);
         if result.is_err() && attempt == 2 {
             result?;
         } else {
@@ -138,7 +138,7 @@ pub fn resize_partition<P: AsRef<Path>>(
         let (npath, _mount) = if options & (BTRFS | XFS) != 0 {
             let temp = TempDir::new("distinst")?;
             info!("temporarily mounting {} to {}", path.as_ref().display(), temp.path().display());
-            let mount = Mount::new(path.as_ref(), temp.path(), fs, MountFlags::empty(), None)?;
+            let mount = Mount::new(path.as_ref(), temp.path())?;
             let mount = mount.into_unmount_drop(UnmountFlags::DETACH);
             (temp.path().to_path_buf(), Some((mount, temp)))
         } else {
@@ -388,7 +388,7 @@ where
 
 fn ntfs_dry_run(path: &Path, size: &str) -> io::Result<()> {
     let mut consistency_check = Command::new("ntfsresize");
-    consistency_check.args(&["-f", "-f", "--no-action", "-s"]).arg(size).arg(path);
+    consistency_check.args(["-f", "-f", "--no-action", "-s"]).arg(size).arg(path);
 
     info!("executing {:?}", consistency_check);
     let mut child = consistency_check.stdin(Stdio::piped()).spawn()?;
@@ -404,7 +404,7 @@ fn ntfs_dry_run(path: &Path, size: &str) -> io::Result<()> {
 
 fn ntfs_consistency_check(path: &Path) -> io::Result<()> {
     let mut consistency_check = Command::new("ntfsresize");
-    consistency_check.args(&["-i", "-f"]).arg(path);
+    consistency_check.args(["-i", "-f"]).arg(path);
 
     info!("executing {:?}", consistency_check);
     let mut child = consistency_check.stdin(Stdio::piped()).spawn()?;

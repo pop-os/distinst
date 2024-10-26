@@ -1,5 +1,5 @@
 use distinst::dbus_interfaces::LoginManager;
-use libc;
+
 
 #[no_mangle]
 pub extern "C" fn distinst_session_inhibit_suspend() -> libc::c_int {
@@ -18,7 +18,7 @@ pub extern "C" fn distinst_session_inhibit_suspend() -> libc::c_int {
         Ok(pipe_fd) => pipe_fd.into_fd(),
         Err(why) => {
             error!("failed to suspend: {}", why);
-            return -1;
+            -1
         }
     }
 }

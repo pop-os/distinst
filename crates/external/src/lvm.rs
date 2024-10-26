@@ -32,7 +32,7 @@ pub fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
 
     for pv in &physical_volumes_to_deactivate(devices) {
         let mut pvs = pvs()?;
-        let device = CloseBy::Path(&pv);
+        let device = CloseBy::Path(pv);
         match pvs.remove(pv) {
             Some(Some(ref vg)) => {
                 umount(vg).and_then(|_| vgdeactivate(vg)).and_then(|_| cryptsetup_close(device))?
@@ -59,7 +59,7 @@ pub fn physical_volumes_to_deactivate<P: AsRef<Path>>(paths: &[P]) -> Vec<PathBu
                 "/slaves".as_ref(),
             ]);
 
-            let _ = read_dirs(&slave_path, |slave| {
+            let _ = read_dirs(slave_path, |slave| {
                 let slave_path = slave.path();
                 let slave_path =
                     slave_path.file_name().expect("slave path does not have file name");
@@ -181,9 +181,9 @@ pub fn lvs(vg: &str) -> io::Result<Vec<PathBuf>> {
                 let dev = PathBuf::from(
                     [
                         "/dev/mapper/",
-                        &vg.replace("-", "--"),
+                        &vg.replace('-', "--"),
                         "-",
-                        &(&line[..pos].replace("-", "--")),
+                        (&line[..pos].replace('-', "--")),
                     ]
                     .concat(),
                 );
