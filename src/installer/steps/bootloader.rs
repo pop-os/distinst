@@ -4,6 +4,7 @@ use crate::errors::IoContext;
 use libc;
 use os_release::OsRelease;
 use std::{
+    env,
     ffi::{OsStr, OsString},
     fs, io,
     os::unix::ffi::{OsStrExt, OsStringExt},
@@ -61,16 +62,24 @@ pub fn bootloader<F: FnMut(i32)>(
 
             match bootloader {
                 Bootloader::Bios => {
+                    let grub_target = match env::consts::ARCH {
+                        "x86_64" => "i386-pc",
+                        unknown => return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("unsupported architecture {} for bootloader {:?}", unknown, bootloader)
+                        )),
+                    };
+
                     chroot
                         .command(
                             "grub-install",
                             &[
                                 // Recreate device map
-                                "--recheck".into(),
+                                "--recheck",
                                 // Install for BIOS
-                                "--target=i386-pc".into(),
+                                &format!("--target={}", grub_target),
                                 // Install to the bootloader_dev device
-                                bootloader_dev.to_str().unwrap().to_owned(),
+                                bootloader_dev.to_str().unwrap(),
                             ],
                         )
                         .run()?;
@@ -95,6 +104,15 @@ pub fn bootloader<F: FnMut(i32)>(
                             )
                             .run()?;
                     } else {
+                        let grub_target = match env::consts::ARCH {
+                            "aarch64" => "arm64-efi",
+                            "x86_64" => "x86_64-efi",
+                            unknown => return Err(io::Error::new(
+                                io::ErrorKind::Other,
+                                format!("unsupported architecture {} for bootloader {:?}", unknown, bootloader)
+                            )),
+                        };
+
                         chroot
                             .command(
                                 "/usr/bin/env",
@@ -110,7 +128,7 @@ pub fn bootloader<F: FnMut(i32)>(
                             .command(
                                 "grub-install",
                                 &[
-                                    "--target=x86_64-efi",
+                                    &format!("--target={}", grub_target),
                                     "--efi-directory=/boot/efi",
                                     &format!("--boot-directory=/boot/efi/EFI/{}", name),
                                     &format!("--bootloader={}", name),
@@ -132,10 +150,18 @@ pub fn bootloader<F: FnMut(i32)>(
 
                     if config.flags & MODIFY_BOOT_ORDER != 0 {
                         let efi_part_num = efi_part_num.to_string();
+                        let efi_arch = match env::consts::ARCH {
+                            "aarch64" => "aa64",
+                            "x86_64" => "x64",
+                            unknown => return Err(io::Error::new(
+                                io::ErrorKind::Other,
+                                format!("unsupported architecture {} for EFI", unknown)
+                            )),
+                        };
                         let loader = if &name == "Pop!_OS" {
-                            "\\EFI\\systemd\\systemd-bootx64.efi".into()
+                            format!("\\EFI\\systemd\\systemd-boot{}.efi", efi_arch)
                         } else {
-                            format!("\\EFI\\{}\\shimx64.efi", name)
+                            format!("\\EFI\\{}\\shim{}.efi", name, efi_arch)
                         };
 
                         let args: &[&OsStr] = &[
