@@ -104,8 +104,8 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> io::Result<&'static [&
             "fwupd-signed",
             "grub-efi-arm64",
             "grub-efi-arm64-signed",
-            //TODO: HWE kernel not present on Ubuntu Server for ARM ISOs
-            "linux-image-generic",
+            //TODO: HWE kernel not present on Ubuntu Server for ARM ISOs,
+            //but non-HWE kernel not preset on Ubuntu Desktop for ARM ISOs...
             "mokutil",
             "shim-signed",
         ]),
