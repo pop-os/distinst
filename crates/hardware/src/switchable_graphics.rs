@@ -51,12 +51,8 @@ fn has_switchable_graphics() -> bool {
             proxy.method_call("com.system76.PowerDaemon", "GetDefaultGraphics", ()).unwrap_or_default();
 
         // Limit configuring graphics to System76 models
-        vendor == "hybrid" && (system_vendor() == "System76")
+        vendor == "hybrid"
     } else {
         false
     }
-}
-
-fn system_vendor() -> String {
-    fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or_default().trim().into()
 }
