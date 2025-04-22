@@ -47,11 +47,11 @@ fn has_switchable_graphics() -> bool {
             "/com/system76/PowerDaemon",
             Duration::from_millis(1000),
         );
-        let (switchable,): (bool,) =
-            proxy.method_call("com.system76.PowerDaemon", "GetSwitchable", ()).unwrap_or_default();
+        let (vendor,): (String,) =
+            proxy.method_call("com.system76.PowerDaemon", "GetDefaultGraphics", ()).unwrap_or_default();
 
         // Limit configuring graphics to System76 models
-        switchable && (system_vendor() == "System76")
+        vendor == "hybrid" && (system_vendor() == "System76")
     } else {
         false
     }
