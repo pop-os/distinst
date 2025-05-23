@@ -120,7 +120,10 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> io::Result<&'static [&
         ]),
         ("elementary OS", _, "x86_64", Bootloader::Efi) => {
             Ok(&["grub-efi-amd64", "grub-efi-amd64-signed", "mokutil", "shim-signed"])
-        }
+        },
+        ("elementary OS", _, "aarch64", Bootloader::Efi) => {
+            Ok(&["grub-efi-arm64", "grub-efi-arm64-signed", "mokutil", "shim-signed"])
+        },
         (release, version, arch, bootloader) => Err(io::Error::new(
             io::ErrorKind::Other,
             format!(
