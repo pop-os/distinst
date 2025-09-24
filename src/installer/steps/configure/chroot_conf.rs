@@ -7,9 +7,7 @@ use std::{
     fs,
     io::{self, Write},
     path::Path,
-    process::Stdio,
 };
-use sys_mount::*;
 use crate::timezones::Region;
 use crate::Config;
 
@@ -297,6 +295,39 @@ impl<'a> ChrootConfigurator<'a> {
     /// Set the keyboard layout so that the layout will function, even within the decryption screen.
     pub fn keyboard_layout(&self, config: &Config) -> io::Result<()> {
         info!("configuring keyboard layout");
+        
+        // Create a config for COSMIC if cosmic-comp is installed.
+        if Path::new("/bin/cosmic-comp").exists() {
+            let cosmic_xkb_config =
+                self.chroot.path.join("etc/cosmic/com.system76.CosmicComp/v1/xkb_config");
+            info!("installing xkb_config for cosmic at `{}`", cosmic_xkb_config.display());
+
+            if cosmic_xkb_config.exists() {
+                _ = std::fs::remove_file(&cosmic_xkb_config);
+            }
+            
+            _ = std::fs::create_dir_all(cosmic_xkb_config.parent().unwrap());
+            let mut cosmic_xkb_file = misc::create(&cosmic_xkb_config)?;
+
+            writeln!(
+                &mut cosmic_xkb_file,
+                r#"{{
+    rules: "",
+    model: "{}",
+    layout: "{}",
+    variant: "{}",
+    options: Some("compose:ralt"),
+    repeat_delay: 600,
+    repeat_rate: 25,
+}}"#,
+                config.keyboard_model.as_ref().map(String::as_str).unwrap_or_default(),
+                config.keyboard_layout,
+                config.keyboard_variant.as_ref().map(String::as_str).unwrap_or_default()
+            )
+            .with_context(|err| {
+                format!("failed to write keyboard layout to /etc/cosmic/com.system76.CosmicComp/v1/xkb_config: {}", err)
+            })?;
+        }
 
         // This used to use localectl set-x11-keymap, but that doesn't work on some
         // versions of Ubuntu/Debian.
