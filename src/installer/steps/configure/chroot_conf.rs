@@ -311,7 +311,7 @@ impl<'a> ChrootConfigurator<'a> {
 
             writeln!(
                 &mut cosmic_xkb_file,
-                r#"{{
+                r#"(
     rules: "",
     model: "{}",
     layout: "{}",
@@ -319,7 +319,7 @@ impl<'a> ChrootConfigurator<'a> {
     options: Some("compose:ralt"),
     repeat_delay: 600,
     repeat_rate: 25,
-}}"#,
+)"#,
                 config.keyboard_model.as_ref().map(String::as_str).unwrap_or_default(),
                 config.keyboard_layout,
                 config.keyboard_variant.as_ref().map(String::as_str).unwrap_or_default()
