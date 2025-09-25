@@ -234,7 +234,7 @@ impl<'a> ChrootConfigurator<'a> {
             "-R",
             &[user, ":", user].concat(),
             &["/home/", user, "/.config/"].concat(),
-        ]);
+        ]).run()?;
 
         Ok(())
     }
