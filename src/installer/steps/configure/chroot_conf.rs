@@ -3,6 +3,7 @@ use crate::errors::{IoContext, IntoIoResult};
 use crate::misc;
 use partition_identity::PartitionID;
 use proc_mounts::MountList;
+use std::path::PathBuf;
 use std::{
     fs,
     io::{self, Write},
@@ -31,7 +32,9 @@ pub struct ChrootConfigurator<'a> {
 }
 
 impl<'a> ChrootConfigurator<'a> {
-    pub fn new(chroot: Chroot<'a>) -> Self { Self { chroot } }
+    pub fn new(chroot: Chroot<'a>) -> Self {
+        Self { chroot }
+    }
 
     /// Install the given packages if they are not already installed.
     pub fn apt_install(&self, packages: &[&str]) -> io::Result<()> {
@@ -170,6 +173,7 @@ impl<'a> ChrootConfigurator<'a> {
     /// Create a new user account.
     pub fn create_user(
         &self,
+        config: &Config,
         user: &str,
         pass: Option<&str>,
         fullname: Option<&str>,
@@ -218,6 +222,19 @@ impl<'a> ChrootConfigurator<'a> {
                 let _ = fs::remove_file(&dest);
             }
         }
+        
+        // Create a config for COSMIC if cosmic-comp is installed.
+        if Path::new("/bin/cosmic-comp").exists() {
+            let config_path = ["home/", user, "/.config/cosmic/com.system76.CosmicComp/v1/xkb_config"].concat();
+            set_cosmic_xkb_config(config, self.chroot.path.join(config_path))?;
+        }
+
+        // Ensure the user's folder and cosmic xkb config file has the right permissions.
+        self.chroot.command("chown", [
+            "-R",
+            &[user, ":", user].concat(),
+            &["/home/", user, "/.config/"].concat(),
+        ]);
 
         Ok(())
     }
@@ -298,35 +315,7 @@ impl<'a> ChrootConfigurator<'a> {
         
         // Create a config for COSMIC if cosmic-comp is installed.
         if Path::new("/bin/cosmic-comp").exists() {
-            let cosmic_xkb_config =
-                self.chroot.path.join("etc/cosmic/com.system76.CosmicComp/v1/xkb_config");
-            info!("installing xkb_config for cosmic at `{}`", cosmic_xkb_config.display());
-
-            if cosmic_xkb_config.exists() {
-                _ = std::fs::remove_file(&cosmic_xkb_config);
-            }
-            
-            _ = std::fs::create_dir_all(cosmic_xkb_config.parent().unwrap());
-            let mut cosmic_xkb_file = misc::create(&cosmic_xkb_config)?;
-
-            writeln!(
-                &mut cosmic_xkb_file,
-                r#"(
-    rules: "",
-    model: "{}",
-    layout: "{}",
-    variant: "{}",
-    options: Some("compose:ralt"),
-    repeat_delay: 600,
-    repeat_rate: 25,
-)"#,
-                config.keyboard_model.as_ref().map(String::as_str).unwrap_or_default(),
-                config.keyboard_layout,
-                config.keyboard_variant.as_ref().map(String::as_str).unwrap_or_default()
-            )
-            .with_context(|err| {
-                format!("failed to write keyboard layout to /etc/cosmic/com.system76.CosmicComp/v1/xkb_config: {}", err)
-            })?;
+            set_cosmic_xkb_config(config, self.chroot.path.join("etc/cosmic/com.system76.CosmicComp/v1/xkb_config"))?;
         }
 
         // This used to use localectl set-x11-keymap, but that doesn't work on some
@@ -589,4 +578,35 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
             .run()
             .with_context(|why| format!("failed to update initramfs: {}", why))
     }
+}
+
+
+fn set_cosmic_xkb_config(config: &Config, path: PathBuf) -> io::Result<()> {
+    info!("installing xkb_config for cosmic at `{}`", path.display());
+
+    if path.exists() {
+        _ = std::fs::remove_file(&path);
+    }
+    
+    _ = std::fs::create_dir_all(path.parent().unwrap());
+    let mut cosmic_xkb_file = misc::create(&path)?;
+
+    writeln!(
+        &mut cosmic_xkb_file,
+        r#"(
+    rules: "",
+    model: "{}",
+    layout: "{}",
+    variant: "{}",
+    options: Some("compose:ralt"),
+    repeat_delay: 600,
+    repeat_rate: 25,
+)"#,
+        config.keyboard_model.as_ref().map(String::as_str).unwrap_or_default(),
+        config.keyboard_layout,
+        config.keyboard_variant.as_ref().map(String::as_str).unwrap_or_default()
+    )
+    .with_context(|err| {
+        format!("failed to write keyboard layout to {}: {}", path.display(), err)
+    })
 }

@@ -262,6 +262,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         let useradd = if let Some(ref user) = user {
             chroot.create_user(
+                &config,
                 &user.username,
                 user.password.as_deref(),
                 user.realname.as_deref(),
