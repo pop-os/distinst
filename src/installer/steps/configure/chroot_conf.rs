@@ -529,7 +529,7 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
             RECOVERY_BOOT_OPTIONS,
             casper,
             recovery_partuuid.id,
-            if has_nvidia { "modules_load=nvidia nvidia-drm.modeset=0" } else { "" }
+            if has_nvidia { "modules_load=nvidia nvidia-drm.modeset=1" } else { "" }
         );
         let loader_entries = self.chroot.path.join("boot/efi/loader/entries/");
         if !loader_entries.exists() {
