@@ -114,7 +114,8 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> io::Result<&'static [&
             "fwupd-signed",
             "grub-efi-amd64",
             "grub-efi-amd64-signed",
-            "linux-image-generic-hwe-24.04",
+            //TODO: HWE kernel not present on Ubuntu Server ISOs,
+            //but non-HWE kernel not present on Ubuntu Desktop ISOs...
             "mokutil",
             "shim-signed",
         ]),
