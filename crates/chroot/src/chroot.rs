@@ -50,6 +50,7 @@ impl<'a> Chroot<'a> {
     pub fn clear_envs(&mut self, clear: bool) { self.clear_envs = clear; }
 
     /// Executes an external command with `chroot`.
+    #[must_use]
     pub fn command<S: AsRef<OsStr>, T: AsRef<OsStr>, I: IntoIterator<Item = T>>(
         &self,
         cmd: S,
