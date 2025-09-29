@@ -227,7 +227,7 @@ impl<'a> Backup<'a> {
             }
 
             for user in &self.users {
-                let _ = passwd.write_all(&append(user.passwd));
+                let _ = passwd.write_all(&append(&*replace_login_shell(user.passwd.into())));
                 let _ = group.write_all(&append(user.group));
                 let _ = shadow.write_all(&append(user.shadow));
                 let _ = gshadow.write_all(&append(user.gshadow));
@@ -351,6 +351,22 @@ where
     }
 }
 
+fn replace_login_shell(passwd: Vec<u8>) -> Vec<u8> {
+    use bstr::ByteSlice;
+    
+    if let Some((prefix, shell)) = passwd.rsplit_once_str(":") {
+        match shell {
+            b"/usr/sbin/nologin" | b"/bin/false" => passwd,
+            _ => bstr::concat([
+                prefix,
+                b":/bin/bash",
+            ])
+        }
+    } else {
+        return passwd;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -362,5 +378,23 @@ mod tests {
             get_timezone_path(Path::new("/tmp/prefix.id/usr/share/zoneinfo/America/Denver")),
             Some(PathBuf::from("../usr/share/zoneinfo/America/Denver"))
         )
+    }
+    
+    #[test]
+    fn login_shell_replace() {
+        assert_eq!(
+            &*replace_login_shell(Vec::from(b"test-account:x:1003:1003:Test Account,,,:/home/test-account:/bin/nushell")),
+            b"test-account:x:1003:1003:Test Account,,,:/home/test-account:/bin/bash"
+        );
+        
+        assert_eq!(
+            &*replace_login_shell(Vec::from(b"test-account:x:1003:1003:Test Account,,,:/home/test-account:/bin/false")),
+            b"test-account:x:1003:1003:Test Account,,,:/home/test-account:/bin/false"
+        );
+        
+        assert_eq!(
+            &*replace_login_shell(Vec::from(b"test-account:x:1003:1003:Test Account,,,:/home/test-account:/usr/sbin/nologin")),
+            b"test-account:x:1003:1003:Test Account,,,:/home/test-account:/usr/sbin/nologin"
+        );
     }
 }
