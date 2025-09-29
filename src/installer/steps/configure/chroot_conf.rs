@@ -223,6 +223,13 @@ impl<'a> ChrootConfigurator<'a> {
             }
         }
         
+        // Reset the shell in case a non-standard shell was used.
+        _ = self.chroot.command("usermod", [
+            "--shell",
+            "/bin/bash",
+            user
+        ]).run();
+        
         // Create a config for COSMIC if cosmic-comp is installed.
         if Path::new("/bin/cosmic-comp").exists() {
             let config_path = ["home/", user, "/.config/cosmic/com.system76.CosmicComp/v1/xkb_config"].concat();
