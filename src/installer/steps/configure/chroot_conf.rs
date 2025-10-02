@@ -605,7 +605,7 @@ fn set_cosmic_xkb_config(config: &Config, path: PathBuf) -> io::Result<()> {
     model: "{}",
     layout: "{}",
     variant: "{}",
-    options: Some("compose:ralt"),
+    options: Some("lv3:ralt_switch,compose:rctrl"),
     repeat_delay: 600,
     repeat_rate: 25,
 )"#,
