@@ -178,7 +178,7 @@ pub fn get_required_packages<D: InstallerDiskOps>(
     }
 
     if flags.intersects(FileSystemSupport::LVM | FileSystemSupport::LUKS) {
-        retain.extend_from_slice(&["lvm2", "dmeventd", "dmraid", "kpartx", "kpartx-boot"]);
+        retain.extend_from_slice(&["lvm2", "dmeventd", "kpartx", "kpartx-boot"]);
     }
 
     retain
