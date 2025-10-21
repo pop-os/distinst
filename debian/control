@@ -37,7 +37,6 @@ Depends:
   grub2-common,
   iso-codes,
   kpartx,
-  kpartx-boot,
   libparted-fs-resize0,
   locales,
   lvm2,
