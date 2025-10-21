@@ -29,7 +29,6 @@ Depends:
   coreutils,
   cryptsetup,
   dmsetup,
-  dmraid,
   dosfstools,
   e2fsprogs,
   f2fs-tools,
