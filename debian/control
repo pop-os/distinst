@@ -37,7 +37,7 @@ Depends:
   grub2-common,
   iso-codes,
   kpartx,
-  libparted-fs-resize0,
+  libparted-fs-resize0t64 | libparted-fs-resize0,
   locales,
   lvm2,
   mount,
