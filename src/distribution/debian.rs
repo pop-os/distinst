@@ -99,7 +99,7 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> io::Result<&'static [&
     match (os_release.name.as_str(), os_release.version_id.as_str(), env::consts::ARCH, Bootloader::detect()) {
         (_, _, _, Bootloader::Bios) => Ok(&["grub-common", "grub2-common", "grub-pc"]),
         ("Pop!_OS", _, _, Bootloader::Efi) => Ok(&["kernelstub"]),
-        ("Ubuntu", "24.04", "aarch64", Bootloader::Efi) => Ok(&[
+        ("Ubuntu", _, "aarch64", Bootloader::Efi) => Ok(&[
             "efibootmgr",
             "fwupd-signed",
             "grub-efi-arm64",
@@ -109,7 +109,7 @@ pub fn get_bootloader_packages(os_release: &OsRelease) -> io::Result<&'static [&
             "mokutil",
             "shim-signed",
         ]),
-        ("Ubuntu", "24.04", "x86_64", Bootloader::Efi) => Ok(&[
+        ("Ubuntu", _, "x86_64", Bootloader::Efi) => Ok(&[
             "efibootmgr",
             "fwupd-signed",
             "grub-efi-amd64",
