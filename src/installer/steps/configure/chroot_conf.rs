@@ -109,17 +109,23 @@ impl<'a> ChrootConfigurator<'a> {
     /// Add the apt repository on the image, so that packages may be installed from it.
     pub fn cdrom_add(&self) -> io::Result<()> {
         if Path::new("/cdrom").exists() {
-            info!("adding apt-cdrom to /etc/apt/sources.list");
-            self.chroot
-                .command(
-                    "apt-cdrom",
-                    &cascade! {
-                        Vec::with_capacity(APT_OPTIONS.len() + 1);
-                        ..extend_from_slice(APT_OPTIONS);
-                        ..push("add");
-                    },
-                )
-                .run()
+            let sources_path = "/etc/apt/sources.list.d/cdrom.sources";
+            if Path::new(sources_path).exists() {
+                info!("apt-cdrom already configured in {}", sources_path);
+                Ok(())
+            } else {
+                info!("adding apt-cdrom to /etc/apt/sources.list");
+                self.chroot
+                    .command(
+                        "apt-cdrom",
+                        &cascade! {
+                            Vec::with_capacity(APT_OPTIONS.len() + 1);
+                            ..extend_from_slice(APT_OPTIONS);
+                            ..push("add");
+                        },
+                    )
+                    .run()
+            }
         } else {
             Ok(())
         }
@@ -162,9 +168,15 @@ impl<'a> ChrootConfigurator<'a> {
     /// Disable that repository, now that they system has been installed.
     pub fn cdrom_disable(&self) -> io::Result<()> {
         if Path::new("/cdrom").exists() {
-            info!("disabling apt-cdrom from /etc/apt/sources.list");
-            let path = self.chroot.path.join("etc/apt/sources.list");
-            misc::sed(&path, "s/deb cdrom:/# deb cdrom:/g")
+            let sources_path = "/etc/apt/sources.list.d/cdrom.sources";
+            if Path::new(sources_path).exists() {
+                info!("removing apt-cdrom source in {}", sources_path);
+                fs::remove_file(sources_path)
+            } else {
+                info!("disabling apt-cdrom from /etc/apt/sources.list");
+                let path = self.chroot.path.join("etc/apt/sources.list");
+                misc::sed(&path, "s/deb cdrom:/# deb cdrom:/g")
+            }
         } else {
             Ok(())
         }
