@@ -84,7 +84,14 @@ pub fn bootloader<F: FnMut(i32)>(
                         )
                         .run()?;
 
-                    chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
+                    // Attempt dracut first. Fall back to update-initramfs if it does not exist.
+                    if let Err(why) = chroot.command("dracut", &["-f", "--regenerate-all"]).run() {
+                        if let io::ErrorKind::NotFound = why.kind() {
+                            chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
+                        } else {
+                            return Err(why.into());
+                        }
+                    }
                 }
                 Bootloader::Efi => {
                     // Grub disallows whitespaces in the name.
@@ -146,7 +153,14 @@ pub fn bootloader<F: FnMut(i32)>(
                             .run()?;
                     }
 
-                    chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
+                    // Attempt dracut first. Fall back to update-initramfs if it does not exist.
+                    if let Err(why) = chroot.command("dracut", &["-f", "--regenerate-all"]).run() {
+                        if let io::ErrorKind::NotFound = why.kind() {
+                            chroot.command("update-initramfs", &["-c", "-k", "all"]).run()?;
+                        } else {
+                            return Err(why.into());
+                        }
+                    }
 
                     if config.flags & MODIFY_BOOT_ORDER != 0 {
                         let efi_part_num = efi_part_num.to_string();
