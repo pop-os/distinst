@@ -165,7 +165,8 @@ impl InstallOptions {
 
                 let skip = !Path::new("/cdrom/recovery.conf").exists()
                     && (device.contains_mount("/", &disks)
-                        || device.contains_mount("/cdrom", &disks));
+                        || device.contains_mount("/cdrom", &disks)
+                        || device.contains_mount("/run/initramfs/live", &disks));
 
                 if skip {
                     info!("install options: skipping options on {:?}", device.get_device_path());

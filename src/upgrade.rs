@@ -101,7 +101,7 @@ pub fn upgrade<F: Fn(UpgradeEvent), R: Fn() -> bool>(
         }
     }
 
-    remount_rw("/cdrom")
+    remount_rw(crate::live_mount_path())
         .with_context(|err| format!("could not remount /cdrom as rw: {}", err))
         .and_then(|_| {
             recovery_conf.remove("MODE");

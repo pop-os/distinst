@@ -569,7 +569,7 @@ impl Disks {
             .iter()
             .map(|device| {
                 if let Some(mount) = device.get_mount_point() {
-                    if mount != Path::new("/cdrom") {
+                    if mount != Path::new("/run/initramfs/live") && mount != Path::new("/cdrom") {
                         info!("unmounting device mounted at {}", mount.display());
                         unmount(&mount, UnmountFlags::empty()).map_err(|why| {
                             DiskError::Unmount {

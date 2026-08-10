@@ -435,10 +435,11 @@ impl<'a> ChrootConfigurator<'a> {
         info!("creating recovery partition");
         let recovery_path = self.chroot.path.join("recovery");
         let efi_path = self.chroot.path.join("boot/efi");
+        let live_mount_path = crate::live_mount_path();
 
         let result = if recovery_path.exists() { 0 } else { 1 }
             | if efi_path.is_dir() { 0 } else { 2 }
-            | if Path::new("/cdrom").is_dir() { 0 } else { 4 };
+            | if Path::new(live_mount_path).is_dir() { 0 } else { 4 };
 
         if result != 0 {
             warn!(
@@ -474,7 +475,7 @@ impl<'a> ChrootConfigurator<'a> {
             .into_io_result(|| "/recovery does not have a UUID")?;
 
         let cdrom_uuid =
-            Command::new("findmnt").args(&["-n", "-o", "UUID", "/cdrom"]).run_with_stdout()?;
+            Command::new("findmnt").args(&["-n", "-o", "UUID", live_mount_path]).run_with_stdout()?;
         let cdrom_uuid = cdrom_uuid.trim();
 
         // If we are installing from the recovery partition, then we can skip this step.
@@ -495,12 +496,10 @@ impl<'a> ChrootConfigurator<'a> {
             }
         }
 
-        let casper_data_: String;
-        let casper_data: &str = if Path::new("/cdrom/recovery.conf").exists() {
-            casper_data_ = ["/cdrom/casper-", cdrom_uuid, "/"].concat();
-            &casper_data_
+        let casper_data: String = if Path::new(&[live_mount_path, "/recovery.conf"].concat()).exists() {
+            [live_mount_path, "/casper-", cdrom_uuid, "/"].concat()
         } else {
-            "/cdrom/casper/"
+            [live_mount_path, "/casper/"].concat()
         };
 
         let casper = ["casper-", &recovery_uuid.id].concat();
@@ -509,12 +508,19 @@ impl<'a> ChrootConfigurator<'a> {
             self.chroot
                 .command(
                     "rsync",
-                    &["-KLavc", "--delete-before", "/cdrom/.disk", "/cdrom/dists", "/cdrom/pool", "/recovery"],
+                    &[
+                        "-KLavc",
+                        "--delete-before",
+                        &[live_mount_path, "/.disk"].concat(),
+                        &[live_mount_path, "/dists"].concat(),
+                        &[live_mount_path, "/pool"].concat(),
+                        "/recovery"
+                    ],
                 )
                 .run()?;
 
             self.chroot
-                .command("rsync", &["-KLavc", casper_data, &["/recovery/", &casper].concat()])
+                .command("rsync", &["-KLavc", &casper_data, &["/recovery/", &casper].concat()])
                 .run()?;
         }
 
@@ -556,8 +562,8 @@ OEM_MODE=0
         fs::create_dir_all(self.chroot.path.join(efi_recovery))
             .with_context(|err| format!("failed to create EFI recovery directories: {}", err))?;
 
-        misc::cp(&[casper_data, "initrd.gz"].concat(), &efi_initrd)?;
-        misc::cp(&[casper_data, "vmlinuz.efi"].concat(), &efi_vmlinuz)?;
+        misc::cp(&[&casper_data, "initrd.gz"].concat(), &efi_initrd)?;
+        misc::cp(&[&casper_data, "vmlinuz.efi"].concat(), &efi_vmlinuz)?;
 
         // If the NVIDIA DKMS driver is installed, force it to load in the recovery partition
         // This test must not use /proc or /sys for detection since the installer can run inside a

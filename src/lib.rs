@@ -49,11 +49,8 @@ extern crate rayon;
 extern crate systemd_boot_conf;
 extern crate tempdir;
 
-pub use crate::bootloader::*;
+pub use crate::{bootloader::*, disks::*, misc::device_layout_hash, upgrade::*};
 pub use disk_types::*;
-pub use crate::disks::*;
-pub use crate::misc::device_layout_hash;
-pub use crate::upgrade::*;
 
 pub use self::installer::RecoveryEnv;
 
@@ -76,8 +73,8 @@ use std::{
     sync::atomic::AtomicBool,
 };
 
-use anyhow::Context;
 use crate::external::dmlist;
+use anyhow::Context;
 use partition_identity::PartitionID;
 use sys_mount::*;
 use systemd_boot_conf::SystemdBootConf;
@@ -106,6 +103,15 @@ pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
 /// Checks if the given name already exists as a device in the device map list.
 pub fn device_map_exists(name: &str) -> bool {
     dmlist().ok().map_or(false, |list| list.contains(&name.into()))
+}
+
+/// Dracut mounts the live image to /run/initramfs/live.
+pub fn live_mount_path() -> &'static str {
+    if Path::new("/run/initramfs/live").exists() {
+        "/run/initramfs/live"
+    } else {
+        "/cdrom"
+    }
 }
 
 /// Gets the minimum number of sectors required. The input should be in sectors, not bytes.
@@ -153,7 +159,7 @@ pub fn unset_mode() -> anyhow::Result<()> {
         boot_loader.loader_conf.default = Some(prev_boot.into());
         boot_loader.overwrite_loader_conf().context("failed to overwrite boot loader conf")?;
 
-        crate::external::remount_rw("/cdrom")
+        crate::external::remount_rw(crate::live_mount_path())
             .context("failed to remount /cdrom with write permissions")?;
         conf.remove("MODE");
         conf.remove("PREV_BOOT");

@@ -378,7 +378,7 @@ fn update_recovery_config(
         let luks_value = luks_uuid.map_or("", |uuid| if root_uuid == uuid { "" } else { uuid });
         recovery_conf.update("LUKS_UUID", luks_value);
 
-        remount_rw("/cdrom")
+        remount_rw(crate::live_mount_path())
             .with_context(|err| format!("could not remount /cdrom as rw: {}", err))
             .and_then(|_| {
                 recovery_conf.update("OEM_MODE", "0");

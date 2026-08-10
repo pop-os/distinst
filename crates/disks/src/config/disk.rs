@@ -6,8 +6,8 @@ use super::{
     partitions::{FORMAT, REMOVE, SOURCE, SWAPPED},
     PVS,
 };
-use disk_types::{PartitionExt, PartitionTableExt, SectorExt};
 use crate::external::{is_encrypted, pvs};
+use disk_types::{PartitionExt, PartitionTableExt, SectorExt};
 use libparted::{Device, DeviceType, Disk as PedDisk};
 use operations::{
     parted::{get_device, open_disk},
@@ -124,9 +124,7 @@ impl BlockDeviceExt for Disk {
 }
 
 impl SectorExt for Disk {
-    fn get_sectors(&self) -> u64 {
-        self.size
-    }
+    fn get_sectors(&self) -> u64 { self.size }
 }
 
 impl PartitionTableExt for Disk {
@@ -280,7 +278,10 @@ impl Disk {
         let swaps = SWAPS.read().expect("failed to get swaps in unmount_all_partitions");
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
-                if mount == Path::new("/cdrom") || mount == Path::new("/") {
+                if mount == Path::new("/run/initramfs/live")
+                    || mount == Path::new("/cdrom")
+                    || mount == Path::new("/")
+                {
                     continue;
                 }
 
@@ -315,7 +316,8 @@ impl Disk {
 
         let mut mounts = BTreeSet::new();
         for mount in mountstab.source_starts_with(self.path()) {
-            if mount.dest == Path::new("/cdrom")
+            if mount.dest == Path::new("/run/initramfs/live")
+                || mount.dest == Path::new("/cdrom")
                 || mount.dest == Path::new("/")
                 || mount.dest == Path::new("/boot/efi")
             {
