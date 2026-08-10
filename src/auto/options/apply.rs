@@ -269,12 +269,13 @@ fn mount_recovery_partid(
     recovery: &PartitionID,
 ) -> Result<(), InstallOptionError> {
     if let Some(path) = recovery.get_device_path() {
-        let recovery_is_cdrom = MountIter::<BufReader<File>>::source_mounted_at(path, "/cdrom")
+        let live_mount_path = crate::live_mount_path();
+        let recovery_is_cdrom = MountIter::<BufReader<File>>::source_mounted_at(path, live_mount_path)
             .map_err(|why| InstallOptionError::ProcMounts { why })?;
 
         if recovery_is_cdrom {
             info!("remounting /cdrom as rewriteable");
-            remount_rw("/cdrom").map_err(InstallOptionError::RemountCdrom)?;
+            remount_rw(live_mount_path).map_err(InstallOptionError::RemountCdrom)?;
         }
 
         set_mount_by_identity(disks, recovery, "/recovery")?;
