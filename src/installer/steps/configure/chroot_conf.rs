@@ -496,10 +496,10 @@ impl<'a> ChrootConfigurator<'a> {
             }
         }
 
-        let casper_data: String = if Path::new(&[live_mount_path, "/recovery.conf"].concat()).exists() {
-            [live_mount_path, "/casper-", cdrom_uuid, "/"].concat()
+        let casper_data: String = if Path::new("/cdrom/recovery.conf").exists() {
+            ["/cdrom/casper-", cdrom_uuid, "/"].concat()
         } else {
-            [live_mount_path, "/casper/"].concat()
+            String::from("/cdrom/casper/")
         };
 
         let casper = ["casper-", &recovery_uuid.id].concat();
@@ -511,10 +511,10 @@ impl<'a> ChrootConfigurator<'a> {
                     &[
                         "-KLavc",
                         "--delete-before",
-                        &[live_mount_path, "/.disk"].concat(),
-                        &[live_mount_path, "/dists"].concat(),
-                        &[live_mount_path, "/pool"].concat(),
-                        "/recovery"
+                        "/cdrom/.disk",
+                        "/cdrom/dists",
+                        "/cdrom/pool",
+                        "/recovery",
                     ],
                 )
                 .run()?;
