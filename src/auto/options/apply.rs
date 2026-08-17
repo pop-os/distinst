@@ -6,8 +6,10 @@ use super::{
 };
 use disk_types::{FileSystem::*, SectorExt};
 
-use crate::external::{generate_unique_id, remount_rw};
-use crate::misc;
+use crate::{
+    external::{generate_unique_id, remount_rw},
+    misc,
+};
 use partition_identity::PartitionID;
 use proc_mounts::MountIter;
 
@@ -189,16 +191,6 @@ fn alongside_config(
                 .logical_volume(root_vg, Some(enc)),
         )?;
     } else {
-        let swap = end - DEFAULT_SWAP_SECTORS;
-
-        // Only create a new unencrypted swap partition if a swap partition does not already exist.
-        let end = if !device.get_partitions().iter().any(|p| p.filesystem == Some(Swap)) {
-            device.add_partition(PartitionBuilder::new(swap, end, Swap))?;
-            swap
-        } else {
-            end
-        };
-
         device.add_partition(PartitionBuilder::new(start, end, Ext4).mount("/".into()))?;
     }
 
@@ -211,16 +203,11 @@ fn alongside_config(
             .ok_or(InstallOptionError::LogicalDeviceNotFound { vg: root_vg })?;
 
         let start = lvm_device.get_sector(Sector::Start);
-        let swap = lvm_device.get_sector(Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS));
         let end = lvm_device.get_sector(Sector::End);
 
-        lvm_device
-            .add_partition(
-                PartitionBuilder::new(start, swap, Ext4).name("root".into()).mount("/".into()),
-            )
-            .and_then(|_| {
-                lvm_device.add_partition(PartitionBuilder::new(swap, end, Swap).name("swap".into()))
-            })?;
+        lvm_device.add_partition(
+            PartitionBuilder::new(start, end, Ext4).name("root".into()).mount("/".into()),
+        )?;
     }
 
     Ok(())
@@ -270,8 +257,9 @@ fn mount_recovery_partid(
 ) -> Result<(), InstallOptionError> {
     if let Some(path) = recovery.get_device_path() {
         let live_mount_path = crate::live_mount_path();
-        let recovery_is_cdrom = MountIter::<BufReader<File>>::source_mounted_at(path, live_mount_path)
-            .map_err(|why| InstallOptionError::ProcMounts { why })?;
+        let recovery_is_cdrom =
+            MountIter::<BufReader<File>>::source_mounted_at(path, live_mount_path)
+                .map_err(|why| InstallOptionError::ProcMounts { why })?;
 
         if recovery_is_cdrom {
             info!("remounting /cdrom as rewriteable");
@@ -424,7 +412,6 @@ fn erase_config(
     let start_sector = Sector::Start;
     let boot_sector = Sector::Unit(DEFAULT_ESP_SECTORS);
     let recovery_sector = Sector::Unit(DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS);
-    let swap_sector = Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS);
     let end_sector = Sector::End;
 
     let (lvm, root_vg) = match generate_encryption(password)? {
@@ -462,7 +449,7 @@ fn erase_config(
                                 .mount("/recovery".into()),
                         )
                     })
-                    .map(|_| (device.get_sector(recovery_sector), device.get_sector(swap_sector)))
+                    .map(|_| device.get_sector(recovery_sector))
             }
             Bootloader::Bios => {
                 device
@@ -479,32 +466,26 @@ fn erase_config(
                                         .flag(PartitionFlag::PED_PARTITION_BOOT)
                                         .mount("/boot".into()),
                                 )
-                                .map(|_| (boot_sector, swap_sector))
+                                .map(|_| boot_sector)
                         } else {
-                            Ok((start_sector, swap_sector))
+                            Ok(start_sector)
                         }
                     })
-                    .map(|(start, end)| (device.get_sector(start), device.get_sector(end)))
+                    .map(|start| device.get_sector(start))
             }
         };
 
         // Configure optionally-encrypted root volume
-        result
-            .and_then(|(start, end)| {
-                device.add_partition(if let Some((enc, root_vg)) = lvm {
-                    PartitionBuilder::new(start, end, Lvm)
-                        .partition_type(PartitionType::Primary)
-                        .logical_volume(root_vg, Some(enc))
-                } else {
-                    PartitionBuilder::new(start, end, Ext4).mount("/".into())
-                })
+        result.and_then(|start| {
+            let end = device.get_sector(end_sector);
+            device.add_partition(if let Some((enc, root_vg)) = lvm {
+                PartitionBuilder::new(start, end, Lvm)
+                    .partition_type(PartitionType::Primary)
+                    .logical_volume(root_vg, Some(enc))
+            } else {
+                PartitionBuilder::new(start, end, Ext4).mount("/".into())
             })
-            // Configure swap partition
-            .and_then(|_| {
-                let start = device.get_sector(swap_sector);
-                let end = device.get_sector(end_sector);
-                device.add_partition(PartitionBuilder::new(start, end, Swap))
-            })?;
+        })?;
 
         disks.add(device);
     }
