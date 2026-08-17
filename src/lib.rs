@@ -92,17 +92,15 @@ pub static PARTITIONING_TEST: AtomicBool = AtomicBool::new(false);
 /// Even if the system is EFI, the efivars directory will not be mounted in the chroot.
 pub static NO_EFI_VARIABLES: AtomicBool = AtomicBool::new(false);
 
-/// 1 GiB EFI partition in 512-byte sectors
-pub const DEFAULT_ESP_SECTORS: u64 = 2_097_152;
+/// 4 GiB EFI partition in 512-byte sectors
+pub const DEFAULT_ESP_SECTORS: u64 = 8_388_608;
 
 /// 4 GiB recovery partition in 512-byte sectors
 pub const DEFAULT_RECOVER_SECTORS: u64 = 8_388_608;
 
-pub const DEFAULT_SWAP_SECTORS: u64 = DEFAULT_RECOVER_SECTORS;
-
 /// Checks if the given name already exists as a device in the device map list.
 pub fn device_map_exists(name: &str) -> bool {
-    dmlist().ok().map_or(false, |list| list.contains(&name.into()))
+    dmlist().ok().map(|list| list.contains(&name.into())).unwrap_or(false)
 }
 
 /// Dracut mounts the live image to /run/initramfs/live.
@@ -120,7 +118,6 @@ pub fn live_mount_path() -> &'static str {
 ///
 /// - The value in `/cdrom/casper/filesystem.size`
 /// - The size of a default boot / esp partition
-/// - The size of a default swap partition
 /// - The size of a default recovery partition.
 ///
 /// The input parameter will undergo a max comparison to the estimated minimum requirement.
@@ -139,7 +136,7 @@ pub fn minimum_disk_size(default: u64) -> u64 {
         0
     };
 
-    casper + bootloader + DEFAULT_SWAP_SECTORS
+    casper + bootloader
 }
 
 pub fn unset_mode() -> anyhow::Result<()> {
