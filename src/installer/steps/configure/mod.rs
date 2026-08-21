@@ -100,13 +100,16 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         if Path::new("/usr/bin/dracut").exists() {
             if let Some(ref luks_uuid) = luks_uuid {
                 let dracut_cmdline = format!(
-                    "kernel_cmdline+=\" rd.luks.uuid={} root=UUID={} rd.luks.allow-discards \"\n",
-                    luks_uuid.id, root_entry.uid.id
+                    "kernel_cmdline+=\" rd.luks.uuid={} \"\n",
+                    luks_uuid.id
                 );
                 fs::create_dir_all(mount_dir.join("etc/dracut.conf.d"))?;
                 file_create!(
                     &mount_dir.join("etc/dracut.conf.d/luks.conf"),
-                    [b"add_dracutmodules+=\" crypt lvm mdraid \"\n", dracut_cmdline.as_bytes()]
+                    [
+                        b"add_dracutmodules+=\" crypt lvm mdraid \"\n",
+                        b"install_items+=\" /etc/crypttab\"\n",
+                        dracut_cmdline.as_bytes()]
                 );
             }
 
@@ -316,7 +319,16 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(75);
 
-        chroot.bootloader().with_context(|why| format!("error installing bootloader: {}", why))?;
+        let luks_options_: String;
+        let luks_options = if let Some(luks_uuid) = luks_uuid {
+            luks_options_ = format!("rd.luks.uuid={}", luks_uuid.id);
+            &luks_options_
+        } else {
+            ""
+        };
+
+        chroot.bootloader(luks_options)
+            .with_context(|why| format!("error installing bootloader: {}", why))?;
 
         callback(80);
 

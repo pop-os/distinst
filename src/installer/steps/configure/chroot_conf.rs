@@ -69,7 +69,7 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     /// Configure the bootloader on the system.
-    pub fn bootloader(&self) -> io::Result<()> {
+    pub fn bootloader(&self, luks_options: &str) -> io::Result<()> {
         info!("configuring bootloader");
 
         // If the NVIDIA DKMS driver is installed, add its flags to the cmdline for the simpledrm patch to pick up.
@@ -86,7 +86,7 @@ impl<'a> ChrootConfigurator<'a> {
                     "--esp-path",
                     "/boot/efi",
                     "--add-options",
-                    &format!("{BOOT_OPTIONS} {nvidia_boot_options}"),
+                    &format!("{BOOT_OPTIONS} {nvidia_boot_options} {luks_options}"),
                     "--loader",
                     "--manage-only",
                     "--force-update",
