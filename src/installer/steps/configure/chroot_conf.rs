@@ -22,7 +22,7 @@ const APT_OPTIONS: &[&str] = &[
 ];
 
 // For a clean boot by default, we hide all output and use plymouth
-const BOOT_OPTIONS: &str = "quiet loglevel=0 systemd.show_status=false splash";
+const BOOT_OPTIONS: &str = "quiet loglevel=0 systemd.show_status=false splash threadirqs";
 
 // For a reliable boot when using recovery, we show all output and do not use plymouth
 const RECOVERY_BOOT_OPTIONS: &str = "";
