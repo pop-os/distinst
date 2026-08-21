@@ -88,19 +88,28 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
     let root_entry = disks.get_block_info_of("/")?;
 
+    let luks_uuid = root_entry
+        .uid
+        .get_device_path()
+        .and_then(|ref path| misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap()))
+        .and_then(PartitionID::get_uuid)
+        .and_then(|uuid| if uuid == root_entry.uid { None } else { Some(uuid) });
+
     let lvm_autodetection = || {
         // On systems with dracut, ensure that we add the necessary dracut configuration.
         if Path::new("/usr/bin/dracut").exists() {
-            if !disks.get_support_flags().contains(FileSystemSupport::LUKS) {
-                return Ok(());
+            if let Some(ref luks_uuid) = luks_uuid {
+                let dracut_cmdline = format!(
+                    "kernel_cmdline+=\" rd.luks.uuid={} root=UUID={} rd.luks.allow-discards \"\n",
+                    luks_uuid.id, root_entry.uid.id
+                );
+                fs::create_dir_all(mount_dir.join("etc/dracut.conf.d"))?;
+                file_create!(
+                    &mount_dir.join("etc/dracut.conf.d/luks.conf"),
+                    [b"add_dracutmodules+=\" crypt lvm mdraid \"\n", dracut_cmdline.as_bytes()]
+                );
             }
 
-            let dracut_cmdline = format!("kernel_cmdline+=\" root=UUID={} \"\n", root_entry.uid.id);
-            fs::create_dir_all(mount_dir.join("etc/dracut.conf.d"))?;
-            file_create!(
-                &mount_dir.join("etc/dracut.conf.d/luks.conf"),
-                [b"add_dracutmodules+=\" crypt lvm \"\n", dracut_cmdline.as_bytes()]
-            );
             return Ok(());
         }
 
@@ -178,17 +187,6 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         let _recovery_entry = disks.get_block_info_of("/recovery");
 
         callback(20);
-
-        let luks_uuid = root_entry
-            .uid
-            .get_device_path()
-            .and_then(|ref path| {
-                misc::resolve_to_physical(path.file_name().unwrap().to_str().unwrap())
-            })
-            .and_then(PartitionID::get_uuid)
-            .and_then(|uuid| if uuid == root_entry.uid { None } else { Some(uuid) });
-
-        callback(25);
 
         let root_uuid = &root_entry.uid;
         if let Some(conf) = recovery_conf {
