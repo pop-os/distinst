@@ -11,7 +11,7 @@ keywords = ["detect", "probe", "os"]
 
 [dependencies]
 os-release = "0.1.0"
-partition-identity = "0.2.0"
-sys-mount = "1.1.0"
+partition-identity = "0.3.1"
+sys-mount = "3.1.0"
 tempdir = "0.3.7"
-log = "0.4.6"
+log = "0.4.34"

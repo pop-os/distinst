@@ -25,12 +25,12 @@ impl<'a> Chroot<'a> {
     /// is successful.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref().canonicalize()?;
-        let dev_mount = Mount::new("/dev", &path.join("dev"), "none", MountFlags::BIND, None)?;
+        let dev_mount = Mount::builder().fstype("none").flags(MountFlags::BIND).mount("/dev", path.join("dev"))?;
         let pts_mount =
-            Mount::new("/dev/pts", &path.join("dev").join("pts"), "none", MountFlags::BIND, None)?;
-        let proc_mount = Mount::new("/proc", &path.join("proc"), "none", MountFlags::BIND, None)?;
-        let run_mount = Mount::new("/run", &path.join("run"), "none", MountFlags::BIND, None)?;
-        let sys_mount = Mount::new("/sys", &path.join("sys"), "none", MountFlags::BIND, None)?;
+            Mount::builder().fstype("none").flags(MountFlags::BIND).mount("/dev/pts", path.join("dev").join("pts"))?;
+        let proc_mount = Mount::builder().fstype("none").flags(MountFlags::BIND).mount("/proc", path.join("proc"))?;
+        let run_mount = Mount::builder().fstype("none").flags(MountFlags::BIND).mount("/run", path.join("run"))?;
+        let sys_mount = Mount::builder().fstype("none").flags(MountFlags::BIND).mount("/sys", path.join("sys"))?;
         Ok(Chroot {
             path,
             dev_mount,

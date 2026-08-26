@@ -84,7 +84,7 @@ pub fn cryptsetup_encrypt(device: &Path, enc: &LvmEncryption) -> io::Result<()> 
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             let supported = SupportedFilesystems::new()?;
-            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
+            let _mount = Mount::builder().fstype(&supported).flags(MountFlags::BIND).mount(&keydata.0, tmpfs.path())?
                 .into_unmount_drop(UnmountFlags::DETACH);
             let keypath = tmpfs.path().join(&enc.physical_volume);
 
@@ -127,7 +127,7 @@ pub fn cryptsetup_open(device: &Path, enc: &LvmEncryption) -> io::Result<()> {
             let keydata = keydata.as_ref().expect("field should have been populated");
             let tmpfs = TempDir::new("distinst")?;
             let supported = SupportedFilesystems::new()?;
-            let _mount = Mount::new(&keydata.0, tmpfs.path(), &supported, MountFlags::BIND, None)?
+            let _mount = Mount::builder().fstype(&supported).flags(MountFlags::BIND).mount(&keydata.0, tmpfs.path())?
                 .into_unmount_drop(UnmountFlags::DETACH);
             let keypath = tmpfs.path().join(&enc.physical_volume);
             info!("keypath exists: {}", keypath.is_file());

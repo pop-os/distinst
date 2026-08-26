@@ -12,7 +12,6 @@ use disk_types::{BlockDeviceExt, PartitionTableExt, SectorExt};
 pub use crate::external::deactivate_devices;
 use crate::external::{blkid_partition, lvcreate, lvremove, lvs, mkfs, vgactivate, vgcreate};
 use partition_identity::PartitionIdentifiers;
-use proc_mounts::MOUNTS;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -103,7 +102,7 @@ impl LogicalDevice {
         is_source: bool,
     ) -> LogicalDevice {
         let device_path = PathBuf::from(format!("/dev/mapper/{}", volume_group.replace("-", "--")));
-        let mounts = MOUNTS.read().expect("unable to get mounts within LogicalDevice::new");
+        let mounts = proc_mounts::MountList::new().expect("unable to get mounts within LogicalDevice::new");
 
         eprintln!("Logical device of {} is {:?}", volume_group,device_path);
 

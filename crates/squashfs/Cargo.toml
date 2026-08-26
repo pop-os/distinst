@@ -10,5 +10,5 @@ keywords = ["squashfs"]
 edition = "2018"
 
 [dependencies]
-libc = "0.2.68"
-log = "0.4.8"
+libc = "0.2.189"
+log = "0.4.34"

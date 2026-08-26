@@ -3,7 +3,7 @@ use crate::errors::IoContext;
 use std::io;
 
 #[derive(AsMut, Deref, DerefMut)]
-#[as_mut]
+#[as_mut(EnvFile)]
 #[deref]
 #[deref_mut]
 pub struct RecoveryEnv(EnvFile);

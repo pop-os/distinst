@@ -1,6 +1,4 @@
-use std::{io, fs, fmt::Debug};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use sysfs_class::{Block, SysClass};
 
 /// Methods that all block devices share, whether they are partitions or disks.

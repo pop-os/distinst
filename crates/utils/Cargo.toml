@@ -10,4 +10,4 @@ keywords = ["distinst", "utils"]
 edition = "2018"
 
 [dependencies]
-sedregex = "0.2.4"
+sedregex = "0.2.5"

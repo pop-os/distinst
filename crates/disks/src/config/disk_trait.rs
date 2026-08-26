@@ -3,7 +3,6 @@ use super::{
     partitions::REMOVE,
 };
 use disk_types::{BlockDeviceExt, PartitionExt, PartitionTableError, PartitionTableExt, SectorExt};
-use proc_mounts::MOUNTS;
 use std::path::{Path, PathBuf};
 use sysfs_class::{Block, SysClass};
 
@@ -43,7 +42,7 @@ pub trait DiskExt: BlockDeviceExt + SectorExt + PartitionTableExt {
     fn contains_mount(&self, mount: &str, parent: &Disks) -> bool {
         let check_sysfs = || {
             // check for partitions that linux found, but parted may not have
-            let mounts = MOUNTS.read().expect("failed to get mounts in DiskExt::contains_mount");
+            let mounts = proc_mounts::MountList::new().expect("failed to get mounts in DiskExt::contains_mount");
 
             let name: String = self
                 .get_device_path()

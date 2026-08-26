@@ -14,7 +14,6 @@ use operations::{
     *,
 };
 use partition_identity::PartitionID;
-use proc_mounts::{MOUNTS, SWAPS};
 use rayon::prelude::*;
 use std::{
     collections::BTreeSet,
@@ -36,8 +35,8 @@ pub fn detect_fs_on_device(path: &Path) -> Option<PartitionInfo> {
                     }
                 }
 
-                let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
-                let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+                let mounts = proc_mounts::MountList::new().expect("failed to get mounts in Disk::new");
+                let swaps = proc_mounts::SwapList::new().expect("failed to get swaps in Disk::new");
 
                 match PartitionInfo::new_from_ped(&part) {
                     Ok(mut part) => {
@@ -183,8 +182,8 @@ impl Disk {
             _ => None,
         });
 
-        let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
-        let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+        let mounts = proc_mounts::MountList::new().expect("failed to get mounts in Disk::new");
+        let swaps = proc_mounts::SwapList::new().expect("failed to get swaps in Disk::new");
 
         Ok(Disk {
             model_name,
@@ -275,7 +274,7 @@ impl Disk {
     pub fn unmount_all_partitions(&mut self) -> Result<(), (PathBuf, io::Error)> {
         info!("unmount all partitions on {}", self.path().display());
 
-        let swaps = SWAPS.read().expect("failed to get swaps in unmount_all_partitions");
+        let swaps = proc_mounts::SwapList::new().expect("failed to get swaps in unmount_all_partitions");
         for partition in &mut self.partitions {
             if let Some(ref mount) = partition.mount_point {
                 if mount == Path::new("/run/initramfs/live")
@@ -306,9 +305,9 @@ impl Disk {
         info!("unmount all partitions with a target on {}", self.path().display());
 
         let swaps =
-            SWAPS.read().expect("failed to get swaps in unmount_all_partitions_with_target");
+            proc_mounts::SwapList::new().expect("failed to get swaps in unmount_all_partitions_with_target");
         let mountstab =
-            MOUNTS.read().expect("failed to get mounts in unmount_all_partitions_with_target");
+            proc_mounts::MountList::new().expect("failed to get mounts in unmount_all_partitions_with_target");
 
         for partition in &mut self.partitions {
             partition.deactivate_if_swap(&swaps)?;

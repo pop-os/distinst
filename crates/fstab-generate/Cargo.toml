@@ -11,4 +11,4 @@ keywords = ["linux", "fstab", "generate"]
 
 [dependencies]
 disk-types = { path = "../disk-types" }
-partition-identity = "0.2.0"
+partition-identity = "0.3.1"

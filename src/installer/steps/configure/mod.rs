@@ -1,4 +1,4 @@
-use crate::{bootloader::Bootloader, installer::bitflags::FileSystemSupport};
+use crate::bootloader::Bootloader;
 mod chroot_conf;
 use self::chroot_conf::ChrootConfigurator;
 use super::{mount_cdrom, mount_efivars};
@@ -13,10 +13,8 @@ use crate::{
     timezones::Region,
     Config, UserAccountCreate, INSTALL_HARDWARE_SUPPORT, RUN_UBUNTU_DRIVERS,
 };
-use libc;
 use os_release::OsRelease;
 use partition_identity::PartitionID;
-use rayon;
 use std::{
     fs::{self, Permissions},
     io::{self, Write},
@@ -148,6 +146,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         let mut c: io::Result<()> = Ok(());
         let mut configure_graphics = Ok(false);
 
+        
+
         rayon::scope(|s| {
             s.spawn(|_| b = lvm_autodetection());
             s.spawn(|_| c = generate_fstabs());
@@ -161,6 +161,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             });
         });
 
+        
+
         callback(10);
         map_errors! {
             b => "lvm autodetection error";
@@ -169,6 +171,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         configure_graphics?
     };
+
+    
 
     {
         info!("chrooting into target on {}", mount_dir.display());

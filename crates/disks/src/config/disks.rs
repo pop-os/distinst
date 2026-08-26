@@ -16,7 +16,7 @@ use itertools::Itertools;
 use libparted::{Device, DeviceType};
 use misc;
 use partition_identity::{PartitionID, PartitionSource};
-use proc_mounts::{MountIter, MOUNTS, SWAPS};
+use proc_mounts::{MountIter};
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -258,11 +258,11 @@ impl Disks {
             let mount = match kind {
                 MountKind::Direct { device, fs } => {
                     info!("mounting {:?} ({}) to {:?}", device, fs, target_mount);
-                    Mount::new(device, &target_mount, fs, MountFlags::empty(), None)?
+                    Mount::builder().fstype(fs).mount(device, &target_mount)?
                 }
                 MountKind::Bind { source } => {
                     info!("bind mounting {:?} to {:?}", source, target_mount);
-                    Mount::new(source, &target_mount, "", MountFlags::BIND, None)?
+                    Mount::builder().flags(MountFlags::BIND).mount(source, &target_mount)?
                 }
             };
 
@@ -392,8 +392,8 @@ impl Disks {
     /// Deactivates all device maps associated with the inner disks/partitions
     /// to be modified.
     pub fn deactivate_device_maps(&self) -> Result<(), DiskError> {
-        let mounts = MOUNTS.read().expect("failed to get mounts in deactivate_device_maps");
-        let swaps = SWAPS.read().expect("failed to get swaps in deactivate_device_maps");
+        let mounts = proc_mounts::MountList::new().expect("failed to get mounts in deactivate_device_maps");
+        let swaps = proc_mounts::SwapList::new().expect("failed to get swaps in deactivate_device_maps");
         let umount = move |vg: &str| -> Result<(), DiskError> {
             for lv in lvs(vg).map_err(|why| DiskError::ExternalCommand { why })? {
                 if let Some(mount) = mounts.get_mount_by_source(&lv) {
@@ -607,8 +607,8 @@ impl Disks {
 
         // Collect all of the extended partition information for each contained
         // partition in parallel.
-        let mounts = MOUNTS.read().expect("failed to get mounts in Disk::new");
-        let swaps = SWAPS.read().expect("failed to get swaps in Disk::new");
+        let mounts = proc_mounts::MountList::new().expect("failed to get mounts in Disk::new");
+        let swaps = proc_mounts::SwapList::new().expect("failed to get swaps in Disk::new");
 
         unsafe {
             if PVS.is_none() {
@@ -1184,7 +1184,7 @@ impl Disks {
         }
 
         for (luks_parent, id) in associations {
-            let mut logical = &mut self.logical[id];
+            let logical = &mut self.logical[id];
             info!("associating {:?} with {:?}", logical.device_path, luks_parent);
             logical.luks_parent = Some(luks_parent);
         }

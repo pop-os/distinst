@@ -1,6 +1,4 @@
 #[macro_use]
-extern crate err_derive;
-#[macro_use]
 extern crate log;
 
 mod device;

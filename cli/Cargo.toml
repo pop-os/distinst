@@ -17,15 +17,10 @@ path = "src/main.rs"
 
 [dependencies]
 clap = "2.33.0"
-dbus = "0.8.2"
+dbus = "0.9.12"
 distinst = { path = ".." }
-libc = "0.2.68"
-pbr = "1.0.2"
-partition-identity = "0.2.8"
-proc-mounts = "0.2.4"
-failure_derive = "0.1.7"
-
-[dependencies.failure]
-version = "0.1.7"
-default-features = false
-features = ["derive"]
+libc = "0.2.189"
+pbr = "1.1.1"
+partition-identity = "0.3.1"
+proc-mounts = "0.3.0"
+thiserror = "2.0.20"

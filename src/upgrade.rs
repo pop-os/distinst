@@ -1,7 +1,6 @@
 use apt_cli_wrappers::AptUpgradeEvent;
 use crate::auto::{InstallOption, InstallOptionError, RecoveryOption};
 use crate::chroot::SystemdNspawn;
-use err_derive::Error;
 use crate::disks::Disks;
 use crate::errors::IoContext;
 use crate::external::remount_rw;
@@ -10,27 +9,27 @@ use std::{io, path::Path, process::Stdio};
 use systemd_boot_conf::SystemdBootConf;
 use tempdir::TempDir;
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum UpgradeError {
-    #[error(display = "attempted to recover from errors, but failed: {}", _0)]
+    #[error("attempted to recover from errors, but failed: {}", _0)]
     AttemptFailed(io::Error),
-    #[error(display = "failed to mount file systems to chroot: {}", _0)]
+    #[error("failed to mount file systems to chroot: {}", _0)]
     ChrootMount(io::Error),
-    #[error(display = "failed to create temporary chroot mount directory: {}", _0)]
+    #[error("failed to create temporary chroot mount directory: {}", _0)]
     ChrootTempCreate(io::Error),
-    #[error(display = "failed to configure disk(s): {}", _0)]
+    #[error("failed to configure disk(s): {}", _0)]
     Configure(InstallOptionError),
-    #[error(display = "failed to mount efivars directory: _0")]
+    #[error("failed to mount efivars directory: _0")]
     EfiVars(io::Error),
-    #[error(display = "failed to mount $CHROOT/etc to /etc: {}", _0)]
+    #[error("failed to mount $CHROOT/etc to /etc: {}", _0)]
     EtcMount(io::Error),
-    #[error(display = "failed to find the Pop_OS-current entry in systemd-boot's efi loaders")]
+    #[error("failed to find the Pop_OS-current entry in systemd-boot's efi loaders")]
     MissingCurrentEntry,
-    #[error(display = "attempted an upgrade, but the upgrade mode was not set")]
+    #[error("attempted an upgrade, but the upgrade mode was not set")]
     ModeNotSet,
-    #[error(display = "systemd-boot loader conf error: {}", _0)]
+    #[error("systemd-boot loader conf error: {}", _0)]
     SystemdBootConf(systemd_boot_conf::Error),
-    #[error(display = "failed to remove upgrade flag from recovery.conf: {}", _0)]
+    #[error("failed to remove upgrade flag from recovery.conf: {}", _0)]
     UpgradeFlag(io::Error),
 }
 

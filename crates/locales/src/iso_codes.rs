@@ -2,8 +2,7 @@ use super::get_default;
 use gettextrs::*;
 use std::env;
 
-use crate::iso3166_1::Country;
-use crate::iso639::Language;
+use crate::{iso3166_1::Country, iso639::Language};
 
 /// Fetch the ISO 639 name of a language code.
 pub fn get_language_name(code: &str) -> Option<&'static str> {
@@ -20,7 +19,9 @@ pub fn get_language_name_translated(code: &str) -> Option<String> {
     if let Some(locale) = get_default(code) {
         env::set_var("LANGUAGE", locale);
     }
-    setlocale(LocaleCategory::LcAll, "");
+    unsafe {
+        setlocale(LocaleCategory::LcAll, "");
+    }
 
     let result = get_language_name(code).map(|language_name| dgettext("iso_639_3", language_name));
 
@@ -38,9 +39,7 @@ pub fn get_country_name(code: &str) -> Option<&'static str> {
 }
 
 /// Get a country code from an ISO 3166 country code.
-pub fn get_country(code: &str) -> Option<&'static Country> {
-    Country::from_alpha_2(code)
-}
+pub fn get_country(code: &str) -> Option<&'static Country> { Country::from_alpha_2(code) }
 
 /// Get the country name translated into the given language code.
 pub fn get_country_name_translated(country_code: &str, lang_code: &str) -> Option<String> {
@@ -50,7 +49,9 @@ pub fn get_country_name_translated(country_code: &str, lang_code: &str) -> Optio
             env::set_var("LANGUAGE", locale);
         }
 
-        setlocale(LocaleCategory::LcAll, "");
+        unsafe {
+            setlocale(LocaleCategory::LcAll, "");
+        }
         let result = dgettext("iso_3166", country_name);
 
         match current_lang {

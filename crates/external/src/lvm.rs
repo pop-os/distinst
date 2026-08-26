@@ -1,7 +1,6 @@
 use super::*;
 use misc::{concat_osstr, device_maps, read_dirs};
-use proc_mounts::{MOUNTS, SWAPS};
-use rand::{self, distributions::Alphanumeric, Rng};
+use rand::{self, RngExt, distr::Alphanumeric};
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
@@ -13,8 +12,8 @@ use std::{
 use sys_mount::{swapoff, unmount, UnmountFlags};
 
 pub fn deactivate_devices<P: AsRef<Path>>(devices: &[P]) -> io::Result<()> {
-    let mounts = MOUNTS.read().expect("failed to get mounts in deactivate_devices");
-    let swaps = SWAPS.read().expect("failed to get swaps in deactivate_devices");
+    let mounts = proc_mounts::MountList::new().expect("failed to get mounts in deactivate_devices");
+    let swaps = proc_mounts::SwapList::new().expect("failed to get swaps in deactivate_devices");
     let umount = move |vg: &str| -> io::Result<()> {
         for lv in lvs(vg)? {
             if let Some(mount) = mounts.get_mount_by_source(&lv) {
@@ -118,7 +117,7 @@ pub fn generate_unique_id(prefix: &str, exclude_hashes: &[u64]) -> io::Result<St
     }
 
     loop {
-        let id: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).collect();
+        let id: String = rand::rng().sample_iter(&Alphanumeric).take(5).map(|byte| byte as char).collect();
         let id = [prefix, "_", &id].concat();
         if !check_uniqueness(&id, exclude_hashes) {
             continue;

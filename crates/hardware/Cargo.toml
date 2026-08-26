@@ -18,7 +18,7 @@ distinst-utils = { path = "../utils" }
 dbus = "0.9"
 os-release = "0.1.0"
 proc-modules = "0.1.0"
-log = "0.4.8"
+log = "0.4.34"
 
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
-raw-cpuid = "9.0"
+raw-cpuid = "11.6"

@@ -5,9 +5,6 @@ extern crate distinst_bootloader as bootloader;
 extern crate distinst_external_commands as external_;
 extern crate distinst_utils as misc;
 extern crate envfile;
-extern crate failure;
-#[macro_use]
-extern crate failure_derive;
 extern crate fstab_generate;
 extern crate itertools;
 extern crate libc;
@@ -23,6 +20,8 @@ extern crate rayon;
 extern crate sys_mount;
 extern crate sysfs_class;
 extern crate tempdir;
+#[macro_use]
+extern crate thiserror;
 
 mod config;
 mod error;

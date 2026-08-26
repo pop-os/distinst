@@ -25,16 +25,12 @@ extern crate apt_cli_wrappers;
 extern crate bitflags;
 #[macro_use]
 extern crate cascade;
-extern crate err_derive;
 #[macro_use]
 extern crate derive_more;
 extern crate dirs;
 pub extern crate distinst_timezones as timezones;
 extern crate distinst_utils as misc;
 extern crate envfile;
-extern crate failure;
-#[macro_use]
-extern crate failure_derive;
 extern crate fern;
 #[macro_use]
 extern crate fomat_macros;
@@ -181,7 +177,7 @@ fn mount_efi(efi_id: &str, target_dir: &Path) -> anyhow::Result<UnmountDrop<Moun
             .context("failed to create target directory for EFI mount")?;
     }
 
-    Mount::new(&efi_path, target_dir, "vfat", MountFlags::empty(), None)
+    Mount::builder().fstype("vfat").mount(&efi_path, target_dir)
         .context("failed to mount EFI partition")
         .map(|mount| mount.into_unmount_drop(UnmountFlags::DETACH))
 }

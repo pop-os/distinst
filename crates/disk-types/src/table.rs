@@ -8,11 +8,11 @@ pub enum PartitionTable {
 }
 
 /// A possible error when validating the partition table.
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum PartitionTableError {
-    #[error(display = "primary partitions exceeded on partition table")]
+    #[error("primary partitions exceeded on partition table")]
     PrimaryPartitionsExceeded,
-    #[error(display = "partition table not found")]
+    #[error("partition table not found")]
     NotFound,
 }
 
