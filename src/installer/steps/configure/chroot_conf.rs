@@ -597,6 +597,26 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
         Ok(())
     }
 
+    pub fn swapfile(&self, root_disk_size_mib: u64) -> io::Result<()> {
+        let swapfile_capacity_mib = {
+            let mut sysinfo = sysinfo::System::new();
+            sysinfo.refresh_memory();
+            let max_swapfile = sysinfo.total_memory() / 1048576 * 10 / 25;
+            let disk_limit = root_disk_size_mib - 20480;
+            max_swapfile.min(disk_limit).max(4096)
+        };
+
+        // Try to use fallocate to create the swapfile. Fallback to dd if that fails.
+        let mut size = format!("{swapfile_capacity_mib}MiB");
+        if self.chroot.command("fallocate", ["-l", size.as_str(), "/swapfile"]).run().is_err() {
+            size = format!("count={swapfile_capacity_mib}");
+            self.chroot.command("dd", ["if=/dev/zero", "of=/swapfile", "bs=1MiB", size.as_str()]).run()?;
+        }
+
+        self.chroot.command("chmod", ["600", "/swapfile"]).run()?;
+        self.chroot.command("mkswap", ["-U", "clear", "/swapfile"]).run()
+    }
+
     pub fn timezone(&self, region: &Region) -> io::Result<()> {
         self.chroot.command("rm", &["/etc/timezone"]).run()?;
 

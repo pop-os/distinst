@@ -79,7 +79,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
     let install_pkgs = &mut cascade! {
         Vec::with_capacity(32);
-        ..extend_from_slice(distribution::debian::get_bootloader_packages(&iso_os_release)?);
+        ..extend_from_slice(distribution::debian::get_bootloader_packages(iso_os_release)?);
     };
 
     callback(5);
@@ -273,6 +273,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         let netresolv = chroot.netresolve();
         let locale = chroot.generate_locale(&config.lang);
         let kernel_copy = chroot.kernel_copy();
+        let swapfile = chroot.swapfile(disks.root_disk_size_mib());
 
         let timezone = if let Some(tz) = region { chroot.timezone(tz) } else { Ok(()) };
 
@@ -303,7 +304,8 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
             apt_install => "error installing packages";
             kernel_copy => "error copying kernel from casper to chroot";
             timezone => "error setting timezone";
-            useradd => "error creating user account"
+            useradd => "error creating user account";
+            swapfile => "failed to create /swapfile"
         }
 
         callback(70);

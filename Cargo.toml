@@ -64,6 +64,7 @@ derive_more = { version = "2.1.1", features = ["full"] }
 anyhow = "1.0.104"
 bstr = "1.13.1"
 thiserror = "2.0.20"
+sysinfo = "0.38.4"
 
 [profile.release]
 debug = true

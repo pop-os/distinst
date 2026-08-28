@@ -1,16 +1,12 @@
 use self::FileSystem::*;
 use super::bitflags::FileSystemSupport;
+use crate::{disks::Disks, errors::IntoIoResult, external::generate_unique_id, misc::hasher};
 use disk_types::{BlockDeviceExt, FileSystem, PartitionExt};
-use crate::disks::{Disks};
-use crate::errors::IntoIoResult;
-use crate::external::generate_unique_id;
+use disks::SectorExt;
 use fstab_generate::BlockInfo;
-use crate::misc::hasher;
 use partition_identity::PartitionID;
 use std::{
-    borrow::Cow,
-    ffi::{OsStr, OsString},
-    io,
+    borrow::Cow, ffi::{OsStr, OsString}, io, path::Path,
 };
 
 pub trait InstallerDiskOps: Sync {
@@ -18,16 +14,24 @@ pub trait InstallerDiskOps: Sync {
     fn generate_fstabs(&self) -> (OsString, OsString);
 
     /// Find the root partition's block info from this disks object.
-    fn get_block_info_of(&self, mount: &str) -> io::Result<BlockInfo>;
+    fn get_block_info_of(&self, mount: &str) -> io::Result<BlockInfo<'_>>;
 
     /// Reports file systems that need to be supported in the install.
     fn get_support_flags(&self) -> FileSystemSupport;
+
+    /// Root disk size in MiB
+    fn root_disk_size_mib(&self) -> u64;
 }
 
 impl InstallerDiskOps for Disks {
+    fn root_disk_size_mib(&self) -> u64 {
+        let root_disk = self.get_disk_with_mount("/").unwrap();
+        root_disk.get_logical_block_size() * root_disk.get_sectors() / 1048576
+    }
+
     /// Generates the crypttab and fstab files in memory.
     fn generate_fstabs(&self) -> (OsString, OsString) {
-        let &Disks { ref logical, ref physical, .. } = self;
+        let Disks { ref logical, ref physical, .. } = self;
 
         info!("generating /etc/crypttab & /etc/fstab in memory");
         let mut crypttab = OsString::with_capacity(1024);
@@ -62,7 +66,7 @@ impl InstallerDiskOps for Disks {
                         (true, None) => Cow::Borrowed(OsStr::new("none")),
                         (false, None) => Cow::Borrowed(OsStr::new("/dev/urandom")),
                         (true, Some(_key)) => unimplemented!(),
-                        (false, Some(&(_, ref key))) => {
+                        (false, Some((_, ref key))) => {
                             let path = key
                                 .clone()
                                 .expect("should have been populated")
@@ -108,7 +112,7 @@ impl InstallerDiskOps for Disks {
                 }
             } else if partition.is_swap() {
                 if is_unencrypted {
-                    match PartitionID::get_uuid(&partition.get_device_path()) {
+                    match PartitionID::get_uuid(partition.get_device_path()) {
                         Some(uuid) => {
                             let unique_id = generate_unique_id("cryptswap", &swap_uuids)
                                 .unwrap_or_else(|_| "cryptswap".into());
@@ -119,11 +123,12 @@ impl InstallerDiskOps for Disks {
                             crypttab.push(" UUID=");
                             crypttab.push(&uuid.id);
                             crypttab.push(
-                                " /dev/urandom swap,plain,offset=1024,cipher=aes-xts-plain64,size=512\n",
+                                " /dev/urandom \
+                                 swap,plain,offset=1024,cipher=aes-xts-plain64,size=512\n",
                             );
 
                             fstab.push(
-                                &["/dev/mapper/", &unique_id, "  none  swap  defaults  0  0\n"]
+                                ["/dev/mapper/", &unique_id, "  none  swap  sw,pri=10  0  0\n"]
                                     .concat(),
                             );
                         }
@@ -134,12 +139,16 @@ impl InstallerDiskOps for Disks {
                     }
                 } else {
                     fstab.push(partition.get_device_path());
-                    fstab.push("  none  swap  defaults  0  0\n");
+                    fstab.push("  none  swap  sw,pri=10  0  0\n");
                 }
             } else if let Some(blockinfo) = partition.get_block_info() {
                 blockinfo.write_entry(&mut fstab);
             }
         }
+
+        // Add swapfile to fstab
+        fstab.push(Path::new("/swapfile"));
+        fstab.push("  none  swap  sw,pri=10  0  0\n");
 
         info!("generated the following crypttab data:\n{}", crypttab.to_string_lossy(),);
 
@@ -150,7 +159,7 @@ impl InstallerDiskOps for Disks {
         (crypttab, fstab)
     }
 
-    fn get_block_info_of(&self, path: &str) -> io::Result<BlockInfo> {
+    fn get_block_info_of(&self, path: &str) -> io::Result<BlockInfo<'_>> {
         self.get_partitions()
             .filter_map(|part| part.get_block_info())
             .find(|entry| entry.mount() == path)
