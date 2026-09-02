@@ -306,11 +306,8 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     pub fn initramfs_disable(&self) -> io::Result<()> {
-        if !self.chroot.path.join("usr/sbin/update-initramfs").exists() {
-            return Ok(());
-        }
-        
         info!("symlinking update-initramfs to true for duration of initial setup");
+
         self.chroot.command("sh", &["-c", "mv /usr/sbin/update-initramfs /usr/sbin/update-initramfs.bak"])
             .run()
             .with_context(|err| format!("failed to migrate `update-initramfs`: {}", err))?;
@@ -321,10 +318,6 @@ impl<'a> ChrootConfigurator<'a> {
     }
 
     pub fn initramfs_reenable(&self) -> io::Result<()> {
-        if !self.chroot.path.join("usr/sbin/update-initramfs").exists() {
-            return Ok(());
-        }
-        
         info!("re-enabling update-initramfs");
         self.chroot.command("sh", &["-c", "rm /usr/sbin/update-initramfs"])
             .run()
@@ -616,6 +609,13 @@ options {2} boot=casper hostname=recovery userfullname=Recovery username=recover
 
         let args: &[&str] = &[];
         self.chroot.command("ln", args).arg(region.path()).arg("/etc/timezone").run()
+    }
+
+    pub fn update_initramfs(&self) -> io::Result<()> {
+        self.chroot
+            .command("update-initramfs", &["-u"])
+            .run()
+            .with_context(|why| format!("failed to update initramfs: {}", why))
     }
 }
 
