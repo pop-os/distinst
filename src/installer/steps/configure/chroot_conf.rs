@@ -76,7 +76,7 @@ impl<'a> ChrootConfigurator<'a> {
         // This test must not use /proc or /sys for detection since the installer can run inside a
         // chroot where those come from the host environment.
         let has_nvidia = Path::new("/var/lib/dkms/nvidia").exists();
-        let nvidia_boot_options = if has_nvidia { "nvidia-drm.modeset=1" } else { "" };
+        let nvidia_boot_options = if has_nvidia { " nvidia-drm.modeset=1" } else { "" };
 
         let result = self
             .chroot
@@ -86,7 +86,7 @@ impl<'a> ChrootConfigurator<'a> {
                     "--esp-path",
                     "/boot/efi",
                     "--add-options",
-                    &format!("{BOOT_OPTIONS} {nvidia_boot_options} {luks_options}"),
+                    &format!("{BOOT_OPTIONS}{nvidia_boot_options}{luks_options}"),
                     "--loader",
                     "--manage-only",
                     "--force-update",

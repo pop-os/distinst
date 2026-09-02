@@ -327,7 +327,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         let luks_options_: String;
         let luks_options = if let Some(luks_uuid) = luks_uuid {
-            luks_options_ = format!("rd.luks.uuid={}", luks_uuid.id);
+            luks_options_ = format!(" rd.luks.uuid={}", luks_uuid.id);
             &luks_options_
         } else {
             ""
