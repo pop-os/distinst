@@ -353,16 +353,10 @@ impl<'a> ChrootConfigurator<'a> {
 
         let keyboard_file = self.chroot.path.join("etc/default/keyboard");
         let mut file = misc::create(&keyboard_file)?;
-        writeln!(&mut file, "XKBLAYOUT={}\nBACKSPACE=guess", config.keyboard_layout)
+        writeln!(&mut file, "XKBMODEL={}\nXKBLAYOUT={}\nBACKSPACE=guess", config.keyboard_model.as_deref().unwrap_or("pc105"), config.keyboard_layout)
             .with_context(|err| {
                 format!("failed to write keyboard layout to /etc/default/keyboard: {}", err)
             })?;
-
-        if let Some(model) = config.keyboard_model.as_deref() {
-            writeln!(&mut file, "XKBMODEL={}", model).with_context(|err| {
-                format!("failed to write keyboard layout to /etc/default/keyboard: {}", err)
-            })?;
-        }
 
         if let Some(variant) = config.keyboard_variant.as_deref() {
             writeln!(&mut file, "XKBVARIANT={}", variant).with_context(|err| {
