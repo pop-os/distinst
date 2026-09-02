@@ -106,7 +106,7 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
                     &mount_dir.join("etc/dracut.conf.d/luks.conf"),
                     [
                         b"add_dracutmodules+=\" crypt lvm mdraid plymouth \"\n",
-                        b"install_items+=\" /etc/crypttab\"\n",
+                        b"install_items+=\" /etc/crypttab \"\n",
                         dracut_cmdline.as_bytes()]
                 );
             }
