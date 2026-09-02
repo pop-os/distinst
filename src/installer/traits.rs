@@ -6,7 +6,10 @@ use disks::SectorExt;
 use fstab_generate::BlockInfo;
 use partition_identity::PartitionID;
 use std::{
-    borrow::Cow, ffi::{OsStr, OsString}, io, path::Path,
+    borrow::Cow,
+    ffi::{OsStr, OsString},
+    io,
+    path::Path,
 };
 
 pub trait InstallerDiskOps: Sync {
@@ -25,8 +28,25 @@ pub trait InstallerDiskOps: Sync {
 
 impl InstallerDiskOps for Disks {
     fn root_disk_size_mib(&self) -> u64 {
-        let root_disk = self.get_disk_with_mount("/").unwrap();
-        root_disk.get_logical_block_size() * root_disk.get_sectors() / 1048576
+        let target = Path::new("/");
+
+        for disk in &self.physical {
+            for partition in &disk.partitions {
+                if partition.target.as_deref().is_some_and(|path| path == target) {
+                    return disk.get_logical_block_size() * partition.get_sectors() / 1048576;
+                }
+            }
+        }
+
+        for disk in &self.logical {
+            for partition in &disk.partitions {
+                if partition.target.as_deref().is_some_and(|path| path == target) {
+                    return disk.get_logical_block_size() * partition.get_sectors() / 1048576;
+                }
+            }
+        }
+
+        0
     }
 
     /// Generates the crypttab and fstab files in memory.
