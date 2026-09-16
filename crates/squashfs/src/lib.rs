@@ -152,6 +152,17 @@ pub fn extract<P: AsRef<Path>, Q: AsRef<Path>, F: FnMut(i32)>(
 
     let mut command = match format {
         ExtractFormat::Squashfs => {
+            // Prevent extraction failure from OOM.
+            _ = Command::new("sysctl").args([
+                "-w", "vm.swappiness=1",
+                "vm.vfs_cache_pressure=800",
+                "vm.dirty_ratio=5",
+                "vm.dirty_background_ratio=2",
+                "vm.min_free_kbytes=6553"
+            ]).status();
+
+            _ = std::fs::write("/proc/sys/vm/drop_caches", "3");
+            
             let mut command = Command::new("unsquashfs");
             command.arg("-f").arg("-d").arg(directory).arg(archive);
             command
