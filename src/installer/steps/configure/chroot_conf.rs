@@ -561,7 +561,7 @@ OEM_MODE=0
             r#"title {0} recovery
 linux /EFI/{1}/vmlinuz.efi
 initrd /EFI/{1}/initrd.gz
-options {2} boot=casper hostname=recovery userfullname=Recovery username=recovery live-media-path=/{3} live-media=/dev/disk/by-partuuid/{4} noprompt {5}
+options {2} hostname=recovery userfullname=Recovery username=recovery rd.live.image rd.live.squashimg=filesystem.squashfs rd.live.overlay rd.live.dir=/{3} root=live:PARTUUID={4} noprompt {5}
 "#,
             name,
             recovery,
