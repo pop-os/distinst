@@ -114,7 +114,7 @@ impl InstallerDiskOps for Disks {
                                             crypttab.push(&uuid.id);
                                             crypttab.push(" ");
                                             crypttab.push(&password);
-                                            crypttab.push(" luks\n");
+                                            crypttab.push(" luks,discard\n");
                                         }
                                     }
                                     None => warn!(
